@@ -1,0 +1,74 @@
+<span style="display: flex;justify-content: center;">example how to embed a c64 prg into an existing html page</span> 
+
+<!-- vc64web-block start -->
+<script src="js/vc64web_player.js"></script>
+
+<style>
+	body {
+        background-color: darkgray;
+	    color: white;
+	}	
+    #player_container {
+        background-color: darkgray;
+    }
+    #vc64web {
+        border:none;
+    }
+    .player_icon_btn {
+        background-color: transparent;
+        color: white;
+        margin-right: 15px;
+        cursor: pointer;
+    }
+    .btn_play {
+        color: #2575ff;
+        cursor: pointer;
+    }
+
+    @media (orientation: landscape) {
+        #container {
+            width: 60vw;
+        }
+    }    
+    @media (orientation: portrait) {
+        #container {
+            width: 99vw;
+        }
+    }
+
+    /* uncomment to disable the players icon control bar at the bottom
+    #player_container div {
+        display: none !important;
+    }
+    */
+</style>
+
+<div  style="display: flex;align-items: center;justify-content: center;">
+    <div id="container">
+        <img style="width:100%" src="https://vc64web.github.io/doc/images/wolfling.gif" 
+            ontouchstart="touched=true"
+            onclick="
+            vc64web_player.vc64web_url='./';  //the emulator files are in the same folder as the run.html
+            let touch=(typeof touched!='undefined')?touched:false;touched=false;
+            let config={
+                touch:touch,
+                openROMS:true,
+                navbar:false,   //you can also enable this and disable the players toolbar (see styles section above)
+                wide:true,
+                border:0.3,
+                port2:true,
+                //port1:true,
+                //SID: 8580,
+                //_2ndSID:d420,
+                //dark: false,
+                //dialog_on_missing_roms: false,
+                //dialog_on_disk: false,
+                url:'doc/media/wolfling14.prg'
+            }; 
+            vc64web_player.load(this,encodeURIComponent(JSON.stringify(config)));
+            return false;"		
+        />
+    </div>
+</div>
+<br>
+<!-- vc64web-block end -->
