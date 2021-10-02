@@ -58,4 +58,4 @@ public:
 };
 
 #define suspended \
-for (AutoResume _ar(this); _ar.active; _ar.active = false)
+/*for (AutoResume _ar(this); _ar.active; _ar.active = false)*/

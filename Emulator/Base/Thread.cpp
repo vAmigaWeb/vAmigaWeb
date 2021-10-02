@@ -16,15 +16,21 @@ Thread::Thread()
 {
     // Initialize the sync timer
     targetTime = util::Time::now();
-    
+
+
+#ifndef __EMSCRIPTEN__    
     // Start the thread and enter the main function
     thread = std::thread(&Thread::main, this);
+#endif
 }
 
 Thread::~Thread()
 {
+#ifndef __EMSCRIPTEN__    
+
     // Wait until the thread has terminated
     join();
+#endif
 }
 
 template <> void
@@ -98,7 +104,7 @@ void
 Thread::main()
 {
     debug(RUN_DEBUG, "main()\n");
-          
+#ifndef __EMSCRIPTEN__    
     while (++loopCounter) {
            
         if (isRunning()) {
@@ -205,6 +211,7 @@ Thread::main()
             nonstopClock.restart();
         }
     }
+#endif
 }
 
 void
@@ -272,6 +279,8 @@ Thread::run(bool blocking)
     // Never call this function inside the emulator thread
     assert(!isEmulatorThread());
     
+    printf("**** State %s\n",ExecutionStateEnum::key(state));
+
     if (!isRunning()) {
         
         // Throw an exception if the emulator is not ready to power on
@@ -280,6 +289,8 @@ Thread::run(bool blocking)
         // Request a state change and wait until the new state has been reached
         changeStateTo(EXEC_RUNNING, blocking);
     }
+
+    printf("**** State %s\n",ExecutionStateEnum::key(state));
 }
 
 void
@@ -290,6 +301,8 @@ Thread::pause(bool blocking)
     // Never call this function inside the emulator thread
     assert(!isEmulatorThread());
     
+    printf("**** State %s\n",ExecutionStateEnum::key(state));
+
     if (isRunning()) {
                 
         // Request a state change and wait until the new state has been reached
@@ -331,21 +344,101 @@ void
 Thread::changeStateTo(ExecutionState requestedState, bool blocking)
 {
     newState = requestedState;
-    if (blocking) while (state != newState) { };
+//    if (blocking) while (state != newState) { };
+
+    printf("**** State change %s -> %s\n",ExecutionStateEnum::key(state),ExecutionStateEnum::key(newState));
+
+        // Are we requested to change state?
+        while (newState != state) {
+            
+            if (state == EXEC_OFF && newState == EXEC_PAUSED) {
+                
+                AmigaComponent::powerOn();
+                state = newState;
+                break;
+            }
+
+            if (state == EXEC_OFF && newState == EXEC_RUNNING) {
+                
+                AmigaComponent::powerOn();
+                AmigaComponent::run();
+                state = newState;
+                break;
+            }
+
+            if (state == EXEC_PAUSED && newState == EXEC_OFF) {
+                
+                AmigaComponent::powerOff();
+                state = newState;
+                break;
+            }
+
+            if (state == EXEC_PAUSED && newState == EXEC_RUNNING) {
+                
+                AmigaComponent::run();
+                state = newState;
+                break;
+            }
+
+            if (state == EXEC_RUNNING && newState == EXEC_OFF) {
+                
+                AmigaComponent::pause();
+                AmigaComponent::powerOff();
+                state = newState;
+                break;
+            }
+
+            if (state == EXEC_RUNNING && newState == EXEC_PAUSED) {
+                
+                AmigaComponent::pause();
+                state = newState;
+                break;
+            }
+            
+            if (newState == EXEC_HALTED) {
+                
+                AmigaComponent::halt();
+                state = newState;
+                return;
+            }
+            
+            // Invalid state transition
+            fatalError;
+            break;
+        }
 }
 
 void
 Thread::changeWarpTo(bool value, bool blocking)
 {
     newWarpMode = value;
-    if (blocking) while (warpMode != newWarpMode) { };
+//    if (blocking) while (warpMode != newWarpMode) { };
+    printf("**** warp change %u -> %u\n",warpMode,newWarpMode);
+        
+    // Are we requested to enter or exit warp mode?
+    while (newWarpMode != warpMode) {
+        
+        AmigaComponent::warpOnOff(newWarpMode);
+        warpMode = newWarpMode;
+        break;
+    }
 }
 
 void
 Thread::changeDebugTo(bool value, bool blocking)
 {
     newDebugMode = value;
-    if (blocking) while (debugMode != newDebugMode) { };
+//    if (blocking) while (debugMode != newDebugMode) { };
+    printf("**** debug change %u -> %u\n",debugMode,newDebugMode);
+
+
+    // Are we requested to enter or exit warp mode?
+    while (newDebugMode != debugMode) {
+        
+        AmigaComponent::debugOnOff(newDebugMode);
+        debugMode = newDebugMode;
+        break;
+    }
 }
 
 void
