@@ -68,14 +68,14 @@
     </style>
   </head>
   <body data-theme="dark">
-    <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><strong>booting into Virtual C64 WebEdition...</strong></center></figure>
+    <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><strong>booting into vAmiga WebEdition...</strong></center></figure>
     <div class="emscripten" id="status">Downloading...</div>
     <div class="emscripten">
       <progress value="0" max="100" id="progress" hidden=1></progress>  
     </div>
 
     <div id="div_canvas" class="emscripten_border">
-      <canvas class="emscripten" width="326" height="205" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+      <canvas class="emscripten" width="724" height="568" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     </div>
     <!-- virtual keyboard-->
     <!-- 
@@ -868,7 +868,14 @@ goes into edit mode which takes you right back to here ...
       var spinnerElement = document.getElementById('spinner');
  
       var Module = {
-        preRun: [function () {ENV.SDL_EMSCRIPTEN_KEYBOARD_ELEMENT = "#canvas";}],
+        preRun: [function () {
+            ENV.SDL_EMSCRIPTEN_KEYBOARD_ELEMENT = "#canvas";
+            //SDL patch to stop SDL consuming events as they make trouble 
+            window.registerMouseEventCallback=function(){};
+            window.registerKeyEventCallback=function(){};
+            window.listenOnce=function(){};
+        }
+      ],
         postRun: [InitWrappers],
         print: (function() {
           var outputElement = document.getElementById('output');
@@ -978,7 +985,6 @@ goes into edit mode which takes you right back to here ...
         //$('[data-toggle="tooltip"]').tooltip();
         $("body").tooltip({selector: '[data-toggle="tooltip"]'});
       });
-
     </script>
     {{{ SCRIPT }}}
   </body>

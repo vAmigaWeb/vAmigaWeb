@@ -178,15 +178,15 @@ private:
     
 private:
     
-    void execute() override;
-
     
     //
     // Configuring
     //
     
 public:
-        
+    
+    void execute() override;
+    
     // Gets a single configuration item
     i64 getConfigItem(Option option) const;
     i64 getConfigItem(Option option, long id) const;

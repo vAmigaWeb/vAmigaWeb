@@ -9,6 +9,7 @@
 #include "Amiga.h"
 #include "AmigaTypes.h"
 #include "RomFile.h"
+#include "ADFFile.h"
 
 #include <emscripten.h>
 #include <SDL2/SDL.h>
@@ -100,10 +101,10 @@ int emu_width  = HPIXELS; //TEX_WIDTH; //NTSC_PIXELS; //428
 int emu_height = VPIXELS; //PAL_RASTERLINES; //284
 int eat_border_width = 0;
 int eat_border_height = 0;
-int xOff = 12 + eat_border_width;
-int yOff = 12 + eat_border_height;
-int clipped_width  = HPIXELS -12 -24 -2*eat_border_width; //392
-int clipped_height = VPIXELS -12 -24 -2*eat_border_height; //248
+int xOff = /*12*/0 + eat_border_width;
+int yOff = /*12*/0 + eat_border_height;
+int clipped_width  = HPIXELS /*-12 -24*/ -2*eat_border_width; //392
+int clipped_height = VPIXELS /*-12 -24*/ -2*eat_border_height; //248
 
 int bFullscreen = false;
 
@@ -152,7 +153,7 @@ int eventFilter(void* thisC64, SDL_Event* event) {
     //C64 *c64 = (C64 *)thisC64;
     switch(event->type){
       case SDL_WINDOWEVENT:
-        //PrintEvent(event);
+        PrintEvent(event);
         if (event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
         {//zuerst
             window_surface = SDL_GetWindowSurface(window);
@@ -180,6 +181,7 @@ int eventFilter(void* thisC64, SDL_Event* event) {
         /* on some browsers (chrome, safari) we have to resume Audio on users action 
            https://developers.google.com/web/updates/2017/09/autoplay-policy-changes
         */
+        
         EM_ASM({
             if (typeof Module === 'undefined'
                 || typeof Module.SDL2 == 'undefined'
@@ -197,7 +199,6 @@ int eventFilter(void* thisC64, SDL_Event* event) {
     return 1;
 }
 
- 
 int sum_samples=0;
 double last_time = 0.0 ;
 unsigned int executed_frame_count=0;
@@ -206,8 +207,33 @@ double start_time=emscripten_get_now();
 unsigned int rendered_frame_count=0;
 unsigned int frames=0, seconds=0;
 // The emscripten "main loop" replacement function.
+void draw_one_frame_into_SDL_noise(void *thisAmiga) 
+{
+
+  Amiga *amiga = (Amiga *)thisAmiga;
+
+  Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getNoise(); //screenBuffer();
+ 
+//  int surface_width = window_surface->w;
+//  int surface_height = window_surface->h;
+
+//  SDL_RenderClear(renderer);
+  SDL_Rect SrcR;
+  SrcR.x = xOff;
+  SrcR.y = yOff;
+  SrcR.w = clipped_width;
+  SrcR.h = clipped_height;
+  SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*emu_width*SrcR.y) + SrcR.x*4, 4*emu_width);
+
+  SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
+
+  SDL_RenderPresent(renderer);
+
+  return;
+}
 void draw_one_frame_into_SDL(void *thisAmiga) 
 {
+
   //this method is triggered by
   //emscripten_set_main_loop_arg(em_arg_callback_func func, void *arg, int fps, int simulate_infinite_loop) 
   //which is called inside te c64.cpp
@@ -233,7 +259,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     int i=25;
     while(amiga->inWarpMode() == true && i>0)
     {
-      amiga->cpu.execute();
+      amiga->execute();
       i--;
     }
     start_time=now;
@@ -270,7 +296,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     executed_frame_count++;
     total_executed_frame_count++;
 
-    amiga->cpu.execute();
+    amiga->execute();
   }
 
   rendered_frame_count++;  
@@ -280,9 +306,16 @@ void draw_one_frame_into_SDL(void *thisAmiga)
  //         return;
       draw_one_frame(); // to gather joystick information for example 
   });
- 
+  
   Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getStableBuffer().data; //screenBuffer();
 
+//  Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getNoise(); //screenBuffer();
+/*  for(unsigned int i=0;i<32;i++)
+  {
+    printf("%u,", texture[i]);
+  }
+  printf("\n");
+*/
 //  int surface_width = window_surface->w;
 //  int surface_height = window_surface->h;
 
@@ -297,6 +330,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
 
   SDL_RenderPresent(renderer);
+
 }
 
 
@@ -318,7 +352,6 @@ void MyAudioCallback(void*  thisAmiga,
   */  
     sum_samples += n;
 }
-
 
 extern "C" void wasm_create_renderer(char* name)
 { 
@@ -368,7 +401,7 @@ extern "C" void wasm_create_renderer(char* name)
   SDL_RenderSetIntegerScale(renderer, SDL_TRUE);
 
   screen_texture = SDL_CreateTexture(renderer,
-        SDL_PIXELFORMAT_ABGR8888
+        /*SDL_PIXELFORMAT_ARGB32*/ SDL_PIXELFORMAT_ABGR8888 
         , SDL_TEXTUREACCESS_STREAMING,
         emu_width, emu_height);
 
@@ -378,7 +411,6 @@ extern "C" void wasm_create_renderer(char* name)
 void initSDL(void *thisAmiga)
 {
     Amiga *amiga = (Amiga *)thisAmiga;
-
     if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO)==-1)
     {
         printf("Could not initialize SDL:%s\n", SDL_GetError());
@@ -491,14 +523,16 @@ class C64Wrapper {
     c64->loadRom(ROM_VC1541, "roms/1541-II.251968-03.bin");
 */
 
-    try { amiga->isReady(); } catch(...) { amiga->msgQueue.put(ROM_MISSING); }
-    /*
-    EM_ASM({
-      setTimeout(function() {message_handler( $0 );}, 0);
-    }, msg_code[MSG_ROM_MISSING].c_str() );
-*/
+    try { amiga->isReady(); } catch(...) { 
+      printf("***** put missing rom message\n");
+       // amiga->msgQueue.put(ROM_MISSING); 
+        EM_ASM({
+          setTimeout(function() {message_handler( 'MSG_ROM_MISSING' );}, 0);
+        });
+    }
+    
 
-    printf("v4 wrapper calls run on c64->run() method\n");
+    printf("v4 wrapper calls run on vAmiga->run() method\n");
 
     //c64->setTakeAutoSnapshots(false);
     //c64->setWarpLoad(true);
@@ -570,11 +604,11 @@ extern "C" void wasm_key(int code1, int code2, int pressed)
 
   if(pressed==1)
   {
-//    wrapper->amiga->keyboard.pressKey(*new AmigaKey(code1,code2));
+    wrapper->amiga->keyboard.pressKey(*new KeyCode(0x50));
   }
   else
   {
-//    wrapper->amiga->keyboard.releaseKey(*new AmigaKey(code1,code2));
+    wrapper->amiga->keyboard.releaseKey(*new KeyCode(0x50));
   }
 }
 
@@ -586,24 +620,28 @@ extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_d
     {
       printf("scheduleKeyPress ( 31, %d ) \n", frame_delay);
 //      wrapper->amiga->keyboard.scheduleKeyPress(31, frame_delay);   //pressRestore();
+      wrapper->amiga->keyboard.pressKey(*new KeyCode(0x50));
     }
     else
     {
       printf("scheduleKeyRelease ( 31, %d ) \n", frame_delay);
 //      wrapper->amiga->keyboard.scheduleKeyRelease(31, frame_delay);   //releaseRestore();
+      wrapper->amiga->keyboard.releaseKey(*new KeyCode(0x50));
     }
   }
   else if(pressed==1)
   {
     printf("scheduleKeyPress ( %d, %d, %d ) \n", code1, code2, frame_delay);
+      wrapper->amiga->keyboard.pressKey(*new KeyCode(0x50));
 
- //   wrapper->amiga->keyboard.scheduleKeyPress(*new C64Key(code1,code2), frame_delay);
+//    wrapper->amiga->keyboard.scheduleKeyPress(*new AmigaKey(code1,code2), frame_delay);
   }
   else
   {
     printf("scheduleKeyRelease ( %d, %d, %d ) \n", code1, code2, frame_delay);
-
-//    wrapper->amiga->keyboard.scheduleKeyRelease(*new C64Key(code1,code2), frame_delay);
+    wrapper->amiga->keyboard.releaseKey(*new KeyCode(0x50));
+  
+  //  wrapper->amiga->keyboard.scheduleKeyRelease(*new C64Key(code1,code2), frame_delay);
   }
 }
 
@@ -721,6 +759,22 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
     return "";
   }
   bool file_still_unprocessed=true;   
+
+  if (ADFFile::isCompatible(filename)) {    
+    try{
+      printf("try to build ADFFile\n");
+      ADFFile adf = ADFFile(blob, len);
+      auto disk = std::make_unique<Disk>(adf);
+      printf("isADF\n");  
+      wrapper->amiga->df0.insertDisk(std::move(disk));
+      file_still_unprocessed=false;
+    } catch(VAError &exception) {
+      ErrorCode ec=exception.data;
+      printf("%s\n", ErrorCodeEnum::key(ec));
+    }
+  }
+
+
 /*  if (D64File::isCompatible(filename)) {    
     try{
       printf("try to build D64File\n");
@@ -795,7 +849,7 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
       send_message_to_js(ready_msg);    
     }
 
-    const char *rom_type="";
+    const char *rom_type="rom";
 /*    if(rom->isRomBuffer(ROM_TYPE_KERNAL, blob,len))
     {
       rom_type = "kernal_rom";
@@ -1195,6 +1249,9 @@ extern "C" void wasm_configure(char* option, unsigned on)
 
 extern "C" void wasm_print_error(unsigned exception_ptr)
 {
-  string s= std::string(reinterpret_cast<std::exception *>(exception_ptr)->what());
-  printf("uncaught exception %u: %s\n",exception_ptr, s.c_str());
+  if(exception_ptr!=0)
+  {
+    string s= std::string(reinterpret_cast<std::exception *>(exception_ptr)->what());
+    printf("uncaught exception %u: %s\n",exception_ptr, s.c_str());
+  }
 }

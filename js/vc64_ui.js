@@ -1,4 +1,4 @@
-let global_apptitle="c64 - start screen"
+let global_apptitle="vAmiga - start screen"
 let call_param_openROMS=false;
 let call_param_2ndSID=null;
 let call_param_navbar=null;
@@ -24,10 +24,17 @@ const load_script= (url) => {
     });
 }
 
-function ToBase64(u8) 
+function ToBase64_small(u8) 
 {
     return btoa(String.fromCharCode.apply(null, u8));
 }
+
+function ToBase64(u8)
+{
+    return btoa(new Uint8Array(u8)
+      .reduce((data, byte) => data + String.fromCharCode(byte), ''));
+}
+
 
 function FromBase64(str) {
     return atob(str).split('').map(function (c) { return c.charCodeAt(0); });
@@ -288,6 +295,7 @@ async function disk_loading_finished()
 
 function message_handler(msg, data)
 {
+    //console.log('js receives msg: '+msg);
     //UTF8ToString(cores_msg);
     if(msg == "MSG_READY_TO_RUN")
     {
@@ -437,7 +445,7 @@ function load_roms(install_to_core){
     
     var all_fine = true;
     try{
-        var the_rom=loadStoredItem('basic_rom.bin');
+        var the_rom=loadStoredItem('rom.bin');
         if (the_rom==null){
             all_fine=false;
             $("#rom_basic").attr("src", "img/rom_empty.png");
@@ -451,7 +459,7 @@ function load_roms(install_to_core){
             $("#button_delete_basic").show();
         }
 
-        var the_rom=loadStoredItem('kernal_rom.bin');
+/*        var the_rom=loadStoredItem('kernal_rom.bin');
         if (the_rom==null){
             all_fine=false;
             $("#rom_kernal").attr("src", "img/rom_empty.png");
@@ -502,6 +510,7 @@ function load_roms(install_to_core){
             drive_rom.startsWith("Patched") ? "img/rom_patched.png":"img/rom.png");
             $("#button_delete_disk_drive_rom").show();
         }
+        */
     } catch(e){}
     return all_fine;
 }
@@ -774,7 +783,7 @@ function configure_file_dialog(reset=false)
             $("#auto_press_play").prop('checked', auto_press_play);
             $("#auto_run").prop('checked', auto_run);    
 
-            if(file_slot_file_name.match(/[.](prg|t64|crt)$/i))
+            if(file_slot_file_name.match(/[.](prg|t64|crt|adf)$/i))
             {
                 insert_file();
             }
@@ -1824,8 +1833,8 @@ $('.layer').change( function(event) {
         {
             $("#button_run").click();
         }
-        let kernal_rom=JSON.parse(wasm_rom_info()).kernal;
-        var faster_open_roms_installed = kernal_rom.startsWith("mega") || kernal_rom.startsWith("Patched");
+        //let kernal_rom=JSON.parse(wasm_rom_info()).kernal;
+        var faster_open_roms_installed = true; //kernal_rom.startsWith("mega") || kernal_rom.startsWith("Patched");
         
         //the roms differ from cold-start to ready prompt, orig-roms 3300ms and open-roms 250ms   
         var time_since_start=wasm_get_cpu_cycles();
