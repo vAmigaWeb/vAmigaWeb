@@ -448,69 +448,20 @@ function load_roms(install_to_core){
         var the_rom=loadStoredItem('rom.bin');
         if (the_rom==null){
             all_fine=false;
-            $("#rom_basic").attr("src", "img/rom_empty.png");
-            $("#button_delete_basic").hide();
-        }
-        else
-        {
-            $("#rom_basic").attr("src", JSON.parse(wasm_rom_info()).basic.startsWith("mega") ?
-            "img/rom_mega65.png":"img/rom.png");
-        
-            $("#button_delete_basic").show();
-        }
+            $("#rom_kickstart").attr("src", "img/rom_empty.png");
+            $("#kickstart_title").text("empty socket");
 
-/*        var the_rom=loadStoredItem('kernal_rom.bin');
-        if (the_rom==null){
-            all_fine=false;
-            $("#rom_kernal").attr("src", "img/rom_empty.png");
-            $("#button_delete_kernal").hide();
+            $("#button_delete_kickstart").hide();
         }
         else
         {
-            let kernal_title =JSON.parse(wasm_rom_info()).kernal; 
-            $("#rom_kernal").attr("src", 
-            kernal_title.startsWith("mega") ? "img/rom_mega65.png":
-            kernal_title.startsWith("Patched") ? "img/rom_patched.png":
-            "img/rom.png");
-            $("#button_delete_kernal").show();
-        }
+            let rom_infos=JSON.parse(wasm_rom_info());
+            $("#rom_kickstart").attr("src", rom_infos.hasRom.startsWith("true") ?
+            "img/rom_patched.png":"img/rom.png");
+            $("#kickstart_title").html(rom_infos.romTitle+"<br>"+rom_infos.romVersion+"<br>"+rom_infos.romReleased);
 
-        var the_rom=loadStoredItem('char_rom.bin');
-        if (the_rom==null){
-            all_fine=false;
-            $("#rom_charset").attr("src", "img/rom_empty.png");
-            $("#button_delete_char_rom").hide();
+            $("#button_delete_kickstart").show();
         }
-        else
-        {
-            $("#rom_charset").attr("src", 
-            //wasm_rom_classifier(the_rom, the_rom.byteLength).startsWith("mega") ?
-            JSON.parse(wasm_rom_info()).charset.startsWith("mega") ?
-            "img/rom_mega65.png":"img/rom.png");
-            $("#button_delete_char_rom").show();
-        }
-
-        var the_rom=loadStoredItem('vc1541_rom.bin'); 
-        if (the_rom==null){
-            var param_link=get_parameter_link();
-            if( 
-                param_link != null &&
-                param_link.match(/[.](d64|g64)$/i) != null 
-            )
-            {
-                all_fine=false;
-            }            
-            $("#rom_disk_drive").attr("src", "img/rom_empty.png");
-            $("#button_delete_disk_drive_rom").hide();
-        }
-        else
-        {
-            let drive_rom =JSON.parse(wasm_rom_info()).drive_rom; 
-            $("#rom_disk_drive").attr("src", 
-            drive_rom.startsWith("Patched") ? "img/rom_patched.png":"img/rom.png");
-            $("#button_delete_disk_drive_rom").show();
-        }
-        */
     } catch(e){}
     return all_fine;
 }
@@ -2168,14 +2119,7 @@ $('.layer').change( function(event) {
             load_roms(true);
         }, false);
     }
-    bindROMUI('rom_basic', 'button_delete_basic', "basic_rom.bin");
-   
-    bindROMUI('rom_kernal', 'button_delete_kernal', "kernal_rom.bin");
-   
-    bindROMUI('rom_charset', 'button_delete_char_rom', "char_rom.bin");
-   
-    bindROMUI('rom_disk_drive', 'button_delete_disk_drive_rom', "vc1541_rom.bin");
-   
+    bindROMUI('rom_kickstart', 'button_delete_kickstart', "rom.bin");
 
 //---- rom dialog end
 

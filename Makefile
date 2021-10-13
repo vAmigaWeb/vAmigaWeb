@@ -2,11 +2,11 @@ SUBDIRS = Emulator
 
 CXX        = emcc 
 CC         = $(CXX)
-CCFLAGS    = -std=c++17 -O2 -Wall -Wfatal-errors -fexceptions
+CCFLAGS    = -std=c++17 -O3 -Wall -Wfatal-errors -fexceptions
 CPPFLAGS   = -I $(CURDIR) $(addprefix -I, $(shell find $(CURDIR) -type d))
 
 WASM_EXPORTS= -s EXPORTED_RUNTIME_METHODS=['cwrap'] -s EXPORTED_FUNCTIONS="['_main', '_wasm_toggleFullscreen', '_wasm_loadFile', '_wasm_key', '_wasm_joystick', '_wasm_reset', '_wasm_halt', '_wasm_run', '_wasm_take_user_snapshot', '_wasm_create_renderer', '_wasm_set_warp', '_wasm_pull_user_snapshot_file','_wasm_set_borderless', '_wasm_press_play', '_wasm_sprite_info', '_wasm_set_sid_model', '_wasm_cut_layers', '_wasm_rom_info', '_wasm_set_2nd_sid', '_wasm_set_sid_engine', '_wasm_get_cpu_cycles', '_wasm_set_color_palette', '_wasm_schedule_key', '_wasm_peek', '_wasm_poke', '_wasm_export_disk', '_wasm_configure', '_wasm_write_string_to_ser', '_wasm_print_error']"
-LFLAGS= -s USE_SDL=2 $(WASM_EXPORTS) -s DISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=1 -s NO_DISABLE_EXCEPTION_CATCHING -s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=18500 -s LLD_REPORT_UNDEFINED
+LFLAGS= -s USE_SDL=2 $(WASM_EXPORTS) -s DISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=1 -s NO_DISABLE_EXCEPTION_CATCHING -s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=18000 -s LLD_REPORT_UNDEFINED
 #-s NO_DISABLE_EXCEPTION_CATCHING
 #-s DISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=0
 #-s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19306
@@ -67,7 +67,7 @@ publish:
 	cp -r js $(PUBLISH_FOLDER)
 	cp -r css $(PUBLISH_FOLDER)
 	cp -r img $(PUBLISH_FOLDER)
-	cp -r roms $(PUBLISH_FOLDER)
+#cp -r roms $(PUBLISH_FOLDER)
 	cp index.html $(PUBLISH_FOLDER)
 	cp run.html $(PUBLISH_FOLDER)
 	cp sw.js $(PUBLISH_FOLDER)

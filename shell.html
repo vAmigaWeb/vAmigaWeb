@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    <meta name="description" content="cycle exact c64 emulator in html5 / javascript with scene-browser csdb interface. This c64 emulator is compatible to the progressive-web-app (PWA) standard.">
-    <title>vc64web</title>
+    <meta name="description" content="cycle exact vAmiga emulator in html5 / javascript. This Amiga emulator is compatible to the progressive-web-app (PWA) standard.">
+    <title>vAmigaWeb</title>
   
   <link rel="icon" href="img/favicon.ico">
   <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
@@ -257,7 +257,7 @@
             </button>
           </div>
           <div class="modal-body">
-            The emulator needs system ROM files. Please drag the missing files into the empty chip sockets. Or just touch or click the sockets.<br>
+            The emulator needs a kickstart system ROM file. Please drag the missing file into the empty chip socket. Or just touch or click the sockets.<br>
             <br>
             <div class="container mt-4">
             <div class="row my-2">
@@ -268,9 +268,9 @@
   <div class="row no-gutters">
     <div class="col-md-8">
       <div class="card-body">
-        <h5 class="card-title">basic rom</h5>
-        <p class="card-text">(required)</p>
-      <button type="button" id="button_delete_basic" class="btn btn-sm icon">
+        <h5 class="card-title">kickstart rom</h5>
+        <p class="card-text" id="kickstart_title"></p>
+      <button type="button" id="button_delete_kickstart" class="btn btn-sm icon">
         <svg width="1.6em" height="auto" viewBox="0 0 16 16" class="bi bi-trash-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
           <path fill-rule="evenodd" d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z"/>
         </svg>
@@ -278,91 +278,17 @@
       </div>
     </div>
     <div  class="col-md-4">
-      <img id="rom_basic" src="img/rom_empty.png" class="card-img" alt="...">
+      <img id="rom_kickstart" src="img/rom_empty.png" class="card-img" alt="...">
     </div>
 
   </div>
 </div>
               </div> 
 
-              <div id="kernal_basic" class="col mx-2"> 
-<div class="container card mb-3" style="max-width: 540px;">
-  <div class="row no-gutters">
-    <div  class="col-md-4">
-      <img id="rom_kernal" src="img/rom_empty.png" class="card-img" alt="...">
-    </div>
-    <div class="col-md-8">
-      <div class="card-body">
-        <h5 class="card-title">kernal rom</h5>
-        <p class="card-text">(required)</p>
-      <button type="button" id="button_delete_kernal" class="btn btn-sm icon">
-        <svg width="1.6em" height="auto" viewBox="0 0 16 16" class="bi bi-trash-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-          <path fill-rule="evenodd" d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z"/>
-        </svg>
-      </button>
-     
-      </div>
-    </div>
-  </div>
-</div>
-
-              </div>
             
             </div>
-          
-            <div class="row my-2">
-
-              <div class="col mx-2"> 
-<div class="container card mb-3" style="max-width: 540px;">
-  <div class="row no-gutters">
-    <div class="col-md-8">
-      <div class="card-body">
-        <h5 class="card-title">charset rom</h5>
-        <p class="card-text">(required)</p>
-      <button type="button" id="button_delete_char_rom" class="btn btn-sm icon">
-        <svg width="1.6em" height="auto" viewBox="0 0 16 16" class="bi bi-trash-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-          <path fill-rule="evenodd" d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z"/>
-        </svg>
-      </button>     
-      </div>
-    </div>
-    <div  class="col-md-4">
-      <img id="rom_charset" src="img/rom_empty.png" class="card-img" alt="...">
-    </div>
-
-  </div>
-</div>
-              </div>
-              <div class="col mx-2"> 
-<div class="container card mb-3" style="max-width: 540px;">
-  <div class="row no-gutters">
-    <div  class="col-md-4">
-      <img id="rom_disk_drive" src="img/rom_empty.png" class="card-img" alt="...">
-    </div>
-    <div class="col-md-8">
-      <div class="card-body">
-        <h5 class="card-title">disk drive rom</h5>
-        <p class="card-text">(optional)<br/><small class="text-muted">only .t64 .prg .crt .tap files will work without</small></p>
-        
-      <button type="button" id="button_delete_disk_drive_rom" class="btn btn-sm icon">
-        <svg width="1.6em" height="auto" viewBox="0 0 16 16" class="bi bi-trash-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-          <path fill-rule="evenodd" d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z"/>
-        </svg>
-      </button>
-     
-      </div>
-    </div>
-  </div>
-</div>
-
-
-
-              </div>
-
-            </div>
-
 <br>
-            Once loaded VirtualC64web will try to store these files to your browsers local storage. Then on subsequent starts it will take the rom files from your browsers local storage instead of asking you again for them.
+            Once loaded vAmigaWeb will try to store these files to your browsers local storage. Then on subsequent starts it will take the rom files from your browsers local storage instead of asking you again for them.
 
             </div>
 
@@ -870,10 +796,6 @@ goes into edit mode which takes you right back to here ...
       var Module = {
         preRun: [function () {
             ENV.SDL_EMSCRIPTEN_KEYBOARD_ELEMENT = "#canvas";
-            //SDL patch to stop SDL consuming events as they make trouble 
-            window.registerMouseEventCallback=function(){};
-            window.registerKeyEventCallback=function(){};
-            window.listenOnce=function(){};
         }
       ],
         postRun: [InitWrappers],

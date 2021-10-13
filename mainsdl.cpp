@@ -101,10 +101,10 @@ int emu_width  = HPIXELS; //TEX_WIDTH; //NTSC_PIXELS; //428
 int emu_height = VPIXELS; //PAL_RASTERLINES; //284
 int eat_border_width = 0;
 int eat_border_height = 0;
-int xOff = /*12*/0 + eat_border_width;
-int yOff = /*12*/0 + eat_border_height;
-int clipped_width  = HPIXELS /*-12 -24*/ -2*eat_border_width; //392
-int clipped_height = VPIXELS /*-12 -24*/ -2*eat_border_height; //248
+int xOff = 12 + eat_border_width;
+int yOff = 12 + eat_border_height;
+int clipped_width  = HPIXELS -12 -24 -2*eat_border_width; //392
+int clipped_height = VPIXELS -12 -24 -2*eat_border_height; //248
 
 int bFullscreen = false;
 
@@ -246,7 +246,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   double now = emscripten_get_now();  
  
   double elapsedTimeInSeconds = (now - start_time)/1000.0;
-  int64_t targetFrameCount = (int64_t)(elapsedTimeInSeconds * 50.125);
+  int64_t targetFrameCount = (int64_t)(elapsedTimeInSeconds * 50);
  
   int max_gap = 8;
 
@@ -340,9 +340,10 @@ void MyAudioCallback(void*  thisAmiga,
                        int    len)
 {
     Amiga *amiga = (Amiga *)thisAmiga;
-    
-    int n = len /  sizeof(float);
-    amiga->paula.muxer.copy((float *)stream, n);
+    //calculate number of fitting samples
+    //we are copying stereo interleaved floats in LR format, therefore we must divide by 2
+    int n = len /  (2 * sizeof(float));
+    amiga->paula.muxer.copy((float *)stream, n); 
 /*    printf("copyMono[%d]: ", n);
     for(int i=0; i<n; i++)
     {
@@ -419,12 +420,12 @@ void initSDL(void *thisAmiga)
     SDL_AudioSpec want, have;
     SDL_AudioDeviceID device_id;
 
-    SDL_memset(&want, 0, sizeof(want)); /* or SDL_zero(want) */
+    SDL_memset(&want, 0, sizeof(want)); // or SDL_zero(want)
     want.freq = 44100;  //44100; // 22050;
     want.format = AUDIO_F32;
-    want.channels = 1;
+    want.channels = 2;
     //sample buffer 512 in original vc64, vc64web=512 under macOs ok, but iOS needs 2048;
-    want.samples = 2048;
+    want.samples = 4096;
     want.callback = MyAudioCallback;
     want.userdata = thisAmiga;   //will be passed to the callback
     device_id = SDL_OpenAudioDevice(NULL, 0, &want, &have, SDL_AUDIO_ALLOW_FORMAT_CHANGE);
@@ -442,8 +443,6 @@ void initSDL(void *thisAmiga)
     
     //listen to mouse, finger and keys
     SDL_SetEventFilter(eventFilter, thisAmiga);
-
-//  wasm_create_renderer((char*)"webgl");
 }
 
 
@@ -548,6 +547,12 @@ class C64Wrapper {
     //SID0 Volumne
     amiga->configure(OPT_AUDVOL, 0, 100); 
     amiga->configure(OPT_AUDPAN, 0, 0);
+
+
+    amiga->configure(OPT_CHIP_RAM, 512);
+    amiga->configure(OPT_SLOW_RAM, 512);
+    amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS_PLCC);
+
 
 //    c64->configure(OPT_DRV_AUTO_CONFIG,DRIVE8,1);
     //SID1 Volumne
@@ -734,12 +739,12 @@ extern "C" void wasm_set_borderless(float on)
   //PAL_RASTERLINES=284 
 
   eat_border_width = 31 * on;
-  xOff = 12 + eat_border_width + 92;
+  xOff = 24 + eat_border_width + 92 +80 +40;
   clipped_width  = HPIXELS -112 -24 -2*eat_border_width; //392
 //428-12-24-2*33 =326
 
   eat_border_height = 34 * on ;
-  yOff = 16 + eat_border_height;
+  yOff = 26 + eat_border_height;
   clipped_height = VPIXELS -42  -2*eat_border_height; //248
 //284-11-24-2*22=205
  
@@ -766,6 +771,11 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
       ADFFile adf = ADFFile(blob, len);
       auto disk = std::make_unique<Disk>(adf);
       printf("isADF\n");  
+
+      if(wrapper->amiga->df0.hasDisk())
+      {
+        wrapper->amiga->df0.ejectDisk();
+      }
       wrapper->amiga->df0.insertDisk(std::move(disk));
       file_still_unprocessed=false;
     } catch(VAError &exception) {
@@ -1064,23 +1074,23 @@ extern "C" void wasm_cut_layers(unsigned cut_layers)
 char json_result[1024];
 extern "C" const char* wasm_rom_info()
 {
-/*
-  sprintf(json_result, "{\"kernal\":\"%s\", \"basic\":\"%s\", \"charset\":\"%s\", \"has_floppy_rom\":%s, \"drive_rom\":\"%s\"}",
 
-  wrapper->amiga->hasMega65Rom(ROM_TYPE_KERNAL) ? "mega" : wrapper->amiga->hasRom(ROM_TYPE_KERNAL) ? wrapper->amiga->romTitle(ROM_TYPE_KERNAL).c_str(): "none", 
-  wrapper->amiga->hasMega65Rom(ROM_TYPE_BASIC) ? "mega" : wrapper->amiga->hasRom(ROM_TYPE_BASIC) ? wrapper->amiga->romTitle(ROM_TYPE_BASIC).c_str() : "none", 
-  wrapper->amiga->hasMega65Rom(ROM_TYPE_CHAR) ? "mega" : wrapper->amiga->hasRom(ROM_TYPE_CHAR) ? wrapper->amiga->romTitle(ROM_TYPE_CHAR).c_str(): "none",
-  wrapper->amiga->hasRom(ROM_TYPE_VC1541) ? "true":"false",
-  wrapper->amiga->romTitle(ROM_TYPE_VC1541).c_str()
+  sprintf(json_result, "{\"hasRom\":\"%s\", \"romTitle\":\"%s\", \"romVersion\":\"%s\", \"romReleased\":\"%s\", \"romModel\":\"%s\" }",
+    wrapper->amiga->mem.hasRom()?"true":"false",
+    wrapper->amiga->mem.romTitle(),
+    wrapper->amiga->mem.romVersion(),
+    wrapper->amiga->mem.romReleased(),
+    ""
+//    wrapper->amiga->mem.romModel()
   );
 
+  printf("%s, %s, %s, %s\n",      wrapper->amiga->mem.romTitle(),
+    wrapper->amiga->mem.romVersion(),
+    wrapper->amiga->mem.romReleased(),
+    ""
+//    wrapper->amiga->mem.romModel()
+  );
 
-  printf("%s, %s, %s, %s\n",  wrapper->amiga->romTitle(ROM_TYPE_KERNAL).c_str(),
-  wrapper->amiga->romTitle(ROM_TYPE_BASIC).c_str(),
-  wrapper->amiga->romTitle(ROM_TYPE_CHAR).c_str(),
-  wrapper->amiga->romTitle(ROM_TYPE_VC1541).c_str()
-);
-*/
   return json_result;
 }
 
