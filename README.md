@@ -19,7 +19,9 @@ features / release state:
 +mouse - not yet done
 
 +saving snapshots - not yet done
-+connection to a demo site - not yet done
+
++connection to a demo site for demo browser - not yet done
+
 +...
 
 
