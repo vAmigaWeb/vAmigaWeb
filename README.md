@@ -3,7 +3,7 @@ vAmigaWeb
 vAmigaWeb is a progressive web app (PWA) - e.g. installable on iOS devices per save to home screen
 
 
-it is deployed at https://vAmigaWeb.github.io 
+deployed at https://vAmigaWeb.github.io
 
 
 features / release state: 
