@@ -1,6 +1,6 @@
 {
-  "name": "Virtual C64 web",
-  "short_name": "vc64web",
+  "name": "vAmigaWeb",
+  "short_name": "vAmigaWeb",
   "start_url": "/",
   "scope": ".",
   "display": "standalone",
