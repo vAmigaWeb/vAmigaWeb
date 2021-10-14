@@ -403,7 +403,7 @@ var collectors = {
                     wasm_halt();
                 }
                 wasm_loadfile(
-                            global_apptitle /*snapshot.title*/+".vc64",
+                            global_apptitle /*snapshot.title*/+".vAmiga",
                             snapshot_data, 
                             snapshot_data.length);
                 $('#snapshotModal').modal('hide');
@@ -423,7 +423,7 @@ var collectors = {
                             return;
                         }
                         wasm_loadfile(
-                            snapshot.title+".vc64",
+                            snapshot.title+".vAmiga",
                             snapshot.data, 
                             snapshot.data.length);
                         $('#snapshotModal').modal('hide');
