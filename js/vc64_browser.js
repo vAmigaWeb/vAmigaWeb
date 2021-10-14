@@ -1,4 +1,4 @@
-var vc64web_version ="4.5.0"; //minimum requirement for snapshot version to be compatible
+var vc64web_version ="1.0.4"; //minimum requirement for snapshot version to be compatible
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 
@@ -352,24 +352,16 @@ var collectors = {
             if(app_title == 'auto_save')
             {
                 var id = item.internal_id; 
-                var width=384;
-                var height=284;
+                var width=377;
+                var height=286;
                 this.copy_autosnapshot_to_canvas(auto_snaps[id], teaser_canvas, width, height);
             }
             else
             {
                 var src_data = item.data;
-                var version = src_data[4] +'.'+src_data[5]+'.'+src_data[6];
-                if(version.startsWith("3.3"))
-                { 
-                    width=392;
-                    height=268;
-                }
-                else //v4.0
-                {
-                    width=384;
-                    height=284;
-                }
+                var version = src_data[6] +'.'+src_data[7]+'.'+src_data[8];
+                width=377;
+                height=286;
                 var ctx = teaser_canvas.getContext("2d");
                 teaser_canvas.width = width;
                 teaser_canvas.height = height;
@@ -424,7 +416,7 @@ var collectors = {
             {
                 get_snapshot_per_id(id,
                     function (snapshot) {
-                        var version = snapshot.data[4] +'.'+snapshot.data[5]+'.'+snapshot.data[6];
+                        var version = snapshot.data[6] +'.'+snapshot.data[7]+'.'+snapshot.data[8];
                         if(!version.startsWith(vc64web_version))
                         {
                             alert(`This snapshot has been taken with the older virtual C64 version ${version} and can not be loaded with the current version ${vc64web_version}, sorry.`);

@@ -10,6 +10,7 @@
 #include "AmigaTypes.h"
 #include "RomFile.h"
 #include "ADFFile.h"
+#include "Snapshot.h"
 
 #include <emscripten.h>
 #include <SDL2/SDL.h>
@@ -685,25 +686,26 @@ extern "C" char* wasm_export_disk()
 extern "C" char* wasm_pull_user_snapshot_file()
 {
   printf("wasm_pull_user_snapshot_file\n");
-/*
+
   Snapshot *snapshot = wrapper->amiga->latestUserSnapshot(); //wrapper->amiga->userSnapshot(nr);
 
-  size_t size = snapshot->size; //writeToBuffer(NULL);
-  uint8_t *buffer = new uint8_t[size];
-  snapshot->writeToBuffer(buffer);
-  for(int i=0; i < 30; i++)
+//  printf("got snapshot %u.%u.%u\n", snapshot->getHeader()->major,snapshot->getHeader()->minor,snapshot->getHeader()->subminor );
+
+//  size_t size = snapshot->size; //writeToBuffer(NULL);
+/*  for(int i=0; i < 30; i++)
   {
-    printf("%d",buffer[i]);
+    printf("%d",snapshot->data[i]);
   }
   printf("\n");
+*/  
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu, \"width\": %lu, \"height\":%lu }",
-  (unsigned long)buffer, 
-  size,
+  (unsigned long)snapshot->data, 
+  snapshot->size,
   snapshot->getHeader()->screenshot.width,
   snapshot->getHeader()->screenshot.height
   );
   printf("return => %s\n",wasm_pull_user_snapshot_file_json_result);
-*/
+
   return wasm_pull_user_snapshot_file_json_result;
 }
 
@@ -799,8 +801,9 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
     }
   }
 */
-/*
-  if (file_still_unprocessed && Snapshot::isCompatible(filename) && util::extractSuffix(filename)!="rom") {
+
+  if (file_still_unprocessed && Snapshot::isCompatible(filename) && util::extractSuffix(filename)!="rom") 
+  {
     try
     {
       printf("try to build Snapshot\n");
@@ -809,12 +812,12 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
       wrapper->amiga->loadSnapshot(*file);
       file_still_unprocessed=false;
     }
-    catch(VC64Error &exception) {
+    catch(VAError &exception) {
       ErrorCode ec=exception.data;
       printf("%s\n", ErrorCodeEnum::key(ec));
     }
   }
-*/
+
   if(file_still_unprocessed)
   {
     bool wasRunnable = true;

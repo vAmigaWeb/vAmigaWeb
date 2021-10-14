@@ -50,7 +50,7 @@ function initDB() {
   });
 
   
-  let openReq =  indexedDB.open('vc64db', 4);
+  let openReq =  indexedDB.open('vcAmigaDB', 4);
 
   openReq.onupgradeneeded = function (event){
       let _db = openReq.result;
