@@ -91,7 +91,8 @@ function setup_browser_interface()
             //and now look into snapshots
             if(snapshot_collector.total_count==0)
             { 
-                document.getElementById('sel_browser_csdb').click();   
+//vAmigaWeb has no csdb yet
+//                document.getElementById('sel_browser_csdb').click();   
             }
         }   
     }

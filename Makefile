@@ -47,9 +47,9 @@ clean:
 
 bin:
 	@echo "Linking"
-	$(CC) $(LFLAGS) -o vAmiga.html --shell-file shell.html  -s INITIAL_MEMORY=128MB -s TOTAL_STACK=8MB -s ALLOW_MEMORY_GROWTH=1 *.o Emulator/*.o Emulator/*/*.o Emulator/*/*/*.o
+	$(CC) $(LFLAGS) -o vAmiga.html --shell-file shell.html  -s INITIAL_MEMORY=128MB -s TOTAL_STACK=8MB  *.o Emulator/*.o Emulator/*/*.o Emulator/*/*/*.o
 	#--preload-file roms
-	#-s TOTAL_STACK=64MB
+	#-s TOTAL_STACK=64MB -s ALLOW_MEMORY_GROWTH=1
 	mv vAmiga.html index.html
 
 

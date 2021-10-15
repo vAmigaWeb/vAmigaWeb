@@ -737,23 +737,31 @@ extern "C" void wasm_set_warp(unsigned on)
 
 extern "C" void wasm_set_borderless(float on)
 {
-  //NTSC_PIXEL=428
-  //PAL_RASTERLINES=284 
 
-  eat_border_width = 31 * on;
-  xOff = 24 + eat_border_width + 92 +80 +40;
-  clipped_width  = HPIXELS -112 -24 -2*eat_border_width; //392
+  eat_border_width = 4 * on;
+  xOff = 24+ 92 +80 + 56+ eat_border_width ;
+  clipped_width  = HPIXELS - xOff -2*eat_border_width ; //392
 //428-12-24-2*33 =326
-
-  eat_border_height = 34 * on ;
-  yOff = 26 + eat_border_height;
-  clipped_height = VPIXELS -42  -2*eat_border_height; //248
-//284-11-24-2*22=205
  
+
+
+  eat_border_height = 24 * on ;
+  yOff = 26 + eat_border_height;
+  clipped_height = VPIXELS -yOff  -2*eat_border_height; //248
+//284-11-24-2*22=205
+
+
+  printf("eat_border w=%d, eat_border h=%d\n", eat_border_width, eat_border_height);
+  printf("clipped w=%d, clipped h=%d\n", clipped_width, clipped_height);
+  printf("emu w=%d, emu h=%d\n", emu_width, emu_height);
+  printf("xOff w=%d, yOff h=%d\n", xOff, yOff);
+
+  printf("xoff+clipped+eatborder=%d == %d emuwidth\n",xOff+eat_border_width+clipped_width, emu_width);
+  printf("yoff+clipped+eatborder=%d == %d emuheight\n",yOff+eat_border_height+clipped_height, emu_height);
+
   SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
   SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
   SDL_SetWindowSize(window, clipped_width, clipped_height);
-
 }
 
 
