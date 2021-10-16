@@ -412,7 +412,7 @@ function execute_joystick_script(cmd_tokens)
             wasm_halt();
         }
         wasm_loadfile(
-            snapshot.title+".vc64",
+            snapshot.title+".vAmiga",
             snapshot.data, 
             snapshot.data.length);
         if(!is_running())

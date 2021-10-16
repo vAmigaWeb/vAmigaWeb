@@ -35,7 +35,7 @@ function translateKey2(keycode, key, use_positional_mapping=false)
     if(use_positional_mapping)
     {
         mapindex=key_translation_map[ keycode ];
-        raw_key_with_modifier.raw_key = c64keymap[mapindex];
+        raw_key_with_modifier.raw_key = [mapindex,0] //c64keymap[mapindex];
     }
     else
     {
@@ -56,7 +56,7 @@ function translateKey2(keycode, key, use_positional_mapping=false)
         else
         {
             mapindex=key_translation_map[ keycode ];
-            raw_key_with_modifier.raw_key = c64keymap[mapindex];
+            raw_key_with_modifier.raw_key = [mapindex,0];  //c64keymap[mapindex];
         }
     }
 
@@ -75,15 +75,15 @@ function create_key_composition(entry_from_symbolic_map)
     if(Array.isArray(entry_from_symbolic_map))
     {
         mapindex=key_translation_map[ entry_from_symbolic_map[0] ];
-        raw_key_with_modifier.modifier = c64keymap[mapindex];
+        raw_key_with_modifier.modifier = [mapindex,0]; //c64keymap[mapindex];
 
         mapindex=key_translation_map[ entry_from_symbolic_map[1] ];
-        raw_key_with_modifier.raw_key = c64keymap[mapindex];
+        raw_key_with_modifier.raw_key = [mapindex,0]; //c64keymap[mapindex];
     }
     else
     {
         mapindex=key_translation_map[ entry_from_symbolic_map];
-        raw_key_with_modifier.raw_key = c64keymap[mapindex];
+        raw_key_with_modifier.raw_key = [mapindex,0]; //c64keymap[mapindex];
     }
     return raw_key_with_modifier;
 }
@@ -191,23 +191,23 @@ c64keymap = [
         ]
 
 key_translation_map =  
-        {
+        {//https://github.com/dirkwhoffmann/vAmiga/blob/164c04d75f0ae739dd9f2ff2c28520db05e7c047/GUI/Peripherals/AmigaKey.swift
 
     // First row
-    Backspace:15,
-    Enter:47,
-    ArrowLeft:63,
-    ArrowRight:63,
-    F7:64,
-    F8:64,
-    F1:16,
-    F2:16,
-    F3:32,
-    F4:32,
-    F5:48,
-    F6:48,
-    ArrowUp:62,
-    ArrowDown:62,
+    Backspace:0x41,
+    Enter:0x44,
+    ArrowLeft:0x4F,
+    ArrowRight:0x4E,
+    F7:0x56,
+    F8:0x57,
+    F1:0x50,
+    F2:0x51,
+    F3:0x52,
+    F4:0x53,
+    F5:0x54,
+    F6:0x55,
+    ArrowUp:0x4C,
+    ArrowDown:0x4D,
     
     // Second row
     Digit3: 3,
@@ -275,7 +275,7 @@ key_translation_map =
     Delete :0,   //left arrow
     ControlLeft   :17,
     Digit2:2,
-    Space :65,
+    Space :0x40,
     commodore :49,  //commodore
     commodore :49,  //commodore
     KeyQ     :18,

@@ -666,7 +666,7 @@ function configure_file_dialog(reset=false)
                     zip.forEach(function (relativePath, zipfile){
                         if(!relativePath.startsWith("__MACOSX"))
                         {
-                            var mountable = relativePath.toLowerCase().match(/[.](zip|prg|t64|d64|g64|tap|crt)$/i);
+                            var mountable = relativePath.toLowerCase().match(/[.](zip|adf)$/i);
                             list+='<li '+
                             (mountable ? 'id="li_fileselect'+mountable_count+'"':'')
                             +' class="list-group-item list-group-item-action'+ 

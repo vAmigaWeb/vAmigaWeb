@@ -610,42 +610,26 @@ extern "C" void wasm_key(int code1, int code2, int pressed)
 
   if(pressed==1)
   {
-    wrapper->amiga->keyboard.pressKey(*new KeyCode(0x50));
+    wrapper->amiga->keyboard.pressKey(code1);
   }
   else
   {
-    wrapper->amiga->keyboard.releaseKey(*new KeyCode(0x50));
+    wrapper->amiga->keyboard.releaseKey(code1);
   }
 }
 
 extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_delay)
 {
-  if(code1 == 9 && code2 == 9)
-  {
-    if(pressed == 1)
-    {
-      printf("scheduleKeyPress ( 31, %d ) \n", frame_delay);
-//      wrapper->amiga->keyboard.scheduleKeyPress(31, frame_delay);   //pressRestore();
-      wrapper->amiga->keyboard.pressKey(*new KeyCode(0x50));
-    }
-    else
-    {
-      printf("scheduleKeyRelease ( 31, %d ) \n", frame_delay);
-//      wrapper->amiga->keyboard.scheduleKeyRelease(31, frame_delay);   //releaseRestore();
-      wrapper->amiga->keyboard.releaseKey(*new KeyCode(0x50));
-    }
-  }
-  else if(pressed==1)
+  if(pressed==1)
   {
     printf("scheduleKeyPress ( %d, %d, %d ) \n", code1, code2, frame_delay);
-      wrapper->amiga->keyboard.pressKey(*new KeyCode(0x50));
-
+    wrapper->amiga->keyboard.pressKey(code1);
 //    wrapper->amiga->keyboard.scheduleKeyPress(*new AmigaKey(code1,code2), frame_delay);
   }
   else
   {
     printf("scheduleKeyRelease ( %d, %d, %d ) \n", code1, code2, frame_delay);
-    wrapper->amiga->keyboard.releaseKey(*new KeyCode(0x50));
+    wrapper->amiga->keyboard.releaseKey(code1);
   
   //  wrapper->amiga->keyboard.scheduleKeyRelease(*new C64Key(code1,code2), frame_delay);
   }
@@ -737,20 +721,15 @@ extern "C" void wasm_set_warp(unsigned on)
 
 extern "C" void wasm_set_borderless(float on)
 {
-
   eat_border_width = 4 * on;
-  xOff = 24+ 92 +80 + 56+ eat_border_width ;
-  clipped_width  = HPIXELS - xOff -2*eat_border_width ; //392
-//428-12-24-2*33 =326
- 
-
+  xOff = 252 + eat_border_width ;
+  clipped_width  = HPIXELS - xOff -2*eat_border_width;
 
   eat_border_height = 24 * on ;
   yOff = 26 + eat_border_height;
-  clipped_height = VPIXELS -yOff  -2*eat_border_height; //248
-//284-11-24-2*22=205
+  clipped_height = VPIXELS -yOff  -2*eat_border_height; 
 
-
+/*
   printf("eat_border w=%d, eat_border h=%d\n", eat_border_width, eat_border_height);
   printf("clipped w=%d, clipped h=%d\n", clipped_width, clipped_height);
   printf("emu w=%d, emu h=%d\n", emu_width, emu_height);
@@ -758,7 +737,7 @@ extern "C" void wasm_set_borderless(float on)
 
   printf("xoff+clipped+eatborder=%d == %d emuwidth\n",xOff+eat_border_width+clipped_width, emu_width);
   printf("yoff+clipped+eatborder=%d == %d emuheight\n",yOff+eat_border_height+clipped_height, emu_height);
-
+*/
   SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
   SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
   SDL_SetWindowSize(window, clipped_width, clipped_height);
@@ -793,22 +772,6 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
       printf("%s\n", ErrorCodeEnum::key(ec));
     }
   }
-
-
-/*  if (D64File::isCompatible(filename)) {    
-    try{
-      printf("try to build D64File\n");
-      D64File d64 = D64File(blob, len);
-      auto disk = std::make_unique<Disk>(d64);
-      printf("isD64\n");  
-      wrapper->amiga->drive8.insertDisk(std::move(disk));
-      file_still_unprocessed=false;
-    } catch(VC64Error &exception) {
-      ErrorCode ec=exception.data;
-      printf("%s\n", ErrorCodeEnum::key(ec));
-    }
-  }
-*/
 
   if (file_still_unprocessed && Snapshot::isCompatible(filename) && util::extractSuffix(filename)!="rom") 
   {
@@ -846,7 +809,6 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
     
     wrapper->amiga->suspend();
     try { 
-      //wrapper->amiga->flash(*rom); 
       wrapper->amiga->mem.loadRom(*rom); 
       
       printf("Loaded ROM image %s.\n", name);
@@ -871,26 +833,6 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
     }
 
     const char *rom_type="rom";
-/*    if(rom->isRomBuffer(ROM_TYPE_KERNAL, blob,len))
-    {
-      rom_type = "kernal_rom";
-    }
-    else if(rom->isRomBuffer(ROM_TYPE_VC1541, blob,len))
-    {
-      rom_type = "vc1541_rom";
-      wrapper->amiga->configure(OPT_DRV_CONNECT,DRIVE8,1);
-      wrapper->amiga->drive8.dump(dump::Config);
-    }
-    else if(rom->isRomBuffer(ROM_TYPE_CHAR, blob,len))
-    {
-      rom_type = "char_rom";
-    }
-    else if(rom->isRomBuffer(ROM_TYPE_BASIC, blob,len))
-    {
-      rom_type = "basic_rom";
-    }
-    printf("detected rom_type=%s.\n", rom_type);
-*/
     delete rom;
     return rom_type;    
   }
@@ -900,7 +842,6 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
 
 extern "C" void wasm_reset()
 {
-//  wrapper->amiga->expansionport.detachCartridge();
   wrapper->amiga->reset(true);
 }
 
@@ -910,10 +851,10 @@ extern "C" void wasm_halt()
   printf("wasm_halt\n");
   wrapper->amiga->pause();
 
-      printf("emscripten_pause_main_loop() at MSG_PAUSE\n");
-    paused_the_emscripten_main_loop=true;
-    emscripten_pause_main_loop();
-      printf("after emscripten_set_main_loop_arg() at MSG_RUN\n");
+  printf("emscripten_pause_main_loop() at MSG_PAUSE\n");
+  paused_the_emscripten_main_loop=true;
+  emscripten_pause_main_loop();
+  printf("after emscripten_set_main_loop_arg() at MSG_RUN\n");
 
 }
 
