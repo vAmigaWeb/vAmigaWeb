@@ -80,62 +80,6 @@
 *                 dmacon : Bits 0 .. 5 of register DMACON
 */
 
-void
-Agnus::initBplEventTableLores()
-{
-    std::memset(bplDMA[0], 0, sizeof(bplDMA[0]));
-
-    for (isize bpu = 0; bpu < 7; bpu++) {
-
-        EventID *p = &bplDMA[0][bpu][0];
-
-        // Iterate through all 22 fetch units
-        for (isize i = 0; i <= 0xD8; i += 8, p += 8) {
-
-            switch(bpu) {
-                    
-                case 6: p[2] = BPL_L6;
-                case 5: p[6] = BPL_L5;
-                case 4: p[1] = BPL_L4;
-                case 3: p[5] = BPL_L3;
-                case 2: p[3] = BPL_L2;
-                case 1: p[7] = BPL_L1;
-            }
-        }
-
-        assert(bplDMA[0][bpu][HPOS_MAX] == EVENT_NONE);
-        // bplDMA[0][bpu][HPOS_MAX] = BPL_EOL;
-    }
-}
-
-void
-Agnus::initBplEventTableHires()
-{
-    std::memset(bplDMA[1], 0, sizeof(bplDMA[1]));
-
-    for (isize bpu = 0; bpu < 7; bpu++) {
-
-        EventID *p = &bplDMA[1][bpu][0];
-        
-        // Iterate through all 22 fetch units
-        for (isize i = 0; i <= 0xD8; i += 8, p += 8) {
-
-            switch(bpu) {
-                    
-                case 6:
-                case 5:
-                case 4: p[0] = p[4] = BPL_H4;
-                case 3: p[2] = p[6] = BPL_H3;
-                case 2: p[1] = p[5] = BPL_H2;
-                case 1: p[3] = p[7] = BPL_H1;
-            }
-        }
-
-        assert(bplDMA[1][bpu][HPOS_MAX] == EVENT_NONE);
-        bplDMA[1][bpu][HPOS_MAX] = BPL_EOL;
-    }
-}
-
 template <> bool Agnus::auddma<0>(u16 v) { return (v & DMAEN) && (v & AUD0EN); }
 template <> bool Agnus::auddma<1>(u16 v) { return (v & DMAEN) && (v & AUD1EN); }
 template <> bool Agnus::auddma<2>(u16 v) { return (v & DMAEN) && (v & AUD2EN); }
@@ -277,43 +221,86 @@ Agnus::updateBplEvents(u16 dmacon, u16 bplcon0, isize first)
 {
     assert(first >= 0);
 
-    auto hires = Denise::hires(bplcon0);
+    // Determine the number of active bitplanes
     auto channels = bpu(bplcon0);
-    
-    assert(channels <= 6);
 
-    // Set number of bitplanes to 0 if this line is not a bitplane DMA line
+    // Set the number to zero if no bitplane DMA takes place
     if (!inBplDmaLine(dmacon, bplcon0)) channels = 0;
 
     // Do the same if DDFSTRT is never reached in this line
     if (ddfstrtReached == -1) channels = 0;
     
-    // Allocate slots
-    if (hires) {
-        
-        for (isize i = first; i <= HPOS_MAX; i++) {
-            
-            bplEvent[i] =
-            ddfHires.inside(i) ? bplDMA[1][channels][i] : EVENT_NONE;
-        }
-        updateHiresDrawingFlags();
-        
+    if (Denise::hires(bplcon0)) {
+        updateBplEvents <true> (channels, first);
     } else {
-
-        // TODO: CLEAN THIS UP
-        isize offset = (ddfLores.strt & 0b100) ? 4 : 0;
-
-        for (isize i = first; i <= HPOS_MAX; i++) {
-            
-            bplEvent[i] =
-            ddfLores.inside(i) ? bplDMA[0][channels][(i + offset) % HPOS_CNT] : EVENT_NONE;
-        }
-        updateLoresDrawingFlags();
+        updateBplEvents <false> (channels, first);
     }
-        
-    // Make sure the table ends with a BPL_EOL event
-    bplEvent[HPOS_MAX] = BPL_EOL;
+}
+
+template <bool hi> void
+Agnus::updateBplEvents(isize channels, isize first)
+{
+    // Get the DDF window size
+    auto strt = hi ? ddfHires.strt : ddfLores.strt;
+    auto stop = hi ? ddfHires.stop : ddfLores.stop;
     
+    assert(strt >= 0 && stop >= strt && stop <= 0xE0);
+
+    // Determine the layout of a single fetch unit
+    EventID slice[8]= { 0, 0, 0, 0, 0, 0, 0, 0 };
+    
+    if constexpr (hi) {
+        
+        switch(channels) {
+                
+            case 6:
+            case 5:
+            case 4: slice[0] = slice[4] = BPL_H4;
+            case 3: slice[2] = slice[6] = BPL_H3;
+            case 2: slice[1] = slice[5] = BPL_H2;
+            case 1: slice[3] = slice[7] = BPL_H1;
+        }
+        
+    } else if (strt & 0b100) {
+        
+        switch (channels) {
+                
+            case 6: slice[6] = BPL_L6;
+            case 5: slice[2] = BPL_L5;
+            case 4: slice[5] = BPL_L4;
+            case 3: slice[1] = BPL_L3;
+            case 2: slice[7] = BPL_L2;
+            case 1: slice[3] = BPL_L1;
+        }
+
+    } else {
+        
+        switch (channels) {
+                
+            case 6: slice[2] = BPL_L6;
+            case 5: slice[6] = BPL_L5;
+            case 4: slice[1] = BPL_L4;
+            case 3: slice[5] = BPL_L3;
+            case 2: slice[3] = BPL_L2;
+            case 1: slice[7] = BPL_L1;
+        }
+    }
+    
+    // Update the event table
+    for (isize i = first; i < strt; i++) {
+        bplEvent[i] = EVENT_NONE;
+    }
+    for (isize i = std::max(first, strt); i <= stop; i++) {
+        bplEvent[i] = slice[i & 7];
+    }
+    for (isize i = std::max(first, stop); i < HPOS_MAX; i++) {
+        bplEvent[i] = EVENT_NONE;
+    }
+    bplEvent[HPOS_MAX] = BPL_EOL;
+        
+    // Superimpose the drawing flags
+    hi ? updateHiresDrawingFlags() : updateLoresDrawingFlags();
+            
     // Update the jump table
     updateBplJumpTable();
 }

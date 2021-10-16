@@ -29,7 +29,7 @@ Moira::saveToStack(AEStackFrame &frame)
 void
 Moira::saveToStackBrief(u16 sr, u32 pc)
 {
-    if (MIMIC_MUSASHI) {
+    if constexpr (MIMIC_MUSASHI) {
 
         push <Long> (pc);
         push <Word> (sr);
@@ -183,6 +183,8 @@ void
 Moira::execIrqException(u8 level)
 {
     assert(level < 8);
+    
+    // Notify delegate
     signalInterrupt(level);
     
     // Remember the current value of the status register

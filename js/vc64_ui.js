@@ -1218,6 +1218,7 @@ function InitWrappers() {
 
     wasm_peek = Module.cwrap('wasm_peek', 'number', ['number']);
     wasm_poke = Module.cwrap('wasm_poke', 'undefined', ['number', 'number']);
+    wasm_has_disk = Module.cwrap('wasm_has_disk', 'number');
     wasm_export_disk = Module.cwrap('wasm_export_disk', 'string');
     wasm_configure = Module.cwrap('wasm_configure', 'undefined', ['string', 'number']);
     wasm_write_string_to_ser = Module.cwrap('wasm_write_string_to_ser', 'undefined', ['string']);
@@ -1855,10 +1856,7 @@ $('.layer').change( function(event) {
         $("#input_app_title").val(global_apptitle);
         $("#input_app_title").focus();
 
-        let d64_json = wasm_export_disk();
-        let d64_obj = JSON.parse(d64_json);
-
-        if(d64_obj.size>0)
+        if(wasm_has_disk())
         {
             $("#button_export_disk").show();
         }
@@ -1885,7 +1883,7 @@ $('.layer').change( function(event) {
         {
             app_name = app_name.substring(0,extension_pos);
         }
-        a.download = app_name+'.d64';
+        a.download = app_name+'.adf';
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);

@@ -11,12 +11,12 @@ template<Mode M, Size S, Flags F> bool
 Moira::readOp(int n, u32 &ea, u32 &result)
 {
     // Handle non-memory modes
-    if (M == MODE_DN) { result = readD<S>(n); return true; }
-    if (M == MODE_AN) { result = readA<S>(n); return true; }
-    if (M == MODE_IM) { result = readI<S>();  return true; }
+    if constexpr (M == MODE_DN) { result = readD<S>(n); return true; }
+    if constexpr (M == MODE_AN) { result = readA<S>(n); return true; }
+    if constexpr (M == MODE_IM) { result = readI<S>();  return true; }
 
     // Compute effective address
-    ea = computeEA<M,S>(n);
+    ea = computeEA<M,S,F>(n);
 
     // Read from effective address
     bool error; result = readM<M,S,F>(ea, error);
@@ -29,7 +29,7 @@ Moira::readOp(int n, u32 &ea, u32 &result)
 
     // Emulate (An)+ register modification
     updateAnPI<M,S>(n);
-
+    
     return !error;
 }
 
@@ -37,9 +37,9 @@ template<Mode M, Size S, Flags F> bool
 Moira::writeOp(int n, u32 val)
 {
     // Handle non-memory modes
-    if (M == MODE_DN) { writeD<S>(n, val); return true;  }
-    if (M == MODE_AN) { writeA<S>(n, val); return true;  }
-    if (M == MODE_IM) { assert(false);     return false; }
+    if constexpr (M == MODE_DN) { writeD<S>(n, val); return true;  }
+    if constexpr (M == MODE_AN) { writeA<S>(n, val); return true;  }
+    if constexpr (M == MODE_IM) { assert(false);     return false; }
 
     // Compute effective address
     u32 ea = computeEA<M,S>(n);
@@ -63,9 +63,9 @@ template<Mode M, Size S, Flags F> void
 Moira::writeOp(int n, u32 ea, u32 val)
 {
     // Handle non-memory modes
-    if (M == MODE_DN) { writeD <S> (n, val); return; }
-    if (M == MODE_AN) { writeA <S> (n, val); return; }
-    if (M == MODE_IM) { assert(false);       return; }
+    if constexpr (M == MODE_DN) { writeD <S> (n, val); return; }
+    if constexpr (M == MODE_AN) { writeA <S> (n, val); return; }
+    if constexpr (M == MODE_IM) { assert(false);       return; }
 
     writeM <M,S,F> (ea, val);
 }
@@ -97,7 +97,7 @@ Moira::computeEA(u32 n) {
         }
         case 4:  // -(An)
         {
-            sync(2);
+            if ((F & IMPLICIT_DECR) == 0) sync(2);
             result = readA(n) - ((n == 7 && S == Byte) ? 2 : S);
             break;
         }
@@ -171,21 +171,21 @@ template<Mode M, Size S> void
 Moira::updateAnPD(int n)
 {
     // -(An)
-    if (M == 4) reg.a[n] -= (n == 7 && S == Byte) ? 2 : S;
+    if constexpr (M == 4) reg.a[n] -= (n == 7 && S == Byte) ? 2 : S;
 }
 
 template<Mode M, Size S> void
 Moira::undoAnPD(int n)
 {
     // -(An)
-    if (M == 4) reg.a[n] += (n == 7 && S == Byte) ? 2 : S;
+    if constexpr (M == 4) reg.a[n] += (n == 7 && S == Byte) ? 2 : S;
 }
 
 template<Mode M, Size S> void
 Moira::updateAnPI(int n)
 {
     // (An)+
-    if (M == 3) reg.a[n] += (n == 7 && S == Byte) ? 2 : S;
+    if constexpr (M == 3) reg.a[n] += (n == 7 && S == Byte) ? 2 : S;
 
 }
 
@@ -193,10 +193,10 @@ template<Mode M, Size S> void
 Moira::updateAn(int n)
 {
     // (An)+
-    if (M == 3) reg.a[n] += (n == 7 && S == Byte) ? 2 : S;
+    if constexpr (M == 3) reg.a[n] += (n == 7 && S == Byte) ? 2 : S;
 
     // -(An)
-    if (M == 4) reg.a[n] -= (n == 7 && S == Byte) ? 2 : S;
+    if constexpr (M == 4) reg.a[n] -= (n == 7 && S == Byte) ? 2 : S;
 }
 
 template<MemSpace M, Size S, Flags F> u32
@@ -218,7 +218,7 @@ Moira::readM(u32 addr)
     u32 result;
         
     // Break down long word accesses into two word accesses
-    if (S == Long) {
+    if constexpr (S == Long) {
         result = readM<M, Word>(addr) << 16;
         result |= readM<M, Word, F>(addr + 2);
         return result;
@@ -234,7 +234,7 @@ Moira::readM(u32 addr)
     
     // Perform the read operation
     sync(2);
-    if (F & POLLIPL) pollIrq();
+    if (F & POLLIPL) pollIpl();
     result = (S == Byte) ? read8(addr & 0xFFFFFF) : read16(addr & 0xFFFFFF);
     sync(2);
     
@@ -278,7 +278,7 @@ template<MemSpace M, Size S, Flags F> void
 Moira::writeM(u32 addr, u32 val)
 {
     // Break down long word accesses into two word accesses
-    if (S == Long) {
+    if constexpr (S == Long) {
         if (F & REVERSE) {
             writeM <M, Word>    (addr + 2, val & 0xFFFF);
             writeM <M, Word, F> (addr,     val >> 16   );
@@ -299,7 +299,7 @@ Moira::writeM(u32 addr, u32 val)
 
     // Perform the write operation
     sync(2);
-    if (F & POLLIPL) pollIrq();
+    if (F & POLLIPL) pollIpl();
     S == Byte ? write8(addr & 0xFFFFFF, (u8)val) : write16(addr & 0xFFFFFF, (u16)val);
     sync(2);
 }

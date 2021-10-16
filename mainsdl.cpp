@@ -638,32 +638,39 @@ extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_d
 
 char wasm_pull_user_snapshot_file_json_result[255];
 
+
+extern "C" bool wasm_has_disk()
+{
+  return wrapper->amiga->df0.hasDisk();
+}
+
+uint8_t *export_buffer=NULL; 
 extern "C" char* wasm_export_disk()
 {
-/*  if(!wrapper->amiga->drive8.hasDisk())
+  if(!wrapper->amiga->df0.hasDisk())
   {
-    printf("no disk in drive8\n");
+    printf("no disk in df0\n");
     sprintf(wasm_pull_user_snapshot_file_json_result, "{\"size\": 0 }");
     return wasm_pull_user_snapshot_file_json_result;
   }
 
-  FSDevice *fs = new FSDevice(*wrapper->amiga->drive8.disk);
-  D64File *d64 = new D64File(*fs);
+//  FSDevice *fs = new FSDevice(*wrapper->amiga->df0.disk);
+  ADFFile *adf = new ADFFile(wrapper->amiga->df0);
 
-  size_t size = d64->size;
-  uint8_t *buffer = new uint8_t[size];
-  d64->writeToBuffer(buffer);
+  size_t size = adf->size;
+  export_buffer = new uint8_t[size];
+  adf->writeToBuffer(export_buffer);
   for(int i=0; i < 30; i++)
   {
-    printf("%d",buffer[i]);
+    printf("%d",export_buffer[i]);
   }
   printf("\n");
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",
-  (unsigned long)buffer, 
+  (unsigned long)export_buffer, 
   size
   );
   printf("return => %s\n",wasm_pull_user_snapshot_file_json_result);
-*/
+
   return wasm_pull_user_snapshot_file_json_result;
 }
 
