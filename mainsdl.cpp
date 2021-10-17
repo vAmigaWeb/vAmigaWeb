@@ -12,6 +12,9 @@
 #include "ADFFile.h"
 #include "Snapshot.h"
 
+#include "MemUtils.h"
+
+
 #include <emscripten.h>
 #include <SDL2/SDL.h>
 #include <emscripten/html5.h>
@@ -644,7 +647,7 @@ extern "C" bool wasm_has_disk()
   return wrapper->amiga->df0.hasDisk();
 }
 
-uint8_t *export_buffer=NULL; 
+//uint8_t *export_buffer=NULL; 
 extern "C" char* wasm_export_disk()
 {
   if(!wrapper->amiga->df0.hasDisk())
@@ -656,18 +659,21 @@ extern "C" char* wasm_export_disk()
 
 //  FSDevice *fs = new FSDevice(*wrapper->amiga->df0.disk);
   ADFFile *adf = new ADFFile(wrapper->amiga->df0);
-
-  size_t size = adf->size;
-  export_buffer = new uint8_t[size];
+ // size_t size = adf->size;
+ /* export_buffer = new uint8_t[size];
   adf->writeToBuffer(export_buffer);
+  util::hexdump(export_buffer, 30);
+  printf("-----\n");
   for(int i=0; i < 30; i++)
   {
-    printf("%d",export_buffer[i]);
+    printf("%x ",adf->data[i]);
   }
-  printf("\n");
+  printf("\n");*/
+  util::hexdump(adf->data, 32, 2);
+
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",
-  (unsigned long)export_buffer, 
-  size
+  (unsigned long)adf->data, 
+  adf->size
   );
   printf("return => %s\n",wasm_pull_user_snapshot_file_json_result);
 
