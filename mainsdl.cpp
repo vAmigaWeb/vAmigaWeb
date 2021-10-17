@@ -646,8 +646,7 @@ extern "C" bool wasm_has_disk()
 {
   return wrapper->amiga->df0.hasDisk();
 }
-
-//uint8_t *export_buffer=NULL; 
+ 
 extern "C" char* wasm_export_disk()
 {
   if(!wrapper->amiga->df0.hasDisk())
@@ -657,20 +656,7 @@ extern "C" char* wasm_export_disk()
     return wasm_pull_user_snapshot_file_json_result;
   }
 
-//  FSDevice *fs = new FSDevice(*wrapper->amiga->df0.disk);
   ADFFile *adf = new ADFFile(wrapper->amiga->df0);
- // size_t size = adf->size;
- /* export_buffer = new uint8_t[size];
-  adf->writeToBuffer(export_buffer);
-  util::hexdump(export_buffer, 30);
-  printf("-----\n");
-  for(int i=0; i < 30; i++)
-  {
-    printf("%x ",adf->data[i]);
-  }
-  printf("\n");*/
-  util::hexdump(adf->data, 32, 2);
-
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",
   (unsigned long)adf->data, 
   adf->size

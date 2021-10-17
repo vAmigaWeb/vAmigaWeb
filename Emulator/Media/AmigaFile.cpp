@@ -187,7 +187,6 @@ AmigaFile::writeToBuffer(u8 *buf)
 
     std::ostringstream stream;
     isize len = writeToStream(stream);
-    stream.write((char *)buf, len);
-    
+    std::memcpy(buf,stream.str().c_str(), len);
     return len;
 }
