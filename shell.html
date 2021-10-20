@@ -441,26 +441,25 @@
                 <a class="dropdown-item" href="#">sepia</a>
               </div>
             </div>
-
+</div>
             <div class="mt-4">
-              power saving and warp speed (may affect compatibility) 
+              compatibility settings 
             </div>
             <div class="mt-2">
               <div class="custom-control custom-switch mt-1">
-                <input type="checkbox" class="custom-control-input" id="OPT_DRV_POWER_SAVE" />
-                <label class="custom-control-label" for="OPT_DRV_POWER_SAVE" data-toggle="tooltip" data-placement="top" title="disable this option in combination with Fast Loaders or programs that run directly in the memory of the floppy drive">put drives to sleep when not in use</label>
+                <input type="checkbox" class="custom-control-input" id="OPT_CLX_SPR_SPR" />
+                <label class="custom-control-label" for="OPT_CLX_SPR_SPR" data-toggle="tooltip" data-placement="top" title="">sprite to sprite collision</label>
               </div>
               <div class="custom-control custom-switch mt-1">
-                <input type="checkbox" class="custom-control-input" id="OPT_VIC_POWER_SAVE" />
-                <label class="custom-control-label" for="OPT_VIC_POWER_SAVE" data-toggle="tooltip" data-placement="top" title="disable this option in combination with programs that rely on exact collison register values while warp mode is active">run with reduced frame rate in warp mode</label>
+                <input type="checkbox" class="custom-control-input" id="OPT_CLX_SPR_PLF" />
+                <label class="custom-control-label" for="OPT_CLX_SPR_PLF" data-toggle="tooltip" data-placement="top" title="">sprite to playfield collision</label>
               </div>
               <div class="custom-control custom-switch mt-1">
-                <input type="checkbox" class="custom-control-input" id="OPT_SID_POWER_SAVE" />
-                <label class="custom-control-label" for="OPT_SID_POWER_SAVE" data-toggle="tooltip" data-placement="top" title="disable this option to avoid the unlikely, but possible case of corrupted sound being played after leaving warp mode">do not synthesize sound samples in warp mode</label>
+                <input type="checkbox" class="custom-control-input" id="OPT_CLX_PLF_PLF" />
+                <label class="custom-control-label" for="OPT_CLX_PLF_PLF" data-toggle="tooltip" data-placement="top" title="">playfield to playfield collision</label>
               </div>
               
             </div>
-</div>
 
             <button id="button_rom_dialog" type="button" class="btn btn-primary mt-5">system roms ...</button>
         

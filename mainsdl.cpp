@@ -666,21 +666,29 @@ extern "C" char* wasm_export_disk()
   return wasm_pull_user_snapshot_file_json_result;
 }
 
+
+Snapshot *snapshot=NULL;
+extern "C" void wasm_delete_user_snapshot()
+{
+//  printf("request to free user_snapshot memory\n");
+
+  if(snapshot!=NULL)
+  {
+    delete snapshot;
+    snapshot=NULL;
+    printf("freed user_snapshot memory\n");
+  }
+}
+
 extern "C" char* wasm_pull_user_snapshot_file()
 {
   printf("wasm_pull_user_snapshot_file\n");
 
-  Snapshot *snapshot = wrapper->amiga->latestUserSnapshot(); //wrapper->amiga->userSnapshot(nr);
+  wasm_delete_user_snapshot();
+  snapshot = wrapper->amiga->latestUserSnapshot(); //wrapper->amiga->userSnapshot(nr);
 
 //  printf("got snapshot %u.%u.%u\n", snapshot->getHeader()->major,snapshot->getHeader()->minor,snapshot->getHeader()->subminor );
 
-//  size_t size = snapshot->size; //writeToBuffer(NULL);
-/*  for(int i=0; i < 30; i++)
-  {
-    printf("%d",snapshot->data[i]);
-  }
-  printf("\n");
-*/  
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu, \"width\": %lu, \"height\":%lu }",
   (unsigned long)snapshot->data, 
   snapshot->size,
@@ -696,6 +704,9 @@ extern "C" void wasm_take_user_snapshot()
 {
   wrapper->amiga->requestUserSnapshot();
 }
+
+
+
 
 extern "C" void wasm_set_warp(unsigned on)
 {
@@ -1177,11 +1188,15 @@ extern "C" char* wasm_translate(char c)
 
 extern "C" void wasm_configure(char* option, unsigned on)
 {
-//  bool on_value = (on == 1);
+  bool on_value = (on == 1);
 
   printf("wasm_configure %s = %d\n", option, on);
-/*
-  if(strcmp(option,"OPT_DRV_POWER_SAVE") == 0)
+
+  printf("calling c64->configure %s = %d\n", option, on);
+  //wrapper->amiga->configure(OPT_CLX_SPR_SPR, on_value);
+  wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), on_value); 
+
+/*  if(strcmp(option,"OPT_DRV_POWER_SAVE") == 0)
   {
     printf("calling c64->configure %s = %d\n", option, on);
     wrapper->amiga->configure(OPT_DRV_POWER_SAVE, 8, on_value);
@@ -1216,3 +1231,4 @@ extern "C" void wasm_print_error(unsigned exception_ptr)
     printf("uncaught exception %u: %s\n",exception_ptr, s.c_str());
   }
 }
+

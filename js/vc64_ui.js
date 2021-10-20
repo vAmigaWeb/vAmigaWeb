@@ -1195,6 +1195,7 @@ function InitWrappers() {
     wasm_run = Module.cwrap('wasm_run', 'undefined');
     wasm_take_user_snapshot = Module.cwrap('wasm_take_user_snapshot', 'undefined');
     wasm_pull_user_snapshot_file = Module.cwrap('wasm_pull_user_snapshot_file', 'string');
+    wasm_delete_user_snapshot = Module.cwrap('wasm_delete_user_snapshot', 'undefined');
 
     wasm_create_renderer = Module.cwrap('wasm_create_renderer', 'undefined', ['string']);
     wasm_set_warp = Module.cwrap('wasm_set_warp', 'undefined', ['number']);
@@ -1517,38 +1518,19 @@ borderless_switch.change( function() {
 });
 
 //------
-
-
-drive_power_save_switch = $('#OPT_DRV_POWER_SAVE');
-var use_drive_power_save=load_setting('OPT_DRV_POWER_SAVE', true);
-drive_power_save_switch.prop('checked', use_drive_power_save);
-wasm_configure('OPT_DRV_POWER_SAVE',use_drive_power_save);
-drive_power_save_switch.change( function() {
-    wasm_configure('OPT_DRV_POWER_SAVE',this.checked);
-    save_setting('OPT_DRV_POWER_SAVE', this.checked);
-});
-
-
-
-vic_power_save_switch = $('#OPT_VIC_POWER_SAVE');
-var use_vic_power_save=load_setting('OPT_VIC_POWER_SAVE', true);
-vic_power_save_switch.prop('checked', use_vic_power_save);
-wasm_configure('OPT_VIC_POWER_SAVE',use_vic_power_save);
-vic_power_save_switch.change( function() {
-    wasm_configure('OPT_VIC_POWER_SAVE',this.checked);
-    save_setting('OPT_VIC_POWER_SAVE', this.checked);
-});
-
-sid_power_save_switch = $('#OPT_SID_POWER_SAVE');
-var use_sid_power_save=load_setting('OPT_SID_POWER_SAVE', true);
-sid_power_save_switch.prop('checked', use_sid_power_save);
-wasm_configure('OPT_SID_POWER_SAVE',use_sid_power_save);
-sid_power_save_switch.change( function() {
-    wasm_configure('OPT_SID_POWER_SAVE',this.checked);
-    save_setting('OPT_SID_POWER_SAVE', this.checked);
-});
-
-
+function bind_config(key, default_value){
+    let config_switch = $('#'+key);
+    let use_config=load_setting(key, default_value);
+    config_switch.prop('checked', use_config);
+    wasm_configure(key.substring(4),use_config);
+    config_switch.change( function() {
+        wasm_configure(key.substring(4),this.checked);
+        save_setting(key, this.checked);
+    });
+}
+bind_config("OPT_CLX_SPR_SPR", true);
+bind_config("OPT_CLX_SPR_PLF", true);
+bind_config("OPT_CLX_PLF_PLF", true);
 
 //------
 
@@ -1889,7 +1871,7 @@ $('.layer').change( function(event) {
         window.URL.revokeObjectURL(url);
     });
 
-    $('#button_save_snapshot').click(function() 
+    $('#button_save_snapshot').click(async function() 
     {       
         let app_name = $("#input_app_title").val();
         wasm_take_user_snapshot();
@@ -1900,8 +1882,8 @@ $('.layer').change( function(event) {
         var snapshot_buffer = new Uint8Array(Module.HEAPU8.buffer, snap_obj.address, snap_obj.size);
    
         //snapshot_buffer is only a typed array view therefore slice, which creates a new array with byteposition 0 ...
-        save_snapshot(app_name, snapshot_buffer.slice(0,snap_obj.size));
-   
+        await save_snapshot(app_name, snapshot_buffer.slice(0,snap_obj.size));
+        wasm_delete_user_snapshot();
         $("#modal_take_snapshot").modal('hide');
         //document.getElementById('canvas').focus();
     });
