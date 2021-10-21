@@ -1221,7 +1221,7 @@ function InitWrappers() {
     wasm_poke = Module.cwrap('wasm_poke', 'undefined', ['number', 'number']);
     wasm_has_disk = Module.cwrap('wasm_has_disk', 'number');
     wasm_export_disk = Module.cwrap('wasm_export_disk', 'string');
-    wasm_configure = Module.cwrap('wasm_configure', 'undefined', ['string', 'number']);
+    wasm_configure = Module.cwrap('wasm_configure', 'undefined', ['string', 'string']);
     wasm_write_string_to_ser = Module.cwrap('wasm_write_string_to_ser', 'undefined', ['string']);
     wasm_print_error = Module.cwrap('wasm_print_error', 'undefined', ['number']);
 
@@ -1522,15 +1522,66 @@ function bind_config(key, default_value){
     let config_switch = $('#'+key);
     let use_config=load_setting(key, default_value);
     config_switch.prop('checked', use_config);
-    wasm_configure(key.substring(4),use_config);
+    wasm_configure(key.substring(4),''+use_config);
     config_switch.change( function() {
-        wasm_configure(key.substring(4),this.checked);
+        wasm_configure(key.substring(4),''+this.checked);
         save_setting(key, this.checked);
     });
 }
 bind_config("OPT_CLX_SPR_SPR", true);
 bind_config("OPT_CLX_SPR_PLF", true);
 bind_config("OPT_CLX_PLF_PLF", true);
+
+
+function bind_config_choice(key, name, values, default_value){
+    $('#hardware_settings').append(
+    `
+    <div class="dropdown mr-1 mt-3">
+        <button id="button_${key}" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+        ${name}
+        </button>
+        <div id="choose_${key}" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+        ${
+            (function(vals){
+                let list='';
+                for(val of vals){
+                    list+=`<a class="dropdown-item" href="#">${val}</a>`;
+                }
+                return list;
+            })(values)
+        }
+        </div>
+    </div>
+    `);
+
+    let set_choice = function (choice) {
+        $(`#button_${key}`).text(name+'='+choice);
+        wasm_configure(key.substring(4),choice);
+    }
+    set_choice(load_setting(key, default_value));
+
+    $(`#choose_${key} a`).click(function () 
+    {
+        let choice=$(this).text();
+        set_choice(choice);
+        save_setting(key,choice)
+        $("#modal_settings").focus();
+    });
+}
+
+bind_config_choice("OPT_BLITTER_ACCURACY", "blitter accuracy",['0','1','2'],'2');
+bind_config_choice("OPT_DRIVE_SPEED", "drive speed",['-1', '1', '2', '4', '8'],'1');
+
+
+
+$('#hardware_settings').append(`<div class="mt-4">hardware settings</div><span style="font-size: smaller;">(shuts machine down on agnus model or memory change)</span>`);
+
+bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_DIP','OCS_PLCC','ECS_1MB','ECS_2MB'],'ECS_1MB');
+bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'512');
+bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'512');
+bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'0');
+
+
 
 //------
 

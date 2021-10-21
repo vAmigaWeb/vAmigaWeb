@@ -1186,43 +1186,48 @@ extern "C" char* wasm_translate(char c)
 }
 */
 
-extern "C" void wasm_configure(char* option, unsigned on)
+
+extern "C" void wasm_configure(char* option, char* _value)
 {
-  bool on_value = (on == 1);
+  auto value = std::string(_value);
+  printf("wasm_configure %s = %s\n", option, value.c_str());
 
-  printf("wasm_configure %s = %d\n", option, on);
+  bool was_powered_on=wrapper->amiga->isPoweredOn();
 
-  printf("calling c64->configure %s = %d\n", option, on);
-  //wrapper->amiga->configure(OPT_CLX_SPR_SPR, on_value);
-  wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), on_value); 
+  bool must_be_off= strcmp(option,"AGNUS_REVISION") == 0 || 
+                    strcmp(option,"CHIP_RAM") == 0 ||
+                    strcmp(option,"SLOW_RAM") == 0 ||
+                    strcmp(option,"FAST_RAM") == 0;
+ 
+  if(was_powered_on && must_be_off)
+  {
+      wrapper->amiga->powerOff();
+  }
 
-/*  if(strcmp(option,"OPT_DRV_POWER_SAVE") == 0)
+  if( strcmp(option,"AGNUS_REVISION") == 0)
   {
-    printf("calling c64->configure %s = %d\n", option, on);
-    wrapper->amiga->configure(OPT_DRV_POWER_SAVE, 8, on_value);
+    wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <AgnusRevisionEnum>(value)); 
+    //wrapper->amiga->agnus.dump();
   }
-  else if(strcmp(option,"OPT_SID_POWER_SAVE") == 0)
+  else if ( strcmp(option,"BLITTER_ACCURACY") == 0 ||
+            strcmp(option,"DRIVE_SPEED") == 0  ||
+            strcmp(option,"CHIP_RAM") == 0  ||
+            strcmp(option,"SLOW_RAM") == 0  ||
+            strcmp(option,"FAST_RAM") == 0  
+  )
   {
-    printf("calling c64->configure %s = %d\n", option, on);
-    wrapper->amiga->configure(OPT_SID_POWER_SAVE, on_value);
-  }
-  else if(strcmp(option,"OPT_VIC_POWER_SAVE") == 0)
-  {
-    printf("calling c64->configure %s = %d\n", option, on);
-    wrapper->amiga->configure(OPT_VIC_POWER_SAVE, on_value);
-  }
-  else if(strcmp(option,"OPT_SER_SPEED") == 0)
-  {
-    printf("calling c64->configure_rs232_ser_speed %d\n", on);
-    wrapper->amiga->configure_rs232_ser_speed(on);
+    wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseNum(value));
   }
   else
   {
-    printf("error !!!!! unknown option= %s\n", option);
+    wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseBool(value)); 
   }
-*/
-}
 
+  if(was_powered_on && must_be_off)
+  {
+      wrapper->amiga->powerOn();
+  }
+}
 extern "C" void wasm_print_error(unsigned exception_ptr)
 {
   if(exception_ptr!=0)
