@@ -1187,8 +1187,30 @@ extern "C" char* wasm_translate(char c)
 */
 
 
-extern "C" void wasm_configure(char* option, char* _value)
+char config_result[512];
+extern "C" const char* wasm_power_on(unsigned power_on)
 {
+  try{
+    bool was_powered_on=wrapper->amiga->isPoweredOn();
+    if(power_on == 1 && !was_powered_on)
+    {
+        wrapper->amiga->powerOn();
+    }
+    else if(power_on == 0 && was_powered_on)
+    {
+        wrapper->amiga->powerOff();
+    }
+  }  
+  catch(VAError &exception) {   
+    sprintf(config_result,"%s", exception.what());
+  }
+  return config_result; 
+}
+
+
+extern "C" const char* wasm_configure(char* option, char* _value)
+{
+  sprintf(config_result,""); 
   auto value = std::string(_value);
   printf("wasm_configure %s = %s\n", option, value.c_str());
 
@@ -1204,29 +1226,37 @@ extern "C" void wasm_configure(char* option, char* _value)
       wrapper->amiga->powerOff();
   }
 
-  if( strcmp(option,"AGNUS_REVISION") == 0)
-  {
-    wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <AgnusRevisionEnum>(value)); 
-    //wrapper->amiga->agnus.dump();
-  }
-  else if ( strcmp(option,"BLITTER_ACCURACY") == 0 ||
-            strcmp(option,"DRIVE_SPEED") == 0  ||
-            strcmp(option,"CHIP_RAM") == 0  ||
-            strcmp(option,"SLOW_RAM") == 0  ||
-            strcmp(option,"FAST_RAM") == 0  
-  )
-  {
-    wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseNum(value));
-  }
-  else
-  {
-    wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseBool(value)); 
-  }
+  try{
+    if( strcmp(option,"AGNUS_REVISION") == 0)
+    {
+      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <AgnusRevisionEnum>(value)); 
+      //wrapper->amiga->agnus.dump();
+    }
+    else if ( strcmp(option,"BLITTER_ACCURACY") == 0 ||
+              strcmp(option,"DRIVE_SPEED") == 0  ||
+              strcmp(option,"CHIP_RAM") == 0  ||
+              strcmp(option,"SLOW_RAM") == 0  ||
+              strcmp(option,"FAST_RAM") == 0  
+    )
+    {
+      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseNum(value));
+    }
+    else
+    {
+      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseBool(value)); 
+    }
 
-  if(was_powered_on && must_be_off)
-  {
-      wrapper->amiga->powerOn();
+    if(was_powered_on && must_be_off)
+    {
+        wrapper->amiga->powerOn();
+    }
   }
+  catch(VAError &exception) {    
+//    ErrorCode ec=exception.data;
+//    sprintf(config_result,"%s", ErrorCodeEnum::key(ec));
+    sprintf(config_result,"%s", exception.what());
+  }
+  return config_result; 
 }
 extern "C" void wasm_print_error(unsigned exception_ptr)
 {

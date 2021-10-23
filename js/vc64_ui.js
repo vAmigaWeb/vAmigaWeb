@@ -1221,9 +1221,10 @@ function InitWrappers() {
     wasm_poke = Module.cwrap('wasm_poke', 'undefined', ['number', 'number']);
     wasm_has_disk = Module.cwrap('wasm_has_disk', 'number');
     wasm_export_disk = Module.cwrap('wasm_export_disk', 'string');
-    wasm_configure = Module.cwrap('wasm_configure', 'undefined', ['string', 'string']);
+    wasm_configure = Module.cwrap('wasm_configure', 'string', ['string', 'string']);
     wasm_write_string_to_ser = Module.cwrap('wasm_write_string_to_ser', 'undefined', ['string']);
     wasm_print_error = Module.cwrap('wasm_print_error', 'undefined', ['number']);
+    wasm_power_on = Module.cwrap('wasm_power_on', 'string', ['number']);
 
 
 
@@ -1533,6 +1534,32 @@ bind_config("OPT_CLX_SPR_PLF", true);
 bind_config("OPT_CLX_PLF_PLF", true);
 
 
+function set_hardware(key, value)
+{
+    save_setting(key,value);
+    wasm_configure(key.substring(4),value);
+}
+
+function validate_hardware()
+{
+    let agnes=load_setting("OPT_AGNUS_REVISION", 'ECS_1MB');
+    let chip_ram=load_setting("OPT_CHIP_RAM", '512');
+    if(agnes.startsWith("OCS") && chip_ram > 512)
+    {
+        alert(`${agnes} agnus can address max. 512KB. Correcting to highest possible setting.`);
+        set_hardware("OPT_CHIP_RAM", '512');
+        $(`#button_${"OPT_CHIP_RAM"}`).text("chip ram"+'='+'512 (corrected)');
+    }
+    else if(agnes== "ECS_1MB" && chip_ram > 1024)
+    {
+        alert(`${agnes} agnus can address max. 1024KB. Correcting to highest possible setting.`);
+        set_hardware("OPT_CHIP_RAM", '1024');
+        $(`#button_${"OPT_CHIP_RAM"}`).text("chip ram"+'='+'1024 (corrected)');
+    }
+}
+
+validate_hardware();
+
 function bind_config_choice(key, name, values, default_value){
     $('#hardware_settings').append(
     `
@@ -1556,7 +1583,16 @@ function bind_config_choice(key, name, values, default_value){
 
     let set_choice = function (choice) {
         $(`#button_${key}`).text(name+'='+choice);
-        wasm_configure(key.substring(4),choice);
+        save_setting(key,choice);
+
+        let result=wasm_configure(key.substring(4),choice);
+        if(result.length>0)
+        {
+            alert(result);
+            validate_hardware();
+            wasm_power_on(1);
+            return;
+        }
     }
     set_choice(load_setting(key, default_value));
 
@@ -1564,7 +1600,6 @@ function bind_config_choice(key, name, values, default_value){
     {
         let choice=$(this).text();
         set_choice(choice);
-        save_setting(key,choice)
         $("#modal_settings").focus();
     });
 }
