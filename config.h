@@ -158,7 +158,7 @@ static const int FS_DEBUG        = 0; // File System Classes (OFS / FFS)
 // Audio
 static const int AUDREG_DEBUG    = 0; // Audio registers
 static const int AUD_DEBUG       = 0; // Audio execution
-static const int AUDBUF_DEBUG    = 0; // Audio buffers
+static const int AUDBUF_DEBUG    = 1; // Audio buffers
 static const int DISABLE_AUDIRQ  = 0; // Disable audio interrupts
 
 // Ports

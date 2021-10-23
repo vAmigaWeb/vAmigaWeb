@@ -338,7 +338,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
 }
 
 
-
+int sample_size=0;
 void MyAudioCallback(void*  thisAmiga,
                        Uint8* stream,
                        int    len)
@@ -346,16 +346,16 @@ void MyAudioCallback(void*  thisAmiga,
     Amiga *amiga = (Amiga *)thisAmiga;
     //calculate number of fitting samples
     //we are copying stereo interleaved floats in LR format, therefore we must divide by 2
-    int n = len /  (2 * sizeof(float));
-    amiga->paula.muxer.copy((float *)stream, n); 
+    //int n = len /  (2 * sizeof(float));
+    amiga->paula.muxer.copy((float *)stream, sample_size); 
 /*    printf("copyMono[%d]: ", n);
     for(int i=0; i<n; i++)
     {
       printf("%hhu,",stream[i]);
     }
     printf("\n");
-  */  
-    sum_samples += n;
+  */ 
+    sum_samples += sample_size;
 }
 
 extern "C" void wasm_create_renderer(char* name)
@@ -429,7 +429,7 @@ void initSDL(void *thisAmiga)
     want.format = AUDIO_F32;
     want.channels = 2;
     //sample buffer 512 in original vc64, vc64web=512 under macOs ok, but iOS needs 2048;
-    want.samples = 4096;
+    want.samples = 2048;
     want.callback = MyAudioCallback;
     want.userdata = thisAmiga;   //will be passed to the callback
     device_id = SDL_OpenAudioDevice(NULL, 0, &want, &have, SDL_AUDIO_ALLOW_FORMAT_CHANGE);
@@ -438,15 +438,16 @@ void initSDL(void *thisAmiga)
         printf("Failed to open audio: %s\n", SDL_GetError());
     }
 
-    printf("set SID to freq= %d\n", have.freq);
+    printf("set paula.muxer to freq= %d\n", have.freq);
     amiga->paula.muxer.setSampleRate(have.freq);
-    printf("freq in SIDBridge= %f\n", amiga->paula.muxer.getSampleRate());
+    sample_size=have.samples;
+    printf("paula.muxer.getSampleRate()==%f\n", amiga->paula.muxer.getSampleRate());
  
 
     SDL_PauseAudioDevice(device_id, 0); //unpause the audio device
     
     //listen to mouse, finger and keys
-    SDL_SetEventFilter(eventFilter, thisAmiga);
+//    SDL_SetEventFilter(eventFilter, thisAmiga);
 }
 
 
