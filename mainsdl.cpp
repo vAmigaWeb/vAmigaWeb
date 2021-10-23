@@ -737,7 +737,7 @@ extern "C" void wasm_set_borderless(float on)
 
   eat_border_height = 24 * on ;
   yOff = 26 + eat_border_height;
-  clipped_height = VPIXELS -yOff  -2*eat_border_height; 
+  clipped_height = VPIXELS -yOff  -2*eat_border_height- 2; 
 
 /*
   printf("eat_border w=%d, eat_border h=%d\n", eat_border_width, eat_border_height);
@@ -770,12 +770,15 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
       ADFFile adf = ADFFile(blob, len);
       auto disk = std::make_unique<Disk>(adf);
       printf("isADF\n");  
-
+/*
       if(wrapper->amiga->df0.hasDisk())
       {
         wrapper->amiga->df0.ejectDisk();
       }
-      wrapper->amiga->df0.insertDisk(std::move(disk));
+*/
+
+      wrapper->amiga->paula.diskController.insertDisk(std::move(disk), 0, (Cycle)SEC(1.8));
+//      wrapper->amiga->df0.insertDisk(std::move(disk));
       file_still_unprocessed=false;
     } catch(VAError &exception) {
       ErrorCode ec=exception.data;
