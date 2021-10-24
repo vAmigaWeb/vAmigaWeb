@@ -683,11 +683,18 @@ function configure_file_dialog(reset=false)
                         e.preventDefault();
                         $(this).parent().find('li').removeClass('active');
                         $(this).addClass('active');
-
+                        $("#button_insert_file").attr("disabled", true);
                         var path = $(this).text();
+                        uncompress_progress='0%';
                         zip.file(path).async("uint8array", 
                             function updateCallback(metadata) {
-                                console.log("progression: " + metadata.percent.toFixed(2) + " %");
+                                //console.log("progression: " + metadata.percent.toFixed(2) + " %");
+                                let current_progress=metadata.percent.toFixed(0);
+                                if(uncompress_progress != current_progress)
+                                {
+                                    uncompress_progress = current_progress;
+                                    $("#button_insert_file").html(`uncompress ${uncompress_progress}%`);
+                                }
                             }).then(function (u8) {
                                 file_slot_file_name=path;
                                 file_slot_file=u8;
@@ -696,8 +703,12 @@ function configure_file_dialog(reset=false)
                                 {//in case that there was only one mountable file in the zip, auto mount it
                                     configure_file_dialog(true);
                                 }        
+                                else
+                                {//file is ready to insert
+                                    $("#button_insert_file").html("mount file"+return_icon);
+                                    $("#button_insert_file").removeAttr("disabled");
+                                }
                             });
-                        $("#button_insert_file").removeAttr("disabled");
                     });
                     if(mountable_count>1)
                     {
