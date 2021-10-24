@@ -22,6 +22,9 @@ DDF<hires>::compute(isize ddfstrt, isize ddfstop)
         // Compute the number of fetch units
         isize fetchUnits = ((ddfstop - ddfstrt) + 15) >> 3;
         
+        // The number of fetch units can't be negative
+        if (fetchUnits < 0) fetchUnits = 0;
+        
         // Compute the end of the DDF window
         stop = std::min(strt + 8 * fetchUnits, (isize)0xE0);
         
@@ -33,10 +36,12 @@ DDF<hires>::compute(isize ddfstrt, isize ddfstop)
         // Compute the number of fetch units
         isize fetchUnits = ((ddfstop - ddfstrt) + 15) >> 3;
         
+        // The number of fetch units can't be negative
+        if (fetchUnits < 0) fetchUnits = 0;
+
         // Compute the end of the DDF window
         stop = std::min(strt + 8 * fetchUnits, (isize)0xE0);
     }
 }
-
 template void DDF<true>::compute(isize ddfstrt, isize ddfstop);
 template void DDF<false>::compute(isize ddfstrt, isize ddfstop);
