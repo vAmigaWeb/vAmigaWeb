@@ -11,6 +11,7 @@
 #include "RomFile.h"
 #include "ADFFile.h"
 #include "DMSFile.h"
+#include "EXEFile.h"
 #include "Snapshot.h"
 
 #include "MemUtils.h"
@@ -767,6 +768,11 @@ std::unique_ptr<Disk> load_disk(const char* filename, Uint8 *blob, long len)
       printf("%s - Loading ADF file\n", filename);
       ADFFile adf{blob, len};
       return std::make_unique<Disk>(adf);
+    }
+    if (EXEFile::isCompatible(filename)) {
+      printf("%s - Loading EXE file\n", filename);
+      EXEFile exe{blob, len};
+      return std::make_unique<Disk>(exe);
     }
   } catch (const VAError& e) {
     printf("Error loading %s - %s\n", filename, e.what());

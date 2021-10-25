@@ -666,7 +666,7 @@ function configure_file_dialog(reset=false)
                     zip.forEach(function (relativePath, zipfile){
                         if(!relativePath.startsWith("__MACOSX"))
                         {
-                            var mountable = relativePath.toLowerCase().match(/[.](zip|adf)$/i);
+                            var mountable = relativePath.toLowerCase().match(/[.](zip|adf|dms|exe)$/i);
                             list+='<li '+
                             (mountable ? 'id="li_fileselect'+mountable_count+'"':'')
                             +' class="list-group-item list-group-item-action'+ 
@@ -750,7 +750,7 @@ function configure_file_dialog(reset=false)
             $("#auto_press_play").prop('checked', auto_press_play);
             $("#auto_run").prop('checked', auto_run);    
 
-            if(file_slot_file_name.match(/[.](prg|t64|crt|adf|dms)$/i))
+            if(file_slot_file_name.match(/[.](adf|dms|exe)$/i))
             {
                 insert_file();
             }
