@@ -10,6 +10,7 @@
 #include "AmigaTypes.h"
 #include "RomFile.h"
 #include "ADFFile.h"
+#include "DMSFile.h"
 #include "Snapshot.h"
 
 #include "MemUtils.h"
@@ -754,6 +755,24 @@ extern "C" void wasm_set_borderless(float on)
   SDL_SetWindowSize(window, clipped_width, clipped_height);
 }
 
+std::unique_ptr<Disk> load_disk(const char* filename, Uint8 *blob, long len)
+{
+  try {
+    if (DMSFile::isCompatible(filename)) {
+      printf("%s - Loading DMS file\n", filename);
+      DMSFile dms{blob, len};
+      return std::make_unique<Disk>(dms);
+    }
+    if (ADFFile::isCompatible(filename)) {
+      printf("%s - Loading ADF file\n", filename);
+      ADFFile adf{blob, len};
+      return std::make_unique<Disk>(adf);
+    }
+  } catch (const VAError& e) {
+    printf("Error loading %s - %s\n", filename, e.what());
+  }
+  return {};
+}
 
 extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
 {
@@ -763,31 +782,14 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
   {
     return "";
   }
-  bool file_still_unprocessed=true;   
 
-  if (ADFFile::isCompatible(filename)) {    
-    try{
-      printf("try to build ADFFile\n");
-      ADFFile adf = ADFFile(blob, len);
-      auto disk = std::make_unique<Disk>(adf);
-      printf("isADF\n");  
-/*
-      if(wrapper->amiga->df0.hasDisk())
-      {
-        wrapper->amiga->df0.ejectDisk();
-      }
-*/
-
-      wrapper->amiga->paula.diskController.insertDisk(std::move(disk), 0, (Cycle)SEC(1.8));
-//      wrapper->amiga->df0.insertDisk(std::move(disk));
-      file_still_unprocessed=false;
-    } catch(VAError &exception) {
-      ErrorCode ec=exception.data;
-      printf("%s\n", ErrorCodeEnum::key(ec));
-    }
+  if (auto disk = load_disk(name, blob, len)) {
+    wrapper->amiga->paula.diskController.insertDisk(std::move(disk), 0, (Cycle)SEC(1.8));
+    return "";
   }
 
-  if (file_still_unprocessed && Snapshot::isCompatible(filename) && util::extractSuffix(filename)!="rom") 
+  bool file_still_unprocessed=true;
+  if (Snapshot::isCompatible(filename) && util::extractSuffix(filename)!="rom")
   {
     try
     {
