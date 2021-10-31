@@ -12,7 +12,7 @@ let call_param_dialog_on_disk=null;
 let call_param_SID=null;
 
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
-
+let audio_connected=false;
 const load_script= (url) => {
     return new Promise(resolve =>
     {
@@ -1245,7 +1245,9 @@ function InitWrappers() {
 
 
     connect_audio_processor = async () => {     
-        console.log("connecting audioprocessor");           
+        if(audio_connected==true)
+            return; 
+        console.log("try connecting audioprocessor");           
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         const audioContext = new AudioContext();
         if(audioContext.state === 'suspended') {
@@ -1257,7 +1259,9 @@ function InitWrappers() {
             numberOfInputs: 0,
             numberOfOutputs: 1
         });
+
         worklet_node.port.onmessage = (msg) => {
+            audio_connected=true;
             let sound_buffer_address = wasm_get_sound_buffer();
             let sound_buffer = new Float32Array(Module.HEAPF32.buffer, sound_buffer_address, 4096*2).slice(0);
 //            console.log("push data for "+msg.data);
@@ -1267,11 +1271,13 @@ function InitWrappers() {
         worklet_node.port.onmessageerror = (msg) => {
             console.log("audio processor error:"+msg);
         };
-        worklet_node.connect(audioContext.destination);
-        
-        console.log("connected");     
+        worklet_node.connect(audioContext.destination);        
     }
+    
     connect_audio_processor();
+
+    document.addEventListener('click',connect_audio_processor, false);
+//    document.addEventListener('touchstart',connect_audio_processor, false);
 
     get_audio_context=function() {
         if (typeof Module === 'undefined'
