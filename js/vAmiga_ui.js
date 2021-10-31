@@ -1241,8 +1241,37 @@ function InitWrappers() {
     wasm_write_string_to_ser = Module.cwrap('wasm_write_string_to_ser', 'undefined', ['string']);
     wasm_print_error = Module.cwrap('wasm_print_error', 'undefined', ['number']);
     wasm_power_on = Module.cwrap('wasm_power_on', 'string', ['number']);
+    wasm_get_sound_buffer = Module.cwrap('wasm_get_sound_buffer', 'number');
 
 
+    connect_audio_processor = async () => {     
+        console.log("connecting audioprocessor");           
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioContext = new AudioContext();
+        if(audioContext.state === 'suspended') {
+            audioContext.resume();  
+        }
+        await audioContext.audioWorklet.addModule('js/vAmiga_audioprocessor.js');
+        worklet_node = new AudioWorkletNode(audioContext, 'vAmiga_audioprocessor', {
+            outputChannelCount: [2],
+            numberOfInputs: 0,
+            numberOfOutputs: 1
+        });
+        worklet_node.port.onmessage = (msg) => {
+            let sound_buffer_address = wasm_get_sound_buffer();
+            let sound_buffer = new Float32Array(Module.HEAPF32.buffer, sound_buffer_address, 4096*2).slice(0);
+//            console.log("push data for "+msg.data);
+//            console.log("bytelength="+sound_buffer.byteLength);  // ==0 means transferable object
+            worklet_node.port.postMessage(sound_buffer, [sound_buffer.buffer]);
+        };
+        worklet_node.port.onmessageerror = (msg) => {
+            console.log("audio processor error:"+msg);
+        };
+        worklet_node.connect(audioContext.destination);
+        
+        console.log("connected");     
+    }
+    connect_audio_processor();
 
     get_audio_context=function() {
         if (typeof Module === 'undefined'
