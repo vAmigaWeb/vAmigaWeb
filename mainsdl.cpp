@@ -418,11 +418,11 @@ extern "C" void wasm_create_renderer(char* name)
 void initSDL(void *thisAmiga)
 {
     Amiga *amiga = (Amiga *)thisAmiga;
-    if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO)==-1)
+    if(SDL_Init(SDL_INIT_VIDEO)==-1)
     {
         printf("Could not initialize SDL:%s\n", SDL_GetError());
     } 
-
+/*
     SDL_AudioSpec want, have;
     SDL_AudioDeviceID device_id;
 
@@ -439,14 +439,14 @@ void initSDL(void *thisAmiga)
     {
         printf("Failed to open audio: %s\n", SDL_GetError());
     }
-
-    printf("set paula.muxer to freq= %d\n", have.freq);
-    amiga->paula.muxer.setSampleRate(have.freq);
-    sample_size=have.samples;
+*/
+//    printf("set paula.muxer to freq= %d\n", have.freq);
+//    amiga->paula.muxer.setSampleRate(have.freq);
+  //  sample_size=have.samples;
     printf("paula.muxer.getSampleRate()==%f\n", amiga->paula.muxer.getSampleRate());
  
 
-    SDL_PauseAudioDevice(device_id, 0); //unpause the audio device
+//    SDL_PauseAudioDevice(device_id, 0); //unpause the audio device
     
     //listen to mouse, finger and keys
 //    SDL_SetEventFilter(eventFilter, thisAmiga);
@@ -708,8 +708,20 @@ extern "C" void wasm_take_user_snapshot()
   wrapper->amiga->requestUserSnapshot();
 }
 
-
-
+float sound_buffer[4096 * 2];
+extern "C" float* wasm_get_sound_buffer()
+{
+  wrapper->amiga->paula.muxer.copy(sound_buffer, 4096); 
+/*  printf("copyMono[%d]: ", 16);
+  for(int i=0; i<16; i++)
+  {
+    //printf("%hhu,",stream[i]);
+    printf("%f,",sound_buffer[i]);
+  }
+  printf("\n"); 
+*/
+  return sound_buffer;
+}
 
 extern "C" void wasm_set_warp(unsigned on)
 {
