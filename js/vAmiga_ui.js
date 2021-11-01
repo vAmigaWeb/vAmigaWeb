@@ -12,7 +12,11 @@ let call_param_dialog_on_disk=null;
 let call_param_SID=null;
 
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
+
+//const AudioContext = window.AudioContext || window.webkitAudioContext;
+//const audioContext = new AudioContext();
 let audio_connected=false;
+
 const load_script= (url) => {
     return new Promise(resolve =>
     {
@@ -1242,17 +1246,26 @@ function InitWrappers() {
     wasm_print_error = Module.cwrap('wasm_print_error', 'undefined', ['number']);
     wasm_power_on = Module.cwrap('wasm_power_on', 'string', ['number']);
     wasm_get_sound_buffer = Module.cwrap('wasm_get_sound_buffer', 'number');
+    wasm_set_sample_rate = Module.cwrap('wasm_set_sample_rate', 'undefined', ['number']);
 
 
     connect_audio_processor = async () => {     
-        if(audio_connected==true)
-            return; 
-        console.log("try connecting audioprocessor");           
+//        if(audioContext == null)
+//        {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         const audioContext = new AudioContext();
+//        }
+
         if(audioContext.state === 'suspended') {
-            audioContext.resume();  
+            await audioContext.resume();  
         }
+        if(audio_connected==true)
+            return; 
+        if(audioContext.state === 'suspended') {
+            return;  
+        }
+        wasm_set_sample_rate(audioContext.sampleRate);
+        console.log("try connecting audioprocessor");           
         await audioContext.audioWorklet.addModule('js/vAmiga_audioprocessor.js');
         worklet_node = new AudioWorkletNode(audioContext, 'vAmiga_audioprocessor', {
             outputChannelCount: [2],

@@ -417,7 +417,7 @@ extern "C" void wasm_create_renderer(char* name)
 
 void initSDL(void *thisAmiga)
 {
-    Amiga *amiga = (Amiga *)thisAmiga;
+//    Amiga *amiga = (Amiga *)thisAmiga;
     if(SDL_Init(SDL_INIT_VIDEO)==-1)
     {
         printf("Could not initialize SDL:%s\n", SDL_GetError());
@@ -443,7 +443,7 @@ void initSDL(void *thisAmiga)
 //    printf("set paula.muxer to freq= %d\n", have.freq);
 //    amiga->paula.muxer.setSampleRate(have.freq);
   //  sample_size=have.samples;
-    printf("paula.muxer.getSampleRate()==%f\n", amiga->paula.muxer.getSampleRate());
+//    printf("paula.muxer.getSampleRate()==%f\n", amiga->paula.muxer.getSampleRate());
  
 
 //    SDL_PauseAudioDevice(device_id, 0); //unpause the audio device
@@ -712,6 +712,7 @@ float sound_buffer[4096 * 2];
 extern "C" float* wasm_get_sound_buffer()
 {
   wrapper->amiga->paula.muxer.copy(sound_buffer, 4096); 
+  sum_samples += 4096;
 /*  printf("copyMono[%d]: ", 16);
   for(int i=0; i<16; i++)
   {
@@ -1230,6 +1231,16 @@ extern "C" const char* wasm_power_on(unsigned power_on)
   }
   return config_result; 
 }
+
+
+extern "C" void wasm_set_sample_rate(unsigned sample_rate)
+{
+    printf("set paula.muxer to freq= %d\n", sample_rate);
+    wrapper->amiga->paula.muxer.setSampleRate(sample_rate);
+    printf("paula.muxer.getSampleRate()==%f\n", wrapper->amiga->paula.muxer.getSampleRate());
+}
+
+
 
 
 extern "C" const char* wasm_configure(char* option, char* _value)
