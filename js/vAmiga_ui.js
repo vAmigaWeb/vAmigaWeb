@@ -1249,7 +1249,7 @@ function InitWrappers() {
     wasm_set_sample_rate = Module.cwrap('wasm_set_sample_rate', 'undefined', ['number']);
 
 
-    connect_audio_processor = async () => {     
+    connect_audio_processor = async () => {
         if(audioContext.state === 'suspended') {
             await audioContext.resume();  
         }

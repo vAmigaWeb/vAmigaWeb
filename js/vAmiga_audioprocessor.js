@@ -1,8 +1,3 @@
-let fetch_buffer=null;
-let buffer=null;
-let buf_addr=0;
-let pending_post=false;
-
 class vAmigaAudioProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
@@ -10,67 +5,75 @@ class vAmigaAudioProcessor extends AudioWorkletProcessor {
     this.port.onmessageerror = (error)=>{ 
       console.error("error:"+ error);
     };
+
+    this.fetch_buffer=null;
+    this.buffer=null;
+    this.buf_addr=0;
+    this.pending_post=false;
     console.log("vAmiga_audioprocessor connected");
   }
 
   handleMessage(event) {
   //  console.log("processor received sound data");
-    fetch_buffer = event.data;
-    pending_post=false;
+    this.fetch_buffer = event.data;
+    this.pending_post=false;
   }
 
   fetch_data()
   {
 //    console.log("audio processor: fetch");
-    pending_post=true;
+    this.pending_post=true;
     this.port.postMessage("fetch");
   }
 
 
   process(inputs, outputs) {
-    if(buffer == null)
+    if(this.buffer == null)
     {
-      if(fetch_buffer == null && pending_post==false)
+      if(this.fetch_buffer == null && this.pending_post==false)
       { 
 //        console.log("initial fetch");     
         this.fetch_data();
       }
-      if(fetch_buffer!= null)
+      if(this.fetch_buffer!= null)
       {
 //        console.log("buffer=fetch_buffer;");
-        buffer=fetch_buffer;
-        fetch_buffer=null;
-        buf_addr=0;
+        this.buffer=this.fetch_buffer;
+        this.fetch_buffer=null;
+        this.buf_addr=0;
       }
     }
-    if(buffer != null && buf_addr>=buffer.length/2)
+    if(this.buffer != null && this.buf_addr>=this.buffer.length/4)
     {
-      if(fetch_buffer==null && pending_post==false) 
+      if(this.fetch_buffer==null && this.pending_post==false) 
       {       
 //        console.log("buf address pointer="+ buf_addr)
         this.fetch_data();
       }
     }
-    if(buffer!=null)
+    if(this.buffer!=null)
     {
       const output = outputs[0];
-      for(let i=0;i<128;i++)
-      {
-        output[0][i]=buffer[buf_addr++];
-        output[1][i]=buffer[buf_addr++];
-      }
+
+      let pos=this.buf_addr;
+      output[0].set(this.buffer.subarray(pos,pos+128));
+      pos+=4096;//this.buffer.length/2;
+      output[1].set(this.buffer.subarray(pos,pos+128));
+      this.buf_addr+=128;
+
  
-      if(buf_addr>=buffer.length)
+      if(this.buf_addr>=this.buffer.length/2)
       {
 //        console.log("buffer empty. fetch_buffer ready="+(fetch_buffer!= null));
-        buffer=null;
-        buf_addr=0;
+        this.buffer=null;
+        this.buf_addr=0;
       }
     }
-    else
+/*    else
     {
 //      console.error("audio processor has no data");
     }
+*/
     return true;
   }
 }
