@@ -8,6 +8,7 @@ class vAmigaAudioProcessor extends AudioWorkletProcessor {
 
     this.fetch_buffer=null;
     this.buffer=null;
+    this.recyle_buffer;;
     this.buf_addr=0;
     this.pending_post=false;
     console.log("vAmiga_audioprocessor connected");
@@ -23,7 +24,13 @@ class vAmigaAudioProcessor extends AudioWorkletProcessor {
   {
 //    console.log("audio processor: fetch");
     this.pending_post=true;
-    this.port.postMessage("fetch");
+    if(this.recyle_buffer==null)
+    {
+      console.log("audio processor has no recycled buffer... creates new buffer");
+      this.recyle_buffer=new Float32Array(4096*2);
+    }
+    this.port.postMessage(this.recyle_buffer, [this.recyle_buffer.buffer]);
+    this.recyle_buffer=null;
   }
 
 
@@ -65,6 +72,7 @@ class vAmigaAudioProcessor extends AudioWorkletProcessor {
       if(this.buf_addr>=this.buffer.length/2)
       {
 //        console.log("buffer empty. fetch_buffer ready="+(fetch_buffer!= null));
+        this.recyle_buffer = this.buffer;
         this.buffer=null;
         this.buf_addr=0;
       }
