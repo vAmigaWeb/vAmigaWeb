@@ -711,7 +711,7 @@ extern "C" void wasm_take_user_snapshot()
 float sound_buffer[4096 * 2];
 extern "C" float* wasm_get_sound_buffer()
 {
-  wrapper->amiga->paula.muxer.copy(sound_buffer, 4096); 
+  wrapper->amiga->paula.muxer.copy(sound_buffer, sound_buffer+4096, 4096); 
   sum_samples += 4096;
 /*  printf("copyMono[%d]: ", 16);
   for(int i=0; i<16; i++)
