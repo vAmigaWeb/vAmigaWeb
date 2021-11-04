@@ -1268,18 +1268,13 @@ function InitWrappers() {
             numberOfOutputs: 1
         });
 
+        let sound_buffer_address = wasm_get_sound_buffer();
+        sound_buffer = new Float32Array(Module.HEAPF32.buffer, sound_buffer_address, 8192);
         worklet_node.port.onmessage = (msg) => {
-            let sound_buffer_address = wasm_get_sound_buffer();
-            let sound_buffer = new Float32Array(Module.HEAPF32.buffer, sound_buffer_address, 4096*2).subarray(0,4096*2);
+            wasm_get_sound_buffer();
             let recycled_transfer_buffer= msg.data; 
-            recycled_transfer_buffer.set(sound_buffer,0);
+            recycled_transfer_buffer.set(sound_buffer);
             worklet_node.port.postMessage(recycled_transfer_buffer, [recycled_transfer_buffer.buffer]);
-/*
-            let sound_buffer = new Float32Array(Module.HEAPF32.buffer, sound_buffer_address, 4096*2).slice(0);
-//            console.log("push data for "+msg.data);
-            worklet_node.port.postMessage(sound_buffer, [sound_buffer.buffer]);
-//            console.log("bytelength="+sound_buffer.byteLength);  // ==0 means transferable object
-*/
         };
         worklet_node.port.onmessageerror = (msg) => {
             console.log("audio processor error:"+msg);
