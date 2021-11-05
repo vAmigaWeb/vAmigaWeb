@@ -1270,7 +1270,15 @@ function InitWrappers() {
 
         let sound_buffer_address = wasm_get_sound_buffer();
         sound_buffer = new Float32Array(Module.HEAPF32.buffer, sound_buffer_address, 8192);
+
+/*        samples_consumed=0;
+        setInterval(() => {
+            console.log("ap_samples_req: "+samples_consumed/30);
+            samples_consumed=0;
+        }, 30*1000);
+*/
         worklet_node.port.onmessage = (msg) => {
+//            samples_consumed+=4096;
             wasm_get_sound_buffer();
             let recycled_transfer_buffer= msg.data; 
             recycled_transfer_buffer.set(sound_buffer);
