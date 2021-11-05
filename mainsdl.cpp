@@ -712,6 +712,8 @@ float sound_buffer[4096 * 2];
 extern "C" float* wasm_get_sound_buffer()
 {
   wrapper->amiga->paula.muxer.copy(sound_buffer, sound_buffer+4096, 4096); 
+//  printf("fillLevel (%lf)",wrapper->amiga->paula.muxer.stream.fillLevel());
+ 
   sum_samples += 4096;
 /*  printf("copyMono[%d]: ", 16);
   for(int i=0; i<16; i++)

@@ -11,6 +11,10 @@ class vAmigaAudioProcessor extends AudioWorkletProcessor {
     this.recyle_buffer;;
     this.buf_addr=0;
     this.pending_post=false;
+/*    this.samples_processed=0;
+    this.time=Date.now();
+    this.no_data=0;
+*/
     console.log("vAmiga_audioprocessor connected");
   }
 
@@ -34,7 +38,19 @@ class vAmigaAudioProcessor extends AudioWorkletProcessor {
   }
 
 
+
   process(inputs, outputs) {
+/*    if(this.samples_processed>=44100*30)
+    {
+      const d= Date.now();
+      const millis = d - this.time;
+      console.log("ap_samples_processed 44.1khz in "+millis+"ms, no_data="+this.no_data);
+      this.samples_processed=0;
+      this.no_data=0;
+      this.time=d;
+    }
+    this.samples_processed+=128;
+*/
     if(this.buffer == null)
     {
       if(this.fetch_buffer!= null)
@@ -50,7 +66,7 @@ class vAmigaAudioProcessor extends AudioWorkletProcessor {
         this.fetch_data();
       }
     }
-    else
+    if(this.buffer!=null)
     {
       const output = outputs[0];
 
@@ -60,24 +76,25 @@ class vAmigaAudioProcessor extends AudioWorkletProcessor {
       output[1].set(this.buffer.subarray(4096+startpos,4096+endpos));
       this.buf_addr=endpos;
       
-      if(endpos>=2048 /*this.buffer.length/4*/)
+      if(endpos>=4096) //this.buffer.length/2
       {
-        if(endpos>=4096) //this.buffer.length/2
-        {
-  //        console.log("buffer empty. fetch_buffer ready="+(fetch_buffer!= null));
-          this.recyle_buffer = this.buffer;
-          this.buffer=null;
-          this.buf_addr=0;
-        }  
-        if(this.fetch_buffer==null && this.pending_post==false) 
-        {       
-  //        console.log("buf address pointer="+ buf_addr)
-          this.fetch_data();      
-        }
+//        console.log("buffer empty. fetch_buffer ready="+(fetch_buffer!= null));
+        this.recyle_buffer = this.buffer;
+        this.buffer=null;
+        this.buf_addr=0;
+      }  
+      if(this.fetch_buffer==null && this.pending_post==false) 
+      {       
+//        console.log("buf address pointer="+ buf_addr)
+        this.fetch_data();      
       }
-  
     }
-
+/*    else
+    {
+     // console.log("no data");
+      this.no_data++;
+    }
+*/
     return true;
   }
 }
