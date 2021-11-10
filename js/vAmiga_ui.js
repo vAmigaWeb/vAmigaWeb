@@ -1245,7 +1245,8 @@ function InitWrappers() {
     wasm_write_string_to_ser = Module.cwrap('wasm_write_string_to_ser', 'undefined', ['string']);
     wasm_print_error = Module.cwrap('wasm_print_error', 'undefined', ['number']);
     wasm_power_on = Module.cwrap('wasm_power_on', 'string', ['number']);
-    wasm_get_sound_buffer = Module.cwrap('wasm_get_sound_buffer', 'number');
+    wasm_get_sound_buffer_address = Module.cwrap('wasm_get_sound_buffer_address', 'number');
+    wasm_copy_into_sound_buffer = Module.cwrap('wasm_copy_into_sound_buffer', 'number');
     wasm_set_sample_rate = Module.cwrap('wasm_set_sample_rate', 'undefined', ['number']);
 
 
@@ -1268,21 +1269,52 @@ function InitWrappers() {
             numberOfOutputs: 1
         });
 
-        let sound_buffer_address = wasm_get_sound_buffer();
-        sound_buffer = new Float32Array(Module.HEAPF32.buffer, sound_buffer_address, 8192);
+        let sound_buffer_address = wasm_get_sound_buffer_address();
+        soundbuffer_slots=[];
+        for(slot=0;slot<16;slot++)
+        {
+            soundbuffer_slots.push(
+                new Float32Array(Module.HEAPF32.buffer, sound_buffer_address+(slot*2048)*4, 2048));
+        }
 
 /*        samples_consumed=0;
         setInterval(() => {
             console.log("ap_samples_req: "+samples_consumed/30);
             samples_consumed=0;
         }, 30*1000);
-*/
+*/      
+        empty_shuttles=new RingBuffer(16);
         worklet_node.port.onmessage = (msg) => {
-//            samples_consumed+=4096;
-            wasm_get_sound_buffer();
-            let recycled_transfer_buffer= msg.data; 
-            recycled_transfer_buffer.set(sound_buffer);
-            worklet_node.port.postMessage(recycled_transfer_buffer, [recycled_transfer_buffer.buffer]);
+//            samples_consumed+=4096;   
+            let samples=wasm_copy_into_sound_buffer();
+            let shuttle = msg.data;
+            if(samples<1024)
+            {
+                if(shuttle!="empty")
+                {
+                    empty_shuttles.write(shuttle);
+                }
+                return;
+            }
+            let slot=0;
+            while(samples>=1024)
+            {
+                if(shuttle == null || shuttle=="empty")
+                {
+                    if(!empty_shuttles.isEmpty())
+                    {
+                        shuttle = empty_shuttles.read();
+                    }
+                    else
+                    {
+                      return;
+                    }
+                }
+                shuttle.set(soundbuffer_slots[slot++]);
+                worklet_node.port.postMessage(shuttle, [shuttle.buffer]);
+                shuttle=null;
+                samples-=1024;
+            }            
         };
         worklet_node.port.onmessageerror = (msg) => {
             console.log("audio processor error:"+msg);

@@ -1,3 +1,74 @@
+class RingBuffer {
+    constructor(capacity) {
+        this.capacity = capacity+1;
+        this.capacity_usable = capacity;
+        this.r = 0;
+        this.w = 0;
+        this.elements = new ArrayBuffer(this.capacity);
+    }
+ 
+    clear(){
+        this.r = 0;
+        this.w = 0;
+        for (let i = 0; i < this.capacity; i++) { this.elements[i] = null; }
+    }
+ 
+    align(offset) {
+        this.w = (this.r + offset) % this.capacity;
+    }
+ 
+    count() {
+        return (this.capacity + this.w - this.r) % this.capacity;
+    }
+    free()  { return this.capacity - this.count() - 1; }
+    fillLevel() { return this.count() / this.capacity; }
+    isEmpty()  { return this.r == this.w; }
+    isFull()  { return this.count() == this.capacity - 1; }
+ 
+    begin()  { return this.r; }
+    end()  { return this.w; }
+    next(i) { return i < this.capacity - 1 ? i + 1 : 0; }
+    prev(i) { return i > 0 ? i - 1 : this.capacity - 1; }
+ 
+    read()
+    {
+//        console.assert(!this.isEmpty(), "Ringbuffer.read() -> !isEmpty()");
+ 
+        let oldr = this.r;
+        //this.r = this.next(this.r);
+        this.r = this.r < this.capacity_usable ? this.r + 1 : 0;
+        return this.elements[oldr];
+    }
+ 
+    write(element)
+    {
+//        console.log("write "+element)
+//        console.assert(!this.isFull(), "Ringbuffer.write() -> !isFull()");
+ 
+        this.elements[this.w] = element;
+        //this.w = this.next(this.w);
+        this.w = this.w < this.capacity_usable ? this.w + 1 : 0;
+    }
+  
+    skip()
+    {
+        this.r = this.next(this.r);
+    }
+   
+    skip(n)
+    {
+        this.r = (this.r + n) % this.capacity;
+    }
+   
+    current(offset)
+    {
+        return this.elements[(this.r + offset) % this.capacity];
+    }
+}
+
+
+
+
 class vAmigaAudioProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
@@ -6,35 +77,40 @@ class vAmigaAudioProcessor extends AudioWorkletProcessor {
       console.error("error:"+ error);
     };
 
-    this.fetch_buffer=null;
+    this.fetch_buffer_stack=new RingBuffer(16);
     this.buffer=null;
-    this.recyle_buffer;;
     this.buf_addr=0;
-    this.pending_post=false;
-/*    this.samples_processed=0;
+    this.recyle_buffer_stack=new RingBuffer(16);
+    for(let i=0; i<16;i++)
+    {
+      this.recyle_buffer_stack.write(new Float32Array(2048));
+    }  
+
+    /*    this.samples_processed=0;
     this.time=Date.now();
     this.no_data=0;
 */
+    this.counter_no_buffer=0;
     console.log("vAmiga_audioprocessor connected");
   }
 
   handleMessage(event) {
-  //  console.log("processor received sound data");
-    this.fetch_buffer = event.data;
-    this.pending_post=false;
+    //console.log("processor received sound data");
+    this.fetch_buffer_stack.write(event.data);
   }
 
   fetch_data()
   {
-//    console.log("audio processor: fetch");
-    this.pending_post=true;
-    if(this.recyle_buffer==null)
+    //console.log("audio processor: fetch");
+    if(!this.recyle_buffer_stack.isEmpty())
     {
-      console.log("audio processor has no recycled buffer... creates new buffer");
-      this.recyle_buffer=new Float32Array(8192);
+      let shuttle=this.recyle_buffer_stack.read();
+      this.port.postMessage(shuttle, [shuttle.buffer]);
     }
-    this.port.postMessage(this.recyle_buffer, [this.recyle_buffer.buffer]);
-    this.recyle_buffer=null;
+    else
+    {
+      this.port.postMessage("empty");
+    }
   }
 
 
@@ -53,18 +129,18 @@ class vAmigaAudioProcessor extends AudioWorkletProcessor {
 */
     if(this.buffer == null)
     {
-      if(this.fetch_buffer!= null)
+      if(!this.fetch_buffer_stack.isEmpty())
       {
-//        console.log("buffer=fetch_buffer;");
-        this.buffer=this.fetch_buffer;
-        this.fetch_buffer=null;
+        //console.log("buffer=fetch_buffer;");
+        this.buffer=this.fetch_buffer_stack.read();
         this.buf_addr=0;
       }
-      else if(this.pending_post==false)
+      else if(this.counter_no_buffer%1024==0)
       { 
-//        console.log("initial fetch");     
+        //console.log("initial fetch");     
         this.fetch_data();
       }
+      this.counter_no_buffer+=128;
     }
     if(this.buffer!=null)
     {
@@ -73,21 +149,18 @@ class vAmigaAudioProcessor extends AudioWorkletProcessor {
       let startpos=this.buf_addr;
       let endpos=startpos+128;
       output[0].set(this.buffer.subarray(startpos,endpos));
-      output[1].set(this.buffer.subarray(4096+startpos,4096+endpos));
+      output[1].set(this.buffer.subarray(1024+startpos,1024+endpos));
       this.buf_addr=endpos;
       
-      if(endpos>=4096) //this.buffer.length/2
+      if(endpos>=1024) //this.buffer.length/2
       {
 //        console.log("buffer empty. fetch_buffer ready="+(fetch_buffer!= null));
-        this.recyle_buffer = this.buffer;
+        this.recyle_buffer_stack.write(this.buffer);
         this.buffer=null;
         this.buf_addr=0;
-      }  
-      if(this.fetch_buffer==null && this.pending_post==false) 
-      {       
-//        console.log("buf address pointer="+ buf_addr)
+
         this.fetch_data();      
-      }
+      }  
     }
 /*    else
     {
