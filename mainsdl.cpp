@@ -708,13 +708,27 @@ extern "C" void wasm_take_user_snapshot()
   wrapper->amiga->requestUserSnapshot();
 }
 
-float sound_buffer[4096 * 2];
-extern "C" float* wasm_get_sound_buffer()
+float sound_buffer[16384 * 2];
+extern "C" float* wasm_get_sound_buffer_address()
 {
-  wrapper->amiga->paula.muxer.copy(sound_buffer, sound_buffer+4096, 4096); 
+  return sound_buffer;
+}
+
+extern "C" unsigned wasm_copy_into_sound_buffer()
+{
+  auto count=wrapper->amiga->paula.muxer.stream.count();
+  
+  auto copied_samples=0;
+  for(unsigned ipos=1024;ipos<=count;ipos+=1024)
+  {
+    wrapper->amiga->paula.muxer.copy(
+    sound_buffer+copied_samples,
+     sound_buffer+copied_samples+1024, 
+     1024); 
+    copied_samples+=1024*2;
 //  printf("fillLevel (%lf)",wrapper->amiga->paula.muxer.stream.fillLevel());
- 
-  sum_samples += 4096;
+    sum_samples += count; 
+  }
 /*  printf("copyMono[%d]: ", 16);
   for(int i=0; i<16; i++)
   {
@@ -723,8 +737,9 @@ extern "C" float* wasm_get_sound_buffer()
   }
   printf("\n"); 
 */
-  return sound_buffer;
+  return copied_samples/2;
 }
+
 
 extern "C" void wasm_set_warp(unsigned on)
 {
