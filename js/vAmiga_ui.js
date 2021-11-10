@@ -1283,7 +1283,7 @@ function InitWrappers() {
             samples_consumed=0;
         }, 30*1000);
 */      
-        empty_shuttles=[];
+        empty_shuttles=new RingBuffer(16);
         worklet_node.port.onmessage = (msg) => {
 //            samples_consumed+=4096;   
             let samples=wasm_copy_into_sound_buffer();
@@ -1292,7 +1292,7 @@ function InitWrappers() {
             {
                 if(shuttle!="empty")
                 {
-                    empty_shuttles.push(shuttle);
+                    empty_shuttles.write(shuttle);
                 }
                 return;
             }
@@ -1301,9 +1301,9 @@ function InitWrappers() {
             {
                 if(shuttle == null || shuttle=="empty")
                 {
-                    if(empty_shuttles.length>0)
+                    if(!empty_shuttles.isEmpty())
                     {
-                        shuttle = empty_shuttles.pop();
+                        shuttle = empty_shuttles.read();
                     }
                     else
                     {

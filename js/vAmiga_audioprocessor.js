@@ -1,6 +1,7 @@
 class RingBuffer {
     constructor(capacity) {
         this.capacity = capacity+1;
+        this.capacity_usable = capacity;
         this.r = 0;
         this.w = 0;
         this.elements = new ArrayBuffer(this.capacity);
@@ -34,7 +35,8 @@ class RingBuffer {
 //        console.assert(!this.isEmpty(), "Ringbuffer.read() -> !isEmpty()");
  
         let oldr = this.r;
-        this.r = this.next(this.r);
+        //this.r = this.next(this.r);
+        this.r = this.r < this.capacity_usable ? this.r + 1 : 0;
         return this.elements[oldr];
     }
  
@@ -44,7 +46,8 @@ class RingBuffer {
 //        console.assert(!this.isFull(), "Ringbuffer.write() -> !isFull()");
  
         this.elements[this.w] = element;
-        this.w = this.next(this.w);
+        //this.w = this.next(this.w);
+        this.w = this.w < this.capacity_usable ? this.w + 1 : 0;
     }
   
     skip()
@@ -74,10 +77,10 @@ class vAmigaAudioProcessor extends AudioWorkletProcessor {
       console.error("error:"+ error);
     };
 
-    this.fetch_buffer_stack=new RingBuffer(16+1);
+    this.fetch_buffer_stack=new RingBuffer(16);
     this.buffer=null;
     this.buf_addr=0;
-    this.recyle_buffer_stack=new RingBuffer(16+1);
+    this.recyle_buffer_stack=new RingBuffer(16);
     for(let i=0; i<16;i++)
     {
       this.recyle_buffer_stack.write(new Float32Array(2048));

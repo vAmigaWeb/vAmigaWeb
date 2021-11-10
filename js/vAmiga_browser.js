@@ -1155,18 +1155,18 @@ function property_path(xml_root_item, property_path) {
 }
 
 
-function RingBuffer(maxLength) {
+function SlowRingBuffer(maxLength) {
   this.maxLength = maxLength;
 }
-RingBuffer.prototype = Object.create(Array.prototype);
-RingBuffer.prototype.push = function(element) {
+SlowRingBuffer.prototype = Object.create(Array.prototype);
+SlowRingBuffer.prototype.push = function(element) {
   Array.prototype.push.call(this, element);
   while (this.length > this.maxLength) {
     this.shift();
   }
 }
 
-var auto_snaps= new RingBuffer(5);
+var auto_snaps= new SlowRingBuffer(5);
 var auto_snap_interval=null;
 function set_take_auto_snapshots(on) {
     if(on == false && auto_snap_interval != null)
