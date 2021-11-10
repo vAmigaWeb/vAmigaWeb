@@ -1285,8 +1285,8 @@ function InitWrappers() {
 */      
         empty_shuttles=new RingBuffer(16);
         worklet_node.port.onmessage = (msg) => {
-//            samples_consumed+=4096;   
-            let samples=wasm_copy_into_sound_buffer();
+            //direct c function calls with preceeding Module._ are faster than cwrap
+            let samples=Module._wasm_copy_into_sound_buffer();
             let shuttle = msg.data;
             if(samples<1024)
             {
