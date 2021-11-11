@@ -377,15 +377,9 @@ var collectors = {
                     imgData=ctx.createImageData(width,height);
                 
                     var data = imgData.data;
-                    snapshot_data = new Uint8Array(src_data, 40/* offset .. this number was a guess... */, data.length);
+                    let snapshot_data = new Uint8Array(src_data, 40/* offset .. this number was a guess... */, data.length);
 
-                    for (var i = 0; i < data.length; i += 4) {
-                        data[i]     = snapshot_data[i+0]; // red
-                        data[i + 1] = snapshot_data[i+1]; // green
-                        data[i + 2] = snapshot_data[i+2]; // blue
-                        data[i + 3] = snapshot_data[i+3];
-
-                    }
+                    data.set(snapshot_data.subarray(0, data.length), 0);
                     ctx.putImageData(imgData,0,0); 
                 
                     if(!version.startsWith(vc64web_version))
@@ -465,15 +459,9 @@ var collectors = {
 
             var data = imgData.data;
 
-            snapshot_data = new Uint8Array(Module.HEAPU8.buffer, snapshot_ptr, data.length);
+            let snapshot_data = new Uint8Array(Module.HEAPU8.buffer, snapshot_ptr, data.length);
 
-            for (var i = 0; i < data.length; i += 4) {
-                data[i]     = snapshot_data[i+0]; // red
-                data[i + 1] = snapshot_data[i+1]; // green
-                data[i + 2] = snapshot_data[i+2]; // blue
-                data[i + 3] = snapshot_data[i+3];
-
-            }
+            data.set(snapshot_data.subarray(0, data.length), 0);
             ctx.putImageData(imgData,0,0); 
         },
         copy_autosnapshot_to_canvas: function(snapshot_data, canvas, width, height){ 
@@ -484,13 +472,7 @@ var collectors = {
 
             var data = imgData.data;
 
-            for (var i = 0; i < data.length; i += 4) {
-                data[i]     = snapshot_data[i+0]; // red
-                data[i + 1] = snapshot_data[i+1]; // green
-                data[i + 2] = snapshot_data[i+2]; // blue
-                data[i + 3] = snapshot_data[i+3];
-
-            }
+            data.set(snapshot_data.subarray(0, data.length), 0);
             ctx.putImageData(imgData,0,0); 
         }
 
