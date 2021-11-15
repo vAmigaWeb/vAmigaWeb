@@ -727,8 +727,9 @@ extern "C" unsigned wasm_copy_into_sound_buffer()
      1024); 
     copied_samples+=1024*2;
 //  printf("fillLevel (%lf)",wrapper->amiga->paula.muxer.stream.fillLevel());
-    sum_samples += count; 
   }
+  sum_samples += copied_samples/2; 
+
 /*  printf("copyMono[%d]: ", 16);
   for(int i=0; i<16; i++)
   {
