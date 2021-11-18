@@ -1475,8 +1475,16 @@ function InitWrappers() {
     document.exitPointerLock = document.exitPointerLock ||
                             document.mozExitPointerLock;
 
-    request_pointerlock = function() {
-        canvas.requestPointerLock();
+    has_pointer_lock=false;
+    pointer_lock_just_exited=false;
+    request_pointerlock = async function() {
+        while(pointer_lock_just_exited)
+        {
+            await sleep(100);
+            //console.log("wait ... for lock");
+        }
+        if(!has_pointer_lock )
+            canvas.requestPointerLock();           
     };
     
     // Hook pointer lock state change events for different browsers
@@ -1486,6 +1494,7 @@ function InitWrappers() {
     function lockChangeAlert() {
         if (document.pointerLockElement === canvas ||
             document.mozPointerLockElement === canvas) {
+            has_pointer_lock=true;
 //            console.log('The pointer lock status is now locked');
             document.addEventListener("mousemove", updatePosition, false);
             document.addEventListener("mousedown", mouseDown, false);
@@ -1494,6 +1503,14 @@ function InitWrappers() {
         } else {
 //            console.log('The pointer lock status is now unlocked');  
             document.removeEventListener("mousemove", updatePosition, false);
+            document.removeEventListener("mousedown", mouseDown, false);
+            document.removeEventListener("mouseup", mouseUp, false);
+
+            pointer_lock_just_exited=true;
+            has_pointer_lock=false;
+            setTimeout(() => {
+                pointer_lock_just_exited=false;            
+            }, 1500);
         }
     }
     var mouse_port=1;
@@ -2239,6 +2256,7 @@ $('.layer').change( function(event) {
         {                
             mouse_port=1;    
             canvas.addEventListener('click', request_pointerlock);
+            request_pointerlock();
         }
         else if(port2 != 'mouse')
         {
@@ -2268,6 +2286,7 @@ $('.layer').change( function(event) {
         {                
             mouse_port=2;
             canvas.addEventListener('click', request_pointerlock);
+            request_pointerlock();
         }
         else if(port1 != 'mouse')
         {
