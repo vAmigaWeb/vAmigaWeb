@@ -1248,7 +1248,8 @@ function InitWrappers() {
     wasm_get_sound_buffer_address = Module.cwrap('wasm_get_sound_buffer_address', 'number');
     wasm_copy_into_sound_buffer = Module.cwrap('wasm_copy_into_sound_buffer', 'number');
     wasm_set_sample_rate = Module.cwrap('wasm_set_sample_rate', 'undefined', ['number']);
-
+    wasm_mouse = Module.cwrap('wasm_mouse', 'undefined', ['number','number','number']);
+    wasm_mouse_button = Module.cwrap('wasm_mouse_button', 'undefined', ['number','number','number']);
 
     connect_audio_processor = async () => {
         if(audioContext.state === 'suspended') {
@@ -1325,7 +1326,6 @@ function InitWrappers() {
     connect_audio_processor();
 
     document.addEventListener('click',connect_audio_processor, false);
-//    document.addEventListener('touchstart',connect_audio_processor, false);
 
     get_audio_context=function() {
         if (typeof Module === 'undefined'
@@ -1467,6 +1467,48 @@ function InitWrappers() {
         setTheme();
     });
     
+    //--- mouse pointer lock
+    canvas = document.querySelector('canvas');
+    canvas.requestPointerLock = canvas.requestPointerLock ||
+                                canvas.mozRequestPointerLock;
+
+    document.exitPointerLock = document.exitPointerLock ||
+                            document.mozExitPointerLock;
+
+    request_pointerlock = function() {
+        canvas.requestPointerLock();
+    };
+    
+    // Hook pointer lock state change events for different browsers
+    document.addEventListener('pointerlockchange', lockChangeAlert, false);
+    document.addEventListener('mozpointerlockchange', lockChangeAlert, false);
+
+    function lockChangeAlert() {
+        if (document.pointerLockElement === canvas ||
+            document.mozPointerLockElement === canvas) {
+//            console.log('The pointer lock status is now locked');
+            document.addEventListener("mousemove", updatePosition, false);
+            document.addEventListener("mousedown", mouseDown, false);
+            document.addEventListener("mouseup", mouseUp, false);
+
+        } else {
+//            console.log('The pointer lock status is now unlocked');  
+            document.removeEventListener("mousemove", updatePosition, false);
+        }
+    }
+    var mouse_port=1;
+    function updatePosition(e) {
+        wasm_mouse(mouse_port,e.movementX,e.movementY);
+    }
+    function mouseDown(e) {
+        wasm_mouse_button(mouse_port,e.which, 1/* down */);
+    }
+    function mouseUp(e) {
+        wasm_mouse_button(mouse_port,e.which, 0/* up */);
+    }
+
+    //--
+
     installKeyboard();
     $("#button_keyboard").click(function(){
         if(virtual_keyboard_clipping==false)
@@ -2193,10 +2235,20 @@ $('.layer').change( function(event) {
         {
             unregister_v_joystick();
         }
+        if(port1 == 'mouse')
+        {                
+            mouse_port=1;    
+            canvas.addEventListener('click', request_pointerlock);
+        }
+        else if(port2 != 'mouse')
+        {
+            canvas.removeEventListener('click', request_pointerlock);
+        }
+
     }
     document.getElementById('port2').onchange = function() {
         port2 = document.getElementById('port2').value;
-       if(port1 == port2)
+        if(port1 == port2)
         {
             port1 = 'none';
             document.getElementById('port1').value = 'none';
@@ -2211,6 +2263,15 @@ $('.layer').change( function(event) {
         if(port1 != 'touch' && port2 != 'touch')
         {
             unregister_v_joystick();
+        }
+        if(port2 == 'mouse')
+        {                
+            mouse_port=2;
+            canvas.addEventListener('click', request_pointerlock);
+        }
+        else if(port1 != 'mouse')
+        {
+            canvas.removeEventListener('click', request_pointerlock);
         }
     }
 
