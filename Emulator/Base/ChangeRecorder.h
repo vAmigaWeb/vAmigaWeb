@@ -40,19 +40,7 @@ enum RegChangeID : i32
     
     SET_BPL1MOD,
     SET_BPL2MOD,
-    SET_BPL1PTH,
-    SET_BPL2PTH,
-    SET_BPL3PTH,
-    SET_BPL4PTH,
-    SET_BPL5PTH,
-    SET_BPL6PTH,
-    SET_BPL1PTL,
-    SET_BPL2PTL,
-    SET_BPL3PTL,
-    SET_BPL4PTL,
-    SET_BPL5PTL,
-    SET_BPL6PTL,
-
+    
     SET_SPR0DATA,
     SET_SPR1DATA,
     SET_SPR2DATA,
@@ -89,6 +77,20 @@ enum RegChangeID : i32
     SET_SPR6CTL,
     SET_SPR7CTL,
 
+    SET_BPL1PTH,
+    SET_BPL2PTH,
+    SET_BPL3PTH,
+    SET_BPL4PTH,
+    SET_BPL5PTH,
+    SET_BPL6PTH,
+    
+    SET_BPL1PTL,
+    SET_BPL2PTL,
+    SET_BPL3PTL,
+    SET_BPL4PTL,
+    SET_BPL5PTL,
+    SET_BPL6PTL,
+    
     SET_SPR0PTH,
     SET_SPR1PTH,
     SET_SPR2PTH,
@@ -106,7 +108,10 @@ enum RegChangeID : i32
     SET_SPR5PTL,
     SET_SPR6PTL,
     SET_SPR7PTL,
-    
+
+    SET_DSKPTH,
+    SET_DSKPTL,
+        
     SET_STRHOR
 };
 
@@ -120,15 +125,17 @@ struct RegChange
 {
     u32 addr;
     u16 value;
-
+    u16 accessor;
+    
     template <class W>
     void operator<<(W& worker)
     {
-        worker << addr << value;
+        worker << addr << value << accessor;
     }
     
-    RegChange() : addr(0), value(0) { }
-    RegChange(u32 a, u16 v) : addr(a), value(v) { }
+    RegChange() : addr(0), value(0), accessor(0) { }
+    RegChange(u32 a, u16 v) : addr(a), value(v), accessor(0) { }
+    RegChange(u32 a, u16 v, u16 ac) : addr(a), value(v), accessor(ac) { }
 };
 
 template <isize capacity>

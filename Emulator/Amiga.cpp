@@ -129,15 +129,18 @@ Amiga::prefix() const
 void
 Amiga::reset(bool hard)
 {
-    if (hard) suspend();
+    if (!isEmulatorThread()) suspend();
     
     // If a disk change is in progress, finish it
-    paula.diskController.serviceDiskChangeEvent();
+    df0.serviceDiskChangeEvent <SLOT_DC0> ();
+    df1.serviceDiskChangeEvent <SLOT_DC1> ();
+    df2.serviceDiskChangeEvent <SLOT_DC2> ();
+    df3.serviceDiskChangeEvent <SLOT_DC3> ();
     
     // Execute the standard reset routine
     AmigaComponent::reset(hard);
     
-    if (hard) resume();
+    if (!isEmulatorThread()) resume();
 
     // Inform the GUI
     if (hard) msgQueue.put(MSG_RESET);
@@ -185,6 +188,10 @@ Amiga::getConfigItem(Option option) const
             
             return agnus.dmaDebugger.getConfigItem(option);
             
+        case OPT_REG_RESET_VAL:
+            
+            return cpu.getConfigItem(option);
+            
         case OPT_RTC_MODEL:
             
             return rtc.getConfigItem(option);
@@ -193,6 +200,7 @@ Amiga::getConfigItem(Option option) const
         case OPT_SLOW_RAM:
         case OPT_FAST_RAM:
         case OPT_EXT_START:
+        case OPT_SAVE_ROMS:
         case OPT_SLOW_RAM_DELAY:
         case OPT_BANKMAP:
         case OPT_UNMAPPING_TYPE:
@@ -261,6 +269,7 @@ Amiga::getConfigItem(Option option, long id) const
         case OPT_START_DELAY:
         case OPT_STOP_DELAY:
         case OPT_STEP_DELAY:
+        case OPT_DISK_SWAP_DELAY:
         case OPT_DRIVE_PAN:
         case OPT_STEP_VOLUME:
         case OPT_POLL_VOLUME:
@@ -353,6 +362,11 @@ Amiga::configure(Option option, i64 value)
             agnus.dmaDebugger.setConfigItem(option, value);
             break;
 
+        case OPT_REG_RESET_VAL:
+            
+            cpu.setConfigItem(option, value);
+            break;
+            
         case OPT_RTC_MODEL:
             
             rtc.setConfigItem(option, value);
@@ -362,6 +376,7 @@ Amiga::configure(Option option, i64 value)
         case OPT_SLOW_RAM:
         case OPT_FAST_RAM:
         case OPT_EXT_START:
+        case OPT_SAVE_ROMS:
         case OPT_SLOW_RAM_DELAY:
         case OPT_BANKMAP:
         case OPT_UNMAPPING_TYPE:
@@ -375,6 +390,7 @@ Amiga::configure(Option option, i64 value)
         case OPT_START_DELAY:
         case OPT_STOP_DELAY:
         case OPT_STEP_DELAY:
+        case OPT_DISK_SWAP_DELAY:
         case OPT_DRIVE_PAN:
         case OPT_STEP_VOLUME:
         case OPT_POLL_VOLUME:
@@ -508,6 +524,7 @@ Amiga::configure(Option option, long id, i64 value)
         case OPT_START_DELAY:
         case OPT_STOP_DELAY:
         case OPT_STEP_DELAY:
+        case OPT_DISK_SWAP_DELAY:
         case OPT_DRIVE_PAN:
         case OPT_STEP_VOLUME:
         case OPT_POLL_VOLUME:
@@ -699,10 +716,12 @@ Amiga::_powerOn()
 
     // Perform a reset
     hardReset();
-                
-    // Update the recorded debug information
-    inspect();
 
+#ifdef INITIAL_SNAPSHOT
+    Snapshot snapshot(INITIAL_SNAPSHOT);
+    loadSnapshot(snapshot);
+#endif
+    
 #ifdef DF0_DISK
     ADFFile df0file(DF0_DISK);
     df0.ejectDisk();
@@ -722,6 +741,9 @@ Amiga::_powerOn()
     cpu.debugger.breakpoints.addAt(INITIAL_BREAKPOINT);
 #endif
     
+    // Update the recorded debug information
+    inspect();
+
     msgQueue.put(MSG_POWER_ON);
 }
 
@@ -730,7 +752,9 @@ Amiga::_powerOff()
 {
     debug(RUN_DEBUG, "_powerOff\n");
 
+    // Update the recorded debug information
     inspect();
+    
     msgQueue.put(MSG_POWER_OFF);
 }
 
@@ -955,17 +979,31 @@ void
 Amiga::loadSnapshot(const Snapshot &snapshot)
 {
     // Check if this snapshot is compatible with the emulator
-    if (snapshot.isTooOld() || FORCE_SNAPSHOT_TOO_OLD) {
-        throw VAError(ERROR_SNP_TOO_OLD);
+    if (snapshot.isTooOld() || FORCE_SNAP_TOO_OLD) {
+        throw VAError(ERROR_SNAP_TOO_OLD);
     }
-    if (snapshot.isTooNew() || FORCE_SNAPSHOT_TOO_NEW) {
-        throw VAError(ERROR_SNP_TOO_NEW);
+    if (snapshot.isTooNew() || FORCE_SNAP_TOO_NEW) {
+        throw VAError(ERROR_SNAP_TOO_NEW);
     }
 
     suspended {
         
-        // Restore the saved state
-        load(snapshot.getData());
+        try {
+
+            // Restore the saved state
+            load(snapshot.getData());
+
+        } catch (VAError &error) {
+            
+            /* If we reach this point, the emulator has been put into an
+             * inconsistent state due to corrupted snapshot data. We cannot
+             * continue emulation, because it would likely crash the
+             * application. Because we cannot revert to the old state either,
+             * we perform a hard reset to eliminate the inconsistency.
+             */
+            hardReset();
+            throw error;
+        }
                 
         // Print some debug info if requested
         if constexpr (SNP_DEBUG) dump();

@@ -69,16 +69,16 @@ RetroShell::exec <Token::wait> (Arguments &argv, long param)
 template <> void
 RetroShell::exec <Token::regression, Token::setup> (Arguments &argv, long param)
 {
-//    auto scheme = util::parseEnum <ConfigSchemeEnum> (argv[0]);
-//    auto kickrom = argv[1];
+    auto scheme = util::parseEnum <ConfigSchemeEnum> (argv[0]);
+    auto kickrom = argv[1];
     
-//    amiga.regressionTester.prepare(scheme, kickrom);
+    amiga.regressionTester.prepare(scheme, kickrom);
 }
 
 template <> void
 RetroShell::exec <Token::regression, Token::run> (Arguments &argv, long param)
 {
-//    amiga.regressionTester.run(argv.front());
+    amiga.regressionTester.run(argv.front());
 }
 
 template <> void
@@ -221,6 +221,12 @@ RetroShell::exec <Token::memory, Token::set, Token::extstart> (Arguments& argv, 
 }
 
 template <> void
+RetroShell::exec <Token::memory, Token::set, Token::saveroms> (Arguments& argv, long param)
+{
+    amiga.configure(OPT_SAVE_ROMS, util::parseBool(argv.front()));
+}
+
+template <> void
 RetroShell::exec <Token::memory, Token::set, Token::slowramdelay> (Arguments& argv, long param)
 {
     amiga.configure(OPT_SLOW_RAM_DELAY, util::parseBool(argv.front()));
@@ -268,6 +274,12 @@ RetroShell::exec <Token::memory, Token::inspect, Token::checksums> (Arguments& a
 //
 
 template <> void
+RetroShell::exec <Token::cpu, Token::config> (Arguments &argv, long param)
+{
+    dump(amiga.cpu, dump::Config);
+}
+
+template <> void
 RetroShell::exec <Token::cpu, Token::inspect, Token::state> (Arguments& argv, long param)
 {
     dump(amiga.cpu, dump::State);
@@ -277,6 +289,13 @@ template <> void
 RetroShell::exec <Token::cpu, Token::inspect, Token::registers> (Arguments& argv, long param)
 {
     dump(amiga.cpu, dump::Registers);
+}
+
+template <> void
+RetroShell::exec <Token::cpu, Token::set, Token::regreset> (Arguments &argv, long param)
+{
+    auto value = util::parseNum(argv.front());
+    amiga.configure(OPT_REG_RESET_VAL, value);
 }
 
 
@@ -953,8 +972,10 @@ RetroShell::exec <Token::dfn, Token::disconnect> (Arguments& argv, long param)
 template <> void
 RetroShell::exec <Token::dfn, Token::insert> (Arguments& argv, long param)
 {
+    assert(param >= 0 && param <= 3);
+
     auto path = argv.front();
-    amiga.paula.diskController.insertDisk(path, param);
+    df[param]->swapDisk(path);
 }
 
 template <> void
@@ -997,12 +1018,11 @@ template <> void
 RetroShell::exec <Token::dfn, Token::set, Token::searchpath> (Arguments& argv, long param)
 {
     string path = argv.front();
-    
-    if (param >= 0 && param <= 3) {
-        amiga.paula.diskController.setSearchPath(path, param);
-    } else {
-        amiga.paula.diskController.setSearchPath(path);
-    }
+        
+    if (param == 0 || param > 3) df0.setSearchPath(path);
+    if (param == 1 || param > 3) df1.setSearchPath(path);
+    if (param == 2 || param > 3) df2.setSearchPath(path);
+    if (param == 3 || param > 3) df3.setSearchPath(path);
 }
 
 template <> void
@@ -1014,6 +1034,18 @@ RetroShell::exec <Token::dfn, Token::set, Token::defaultbb> (Arguments& argv, lo
         amiga.configure(OPT_DEFAULT_BOOTBLOCK, param, num);
     } else {
         amiga.configure(OPT_DEFAULT_BOOTBLOCK, num);
+    }
+}
+
+template <> void
+RetroShell::exec <Token::dfn, Token::set, Token::swapdelay> (Arguments& argv, long param)
+{
+    long num = util::parseNum(argv.front());
+    
+    if (param >= 0 && param <= 3) {
+        amiga.configure(OPT_DISK_SWAP_DELAY, param, num);
+    } else {
+        amiga.configure(OPT_DISK_SWAP_DELAY, num);
     }
 }
 

@@ -57,6 +57,8 @@ Memory::_dump(dump::Category category, std::ostream& os) const
         os << util::dec(config.extSize / 1024) << " KB";
         os << " at " << util::hex(config.extStart) << "0000" << std::endl;
         os << std::endl;
+        os << util::tab("Save Roms in snapshots");
+        os << util::bol(config.saveRoms) << std::endl;
         os << util::tab("Emulate Slow Ram delay");
         os << util::bol(config.slowRamDelay) << std::endl;
         os << util::tab("Bank mapping scheme");
@@ -110,6 +112,15 @@ Memory::_dump(dump::Category category, std::ostream& os) const
 void
 Memory::_reset(bool hard)
 {
+    if (hard) {
+        
+        // Erase WOM (if any)
+        if (hasWom()) eraseWom();
+
+        // Fill RAM with the proper startup pattern
+        fillRamWithInitPattern();
+    }
+
     RESET_SNAPSHOT_ITEMS(hard)
     
     // Set up the memory lookup table
@@ -117,9 +128,6 @@ Memory::_reset(bool hard)
     
     // Initialize statistical counters
     clearStats();
-    
-    // In hard-reset mode, we also initialize RAM
-    if (hard) fillRamWithInitPattern();
 }
 
 MemoryConfig
@@ -135,6 +143,7 @@ Memory::getDefaultConfig()
     defaults.womSize = 0;
     defaults.extSize = 0;
     
+    defaults.saveRoms = true;
     defaults.slowRamDelay = true;
     defaults.bankMap = BANK_MAP_A500;
     defaults.ramInitPattern = RAM_INIT_ALL_ZEROES;
@@ -153,6 +162,7 @@ Memory::resetConfig()
     setConfigItem(OPT_SLOW_RAM, defaults.slowSize);
     setConfigItem(OPT_FAST_RAM, defaults.fastSize);
     setConfigItem(OPT_EXT_START, defaults.extStart);
+    setConfigItem(OPT_SAVE_ROMS, defaults.saveRoms);
     setConfigItem(OPT_SLOW_RAM_DELAY, defaults.slowRamDelay);
     setConfigItem(OPT_BANKMAP, defaults.bankMap);
     setConfigItem(OPT_UNMAPPING_TYPE, defaults.unmappingType);
@@ -168,6 +178,7 @@ Memory::getConfigItem(Option option) const
         case OPT_SLOW_RAM:          return config.slowSize / KB(1);
         case OPT_FAST_RAM:          return config.fastSize / KB(1);
         case OPT_EXT_START:         return config.extStart;
+        case OPT_SAVE_ROMS:         return config.saveRoms;
         case OPT_SLOW_RAM_DELAY:    return config.slowRamDelay;
         case OPT_BANKMAP:           return config.bankMap;
         case OPT_UNMAPPING_TYPE:    return config.unmappingType;
@@ -232,6 +243,13 @@ Memory::setConfigItem(Option option, i64 value)
             updateMemSrcTables();
             return;
             
+        case OPT_SAVE_ROMS:
+            
+            suspended {
+                config.saveRoms = value;
+            }
+            return;
+            
         case OPT_SLOW_RAM_DELAY:
                         
             suspended {
@@ -284,67 +302,96 @@ Memory::_size()
 {
     util::SerCounter counter;
 
+    // Determine memory size information
+    i32 romSize = config.saveRoms ? config.romSize : 0;
+    i32 womSize = config.saveRoms ? config.womSize : 0;
+    i32 extSize = config.saveRoms ? config.extSize : 0;
+    i32 chipSize = config.chipSize;
+    i32 slowSize = config.slowSize;
+    i32 fastSize = config.fastSize;
+
     applyToPersistentItems(counter);
     applyToResetItems(counter);
     
     counter
-    << config.romSize
-    << config.womSize
-    << config.extSize
-    << config.chipSize
-    << config.slowSize
-    << config.fastSize;
+    << romSize
+    << womSize
+    << extSize
+    << chipSize
+    << slowSize
+    << fastSize;
     
-    counter.count += config.romSize;
-    counter.count += config.womSize;
-    counter.count += config.extSize;
-    counter.count += config.chipSize;
-    counter.count += config.slowSize;
-    counter.count += config.fastSize;
+    counter.count += romSize;
+    counter.count += womSize;
+    counter.count += extSize;
+    counter.count += chipSize;
+    counter.count += slowSize;
+    counter.count += fastSize;
 
     return counter.count;
+}
+
+u64
+Memory::_checksum()
+{
+    util::SerChecker checker;
+    
+    applyToPersistentItems(checker);
+    applyToResetItems(checker);
+    
+    if (config.chipSize) {
+        for (isize i = 0; i < config.chipSize; i++) checker << chip[i];
+    }
+    if (config.slowSize) {
+        for (isize i = 0; i < config.slowSize; i++) checker << slow[i];
+    }
+    if (config.fastSize) {
+        for (isize i = 0; i < config.fastSize; i++) checker << fast[i];
+    }
+    
+    return checker.hash;
 }
 
 isize
 Memory::didLoadFromBuffer(const u8 *buffer)
 {
     util::SerReader reader(buffer);
+    i32 romSize, womSize, extSize, chipSize, slowSize, fastSize;
 
     // Load memory size information
     reader
-    << config.romSize
-    << config.womSize
-    << config.extSize
-    << config.chipSize
-    << config.slowSize
-    << config.fastSize;
+    << romSize
+    << womSize
+    << extSize
+    << chipSize
+    << slowSize
+    << fastSize;
+    
+    // Check the integrity of the new values before we allocate memory
+    if (romSize > KB(512)) throw VAError(ERROR_SNAP_CORRUPTED);
+    if (womSize > KB(256)) throw VAError(ERROR_SNAP_CORRUPTED);
+    if (extSize > KB(512)) throw VAError(ERROR_SNAP_CORRUPTED);
+    if (chipSize > MB(2)) throw VAError(ERROR_SNAP_CORRUPTED);
+    if (slowSize > KB(512)) throw VAError(ERROR_SNAP_CORRUPTED);
+    if (fastSize > MB(8)) throw VAError(ERROR_SNAP_CORRUPTED);
 
-    // Make sure that corrupted values do not cause any damage
-    if (config.romSize > KB(512)) { config.romSize = 0; assert(false); }
-    if (config.womSize > KB(256)) { config.womSize = 0; assert(false); }
-    if (config.extSize > KB(512)) { config.extSize = 0; assert(false); }
-    if (config.chipSize > MB(2)) { config.chipSize = 0; assert(false); }
-    if (config.slowSize > KB(512)) { config.slowSize = 0; assert(false); }
-    if (config.fastSize > MB(8)) { config.fastSize = 0; assert(false); }
+    // Allocate ROM space (only if Roms are included in the snapshot)
+    if (romSize) allocRom(romSize, false);
+    if (womSize) allocWom(womSize, false);
+    if (extSize) allocExt(extSize, false);
 
-    // Free previously allocated memory
-    dealloc();
+    // Allocate RAM space
+    allocChip(chipSize, false);
+    allocSlow(slowSize, false);
+    allocFast(fastSize, false);
 
-    // Allocate new memory
-    if (config.romSize) rom = new (std::nothrow) u8[config.romSize];
-    if (config.womSize) wom = new (std::nothrow) u8[config.womSize];
-    if (config.extSize) ext = new (std::nothrow) u8[config.extSize];
-    if (config.chipSize) chip = new (std::nothrow) u8[config.chipSize];
-    if (config.slowSize) slow = new (std::nothrow) u8[config.slowSize];
-    if (config.fastSize) fast = new (std::nothrow) u8[config.fastSize];
-
-    // Load memory contents from buffer
-    reader.copy(rom, config.romSize);
-    reader.copy(wom, config.womSize);
-    reader.copy(ext, config.extSize);
-    reader.copy(chip, config.chipSize);
-    reader.copy(slow, config.slowSize);
-    reader.copy(fast, config.fastSize);
+    // Load memory contents
+    reader.copy(rom, romSize);
+    reader.copy(wom, womSize);
+    reader.copy(ext, extSize);
+    reader.copy(chip, chipSize);
+    reader.copy(slow, slowSize);
+    reader.copy(fast, fastSize);
 
     return (isize)(reader.ptr - buffer);
 }
@@ -352,23 +399,32 @@ Memory::didLoadFromBuffer(const u8 *buffer)
 isize
 Memory::didSaveToBuffer(u8 *buffer) const
 {
-    // Save memory size information
     util::SerWriter writer(buffer);
+
+    // Determine memory size information
+    i32 romSize = config.saveRoms ? config.romSize : 0;
+    i32 womSize = config.saveRoms ? config.womSize : 0;
+    i32 extSize = config.saveRoms ? config.extSize : 0;
+    i32 chipSize = config.chipSize;
+    i32 slowSize = config.slowSize;
+    i32 fastSize = config.fastSize;
+
+    // Save memory size information
     writer
-    << config.romSize
-    << config.womSize
-    << config.extSize
-    << config.chipSize
-    << config.slowSize
-    << config.fastSize;
+    << romSize
+    << womSize
+    << extSize
+    << chipSize
+    << slowSize
+    << fastSize;
     
     // Save memory contents
-    writer.copy(rom, config.romSize);
-    writer.copy(wom, config.womSize);
-    writer.copy(ext, config.extSize);
-    writer.copy(chip, config.chipSize);
-    writer.copy(slow, config.slowSize);
-    writer.copy(fast, config.fastSize);
+    writer.copy(rom, romSize);
+    writer.copy(wom, womSize);
+    writer.copy(ext, extSize);
+    writer.copy(chip, chipSize);
+    writer.copy(slow, slowSize);
+    writer.copy(fast, fastSize);
     
     return (isize)(writer.ptr - buffer);
 }
@@ -391,19 +447,6 @@ Memory::_isReady() const
     if (mem.chipRamSize() > KB(agnus.chipRamLimit()) || FORCE_CHIP_RAM_LIMIT) {
         throw VAError(ERROR_CHIP_RAM_LIMIT);
     }
-}
-
-void
-Memory::_powerOn()
-{
-    // Erase WOM (if any)
-    if (hasWom()) eraseWom();
-
-    // Fill RAM with the proper startup pattern
-    fillRamWithInitPattern();
-
-    // Set up the memory lookup table
-    updateMemSrcTables();
 }
 
 void
@@ -439,14 +482,14 @@ Memory::updateStats()
 }
 
 void
-Memory::alloc(i32 bytes, u8 *&ptr, i32 &size, u32 &mask)
+Memory::alloc(i32 bytes, u8 *&ptr, i32 &size, u32 &mask, bool update)
 {
-    // Check the invariants
+    // Check invariants
     assert((ptr == nullptr) == (size == 0));
     assert((ptr == nullptr) == (mask == 0));
     assert((ptr == nullptr) || (mask == (u32)size - 1));
 
-    // Only proceed if memory layout changes
+    // Only proceed if memory layout will change
     if (bytes == size) return;
     
     // Delete previous allocation
@@ -454,20 +497,54 @@ Memory::alloc(i32 bytes, u8 *&ptr, i32 &size, u32 &mask)
     
     // Allocate memory
     if (bytes) {
-        
-        isize allocSize = bytes;
-        
-        ptr = new u8[allocSize];
+                
+        ptr = new u8[bytes];
         size = (u32)bytes;
         mask = size - 1;
-        fillRamWithInitPattern();
         
         if ((uintptr_t)ptr & 1) {
-            warn("Memory at %p (%d bytes) is not aligned\n", (void *)ptr, bytes);
-            assert(false);
+            panic("Memory at %p (%d bytes) is not aligned\n", (void *)ptr, bytes);
         }
     }
-    updateMemSrcTables();
+    
+    // Update the memory source tables if requested
+    if (update) updateMemSrcTables();
+}
+
+void
+Memory::allocChip(i32 bytes, bool update)
+{
+    alloc(bytes, chip, config.chipSize, chipMask, update);
+}
+
+void
+Memory::allocSlow(i32 bytes, bool update)
+{
+    alloc(bytes, slow, config.slowSize, slowMask, update);
+}
+
+void
+Memory::allocFast(i32 bytes, bool update)
+{
+    alloc(bytes, fast, config.fastSize, fastMask, update);
+}
+            
+void
+Memory::allocRom(i32 bytes, bool update)
+{
+    alloc(bytes, rom, config.romSize, romMask, update);
+}
+
+void
+Memory::allocWom(i32 bytes, bool update)
+{
+    alloc(bytes, wom, config.womSize, womMask, update);
+}
+
+void
+Memory::allocExt(i32 bytes, bool update)
+{
+    alloc(bytes, ext, config.extSize, extMask, update);
 }
 
 void
@@ -599,12 +676,13 @@ Memory::hasArosRom() const
 void
 Memory::loadRom(RomFile &file)
 {
+    assert(amiga.isPoweredOff());
+    
     // Decrypt Rom
     file.decrypt();
 
     // Allocate memory
     allocRom((i32)file.size);
-    assert(config.romSize == file.size);
 
     // Load Rom
     file.flash(rom);
@@ -637,7 +715,6 @@ Memory::loadExt(ExtendedRomFile &file)
     allocExt((i32)file.size);
     
     // Load Rom
-    assert(config.extSize == file.size);
     file.flash(ext);
 }
 
@@ -1521,14 +1598,7 @@ Memory::poke8 <ACCESSOR_CPU, MEM_ROM> (u32 addr, u8 value)
         debug(MEM_DEBUG, "Locking WOM\n");
         womIsLocked = true;
         updateMemSrcTables();
-    }
-        
-    if (!releaseBuild) {
-        if (addr == 0xFFFFFF && value == 42) {
-            msg("DEBUG STOP\n");
-            amiga.signalStop();
-        }
-    }
+    }        
 }
 
 template <> void
@@ -1951,9 +2021,9 @@ Memory::pokeCustom16(u32 addr, u16 value)
     switch ((addr >> 1) & 0xFF) {
 
         case 0x020 >> 1: // DSKPTH
-            agnus.pokeDSKPTH(value); return;
+            agnus.pokeDSKPTH<s>(value); return;
         case 0x022 >> 1: // DSKPTL
-            agnus.pokeDSKPTL(value); return;
+            agnus.pokeDSKPTL<s>(value); return;
         case 0x024 >> 1: // DSKLEN
             diskController.pokeDSKLEN(value); return;
         case 0x026 >> 1: // DSKDAT
@@ -2071,9 +2141,9 @@ Memory::pokeCustom16(u32 addr, u16 value)
         case 0x09E >> 1: // ADKCON
             paula.pokeADKCON(value); return;
         case 0x0A0 >> 1: // AUD0LCH
-            agnus.pokeAUDxLCH<0>(value); return;
+            agnus.pokeAUDxLCH<0,s>(value); return;
         case 0x0A2 >> 1: // AUD0LCL
-            agnus.pokeAUDxLCL<0>(value); return;
+            agnus.pokeAUDxLCL<0,s>(value); return;
         case 0x0A4 >> 1: // AUD0LEN
             paula.channel0.pokeAUDxLEN(value); return;
         case 0x0A6 >> 1: // AUD0PER
@@ -2086,9 +2156,9 @@ Memory::pokeCustom16(u32 addr, u16 value)
         case 0x0AE >> 1: // Unused
             break;
         case 0x0B0 >> 1: // AUD1LCH
-            agnus.pokeAUDxLCH<1>(value); return;
+            agnus.pokeAUDxLCH<1,s>(value); return;
         case 0x0B2 >> 1: // AUD1LCL
-            agnus.pokeAUDxLCL<1>(value); return;
+            agnus.pokeAUDxLCL<1,s>(value); return;
         case 0x0B4 >> 1: // AUD1LEN
             paula.channel1.pokeAUDxLEN(value); return;
         case 0x0B6 >> 1: // AUD1PER
@@ -2101,9 +2171,9 @@ Memory::pokeCustom16(u32 addr, u16 value)
         case 0x0BE >> 1: // Unused
             break;
         case 0x0C0 >> 1: // AUD2LCH
-            agnus.pokeAUDxLCH<2>(value); return;
+            agnus.pokeAUDxLCH<2,s>(value); return;
         case 0x0C2 >> 1: // AUD2LCL
-            agnus.pokeAUDxLCL<2>(value); return;
+            agnus.pokeAUDxLCL<2,s>(value); return;
         case 0x0C4 >> 1: // AUD2LEN
             paula.channel2.pokeAUDxLEN(value); return;
         case 0x0C6 >> 1: // AUD2PER
@@ -2116,9 +2186,9 @@ Memory::pokeCustom16(u32 addr, u16 value)
         case 0x0CE >> 1: // Unused
             break;
         case 0x0D0 >> 1: // AUD3LCH
-            agnus.pokeAUDxLCH<3>(value); return;
+            agnus.pokeAUDxLCH<3,s>(value); return;
         case 0x0D2 >> 1: // AUD3LCL
-            agnus.pokeAUDxLCL<3>(value); return;
+            agnus.pokeAUDxLCL<3,s>(value); return;
         case 0x0D4 >> 1: // AUD3LEN
             paula.channel3.pokeAUDxLEN(value); return;
         case 0x0D6 >> 1: // AUD3PER
@@ -2131,29 +2201,29 @@ Memory::pokeCustom16(u32 addr, u16 value)
         case 0x0DE >> 1: // Unused
             break;
         case 0x0E0 >> 1: // BPL1PTH
-            agnus.pokeBPLxPTH<1>(value); return;
+            agnus.pokeBPLxPTH<1,s>(value); return;
         case 0x0E2 >> 1: // BPL1PTL
-            agnus.pokeBPLxPTL<1>(value); return;
+            agnus.pokeBPLxPTL<1,s>(value); return;
         case 0x0E4 >> 1: // BPL2PTH
-            agnus.pokeBPLxPTH<2>(value); return;
+            agnus.pokeBPLxPTH<2,s>(value); return;
         case 0x0E6 >> 1: // BPL2PTL
-            agnus.pokeBPLxPTL<2>(value); return;
+            agnus.pokeBPLxPTL<2,s>(value); return;
         case 0x0E8 >> 1: // BPL3PTH
-            agnus.pokeBPLxPTH<3>(value); return;
+            agnus.pokeBPLxPTH<3,s>(value); return;
         case 0x0EA >> 1: // BPL3PTL
-            agnus.pokeBPLxPTL<3>(value); return;
+            agnus.pokeBPLxPTL<3,s>(value); return;
         case 0x0EC >> 1: // BPL4PTH
-            agnus.pokeBPLxPTH<4>(value); return;
+            agnus.pokeBPLxPTH<4,s>(value); return;
         case 0x0EE >> 1: // BPL4PTL
-            agnus.pokeBPLxPTL<4>(value); return;
+            agnus.pokeBPLxPTL<4,s>(value); return;
         case 0x0F0 >> 1: // BPL5PTH
-            agnus.pokeBPLxPTH<5>(value); return;
+            agnus.pokeBPLxPTH<5,s>(value); return;
         case 0x0F2 >> 1: // BPL5PTL
-            agnus.pokeBPLxPTL<5>(value); return;
+            agnus.pokeBPLxPTL<5,s>(value); return;
         case 0x0F4 >> 1: // BPL6PTH
-            agnus.pokeBPLxPTH<6>(value); return;
+            agnus.pokeBPLxPTH<6,s>(value); return;
         case 0x0F6 >> 1: // BPL6PTL
-            agnus.pokeBPLxPTL<6>(value); return;
+            agnus.pokeBPLxPTL<6,s>(value); return;
         case 0x0F8 >> 1: // Unused
         case 0x0FA >> 1: // Unused
         case 0x0FC >> 1: // Unused
@@ -2195,37 +2265,37 @@ Memory::pokeCustom16(u32 addr, u16 value)
         case 0x11E >> 1: // Unused
             break;
         case 0x120 >> 1: // SPR0PTH
-            agnus.pokeSPRxPTH<0>(value); return;
+            agnus.pokeSPRxPTH<0,s>(value); return;
         case 0x122 >> 1: // SPR0PTL
-            agnus.pokeSPRxPTL<0>(value); return;
+            agnus.pokeSPRxPTL<0,s>(value); return;
         case 0x124 >> 1: // SPR1PTH
-            agnus.pokeSPRxPTH<1>(value); return;
+            agnus.pokeSPRxPTH<1,s>(value); return;
         case 0x126 >> 1: // SPR1PTL
-            agnus.pokeSPRxPTL<1>(value); return;
+            agnus.pokeSPRxPTL<1,s>(value); return;
         case 0x128 >> 1: // SPR2PTH
-            agnus.pokeSPRxPTH<2>(value); return;
+            agnus.pokeSPRxPTH<2,s>(value); return;
         case 0x12A >> 1: // SPR2PTL
-            agnus.pokeSPRxPTL<2>(value); return;
+            agnus.pokeSPRxPTL<2,s>(value); return;
         case 0x12C >> 1: // SPR3PTH
-            agnus.pokeSPRxPTH<3>(value); return;
+            agnus.pokeSPRxPTH<3,s>(value); return;
         case 0x12E >> 1: // SPR3PTL
-            agnus.pokeSPRxPTL<3>(value); return;
+            agnus.pokeSPRxPTL<3,s>(value); return;
         case 0x130 >> 1: // SPR4PTH
-            agnus.pokeSPRxPTH<4>(value); return;
+            agnus.pokeSPRxPTH<4,s>(value); return;
         case 0x132 >> 1: // SPR4PTL
-            agnus.pokeSPRxPTL<4>(value); return;
+            agnus.pokeSPRxPTL<4,s>(value); return;
         case 0x134 >> 1: // SPR5PTH
-            agnus.pokeSPRxPTH<5>(value); return;
+            agnus.pokeSPRxPTH<5,s>(value); return;
         case 0x136 >> 1: // SPR5PTL
-            agnus.pokeSPRxPTL<5>(value); return;
+            agnus.pokeSPRxPTL<5,s>(value); return;
         case 0x138 >> 1: // SPR6PTH
-            agnus.pokeSPRxPTH<6>(value); return;
+            agnus.pokeSPRxPTH<6,s>(value); return;
         case 0x13A >> 1: // SPR6PTL
-            agnus.pokeSPRxPTL<6>(value); return;
+            agnus.pokeSPRxPTL<6,s>(value); return;
         case 0x13C >> 1: // SPR7PTH
-            agnus.pokeSPRxPTH<7>(value); return;
+            agnus.pokeSPRxPTH<7,s>(value); return;
         case 0x13E >> 1: // SPR7PTL
-            agnus.pokeSPRxPTL<7>(value); return;
+            agnus.pokeSPRxPTL<7,s>(value); return;
         case 0x140 >> 1: // SPR0POS
             agnus.pokeSPRxPOS<0>(value);
             denise.pokeSPRxPOS<0>(value);

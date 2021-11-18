@@ -14,6 +14,7 @@
 #include "Agnus.h"
 #include "Paula.h"
 #include "Keyboard.h"
+#include "Drive.h"
 #include "IO.h"
 #include <iomanip>
 
@@ -165,6 +166,7 @@ Scheduler::eventName(EventSlot slot, EventID id)
                 case BLT_STRT2:     return "BLT_STRT2";
                 case BLT_COPY_SLOW: return "BLT_COPY_SLOW";
                 case BLT_COPY_FAKE: return "BLT_COPY_FAKE";
+                case BLT_LINE_SLOW: return "BLT_LINE_SLOW";
                 case BLT_LINE_FAKE: return "BLT_LINE_FAKE";
                 default:            return "*** INVALID ***";
             }
@@ -199,17 +201,6 @@ Scheduler::eventName(EventSlot slot, EventID id)
 
                 case EVENT_NONE:    return "none";
                 case DSK_ROTATE:    return "DSK_ROTATE";
-                default:            return "*** INVALID ***";
-            }
-            break;
-
-        case SLOT_DCH:
-
-            switch (id) {
-
-                case EVENT_NONE:    return "none";
-                case DCH_INSERT:    return "DCH_INSERT";
-                case DCH_EJECT:     return "DCH_EJECT";
                 default:            return "*** INVALID ***";
             }
             break;
@@ -294,6 +285,40 @@ Scheduler::eventName(EventSlot slot, EventID id)
             }
             break;
             
+        case SLOT_RAS:
+
+            switch (id) {
+
+                case EVENT_NONE:    return "none";
+                case RAS_HSYNC:     return "RAS_HSYNC";
+                default:            return "*** INVALID ***";
+            }
+            break;
+
+        case SLOT_TER:
+
+            switch (id) {
+
+                case EVENT_NONE:    return "none";
+                case TER_TRIGGER:   return "TER_TRIGGER";
+                default:            return "*** INVALID ***";
+            }
+            break;
+
+        case SLOT_DC0:
+        case SLOT_DC1:
+        case SLOT_DC2:
+        case SLOT_DC3:
+
+            switch (id) {
+
+                case EVENT_NONE:    return "none";
+                case DCH_INSERT:    return "DCH_INSERT";
+                case DCH_EJECT:     return "DCH_EJECT";
+                default:            return "*** INVALID ***";
+            }
+            break;
+
         case SLOT_INS:
 
             switch (id) {
@@ -311,17 +336,7 @@ Scheduler::eventName(EventSlot slot, EventID id)
                 default:            return "*** INVALID ***";
             }
             break;
-
-        case SLOT_RAS:
-
-            switch (id) {
-
-                case EVENT_NONE:    return "none";
-                case RAS_HSYNC:     return "RAS_HSYNC";
-                default:            return "*** INVALID ***";
-            }
-            break;
-
+            
         default:
             fatalError;
     }
@@ -515,9 +530,6 @@ Scheduler::executeUntil(Cycle cycle) {
         if (isDue<SLOT_DSK>(cycle)) {
             paula.diskController.serviceDiskEvent();
         }
-        if (isDue<SLOT_DCH>(cycle)) {
-            paula.diskController.serviceDiskChangeEvent();
-        }
         if (isDue<SLOT_VBL>(cycle)) {
             agnus.serviceVblEvent(scheduler.id[SLOT_VBL]);
         }
@@ -542,13 +554,40 @@ Scheduler::executeUntil(Cycle cycle) {
         if (isDue<SLOT_RAS>(cycle)) {
             agnus.serviceRASEvent();
         }
-        if (isDue<SLOT_INS>(cycle)) {
-            agnus.serviceINSEvent(id[SLOT_INS]);
-        }
 
+        if (isDue<SLOT_TER>(cycle)) {
+
+            //
+            // Check tertiary slots
+            //
+
+            if (isDue<SLOT_DC0>(cycle)) {
+                df0.serviceDiskChangeEvent <SLOT_DC0> ();
+            }
+            if (isDue<SLOT_DC1>(cycle)) {
+                df1.serviceDiskChangeEvent <SLOT_DC1> ();
+            }
+            if (isDue<SLOT_DC2>(cycle)) {
+                df2.serviceDiskChangeEvent <SLOT_DC2> ();
+            }
+            if (isDue<SLOT_DC3>(cycle)) {
+                df3.serviceDiskChangeEvent <SLOT_DC3> ();
+            }
+            if (isDue<SLOT_INS>(cycle)) {
+                agnus.serviceINSEvent(id[SLOT_INS]);
+            }
+
+            // Determine the next trigger cycle for all tertiary slots
+            Cycle next = trigger[SLOT_TER + 1];
+            for (isize i = SLOT_TER + 2; i < SLOT_COUNT; i++) {
+                if (trigger[i] < next) next = trigger[i];
+            }
+            rescheduleAbs<SLOT_TER>(next);
+        }
+        
         // Determine the next trigger cycle for all secondary slots
         Cycle next = trigger[SLOT_SEC + 1];
-        for (isize i = SLOT_SEC + 2; i < SLOT_COUNT; i++) {
+        for (isize i = SLOT_SEC + 2; i <= SLOT_TER; i++) {
             if (trigger[i] < next) next = trigger[i];
         }
         rescheduleAbs<SLOT_SEC>(next);

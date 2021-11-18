@@ -32,7 +32,7 @@ Disk::init(DiskDiameter dia, DiskDensity den)
 }
 
 void
-Disk::init(class DiskFile &file)
+Disk::init(const class DiskFile &file)
 {
     init(file.getDiskDiameter(), file.getDiskDensity());
     encodeDisk(file);
@@ -47,7 +47,7 @@ Disk::init(util::SerReader &reader, DiskDiameter dia, DiskDensity den)
 
 Disk::~Disk()
 {
-    msg("Deleting disk\n");
+    debug(OBJ_DEBUG, "Deleting disk\n");
 }
 
 void
@@ -171,7 +171,7 @@ Disk::clearTrack(Track t, u8 value1, u8 value2)
 }
 
 void
-Disk::encodeDisk(DiskFile &file)
+Disk::encodeDisk(const DiskFile &file)
 {
     assert(file.getDiskDiameter() == getDiameter());
 

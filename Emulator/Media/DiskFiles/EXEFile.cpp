@@ -16,8 +16,8 @@
 bool
 EXEFile::isCompatible(const string &path)
 {
-    auto suffix = util::extractSuffix(path);
-    return suffix == "exe" || suffix == "EXE";
+    auto suffix = util::uppercased(util::extractSuffix(path));
+    return suffix == "EXE";
 }
 
 bool
@@ -31,11 +31,9 @@ EXEFile::isCompatible(std::istream &stream)
     return util::matchingStreamHeader(stream, signature, sizeof(signature));
 }
 
-isize
-EXEFile::readFromStream(std::istream &stream)
+void
+EXEFile::finalizeRead()
 {
-    isize result = AmigaFile::readFromStream(stream);
-    
     // Check if this file requires an HD disk
     bool hd = size > 853000;
         
@@ -61,12 +59,16 @@ EXEFile::readFromStream(std::istream &stream)
     // Finalize
     volume.updateChecksums();
     
-    // Check for file system errors
+    // Move to the to root directory
     volume.changeDir("/");
-    volume.info();
-    volume.printDirectory(true);
 
-    // Check the file system for consistency
+    // Print some debug information about the volume
+    if constexpr (FS_DEBUG) {
+        volume.info();
+        volume.printDirectory(true);
+    }
+    
+    // Check file system integrity
     FSErrorReport report = volume.check(true);
     if (report.corruptedBlocks > 0) {
         warn("Found %ld corrupted blocks\n", report.corruptedBlocks);
@@ -75,6 +77,4 @@ EXEFile::readFromStream(std::istream &stream)
         
     // Convert the volume into an ADF
     adf = new ADFFile(volume);
-        
-    return result;
 }

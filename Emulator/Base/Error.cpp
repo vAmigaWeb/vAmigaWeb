@@ -105,19 +105,36 @@ VAError::VAError(ErrorCode code, const string &s)
             description = "Unable to decode the MFM bit stream (invalid sector number).";
             break;
 
-        case ERROR_SNP_TOO_OLD:
+        case ERROR_SNAP_TOO_OLD:
             description = "The snapshot was created with an older version of vAmiga";
             description += " and is incompatible with this release.";
             break;
 
-        case ERROR_SNP_TOO_NEW:
+        case ERROR_SNAP_TOO_NEW:
             description = "The snapshot was created with a newer version of vAmiga";
             description += " and is incompatible with this release.";
             break;
 
-        case ERROR_NO_EXTADF_SUPPORT:
-            description = "The file is encoded in extended ADF format which is";
-            description += " not supported by the emulator.";
+        case ERROR_SNAP_CORRUPTED:
+            description = "The snapshot data is corrupted and has put the";
+            description += " emulator into an inconsistent state.";
+            break;
+
+        case ERROR_EXT_FACTOR5:
+            description = "The file is encoded in an outdated format that was";
+            description += " introduced by Factor 5 to distribute Turrican images.";
+            description += " The format has no relevance today and is not supported";
+            description += " by the emulator.";
+            break;
+
+        case ERROR_EXT_INCOMPATIBLE:
+            description = "This file utilizes encoding features of the extended ";
+            description += " ADF format that are not supported by the emulator yet.";
+            break;
+
+        case ERROR_EXT_CORRUPTED:
+            description = "The disk encoder failed to extract the disk due to ";
+            description += " corrupted or inconsistend file data.";
             break;
 
         case ERROR_MISSING_ROM_KEY:

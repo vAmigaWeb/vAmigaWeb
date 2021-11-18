@@ -588,7 +588,6 @@ class C64Wrapper {
     c64->configure(OPT_VIC_POWER_SAVE, true); 
 
 */
-
     printf("waiting on emulator ready in javascript ...\n");
  
   }
@@ -821,7 +820,8 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
   }
 
   if (auto disk = load_disk(name, blob, len)) {
-    wrapper->amiga->paula.diskController.insertDisk(std::move(disk), 0, (Cycle)SEC(1.8));
+    //wrapper->amiga->paula.diskController.insertDisk(std::move(disk), 0, (Cycle)SEC(1.8));
+    wrapper->amiga->df0.insertDisk(std::move(disk));
     return "";
   }
 
@@ -865,6 +865,8 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
       wrapper->amiga->mem.loadRom(*rom); 
       
       printf("Loaded ROM image %s.\n", name);
+      
+      wrapper->amiga->powerOn();
     }  
     catch(VAError &exception) { 
       printf("Failed to flash ROM image %s.\n", name);

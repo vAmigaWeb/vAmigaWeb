@@ -32,6 +32,8 @@ void
 Drive::_reset(bool hard)
 {
     RESET_SNAPSHOT_ITEMS(hard)
+    
+    if (hard) assert(diskToInsert == nullptr);
 }
 
 DriveConfig
@@ -44,6 +46,7 @@ Drive::getDefaultConfig(isize nr)
     defaults.startDelay = MSEC(380);
     defaults.stopDelay = MSEC(80);
     defaults.stepDelay = USEC(8000);
+    defaults.diskSwapDelay = SEC(1.8);
     defaults.pan = IS_EVEN(nr) ? 100 : -100;
     defaults.stepVolume = 128;
     defaults.pollVolume = 128;
@@ -65,6 +68,7 @@ Drive::resetConfig()
     setConfigItem(OPT_START_DELAY, defaults.startDelay);
     setConfigItem(OPT_STOP_DELAY, defaults.stopDelay);
     setConfigItem(OPT_STEP_DELAY, defaults.stepDelay);
+    setConfigItem(OPT_DISK_SWAP_DELAY, defaults.diskSwapDelay);
     setConfigItem(OPT_DRIVE_PAN, defaults.pan);
     setConfigItem(OPT_STEP_VOLUME, defaults.stepVolume);
     setConfigItem(OPT_POLL_VOLUME, defaults.pollVolume);
@@ -84,6 +88,7 @@ Drive::getConfigItem(Option option) const
         case OPT_START_DELAY:         return (long)config.startDelay;
         case OPT_STOP_DELAY:          return (long)config.stopDelay;
         case OPT_STEP_DELAY:          return (long)config.stepDelay;
+        case OPT_DISK_SWAP_DELAY:     return (long)config.diskSwapDelay;
         case OPT_DRIVE_PAN:           return (long)config.pan;
         case OPT_STEP_VOLUME:         return (long)config.stepVolume;
         case OPT_POLL_VOLUME:         return (long)config.pollVolume;
@@ -132,6 +137,11 @@ Drive::setConfigItem(Option option, i64 value)
         case OPT_STEP_DELAY:
         
             config.stepDelay = value;
+            return;
+
+        case OPT_DISK_SWAP_DELAY:
+        
+            config.diskSwapDelay = value;
             return;
 
         case OPT_DRIVE_PAN:
@@ -210,6 +220,8 @@ Drive::_dump(dump::Category category, std::ostream& os) const
         os << dec(config.stopDelay) << std::endl;
         os << tab("Step delay");
         os << dec(config.stepDelay) << std::endl;
+        os << tab("Disk swap delay");
+        os << dec(config.diskSwapDelay) << std::endl;
         os << tab("Insert volume");
         os << dec(config.insertVolume) << std::endl;
         os << tab("Eject volume");
@@ -224,6 +236,8 @@ Drive::_dump(dump::Category category, std::ostream& os) const
         os << FSVolumeTypeEnum::key(config.defaultFileSystem) << std::endl;
         os << tab("Default boot block");
         os << BootBlockIdEnum::key(config.defaultBootBlock) << std::endl;
+        os << tab("Search path");
+        os << "\"" << searchPath << "\"" << std::endl;
     }
     
     if (category & dump::State) {
@@ -272,7 +286,7 @@ Drive::_size()
 
     applyToPersistentItems(counter);
     applyToResetItems(counter);
-
+    
     // Add the size of the boolean indicating whether a disk is inserted
     counter.count += sizeof(bool);
 
@@ -738,41 +752,64 @@ Drive::isInsertable(const Disk &disk) const
     return isInsertable(disk.diameter, disk.density);
 }
 
-void
-Drive::ejectDisk()
+template <EventSlot s> void
+Drive::ejectDisk(Cycle delay)
 {
-    trace(DSK_DEBUG, "ejectDisk()\n");
+    debug(DSK_DEBUG, "ejectDisk <%d> (%lld)\n", s, delay);
+    
+    suspended {
 
-    if (disk) {
-        
-        // Flag disk change in the CIAA::PA
-        dskchange = false;
-        
-        // Get rid of the disk
-        disk = nullptr;
-        
-        // Notify the GUI
-        msgQueue.put(MSG_DISK_EJECT,
-                         config.pan << 24 | config.ejectVolume << 16 | nr);
+        // Schedule an ejection event
+        agnus.scheduleRel <s> (delay, DCH_EJECT);
+
+        // If there is no delay, service the event immediately
+        if (delay == 0) serviceDiskChangeEvent <s> ();
     }
 }
 
 void
-Drive::insertDisk(std::unique_ptr<Disk> disk)
+Drive::ejectDisk(Cycle delay)
 {
-    // Only proceed if the provided disk fits into this drive
+    debug(DSK_DEBUG, "ejectDisk(%lld)\n", delay);
+    
+    if (nr == 0) ejectDisk <SLOT_DC0> (delay);
+    if (nr == 1) ejectDisk <SLOT_DC1> (delay);
+    if (nr == 2) ejectDisk <SLOT_DC2> (delay);
+    if (nr == 3) ejectDisk <SLOT_DC3> (delay);
+}
+
+template <EventSlot s> void
+Drive::insertDisk(std::unique_ptr<Disk> disk, Cycle delay)
+{
+    assert(disk != nullptr);
+    
+    debug(DSK_DEBUG, "insertDisk <%d> (%lld)\n", s, delay);
+
+    // Only proceed if the provided disk is compatible with this drive
     if (!isInsertable(*disk)) throw VAError(ERROR_DISK_INCOMPATIBLE);
+
+    suspended {
+        
+        // Get ownership of the disk
+        diskToInsert = std::move(disk);
+
+        // Schedule an ejection event
+        agnus.scheduleRel <s> (delay, DCH_INSERT);
+
+        // If there is no delay, service the event immediately
+        if (delay == 0) serviceDiskChangeEvent <s> ();
+    }
+}
+
+void
+Drive::insertDisk(std::unique_ptr<Disk> disk, Cycle delay)
+{
+    debug(DSK_DEBUG, "insertDisk(%lld)\n", delay);
     
-    // Don't insert a disk if there is already one
-    assert(!hasDisk());
-    
-    // Insert disk
-    this->disk = std::move(disk);
-    head.offset = 0;
-    
-    // Notify the GUI
-    msgQueue.put(MSG_DISK_INSERT,
-                     config.pan << 24 | config.insertVolume << 16 | nr);
+    if (nr == 0) insertDisk <SLOT_DC0> (std::move(disk), delay);
+    if (nr == 1) insertDisk <SLOT_DC1> (std::move(disk), delay);
+    if (nr == 2) insertDisk <SLOT_DC2> (std::move(disk), delay);
+    if (nr == 3) insertDisk <SLOT_DC3> (std::move(disk), delay);
 }
 
 void
@@ -791,14 +828,100 @@ Drive::insertNew()
     // Add a file system
     adf.formatDisk(config.defaultFileSystem, config.defaultBootBlock);
     
-    // Convert the ADF into a disk
-    insertDisk(std::make_unique<Disk>(adf));
+    // Replace the current disk with the new one
+    swapDisk(adf);
+}
+
+void
+Drive::swapDisk(std::unique_ptr<Disk> disk)
+{
+    debug(DSK_DEBUG, "swapDisk()\n");
+    
+    // Only proceed if the provided disk is compatible with this drive
+    if (!isInsertable(*disk)) throw VAError(ERROR_DISK_INCOMPATIBLE);
+
+    // Determine delay (in pause mode, we insert immediately)
+    auto delay = isRunning() ? config.diskSwapDelay : 0;
+        
+    suspended {
+
+        if (hasDisk()) {
+
+            // Eject the old disk first
+            ejectDisk();
+
+        } else {
+
+            // Insert the new disk immediately
+            delay = 0;
+        }
+                
+        // Insert the new disk with a delay
+        insertDisk(std::move(disk), delay);
+    }
+}
+
+void
+Drive::swapDisk(class DiskFile &file)
+{
+    swapDisk(std::make_unique<Disk>(file));
+}
+
+void
+Drive::swapDisk(const string &name)
+{
+    bool append = !util::isAbsolutePath(name) && searchPath != "";
+    string path = append ? searchPath + "/" + name : name;
+    
+    std::unique_ptr<DiskFile> file(DiskFile::make(path));
+    swapDisk(*file);
 }
 
 u64
 Drive::fnv() const
 {
     return disk ? disk->getFnv() : 0;
+}
+
+template <EventSlot s> void
+Drive::serviceDiskChangeEvent()
+{
+    // Check if we need to eject the current disk
+    if (scheduler.id[s] == DCH_EJECT || scheduler.id[s] == DCH_INSERT) {
+        
+        if (disk) {
+            
+            // Flag disk change in CIAA::PA
+            dskchange = false;
+            
+            // Get rid of the disk
+            disk = nullptr;
+            
+            // Notify the GUI
+            msgQueue.put(MSG_DISK_EJECT,
+                         config.pan << 24 | config.ejectVolume << 16 | nr);
+        }
+    }
+    
+    // Check if we need to insert a new disk
+    if (scheduler.id[s] == DCH_INSERT) {
+        
+        if (diskToInsert) {
+            
+            // Insert the new disk
+            disk = std::move(diskToInsert);
+            
+            // Remove indeterminism by repositioning the drive head
+            head.offset = 0;
+            
+            // Notify the GUI
+            msgQueue.put(MSG_DISK_INSERT,
+                         config.pan << 24 | config.insertVolume << 16 | nr);
+        }
+    }
+
+    // Remove the event
+    scheduler.cancel <s> ();
 }
 
 void

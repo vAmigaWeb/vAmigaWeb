@@ -52,11 +52,14 @@ enum_long(ERROR_CODE)
     ERROR_DISK_INVALID_SECTOR_NUMBER,
     
     // Snapshots
-    ERROR_SNP_TOO_OLD,
-    ERROR_SNP_TOO_NEW,
-
+    ERROR_SNAP_TOO_OLD,
+    ERROR_SNAP_TOO_NEW,
+    ERROR_SNAP_CORRUPTED,
+    
     // Media files
-    ERROR_NO_EXTADF_SUPPORT,
+    ERROR_EXT_FACTOR5,
+    ERROR_EXT_INCOMPATIBLE,
+    ERROR_EXT_CORRUPTED,
 
     // Encrypted Roms
     ERROR_MISSING_ROM_KEY,
@@ -144,11 +147,13 @@ struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
             case ERROR_DISK_WRONG_SECTOR_COUNT:     return "DISK_WRONG_SECTOR_COUNT";
             case ERROR_DISK_INVALID_SECTOR_NUMBER:  return "DISK_INVALID_SECTOR_NUMBER";
                 
-            case ERROR_SNP_TOO_OLD:                 return "SNP_TOO_OLD";
-            case ERROR_SNP_TOO_NEW:                 return "SNP_TOO_NEW";
+            case ERROR_SNAP_TOO_OLD:                return "SNAP_TOO_OLD";
+            case ERROR_SNAP_TOO_NEW:                return "SNAP_TOO_NEW";
                 
-            case ERROR_NO_EXTADF_SUPPORT:           return "NO_EXTADF_SUPPORT";
-
+            case ERROR_EXT_FACTOR5:             return "EXT_UNSUPPORTED";
+            case ERROR_EXT_INCOMPATIBLE:            return "EXT_INCOMPATIBLE";
+            case ERROR_EXT_CORRUPTED:               return "EXT_CORRUPTED";
+                
             case ERROR_MISSING_ROM_KEY:             return "MISSING_ROM_KEY";
             case ERROR_INVALID_ROM_KEY:             return "INVALID_ROM_KEY";
                 

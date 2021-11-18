@@ -11,6 +11,7 @@
 
 #include "SubComponent.h"
 #include "Constants.h"
+#include "AmigaTypes.h"
 
 class RegressionTester : public SubComponent {
 
@@ -64,15 +65,22 @@ private:
     //
     
     isize _size() override { return 0; }
+    u64 _checksum() override { return 0; }
     isize _load(const u8 *buffer) override { return 0; }
     isize _save(u8 *buffer) override { return 0; }
     
     
     //
-    // Taking screenshots
+    // Running a regression test
     //
 
 public:
+
+    // Reverts everything to factory settings
+    void prepare(ConfigScheme scheme, string kickstart);
+    
+    // Runs a test case
+    void run(string adf);
     
     // Creates the test image and exits the emulator
     void dumpTexture(class Amiga &amiga);

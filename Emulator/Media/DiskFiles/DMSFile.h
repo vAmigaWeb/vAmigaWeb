@@ -38,11 +38,11 @@ public:
     // Methods from AmigaFile
     //
     
-    bool isCompatiblePath(const string &path) const override { return isCompatible(path); }
-    bool isCompatibleStream(std::istream &stream) const override { return isCompatible(stream); }
     FileType type() const override { return FILETYPE_DMS; }
     u64 fnv() const override { return adf->fnv(); }
-    isize readFromStream(std::istream &stream) override;
+    bool isCompatiblePath(const string &path) const override { return isCompatible(path); }
+    bool isCompatibleStream(std::istream &stream) const override { return isCompatible(stream); }
+    void finalizeRead() throws override;
 
     
     //
@@ -60,5 +60,5 @@ public:
     const char *bootBlockName() const override { return adf->bootBlockName(); }
     void readSector(u8 *target, isize s) const override { return adf->readSector(target, s); }
     void readSector(u8 *target, isize t, isize s) const override { return adf->readSector(target, t, s); }
-    void encodeDisk(class Disk &disk) throws override { return adf->encodeDisk(disk); }
+    void encodeDisk(class Disk &disk) const throws override { return adf->encodeDisk(disk); }
 };

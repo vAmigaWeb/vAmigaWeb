@@ -145,51 +145,44 @@ Thread::main()
             if (state == EXEC_OFF && newState == EXEC_PAUSED) {
                 
                 AmigaComponent::powerOn();
-                state = newState;
-                break;
-            }
-
-            if (state == EXEC_OFF && newState == EXEC_RUNNING) {
-                
-                AmigaComponent::powerOn();
-                AmigaComponent::run();
-                state = newState;
+                state = EXEC_PAUSED;
                 break;
             }
 
             if (state == EXEC_PAUSED && newState == EXEC_OFF) {
                 
                 AmigaComponent::powerOff();
-                state = newState;
+                state = EXEC_OFF;
                 break;
             }
 
             if (state == EXEC_PAUSED && newState == EXEC_RUNNING) {
                 
                 AmigaComponent::run();
-                state = newState;
+                state = EXEC_RUNNING;
                 break;
             }
 
             if (state == EXEC_RUNNING && newState == EXEC_OFF) {
                 
                 AmigaComponent::pause();
+                state = EXEC_PAUSED;
                 AmigaComponent::powerOff();
-                state = newState;
+                state = EXEC_OFF;
                 break;
             }
 
             if (state == EXEC_RUNNING && newState == EXEC_PAUSED) {
                 
                 AmigaComponent::pause();
-                state = newState;
+                state = EXEC_PAUSED;
                 break;
             }
             
             if (newState == EXEC_HALTED) {
                 
                 AmigaComponent::halt();
-                state = newState;
+                state = EXEC_HALTED;
                 return;
             }
             
@@ -248,9 +241,6 @@ Thread::powerOn(bool blocking)
     
     if (isPoweredOff()) {
         
-        // Throw an exception if the emulator is not ready to power on
-        isReady();
-
         // Request a state change and wait until the new state has been reached
         changeStateTo(EXEC_PAUSED, blocking);
     }
@@ -282,8 +272,10 @@ Thread::run(bool blocking)
     printf("**** State %s\n",ExecutionStateEnum::key(state));
 
     if (!isRunning()) {
-        
-        // Throw an exception if the emulator is not ready to power on
+
+        assert(isPoweredOn());
+
+        // Throw an exception if the emulator is not ready to run
         isReady();
         
         // Request a state change and wait until the new state has been reached
@@ -347,65 +339,58 @@ Thread::changeStateTo(ExecutionState requestedState, bool blocking)
 //    if (blocking) while (state != newState) { };
 
     printf("**** State change %s -> %s\n",ExecutionStateEnum::key(state),ExecutionStateEnum::key(newState));
-
-        // Are we requested to change state?
-        while (newState != state) {
+    // Are we requested to change state?
+    while (newState != state) {
+        
+        if (state == EXEC_OFF && newState == EXEC_PAUSED) {
             
-            if (state == EXEC_OFF && newState == EXEC_PAUSED) {
-                
-                AmigaComponent::powerOn();
-                state = newState;
-                break;
-            }
-
-            if (state == EXEC_OFF && newState == EXEC_RUNNING) {
-                
-                AmigaComponent::powerOn();
-                AmigaComponent::run();
-                state = newState;
-                break;
-            }
-
-            if (state == EXEC_PAUSED && newState == EXEC_OFF) {
-                
-                AmigaComponent::powerOff();
-                state = newState;
-                break;
-            }
-
-            if (state == EXEC_PAUSED && newState == EXEC_RUNNING) {
-                
-                AmigaComponent::run();
-                state = newState;
-                break;
-            }
-
-            if (state == EXEC_RUNNING && newState == EXEC_OFF) {
-                
-                AmigaComponent::pause();
-                AmigaComponent::powerOff();
-                state = newState;
-                break;
-            }
-
-            if (state == EXEC_RUNNING && newState == EXEC_PAUSED) {
-                
-                AmigaComponent::pause();
-                state = newState;
-                break;
-            }
-            
-            if (newState == EXEC_HALTED) {
-                
-                AmigaComponent::halt();
-                state = newState;
-                return;
-            }
-            
-            // Invalid state transition
-            fatalError;
+            AmigaComponent::powerOn();
+            state = EXEC_PAUSED;
             break;
         }
+
+        if (state == EXEC_PAUSED && newState == EXEC_OFF) {
+            
+            AmigaComponent::powerOff();
+            state = EXEC_OFF;
+            break;
+        }
+
+        if (state == EXEC_PAUSED && newState == EXEC_RUNNING) {
+            
+            AmigaComponent::run();
+            state = EXEC_RUNNING;
+            break;
+        }
+
+        if (state == EXEC_RUNNING && newState == EXEC_OFF) {
+            
+            AmigaComponent::pause();
+            state = EXEC_PAUSED;
+            AmigaComponent::powerOff();
+            state = EXEC_OFF;
+            break;
+        }
+
+        if (state == EXEC_RUNNING && newState == EXEC_PAUSED) {
+            
+            AmigaComponent::pause();
+            state = EXEC_PAUSED;
+            break;
+        }
+        
+        if (newState == EXEC_HALTED) {
+            
+            AmigaComponent::halt();
+            state = EXEC_HALTED;
+            return;
+        }
+        
+        // Invalid state transition
+        fatalError;
+        break;
+    }
+
 }
 
 void

@@ -138,41 +138,51 @@ Agnus::serviceREGEvent(Cycle until)
 
         // Apply the register change
         RegChange &change = changeRecorder.read();
-
+        
         switch (change.addr) {
-
+                
             case SET_BLTSIZE: blitter.setBLTSIZE(change.value); break;
             case SET_BLTSIZV: blitter.setBLTSIZV(change.value); break;
+                
             case SET_BLTCON0: blitter.setBLTCON0(change.value); break;
             case SET_BLTCON0L: blitter.setBLTCON0L(change.value); break;
             case SET_BLTCON1: blitter.setBLTCON1(change.value); break;
+                
             case SET_INTREQ: paula.setINTREQ(change.value); break;
             case SET_INTENA: paula.setINTENA(change.value); break;
+                
             case SET_BPLCON0_AGNUS: setBPLCON0(bplcon0, change.value); break;
             case SET_BPLCON0_DENISE: denise.setBPLCON0(bplcon0, change.value); break;
             case SET_BPLCON1_AGNUS: setBPLCON1(bplcon1, change.value); break;
             case SET_BPLCON1_DENISE: denise.setBPLCON1(bplcon1, change.value); break;
             case SET_BPLCON2: denise.setBPLCON2(change.value); break;
             case SET_BPLCON3: denise.setBPLCON3(change.value); break;
+                
             case SET_DMACON: setDMACON(dmacon, change.value); break;
+                
             case SET_DIWSTRT: setDIWSTRT(change.value); break;
             case SET_DIWSTOP: setDIWSTOP(change.value); break;
+                
             case SET_DDFSTRT: setDDFSTRT(ddfstrt, change.value); break;
             case SET_DDFSTOP: setDDFSTOP(ddfstop, change.value); break;
+                
             case SET_BPL1MOD: setBPL1MOD(change.value); break;
             case SET_BPL2MOD: setBPL2MOD(change.value); break;
+                
             case SET_BPL1PTH: setBPLxPTH<1>(change.value); break;
             case SET_BPL2PTH: setBPLxPTH<2>(change.value); break;
             case SET_BPL3PTH: setBPLxPTH<3>(change.value); break;
             case SET_BPL4PTH: setBPLxPTH<4>(change.value); break;
             case SET_BPL5PTH: setBPLxPTH<5>(change.value); break;
             case SET_BPL6PTH: setBPLxPTH<6>(change.value); break;
+                                
             case SET_BPL1PTL: setBPLxPTL<1>(change.value); break;
             case SET_BPL2PTL: setBPLxPTL<2>(change.value); break;
             case SET_BPL3PTL: setBPLxPTL<3>(change.value); break;
             case SET_BPL4PTL: setBPLxPTL<4>(change.value); break;
             case SET_BPL5PTL: setBPLxPTL<5>(change.value); break;
             case SET_BPL6PTL: setBPLxPTL<6>(change.value); break;
+                                
             case SET_SPR0PTH: setSPRxPTH<0>(change.value); break;
             case SET_SPR1PTH: setSPRxPTH<1>(change.value); break;
             case SET_SPR2PTH: setSPRxPTH<2>(change.value); break;
@@ -181,6 +191,7 @@ Agnus::serviceREGEvent(Cycle until)
             case SET_SPR5PTH: setSPRxPTH<5>(change.value); break;
             case SET_SPR6PTH: setSPRxPTH<6>(change.value); break;
             case SET_SPR7PTH: setSPRxPTH<7>(change.value); break;
+                                
             case SET_SPR0PTL: setSPRxPTL<0>(change.value); break;
             case SET_SPR1PTL: setSPRxPTL<1>(change.value); break;
             case SET_SPR2PTL: setSPRxPTL<2>(change.value); break;
@@ -189,13 +200,17 @@ Agnus::serviceREGEvent(Cycle until)
             case SET_SPR5PTL: setSPRxPTL<5>(change.value); break;
             case SET_SPR6PTL: setSPRxPTL<6>(change.value); break;
             case SET_SPR7PTL: setSPRxPTL<7>(change.value); break;
+                                
+            case SET_DSKPTH: setDSKPTH(change.value); break;
+            case SET_DSKPTL: setDSKPTL(change.value); break;
+                
             case SET_STRHOR: hsyncHandler(); break;
                 
             default:
                 fatalError;
         }
     }
-
+    
     // Schedule next event
     scheduleNextREGEvent();
 }

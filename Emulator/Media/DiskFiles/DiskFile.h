@@ -46,11 +46,14 @@ public:
     // Returns the layout parameters for this disk
     virtual DiskDiameter getDiskDiameter() const = 0;
     virtual DiskDensity getDiskDensity() const = 0;
+    bool isSD() { return getDiskDensity() == DISK_SD; }
+    bool isDD() { return getDiskDensity() == DISK_DD; }
+    bool isHD() { return getDiskDensity() == DISK_HD; }
     virtual isize numSides() const = 0;
     virtual isize numCyls() const = 0;
     virtual isize numSectors() const = 0;
-    isize numTracks() const { return numSides() * numCyls(); }
-    i64 numBlocks() const { return numTracks() * numSectors(); }
+    virtual isize numTracks() const { return numSides() * numCyls(); }
+    virtual i64 numBlocks() const { return numTracks() * numSectors(); }
 
     // Analyzes the boot block
     virtual BootBlockType bootBlockType() const { return BB_STANDARD; }
@@ -90,6 +93,6 @@ public:
  
 public:
     
-    virtual void encodeDisk(class Disk &disk) throws { fatalError; }
+    virtual void encodeDisk(class Disk &disk) const throws { fatalError; }
     virtual void decodeDisk(class Disk &disk) throws { fatalError; }
 };

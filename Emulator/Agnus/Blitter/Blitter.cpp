@@ -224,47 +224,36 @@ Blitter::_dump(dump::Category category, std::ostream& os) const
     }
 }
 
-void
-Blitter::doBarrelA(u16 aNew, u16 &aOld, u16 &aHold) const
+u16
+Blitter::barrelShifter(u16 anew, u16 aold, u16 shift, bool desc)
 {
-    aHold = (u16)(HI_W_LO_W(aOld, aNew) >> bltconASH());
-    aOld  = aNew;
-}
-
-void
-Blitter::doBarrelAdesc(u16 aNew, u16 &aOld, u16 &aHold) const
-{
-    aHold = (u16)(HI_W_LO_W(aNew, aOld) >> (16 - bltconASH()));
-    aOld  = aNew;
-}
-
-void
-Blitter::doBarrelB(u16 bNew, u16 &bOld, u16 &bHold) const
-{
-    bHold = (u16)(HI_W_LO_W(bOld, bNew) >> bltconBSH());
-    bOld  = bNew;
-}
-
-void
-Blitter::doBarrelBdesc(u16 bNew, u16 &bOld, u16 &bHold) const
-{
-    bHold = (u16)(HI_W_LO_W(bNew, bOld) >> (16 - bltconBSH()));
-    bOld  = bNew;
+    if (desc) {
+        return (u16)(HI_W_LO_W(anew, aold) >> (16 - shift));
+    } else {
+        return (u16)(HI_W_LO_W(aold, anew) >> shift);
+    }
 }
 
 u16
 Blitter::doMintermLogic(u16 a, u16 b, u16 c, u8 minterm) const
 {
-    u16 result = 0;
+    u16 result = doMintermLogicQuick(a, b, c, minterm);
 
-    if (minterm & 0b10000000) result |=  a &  b &  c;
-    if (minterm & 0b01000000) result |=  a &  b & ~c;
-    if (minterm & 0b00100000) result |=  a & ~b &  c;
-    if (minterm & 0b00010000) result |=  a & ~b & ~c;
-    if (minterm & 0b00001000) result |= ~a &  b &  c;
-    if (minterm & 0b00000100) result |= ~a &  b & ~c;
-    if (minterm & 0b00000010) result |= ~a & ~b &  c;
-    if (minterm & 0b00000001) result |= ~a & ~b & ~c;
+    if constexpr (BLT_DEBUG) {
+        
+        u16 result2 = 0;
+        
+        if (minterm & 0b10000000) result2 |=  a &  b &  c;
+        if (minterm & 0b01000000) result2 |=  a &  b & ~c;
+        if (minterm & 0b00100000) result2 |=  a & ~b &  c;
+        if (minterm & 0b00010000) result2 |=  a & ~b & ~c;
+        if (minterm & 0b00001000) result2 |= ~a &  b &  c;
+        if (minterm & 0b00000100) result2 |= ~a &  b & ~c;
+        if (minterm & 0b00000010) result2 |= ~a & ~b &  c;
+        if (minterm & 0b00000001) result2 |= ~a & ~b & ~c;
+    
+        if (result != result2) panic("Blitter minterm error\n");
+    }
     
     return result;
 }
@@ -553,6 +542,55 @@ Blitter::doFill(u16 &data, bool &carry)
 }
 
 void
+Blitter::doLine()
+{
+    auto incx = [&]() { if (incASH()) U32_INC(bltcpt, 2); };
+    auto decx = [&]() { if (decASH()) U32_INC(bltcpt, -2); };
+    auto incy = [&]() { U32_INC(bltcpt, bltcmod); fillCarry = true; };
+    auto decy = [&]() { U32_INC(bltcpt, -bltcmod); fillCarry = true; };
+ 
+    bool sign = bltcon1 & BLTCON1_SIGN;
+    fillCarry = false;
+        
+    if (bltcon1 & BLTCON1_SUD) {
+        
+        if (bltcon1 & BLTCON1_AUL) {
+            decx();
+        } else {
+            incx();
+        }
+        if (bltcon1 & BLTCON1_SUL) {
+            if (!sign) decy();
+        } else {
+            if (!sign) incy();
+        }
+        
+    } else {
+        
+        if (bltcon1 & BLTCON1_AUL) {
+            decy();
+        } else {
+            incy();
+        }
+        if (bltcon1 & BLTCON1_SUL) {
+            if (!sign) decx();
+        } else {
+            if (!sign) incx();
+        }
+    }
+    
+    if (bltcon0 & BLTCON0_USEA) {
+        if (sign)
+            U32_INC(bltapt, bltbmod);
+        else
+            U32_INC(bltapt, bltamod);
+    }
+        
+    // Update the SIGN bit in BPLCON1
+    REPLACE_BIT(bltcon1, 6, (i16)bltapt < 0);
+}
+
+void
 Blitter::prepareBlit()
 {
     remaining = bltsizeH * bltsizeV;
@@ -619,13 +657,18 @@ Blitter::beginBlit()
 void
 Blitter::beginLineBlit(isize level)
 {
-    static bool verbose = true;
+    static u64 verbose = 0;
 
-    if (BLT_CHECKSUM && verbose) {
-        verbose = false;
+    if (BLT_CHECKSUM && verbose++ == 0) {
         msg("Performing level %zd line blits.\n", level);
     }
-
+    if (bltcon0 & BLTCON0_USEB) {
+        trace(XFILES, "Performing line blit with channel B enabled\n");
+    }
+    if (bltsizeH != 2) {
+        trace(XFILES, "Performing line blit with WIDTH = %d\n", bltsizeH);
+    }
+    
     switch (level) {
             
         case 0: beginFastLineBlit(); break;
@@ -640,10 +683,9 @@ Blitter::beginLineBlit(isize level)
 void
 Blitter::beginCopyBlit(isize level)
 {
-    static bool verbose = true;
+    static u64 verbose = 0;
 
-    if (BLT_CHECKSUM && verbose) {
-        verbose = false;
+    if (BLT_CHECKSUM && verbose++ == 0) {
         msg("Performing level %zd copy blits.\n", level);
     }
 
@@ -659,7 +701,7 @@ Blitter::beginCopyBlit(isize level)
 }
 
 void
-Blitter::signalEnd()
+Blitter::clearBusyFlag()
 {
     debug(BLTTIM_DEBUG, "(%zd,%zd) Blitter bbusy\n", agnus.pos.v, agnus.pos.h);
 
