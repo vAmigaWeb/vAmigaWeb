@@ -102,7 +102,7 @@ private:
     //
     // Snapshot storage
     //
-    
+        
 private:
     
     class Snapshot *autoSnapshot = nullptr;
@@ -168,6 +168,7 @@ private:
     }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
+    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM; }
     isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
     isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
     
@@ -278,9 +279,6 @@ public:
     Snapshot *latestAutoSnapshot();
     Snapshot *latestUserSnapshot();
 
-    /* Loads the current state from a snapshot file. There is an thread-unsafe
-     * and thread-safe version of this function. The first one can be unsed
-     * inside the emulator thread or from outside if the emulator is halted.
-     */
+    // Loads the current state from a snapshot file
     void loadSnapshot(const Snapshot &snapshot) throws;
 };

@@ -12,6 +12,9 @@
 #include "DriveTypes.h"
 #include "SubComponent.h"
 #include "Disk.h"
+#include "DiskController.h"
+#include "SchedulerTypes.h"
+#include "SuspendableThread.h"
 
 class Drive : public SubComponent {
     
@@ -72,6 +75,14 @@ public:
     // The currently inserted disk (if any)
     std::unique_ptr<Disk> disk;
 
+private:
+
+    // A disk waiting to be inserted (if any)
+    std::unique_ptr<Disk> diskToInsert;
+    
+    // Search path for disk files, one for each drive
+    string searchPath;
+    
     
     //
     // Initializing
@@ -136,6 +147,7 @@ private:
     }
 
     isize _size() override;
+    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
     isize _load(const u8 *buffer) override;
     isize _save(u8 *buffer) override;
 
@@ -153,7 +165,10 @@ public:
     i64 getConfigItem(Option option) const;
     void setConfigItem(Option option, i64 value);
     
-    
+    const string &getSearchPath() const { return searchPath; }
+    void setSearchPath(const string &path) { searchPath = path; }
+
+
     //
     // Analyzing
     //
@@ -194,6 +209,8 @@ public:
     // Operating the drive
     //
         
+public:
+    
     // Returns the current motor speed in percent
     double motorSpeed() const;
 
@@ -228,10 +245,13 @@ public:
     // Rotates the disk to the next sync mark
     void findSyncMark();
 
+    
     //
     // Moving the drive head
     //
 
+public:
+    
     // Returns wheather the drive is ready to accept a stepping pulse
     bool readyToStep() const;
     
@@ -249,6 +269,8 @@ public:
     // Handling disks
     //
 
+public:
+    
     bool hasDisk() const { return disk != nullptr; }
     bool hasDDDisk() const { return disk ? disk->density == DISK_DD : false; }
     bool hasHDDisk() const { return disk ? disk->density == DISK_HD : false; }
@@ -260,19 +282,48 @@ public:
     void setWriteProtection(bool value); 
     void toggleWriteProtection();
     
+    u64 fnv() const;
+
     bool isInsertable(DiskDiameter t, DiskDensity d) const;
     bool isInsertable(const DiskFile &file) const;
     bool isInsertable(const Disk &disk) const;
 
-    void ejectDisk();
-    void insertDisk(std::unique_ptr<Disk> disk) throws;
-    void insertNew() throws;
+    // Ejects the current disk with an optional delay
+    void ejectDisk(Cycle delay = 0);
     
-    u64 fnv() const;
+    // Inserts a new disk with an optional delay
+    void insertDisk(std::unique_ptr<Disk> disk, Cycle delay = 0) throws;
+    
+    // Replaces the current disk (recommended way to insert disks)
+    void swapDisk(std::unique_ptr<Disk> disk) throws;
+    void swapDisk(class DiskFile &file) throws;
+    void swapDisk(const string &name) throws;
+
+    // Replaces the current disk with a factory-fresh disk
+    void insertNew() throws;
+
+    
+private:
+    
+    template <EventSlot s> void ejectDisk(Cycle delay);
+    template <EventSlot s> void insertDisk(std::unique_ptr<Disk> disk, Cycle delay) throws;
+
+    
+    //
+    // Serving events
+    //
+    
+public:
+    
+    // Services an event in the disk change slot
+    template <EventSlot s> void serviceDiskChangeEvent();
+    
     
     //
     // Delegation methods
     //
+    
+public:
     
     // Write handler for the PRB register of CIA B
     void PRBdidChange(u8 oldValue, u8 newValue);

@@ -446,6 +446,7 @@ private:
     }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
+    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
     isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
     isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
     
@@ -614,7 +615,7 @@ public:
     void executeUntilBusIsFreeForCIA();
     
     // Schedules a register to change its value
-    void recordRegisterChange(Cycle delay, u32 addr, u16 value);
+    void recordRegisterChange(Cycle delay, u32 addr, u16 value, Accessor acc = 0);
 
 private:
 
@@ -679,7 +680,13 @@ public:
     bool bltdma() const { return bltdma(dmacon); }
     bool sprdma() const { return sprdma(dmacon); }
     bool dskdma() const { return dskdma(dmacon); }
-    
+
+    // Checks whether the current cycle is a certain DMA cycle
+    template <int x> bool isBplDmaCycle();
+    template <int x> bool isSprDmaCycle();
+    template <int x> bool isAudDmaCycle();
+    bool isDskDmaCycle(Accessor a);
+
 private:
     
     void enableBplDmaOCS();
@@ -736,7 +743,7 @@ private:
 public:
         
     // Checks if the bus is currently available for the specified resource
-    template <BusOwner owner> bool busIsFree() const;
+    template <BusOwner owner> bool busIsFree();
 
     // Attempts to allocate the bus for the specified resource
     template <BusOwner owner> bool allocateBus();
@@ -762,7 +769,7 @@ public:
     bool getBLS() { return bls; }
     void setBLS(bool value) { bls = value; }
 
-    
+
     //
     // Accessing registers (AgnusRegisters.cpp)
     //
@@ -780,9 +787,6 @@ public:
     u16 peekVPOSR();
     void pokeVPOS(u16 value);
     void setVPOS(u16 value);
-
-    void pokeDSKPTH(u16 value);
-    void pokeDSKPTL(u16 value);
 
     void pokeBPLCON0(u16 value);
     void setBPLCON0(u16 oldValue, u16 newValue);
@@ -802,30 +806,43 @@ public:
     void pokeDDFSTOP(u16 value);
     void setDDFSTOP(u16 old, u16 value);
 
-    template <int x> void pokeAUDxLCH(u16 value);
-    template <int x> void pokeAUDxLCL(u16 value);
-    template <int x> void reloadAUDxPT() { audpt[x] = audlc[x]; }
-
-    template <int x> void pokeBPLxPTH(u16 value);
-    template <int x> void setBPLxPTH(u16 value);
-
-    template <int x> void pokeBPLxPTL(u16 value);
-    template <int x> void setBPLxPTL(u16 value);
-
     void pokeBPL1MOD(u16 value);
     void setBPL1MOD(u16 value);
 
     void pokeBPL2MOD(u16 value);
     void setBPL2MOD(u16 value);
-
-    template <int x> void pokeSPRxPTH(u16 value);
-    template <int x> void setSPRxPTH(u16 value);
-    
-    template <int x> void pokeSPRxPTL(u16 value);
-    template <int x> void setSPRxPTL(u16 value);
     
     template <int x> void pokeSPRxPOS(u16 value);
     template <int x> void pokeSPRxCTL(u16 value);
+
+    
+    //
+    // Accessing DMA pointer registers (AgnusRegisters.cpp)
+    //
+    
+public:
+    
+    template <Accessor s> void pokeDSKPTH(u16 value);
+    void setDSKPTH(u16 value);
+
+    template <Accessor s> void pokeDSKPTL(u16 value);
+    void setDSKPTL(u16 value);
+
+    template <int x, Accessor s> void pokeAUDxLCH(u16 value);
+    template <int x, Accessor s> void pokeAUDxLCL(u16 value);
+    template <int x> void reloadAUDxPT() { audpt[x] = audlc[x]; }
+
+    template <int x, Accessor s> void pokeBPLxPTH(u16 value);
+    template <int x> void setBPLxPTH(u16 value);
+
+    template <int x, Accessor s> void pokeBPLxPTL(u16 value);
+    template <int x> void setBPLxPTL(u16 value);
+
+    template <int x, Accessor s> void pokeSPRxPTH(u16 value);
+    template <int x> void setSPRxPTH(u16 value);
+
+    template <int x, Accessor s> void pokeSPRxPTL(u16 value);
+    template <int x> void setSPRxPTL(u16 value);
 
 private:
     

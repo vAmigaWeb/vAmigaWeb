@@ -53,36 +53,3 @@ DiskController::scheduleNextDiskEvent()
         agnus.scheduleRel<SLOT_DSK>(DMA_CYCLES(rounded), DSK_ROTATE);
     }
 }
-
-void
-DiskController::serviceDiskChangeEvent()
-{
-    if (scheduler.id[SLOT_DCH] == EVENT_NONE) return;
-    
-    auto n = (isize)scheduler.data[SLOT_DCH];
-    assert(n >= 0 && n <= 3);
-
-    switch (scheduler.id[SLOT_DCH]) {
-
-        case DCH_INSERT:
-
-            trace(DSK_DEBUG, "DCH_INSERT (df%zd)\n", n);
-
-            assert(diskToInsert != nullptr);
-            df[n]->insertDisk(std::move(diskToInsert));
-            assert(diskToInsert == nullptr);
-            break;
-
-        case DCH_EJECT:
-
-            trace(DSK_DEBUG, "DCH_EJECT (df%zd)\n", n);
-
-            df[n]->ejectDisk();
-            break;
-
-        default:
-            fatalError;
-    }
-
-    scheduler.cancel<SLOT_DCH>();
-}

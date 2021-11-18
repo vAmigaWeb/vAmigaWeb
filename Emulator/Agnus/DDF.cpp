@@ -43,5 +43,6 @@ DDF<hires>::compute(isize ddfstrt, isize ddfstop)
         stop = std::min(strt + 8 * fetchUnits, (isize)0xE0);
     }
 }
+
 template void DDF<true>::compute(isize ddfstrt, isize ddfstop);
 template void DDF<false>::compute(isize ddfstrt, isize ddfstop);

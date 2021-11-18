@@ -25,13 +25,10 @@
  *    Running: The emulator is turned on and running
  *     Halted: The emulator is shutting down
  *
- *         -----------------------------------------------
- *        |                     run()                     |
- *        |                                               V
- *    ---------   powerOn()   ---------     run()     ---------
- *   |   Off   |------------>| Paused  |------------>| Running |
- *   |         |<------------|         |<------------|         |
- *    ---------   powerOff()  ---------    pause()    ---------
+ *    ---------   powerOn()   ---------     run()     ---------     ---------
+ *   |   Off   |------------>| Paused  |------------>| Running |   | Halted  |
+ *   |         |<------------|         |<------------|         |   |         |
+ *    ---------   powerOff()  ---------    pause()    ---------     ---------
  *        ^                                               |
  *        |                   powerOff()                  |
  *         -----------------------------------------------
@@ -53,7 +50,7 @@
  *            | paused    | off       | _powerOff()
  *            | running   | off       | _powerOff() + _pause()
  * ------------------------------------------------------------------------
- * run()      | off       | running   | _powerOn() + _run()
+ * run()      | off       | ---       | Error
  *            | paused    | running   | _run()
  *            | running   | running   | none
  * ------------------------------------------------------------------------
@@ -189,7 +186,7 @@ public:
     bool isRunning() const override { return state == EXEC_RUNNING; }
     bool isPaused() const override { return state == EXEC_PAUSED; }
 
-    void powerOn(bool blocking = true) throws;
+    void powerOn(bool blocking = true);
     void powerOff(bool blocking = true);
     void run(bool blocking = true) throws;
     void pause(bool blocking = true);

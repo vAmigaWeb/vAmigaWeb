@@ -14,7 +14,8 @@
 
 // Checks if a slot number refers to a primary slot or a secondary slot
 #define isPrimarySlot(s) ((s) <= SLOT_SEC)
-#define isSecondarySlot(s) ((s) > SLOT_SEC)
+#define isSecondarySlot(s) ((s) > SLOT_SEC && (s) <= SLOT_TER)
+#define isTertiarySlot(s) ((s) > SLOT_TER)
 
 // Time stamp used for messages that never trigger
 #define NEVER INT64_MAX
@@ -42,7 +43,6 @@ enum_long(SLOT)
     SLOT_CH2,                       // Audio channel 2
     SLOT_CH3,                       // Audio channel 3
     SLOT_DSK,                       // Disk controller
-    SLOT_DCH,                       // Disk changes (insert, eject)
     SLOT_VBL,                       // Vertical blank
     SLOT_IRQ,                       // Interrupts
     SLOT_IPL,                       // CPU Interrupt Priority Lines
@@ -50,8 +50,16 @@ enum_long(SLOT)
     SLOT_TXD,                       // Serial data out (UART)
     SLOT_RXD,                       // Serial data in (UART)
     SLOT_POT,                       // Potentiometer
-    SLOT_INS,                       // Handles periodic calls to inspect()
     SLOT_RAS,                       // HSYNC handler (End of Line)
+    SLOT_TER,                       // Enables tertiary slots
+    
+    // Tertiary slots
+    SLOT_DC0,                       // Disk change (Df0)
+    SLOT_DC1,                       // Disk change (Df1)
+    SLOT_DC2,                       // Disk change (Df2)
+    SLOT_DC3,                       // Disk change (Df3)
+    SLOT_INS,                       // Handles periodic calls to inspect()
+
     SLOT_COUNT
 };
 typedef SLOT EventSlot;
@@ -82,7 +90,6 @@ struct EventSlotEnum : util::Reflection<EventSlotEnum, EventSlot>
             case SLOT_CH2:   return "CH2";
             case SLOT_CH3:   return "CH3";
             case SLOT_DSK:   return "DSK";
-            case SLOT_DCH:   return "DCH";
             case SLOT_VBL:   return "VBL";
             case SLOT_IRQ:   return "IRQ";
             case SLOT_IPL:   return "IPL";
@@ -90,8 +97,15 @@ struct EventSlotEnum : util::Reflection<EventSlotEnum, EventSlot>
             case SLOT_TXD:   return "TXD";
             case SLOT_RXD:   return "RXD";
             case SLOT_POT:   return "POT";
-            case SLOT_INS:   return "INS";
             case SLOT_RAS:   return "RAS";
+            case SLOT_TER:   return "TER";
+                
+            case SLOT_DC0:   return "DC0";
+            case SLOT_DC1:   return "DC1";
+            case SLOT_DC2:   return "DC2";
+            case SLOT_DC3:   return "DC3";
+            case SLOT_INS:   return "INS";
+
             case SLOT_COUNT: return "???";
         }
         return "???";
@@ -182,6 +196,7 @@ enum_i8(EventID)
     BLT_STRT2,
     BLT_COPY_SLOW,
     BLT_COPY_FAKE,
+    BLT_LINE_SLOW,
     BLT_LINE_FAKE,
     BLT_EVENT_COUNT,
         
@@ -262,7 +277,11 @@ enum_i8(EventID)
 
     // Rasterline slot
     RAS_HSYNC = 1,
-    RAS_EVENT_COUNT
+    RAS_EVENT_COUNT,
+    
+    // SEC slot
+    TER_TRIGGER = 1,
+    TER_EVENT_COUNT
 };
 
 static inline bool isRegEvent(EventID id) { return id < REG_EVENT_COUNT; }

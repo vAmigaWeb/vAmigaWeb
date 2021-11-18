@@ -100,7 +100,7 @@ class Blitter : public SubComponent
     void (Blitter::*copyBlitInstr[16][2][2][6])(void);
 
     // Micro-program for line blits
-    void (Blitter::*lineBlitInstr[6])(void);
+    void (Blitter::*lineBlitInstr[4][2][8])(void);
 
     // The program counter indexing the micro instruction to execute
     u16 bltpc;
@@ -274,6 +274,7 @@ private:
     }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
+    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
     isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
     isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
 
@@ -321,7 +322,9 @@ public:
     void setBLTCON0(u16 value);
     void pokeBLTCON0L(u16 value);
     void setBLTCON0L(u16 value);
-    void setBLTCON0ASH(u16 ash);
+    void setASH(u16 ash);
+    bool incASH();
+    bool decASH();
 
     u16 bltconASH()   const { return bltcon0 >> 12; }
     u16 bltconLF()    const { return bltcon0 & 0xF; }
@@ -330,11 +333,14 @@ public:
     bool bltconUSEB() const { return bltcon0 & (1 << 10); }
     bool bltconUSEC() const { return bltcon0 & (1 << 9); }
     bool bltconUSED() const { return bltcon0 & (1 << 8); }
+    u16 bltconUSEBC() const { return (bltcon0 >> 9) & 0x3; }
 
     // BLTCON1
     void pokeBLTCON1(u16 value);
     void setBLTCON1(u16 value);
-    void setBLTCON1BSH(u16 bsh);
+    void setBSH(u16 bsh);
+    bool incBSH();
+    bool decBSH();
 
     u16 bltconBSH()   const { return bltcon1 >> 12; }
     bool bltconEFE()  const { return bltcon1 & (1 << 4); }
@@ -405,18 +411,18 @@ public:
 
 private:
     
-    // Runs the barrel shifters on data paths A and B
-    void doBarrelA    (u16 aNew, u16 &aOld, u16 &aHold) const;
-    void doBarrelAdesc(u16 aNew, u16 &aOld, u16 &aHold) const;
-    void doBarrelB    (u16 bNew, u16 &bOld, u16 &bHold) const;
-    void doBarrelBdesc(u16 bNew, u16 &bOld, u16 &bHold) const;
-
+    // Emulates the barrel shifter
+    u16 barrelShifter(u16 anew, u16 aold,  u16 shift, bool desc = false);
+    
     // Emulates the minterm logic circuit
     u16 doMintermLogic     (u16 a, u16 b, u16 c, u8 minterm) const;
     u16 doMintermLogicQuick(u16 a, u16 b, u16 c, u8 minterm) const;
 
     // Emulates the fill logic circuit
     void doFill(u16 &data, bool &carry);
+
+    // Emulates the line logic circuit
+    void doLine();
 
 
     //
@@ -433,8 +439,8 @@ private:
     void beginLineBlit(isize level);
     void beginCopyBlit(isize level);
 
-    // Clears the BBUSY flag and triggers the Blitter interrupt
-    void signalEnd();
+    // Clears the BBUSY flag
+    void clearBusyFlag();
 
     // Concludes the current Blitter operation
     void endBlit();
@@ -447,15 +453,18 @@ private:
 private:
     
     // Starts a level 0 blit
-    void beginFastLineBlit();
     void beginFastCopyBlit();
+    void beginFastLineBlit();
 
     // Performs a copy blit operation via the FastBlitter
     template <bool useA, bool useB, bool useC, bool useD, bool desc>
     void doFastCopyBlit();
-    
+
     // Performs a line blit operation via the FastBlitter
     void doFastLineBlit();
+
+    // Performs a line blit operation via the FastBlitter (old code)
+    void doLegacyFastLineBlit();
 
 
     //
@@ -472,9 +481,13 @@ private:
     void beginSlowLineBlit();
     void beginSlowCopyBlit();
 
-    // Emulates a Blitter micro-instruction
+    // Emulates a Blitter micro-instruction (area mode)
     template <u16 instr> void exec();
     template <u16 instr> void fakeExec();
+
+    // Emulates a Blitter micro-instruction (line mode)
+    template <u16 instr> void execLine();
+    template <u16 instr> void fakeExecLine();
 
     // Checks iterations
     bool isFirstWord() const { return xCounter == bltsizeH; }
@@ -487,8 +500,4 @@ private:
     void resetYCounter() { setYCounter(bltsizeV); }
     void decXCounter() { setXCounter(xCounter - 1); }
     void decYCounter() { setYCounter(yCounter - 1); }
-
-    // Emulates the barrel shifter
-    void doBarrelShifterA();
-    void doBarrelShifterB();
 };

@@ -37,6 +37,9 @@ enum_long(OPT)
     OPT_DMA_DEBUG_COLOR,
     OPT_DMA_DEBUG_OPACITY,
     
+    // CPU
+    OPT_REG_RESET_VAL,
+    
     // Real-time clock
     OPT_RTC_MODEL,
 
@@ -45,6 +48,7 @@ enum_long(OPT)
     OPT_SLOW_RAM,
     OPT_FAST_RAM,
     OPT_EXT_START,
+    OPT_SAVE_ROMS,
     OPT_SLOW_RAM_DELAY,
     OPT_BANKMAP,
     OPT_UNMAPPING_TYPE,
@@ -62,6 +66,7 @@ enum_long(OPT)
     OPT_START_DELAY,
     OPT_STOP_DELAY,
     OPT_STEP_DELAY,
+    OPT_DISK_SWAP_DELAY,
     OPT_DRIVE_PAN,
     OPT_STEP_VOLUME,
     OPT_POLL_VOLUME,
@@ -130,12 +135,15 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
                 
             case OPT_DENISE_REVISION:     return "DENISE_REVISION";
                 
+            case OPT_REG_RESET_VAL:       return "REG_RESET_VAL";
+                
             case OPT_RTC_MODEL:           return "RTC_MODEL";
 
             case OPT_CHIP_RAM:            return "CHIP_RAM";
             case OPT_SLOW_RAM:            return "SLOW_RAM";
             case OPT_FAST_RAM:            return "FAST_RAM";
             case OPT_EXT_START:           return "EXT_START";
+            case OPT_SAVE_ROMS:           return "SAVE_ROMS";
             case OPT_SLOW_RAM_DELAY:      return "SLOW_RAM_DELAY";
             case OPT_BANKMAP:             return "BANKMAP";
             case OPT_UNMAPPING_TYPE:      return "UNMAPPING_TYPE";
@@ -151,6 +159,7 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
             case OPT_START_DELAY:         return "START_DELAY";
             case OPT_STOP_DELAY:          return "STOP_DELAY";
             case OPT_STEP_DELAY:          return "STEP_DELAY";
+            case OPT_DISK_SWAP_DELAY:     return "DISK_SWAP_DELAY";
             case OPT_DRIVE_PAN:           return "DRIVE_PAN";
             case OPT_STEP_VOLUME:         return "STEP_VOLUME";
             case OPT_POLL_VOLUME:         return "POLL_VOLUME";

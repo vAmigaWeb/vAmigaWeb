@@ -21,12 +21,6 @@ class DiskController : public SubComponent
 
     // Result of the latest inspection
     mutable DiskControllerInfo info = {};
-
-    // Temorary storage for a disk waiting to be inserted
-    std::unique_ptr<Disk> diskToInsert;
-
-    // Search path for disk files, one for each drive
-    string searchPath[4];
     
     // The currently selected drive (-1 if no drive is selected)
     isize selected = -1;
@@ -143,6 +137,7 @@ private:
     }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
+    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
     isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
     isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
 
@@ -164,10 +159,6 @@ public:
     
     void setConfigItem(Option option, i64 value);
     void setConfigItem(Option option, long id, i64 value);
-
-    const string &getSearchPath(isize dfn) const;
-    void setSearchPath(const string &path, isize dfn);
-    void setSearchPath(const string &path);
 
     
     //
@@ -242,13 +233,13 @@ public:
     //
 
     // Ejects a disk from the specified drive
-    void ejectDisk(isize nr, Cycle delay = 0);
+    [[deprecated]] void ejectDisk(isize nr, Cycle delay = 0);
 
     // Inserts a disk into the specified drive
-    void insertDisk(std::unique_ptr<Disk> disk, isize nr, Cycle delay = 0) throws;
-    void insertDisk(class DiskFile &file, isize nr, Cycle delay = 0) throws;
-    void insertDisk(const string &name, isize nr, Cycle delay = 0) throws;
-    void insertNew(isize nr, Cycle delay = 0) throws;
+    [[deprecated]] void insertDisk(std::unique_ptr<Disk> disk, isize nr, Cycle delay = 0) throws;
+    [[deprecated]] void insertDisk(class DiskFile &file, isize nr, Cycle delay = 0) throws;
+    [[deprecated]] void insertDisk(const string &name, isize nr, Cycle delay = 0) throws;
+    [[deprecated]] void insertNew(isize nr, Cycle delay = 0) throws;
 
     // Write protects or unprotects a disk
     void setWriteProtection(isize nr, bool value);
@@ -266,9 +257,6 @@ public:
     // Schedules the first or next event in the disk controller slot
     void scheduleFirstDiskEvent();
     void scheduleNextDiskEvent();
-
-    // Services an event in the disk change slot
-    void serviceDiskChangeEvent();
 
     
     //
@@ -348,7 +336,6 @@ public:
      * register is written to. This mode is fast, but far from being accurate.
      * Neither does it uses the disk DMA slots, nor does it interact with
      * the FIFO buffer.
-
      */
   
     // Performs DMA in standard mode

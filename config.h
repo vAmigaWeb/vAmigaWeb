@@ -21,7 +21,7 @@
 // Snapshot version number
 #define SNP_MAJOR 1
 #define SNP_MINOR 0
-#define SNP_SUBMINOR 4
+#define SNP_SUBMINOR 7
 
 // Uncomment this setting in a release build
 #define RELEASEBUILD
@@ -59,16 +59,14 @@ struct FloatStereo; typedef FloatStereo SampleType;
  { OPT_DRIVE_SPEED,      -1             }  }
 */
 
-// Uncomment to set a breakpoint on startup
-// #define INITIAL_BREAKPOINT 0xFC1354
+// Uncomment to launch the emulator with a pre-saved snapshot
+// #define INITIAL_SNAPSHOT "/tmp/snap.vamiga"
 
 // Uncomment to lauch the emulator with a disk in df0
-// #define DF0_DISK "/Users/hoff/Desktop/Testing/Planet_Rocklobster_Oxyron.adf"
-// #define DF0_DISK "/Users/hoff/Desktop/Testing/Ruffntumble.adf"
-// #define DF1_DISK "/Users/hoff/Dropbox/Amiga/DOSDisks/Disk1.img"
-// #define DF0_DISK "/Users/hoff/Desktop/Testing/JetsonsCracked.adf"
-// #define DF0_DISK "/Users/hoff/Desktop/Testing/A2000WB1.2D.adf"
-// #define DF0_DISK "/Users/hoff/Downloads/Jetsons1.adf"
+// #define DF0_DISK "/Users/hoff/Desktop/Testing/DCD-BBS.adf"
+
+// Uncomment to set a breakpoint on startup
+// #define INITIAL_BREAKPOINT 0xFC1354
 
 // Uncomment to colorize certain rasterlines
 // #define LINE_DEBUG (agnus.pos.v == 260 || agnus.pos.v == 300)
@@ -87,6 +85,7 @@ static const int NO_SSE          = 0; // Don't use SSE extensions
 // General
 static const int CNF_DEBUG       = 0; // Configuration options
 static const int XFILES          = 0; // Report paranormal activity
+static const int OBJ_DEBUG       = 0; // Object life-times
 static const int MIMIC_UAE       = 0; // Enable to compare debug logs with UAE
 
 // Runloop
@@ -122,6 +121,7 @@ static const int BLT_GUARD       = 0; // Guard registers while Blitter runs
 static const int BLT_DEBUG       = 0; // Blitter execution
 static const int BLTTIM_DEBUG    = 0; // Blitter Timing
 static const int SLOW_BLT_DEBUG  = 0; // Execute micro-instructions in one chunk
+static const int OLD_LINE_BLIT   = 0; // Use the old line blitter implementation
 
 // Denise
 static const int BPLREG_DEBUG    = 0; // Bitplane registers
@@ -158,7 +158,7 @@ static const int FS_DEBUG        = 0; // File System Classes (OFS / FFS)
 // Audio
 static const int AUDREG_DEBUG    = 0; // Audio registers
 static const int AUD_DEBUG       = 0; // Audio execution
-static const int AUDBUF_DEBUG    = 1; // Audio buffers
+static const int AUDBUF_DEBUG    = 0; // Audio buffers
 static const int DISABLE_AUDIRQ  = 0; // Disable audio interrupts
 
 // Ports
@@ -170,6 +170,11 @@ static const int SER_DEBUG       = 0; // Serial interface
 static const int POT_DEBUG       = 0; // Potentiometer inputs
 static const int HOLD_MOUSE_L    = 0; // Hold down the left mouse button
 static const int HOLD_MOUSE_R    = 0; // Hold down the right mouse button
+
+// Media types
+static const int ADF_DEBUG       = 0; // ADF and extended ADF files
+static const int DMS_DEBUG       = 0; // DMS files
+static const int IMG_DEBUG       = 0; // IMG files
 
 // Other components
 static const int RTC_DEBUG       = 0; // Real-time clock
@@ -186,8 +191,9 @@ static const int FORCE_CHIP_RAM_MISSING    = 0;
 static const int FORCE_AROS_NO_EXTROM      = 0;
 static const int FORCE_AROS_RAM_LIMIT      = 0;
 static const int FORCE_CHIP_RAM_LIMIT      = 0;
-static const int FORCE_SNAPSHOT_TOO_OLD    = 0;
-static const int FORCE_SNAPSHOT_TOO_NEW    = 0;
+static const int FORCE_SNAP_TOO_OLD        = 0;
+static const int FORCE_SNAP_TOO_NEW        = 0;
+static const int FORCE_SNAP_CORRUPTED      = 0;
 static const int FORCE_DISK_INVALID_LAYOUT = 0;
 static const int FORCE_RECORDING_ERROR     = 0;
 
@@ -199,4 +205,4 @@ static const int releaseBuild = 1;
 static const int releaseBuild = 0;
 #endif
 
-#include <assert.h>
+#include <cassert>

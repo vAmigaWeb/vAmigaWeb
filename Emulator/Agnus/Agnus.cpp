@@ -152,10 +152,11 @@ Agnus::_reset(bool hard)
     updateDasJumpTable();
         
     // Schedule initial events
+    scheduleRel<SLOT_SEC>(NEVER, SEC_TRIGGER);
+    scheduleRel<SLOT_TER>(NEVER, TER_TRIGGER);
     scheduleRel<SLOT_RAS>(DMA_CYCLES(HPOS_MAX), RAS_HSYNC);
     scheduleRel<SLOT_CIAA>(CIA_CYCLES(AS_CIA_CYCLES(clock)), CIA_EXECUTE);
     scheduleRel<SLOT_CIAB>(CIA_CYCLES(AS_CIA_CYCLES(clock)), CIA_EXECUTE);
-    scheduleRel<SLOT_SEC>(NEVER, SEC_TRIGGER);
     scheduleStrobe0Event();
     scheduleRel<SLOT_IRQ>(NEVER, IRQ_CHECK);
     diskController.scheduleFirstDiskEvent();
@@ -236,7 +237,7 @@ Agnus::setConfigItem(Option option, i64 value)
 bool
 Agnus::isOCS() const
 {
-    return config.revision == AGNUS_OCS_PLCC || config.revision == AGNUS_OCS_PLCC;
+    return config.revision == AGNUS_OCS_DIP || config.revision == AGNUS_OCS_PLCC;
 }
 
 bool
@@ -588,10 +589,10 @@ Agnus::executeUntilBusIsFreeForCIA()
 }
 
 void
-Agnus::recordRegisterChange(Cycle delay, u32 addr, u16 value)
+Agnus::recordRegisterChange(Cycle delay, u32 addr, u16 value, Accessor acc)
 {
     // Record the new register value
-    changeRecorder.insert(clock + delay, RegChange { addr, value} );
+    changeRecorder.insert(clock + delay, RegChange { addr, value, (u16)acc } );
     
     // Schedule the register change
     scheduleNextREGEvent();

@@ -51,6 +51,7 @@ class Disk : public AmigaObject {
     
     friend class Drive;
     friend class ADFFile;
+    friend class EXTFile;
     friend class IMGFile;
     
 public:
@@ -95,7 +96,7 @@ public:
     
     Disk() = default;
     Disk(DiskDiameter dia, DiskDensity den) throws { init(dia, den); }
-    Disk(class DiskFile &file) throws { init(file); }
+    Disk(const class DiskFile &file) throws { init(file); }
     Disk(util::SerReader &reader, DiskDiameter dia, DiskDensity den) throws {
         init(reader, dia, den); }
     ~Disk();
@@ -103,7 +104,7 @@ public:
 private:
     
     void init(DiskDiameter dia, DiskDensity den) throws;
-    void init(class DiskFile &file) throws;
+    void init(const class DiskFile &file) throws;
     void init(util::SerReader &reader, DiskDiameter dia, DiskDensity den) throws;
 
     
@@ -194,7 +195,7 @@ public:
 public:
     
     // Encodes a disk
-    void encodeDisk(class DiskFile &file);
+    void encodeDisk(const class DiskFile &file);
     
     
     //

@@ -152,6 +152,7 @@ private:
     }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
+    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
     isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
     isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
 
@@ -202,8 +203,12 @@ public:
         
         if (cycle < nextTrigger) nextTrigger = cycle;
         
-        if (isSecondarySlot(s) && cycle < trigger[SLOT_SEC])
-            trigger[SLOT_SEC] = cycle;
+        if constexpr (isTertiarySlot(s)) {
+            if (cycle < trigger[SLOT_TER]) trigger[SLOT_TER] = cycle;
+        }
+        if constexpr (isSecondarySlot(s)) {
+            if (cycle < trigger[SLOT_SEC]) trigger[SLOT_SEC] = cycle;
+        }
     }
     
     template<EventSlot s> void scheduleAbs(Cycle cycle, EventID id, i64 data)
@@ -239,8 +244,12 @@ public:
         trigger[s] = cycle;
         if (cycle < nextTrigger) nextTrigger = cycle;
         
-        if (isSecondarySlot(s) && cycle < trigger[SLOT_SEC])
-            trigger[SLOT_SEC] = cycle;
+        if constexpr (isTertiarySlot(s)) {
+            if (cycle < trigger[SLOT_TER]) trigger[SLOT_TER] = cycle;
+        }
+        if constexpr (isSecondarySlot(s)) {
+            if (cycle < trigger[SLOT_SEC]) trigger[SLOT_SEC] = cycle;
+        }
     }
     
     template<EventSlot s> void rescheduleInc(Cycle cycle)

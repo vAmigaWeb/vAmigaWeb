@@ -87,7 +87,7 @@ public:
     virtual void resume() = 0;
 
     // Throws an exception if the emulator is not ready to power on
-    void isReady() const throws;
+    virtual void isReady() const throws;
 
 protected:
     
@@ -168,8 +168,12 @@ public:
     isize size();
     virtual isize _size() = 0;
     
+    // Computes a checksum for this component
+    u64 checksum();
+    virtual u64 _checksum() = 0;
+
     // Loads the internal state from a memory buffer
-    isize load(const u8 *buf);
+    isize load(const u8 *buf) throws;
     virtual isize _load(const u8 *buf) = 0;
     
     // Saves the internal state to a memory buffer
@@ -180,15 +184,19 @@ public:
      * override these methods to add custom behavior if not all elements can be
      * processed by the default implementation.
      */
-    virtual isize willLoadFromBuffer(const u8 *buf) { return 0; }
-    virtual isize didLoadFromBuffer(const u8 *buf) { return 0; }
+    virtual isize willLoadFromBuffer(const u8 *buf) throws { return 0; }
+    virtual isize didLoadFromBuffer(const u8 *buf) throws { return 0; }
     virtual isize willSaveToBuffer(u8 *buf) const {return 0; }
     virtual isize didSaveToBuffer(u8 *buf) const { return 0; }
 };
 
 //
-// Standard implementations of _reset, _load, and _save
+// Standard implementations of _reset, _size, _checksum, _load, and _save
 //
+
+#define RESET_SNAPSHOT_ITEMS(hard) \
+util::SerResetter resetter; \
+applyToResetItems(resetter, hard);
 
 #define COMPUTE_SNAPSHOT_SIZE \
 util::SerCounter counter; \
@@ -196,21 +204,20 @@ applyToPersistentItems(counter); \
 applyToResetItems(counter); \
 return counter.count;
 
-#define RESET_SNAPSHOT_ITEMS(hard) \
-util::SerResetter resetter; \
-applyToResetItems(resetter, hard); \
-debug(SNP_DEBUG, "Resetted (%s)\n", hard ? "hard" : "soft");
+#define COMPUTE_SNAPSHOT_CHECKSUM \
+util::SerChecker checker; \
+applyToPersistentItems(checker); \
+applyToResetItems(checker); \
+return checker.hash;
 
 #define LOAD_SNAPSHOT_ITEMS \
 util::SerReader reader(buffer); \
 applyToPersistentItems(reader); \
 applyToResetItems(reader); \
-debug(SNP_DEBUG, "Recreated from %zu bytes\n", reader.ptr - buffer); \
 return (isize)(reader.ptr - buffer);
 
 #define SAVE_SNAPSHOT_ITEMS \
 util::SerWriter writer(buffer); \
 applyToPersistentItems(writer); \
 applyToResetItems(writer); \
-debug(SNP_DEBUG, "Serialized to %zu bytes\n", writer.ptr - buffer); \
 return (isize)(writer.ptr - buffer);
