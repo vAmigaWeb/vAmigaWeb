@@ -944,6 +944,32 @@ extern "C" void wasm_press_play()
 */
 }
 
+extern "C" void wasm_mouse(int port, int x, int y)
+{
+  //printf("wasm_mouse port%d x=%d, y=%d\n", port, x, y);
+  if(port==1)
+    wrapper->amiga->controlPort1.mouse.setDxDy(x,y);
+  else if(port==2)
+    wrapper->amiga->controlPort2.mouse.setDxDy(x,y);
+}
+
+extern "C" void wasm_mouse_button(int port, int button_id, int pressed)
+{ 
+  if(port==1)
+  {
+    if(button_id==1)
+      wrapper->amiga->controlPort1.mouse.setLeftButton(pressed==1);
+    else if(button_id==3)
+      wrapper->amiga->controlPort1.mouse.setRightButton(pressed==1);
+  }
+  else if(port==2)
+  {
+    if(button_id==1)
+      wrapper->amiga->controlPort2.mouse.setLeftButton(pressed==1);
+    else if(button_id==3)
+      wrapper->amiga->controlPort2.mouse.setRightButton(pressed==1);
+  }
+}
 
 extern "C" void wasm_joystick(char* port_plus_event)
 {
