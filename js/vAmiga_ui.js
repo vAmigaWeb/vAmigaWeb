@@ -915,8 +915,16 @@ last_touch_cmd = null;
 /* callback for wasm mainsdl.cpp */
 function draw_one_frame()
 {
-    var gamepads=null;
-    if(port1 != 'none' && port1 !='keys' && port1 !='touch')
+    let gamepads=null;
+
+    if(port1 == 'none' || port1 =='keys' || port1 == 'mouse')
+    {
+    }
+    else if(port1 == 'touch')
+    {
+        handle_touch("1");
+    }
+    else
     {
         gamepads = navigator.getGamepads();        
         var joy1= gamepads[port1];
@@ -927,7 +935,15 @@ function draw_one_frame()
             handleGamePad('1', joy1);
         }
     }
-    if(port2 != 'none' && port2 !='keys' && port2 !='touch')
+
+    if(port2 == 'none' || port2 =='keys' || port2 == 'mouse')
+    {
+    }
+    else if(port2 == 'touch')
+    {
+        handle_touch("2");
+    }	
+    else
     {
         if(gamepads==null)
         {
@@ -941,14 +957,6 @@ function draw_one_frame()
             handleGamePad('2', joy2);
         }
     }
-    if(port1 == 'touch')
-    {
-        handle_touch("1");
-    }
-    else if(port2 == 'touch')
-    {
-        handle_touch("2");
-    }	
 }
 
 
