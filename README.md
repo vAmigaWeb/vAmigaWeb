@@ -18,7 +18,9 @@ current features / release state:
 
 +keyboard - done partially ... some keys still are not mapped
 
-+mouse - not yet done
++mouse - done, via browsers pointerlock API for desktops and android (iOS does not support pointerlock API)
+
++mouse - via touchpad emulation ... still to be done
 
 +connection to a demo site for demo browser - not yet done
 
