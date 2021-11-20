@@ -1484,15 +1484,19 @@ function InitWrappers() {
                             document.mozExitPointerLock;
 
     has_pointer_lock=false;
-    pointer_lock_just_exited=false;
+    try_to_lock_pointer=0;
     request_pointerlock = async function() {
-        while(pointer_lock_just_exited)
+        if(!has_pointer_lock && try_to_lock_pointer <20)
         {
-            await sleep(100);
-            //console.log("wait ... for lock");
+            try_to_lock_pointer++;
+            try {
+                await canvas.requestPointerLock();           
+                try_to_lock_pointer=0;
+            } catch (error) {
+                await sleep(100);
+                await request_pointerlock();                
+            }
         }
-        if(!has_pointer_lock )
-            canvas.requestPointerLock();           
     };
     
     // Hook pointer lock state change events for different browsers
@@ -1514,11 +1518,7 @@ function InitWrappers() {
             document.removeEventListener("mousedown", mouseDown, false);
             document.removeEventListener("mouseup", mouseUp, false);
 
-            pointer_lock_just_exited=true;
             has_pointer_lock=false;
-            setTimeout(() => {
-                pointer_lock_just_exited=false;            
-            }, 1500);
         }
     }
     var mouse_port=1;
