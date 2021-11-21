@@ -917,7 +917,7 @@ function draw_one_frame()
 {
     let gamepads=null;
 
-    if(port1 == 'none' || port1 =='keys' || port1 == 'mouse')
+    if(port1 == 'none' || port1 =='keys' || port1.startsWith('mouse'))
     {
     }
     else if(port1 == 'touch')
@@ -936,7 +936,7 @@ function draw_one_frame()
         }
     }
 
-    if(port2 == 'none' || port2 =='keys' || port2 == 'mouse')
+    if(port2 == 'none' || port2 =='keys' || port2.startsWith('mouse'))
     {
     }
     else if(port2 == 'touch')
@@ -1530,6 +1530,76 @@ function InitWrappers() {
     }
     function mouseUp(e) {
         Module._wasm_mouse_button(mouse_port,e.which, 0/* up */);
+    }
+
+    //--
+    mouse_touchpad_port=1;
+    mouse_touchpad_move_touch=null;
+    mouse_touchpad_left_button_touch=null;
+    mouse_touchpad_right_button_touch=null;
+
+    function emulate_mouse_touchpad_start(e)
+    {
+        for (var i=0; i < e.changedTouches.length; i++) {
+            let touch = e.changedTouches[i];
+            let mouse_touchpad_move_area= touch.clientX < window.innerWidth/2;
+            let mouse_touchpad_button_area=!mouse_touchpad_move_area;
+
+            if(mouse_touchpad_button_area)
+            {
+                let left_button = touch.clientX < window.innerWidth/2+window.innerWidth/4;        
+                if(left_button)
+                {
+                    mouse_touchpad_left_button_touch=touch; 
+                    Module._wasm_mouse_button(mouse_touchpad_port,1, 1/* down */);                
+                }
+                else
+                {
+                    mouse_touchpad_right_button_touch=touch; 
+                    Module._wasm_mouse_button(mouse_touchpad_port,3, 1/* down */);                
+                }
+            }
+            else
+            {
+                mouse_touchpad_move_touch=touch;
+            }
+        }
+    }
+    function emulate_mouse_touchpad_move(e)
+    {
+        for (var i=0; i < e.changedTouches.length; i++) {
+            let touch = e.changedTouches[i];
+            if(mouse_touchpad_move_touch!=null && 
+                mouse_touchpad_move_touch.identifier== touch.identifier)
+            {
+                Module._wasm_mouse(mouse_touchpad_port,touch.clientX-mouse_touchpad_move_touch.clientX,
+                    touch.clientY-mouse_touchpad_move_touch.clientY);
+                mouse_touchpad_move_touch=touch;
+            }
+        }
+    }
+    function emulate_mouse_touchpad_end(e)
+    {
+        for (var i=0; i < e.changedTouches.length; i++) {
+            let touch = e.changedTouches[i];
+            if(mouse_touchpad_move_touch!=null && 
+                mouse_touchpad_move_touch.identifier== touch.identifier)
+            {
+                mouse_touchpad_move_touch=null;
+            }
+            else if(mouse_touchpad_left_button_touch != null && 
+                mouse_touchpad_left_button_touch.identifier == touch.identifier)
+            {
+                Module._wasm_mouse_button(mouse_touchpad_port,1, 0/* down */);
+                mouse_touchpad_left_button_touch=null;
+            }
+            else if(mouse_touchpad_right_button_touch != null && 
+                mouse_touchpad_right_button_touch.identifier == touch.identifier)
+            {
+                Module._wasm_mouse_button(mouse_touchpad_port,3, 0/* down */);
+                mouse_touchpad_right_button_touch=null;
+            }
+        }
     }
 
     //--
@@ -2270,7 +2340,19 @@ $('.layer').change( function(event) {
         {
             canvas.removeEventListener('click', request_pointerlock);
         }
-
+        if(port1 == 'mouse touchpad')
+        {
+            mouse_touchpad_port=1;
+            canvas.addEventListener('touchstart',emulate_mouse_touchpad_start, false);
+            canvas.addEventListener('touchmove',emulate_mouse_touchpad_move, false);
+            canvas.addEventListener('touchend',emulate_mouse_touchpad_end, false);
+        }
+        else if(port2 != 'mouse touchpad')
+        {
+            canvas.removeEventListener('touchstart',emulate_mouse_touchpad_start, false);
+            canvas.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
+            canvas.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
+        }
     }
     document.getElementById('port2').onchange = function() {
         port2 = document.getElementById('port2').value;
@@ -2300,6 +2382,20 @@ $('.layer').change( function(event) {
         {
             canvas.removeEventListener('click', request_pointerlock);
         }
+        if(port2 == 'mouse touchpad')
+        {
+            mouse_touchpad_port=2;
+            canvas.addEventListener('touchstart',emulate_mouse_touchpad_start, false);
+            canvas.addEventListener('touchmove',emulate_mouse_touchpad_move, false);
+            canvas.addEventListener('touchend',emulate_mouse_touchpad_end, false);
+        }
+        else if(port1 != 'mouse touchpad')
+        {
+            canvas.removeEventListener('touchstart',emulate_mouse_touchpad_start, false);
+            canvas.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
+            canvas.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
+        }
+
     }
 
 
