@@ -1542,12 +1542,14 @@ function InitWrappers() {
     {
         for (var i=0; i < e.changedTouches.length; i++) {
             let touch = e.changedTouches[i];
-            let mouse_touchpad_move_area= touch.clientX < window.innerWidth/2;
+            let mouse_touchpad_move_area= touch.clientX > window.innerWidth/10 &&
+            touch.clientX < window.innerWidth-window.innerWidth/10;
+            
             let mouse_touchpad_button_area=!mouse_touchpad_move_area;
 
             if(mouse_touchpad_button_area)
             {
-                let left_button = touch.clientX < window.innerWidth/2+window.innerWidth/4;        
+                let left_button = touch.clientX < window.innerWidth/10;
                 if(left_button)
                 {
                     mouse_touchpad_left_button_touch=touch; 
