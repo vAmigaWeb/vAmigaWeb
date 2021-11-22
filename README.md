@@ -2,8 +2,9 @@ vAmigaWeb
 ---------
 vAmigaWeb is a progressive web app (PWA) - e.g. installable on iOS devices per save to home screen
 
-vAmigaWeb is designed to run perfectly well on iPhones and iPads in mind... 
-(in fact the lowest usable device in terms of processing perfomance is an iPadAir2 from 2014 with an A8 processor)
+vAmigaWeb is designed to run perfectly well not only on desktop but especially also on iPhones and iPads ... 
+(also other touch devices like android should work well... in fact the lowest usable device in terms of processing perfomance is an iPadAir2 from 2014 with an A8 processor)
+
 
 run it at https://vAmigaWeb.github.io
 
@@ -26,7 +27,7 @@ current features / release state:
 
 +automatically install AROS ROMs by a button click - not yet done 
 
-+ ...
+...
 
 
 have fun !
