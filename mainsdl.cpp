@@ -818,10 +818,9 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
   {
     return "";
   }
-
   if (auto disk = load_disk(name, blob, len)) {
     //wrapper->amiga->paula.diskController.insertDisk(std::move(disk), 0, (Cycle)SEC(1.8));
-    wrapper->amiga->df0.insertDisk(std::move(disk));
+    wrapper->amiga->df0.swapDisk(std::move(disk));
     return "";
   }
 
