@@ -20,11 +20,13 @@ current features / release state:
 
 +mouse - done, via browsers pointerlock API for desktops and android (iOS does not support pointerlock API)
 
-+mouse - via touchpad emulation ... still to be done
++mouse - via touchpad emulation ... done
 
 +connection to a demo site for demo browser - not yet done
 
-+...
++automatically install AROS ROMs by a button click - not yet done 
+
++ ...
 
 
 have fun !
