@@ -342,7 +342,7 @@ function message_handler(msg, data)
     {        
         //try to load roms from local storage
         setTimeout(async function() {
-            if(load_roms(true) == false)
+            if(false == await load_roms(true))
             {
                 get_parameter_link(); //just make sure the parameters are set
                 if(call_param_openROMS==true)
@@ -384,29 +384,29 @@ rs232_message = "";
 //rs232_message=[];
 
 async function fetchOpenROMS(){
-    var installer = async response => {
+    var installer = async function(suffix, response) {
         try{
             var arrayBuffer = await response.arrayBuffer();
             var byteArray = new Uint8Array(arrayBuffer);
             var rom_url_path = response.url.split('/');
             var rom_name = rom_url_path[rom_url_path.length-1];
 
-            var romtype = wasm_loadfile(rom_name, byteArray, byteArray.byteLength);
+            var romtype = wasm_loadfile(rom_name+suffix, byteArray, byteArray.byteLength);
             if(romtype != "")
             {
-                localStorage.setItem(romtype+".bin", ToBase64(byteArray));
-                load_roms(false);
+                localStorage.setItem(romtype, rom_name);
+                save_rom(rom_name,romtype, byteArray);
+                load_roms(true);
             }
         } catch {
             console.log ("could not install system rom file");
         }  
     }
     
-    fetch("https://mega65.github.io/open-roms/bin/basic_generic.rom").then( installer );
-    fetch("https://mega65.github.io/open-roms/bin/kernal_generic.rom").then( installer );
-//    fetch("https://mega65.github.io/open-roms/bin/chargen_openroms.rom").then( installer );
-    fetch("https://mega65.github.io/open-roms/bin/chargen_pxlfont_2.3.rom").then( installer );
-
+    let response = await fetch("roms/aros.bin");
+    await installer('.rom_file', response);
+    response = await fetch("roms/aros_ext.bin");
+    await installer('.rom_ext_file', response);   
 }
 
 
@@ -424,18 +424,24 @@ async function fetchOpenROMS(){
  *
  * TODO: maybe split up functionality into load_roms() and refresh_rom_dialog() 
  */
-function load_roms(install_to_core){
-    var loadStoredItem= function (item_name){
-        var stored_item = localStorage.getItem(item_name); 
+async function load_roms(install_to_core){
+    var loadStoredItem= async function (item_name, type){
+        if(item_name==null)
+            return null;
+        //var stored_item = localStorage.getItem(item_name); 
+        let stored_item = await load_rom(item_name);
         if(stored_item != null)
         {
-            var restoredbytearray = Uint8Array.from(FromBase64(stored_item));
+            //var restoredbytearray = Uint8Array.from(FromBase64(stored_item));
+            let restoredbytearray = stored_item.data;
             if(install_to_core)
             {
-                romtype = wasm_loadfile(item_name, restoredbytearray, restoredbytearray.byteLength);
-                if(!romtype.endsWith("rom"))
+
+                romtype = wasm_loadfile(item_name+type, restoredbytearray, restoredbytearray.byteLength);
+                if(!romtype.endsWith("rom") && !romtype.endsWith("rom_ext"))
                 {//in case the core thinks rom is not valid anymore delete it
-                    localStorage.removeItem(item_name);
+                    delete_rom(item_name);
+//                    localStorage.removeItem(item_name);
                     return null;
                 }
             }
@@ -449,7 +455,8 @@ function load_roms(install_to_core){
     
     var all_fine = true;
     try{
-        var the_rom=loadStoredItem('rom.bin');
+        let selected_rom=localStorage.getItem('rom');
+        let the_rom=await loadStoredItem(selected_rom, ".rom_file");
         if (the_rom==null){
             all_fine=false;
             $("#rom_kickstart").attr("src", "img/rom_empty.png");
@@ -460,13 +467,80 @@ function load_roms(install_to_core){
         else
         {
             let rom_infos=JSON.parse(wasm_rom_info());
-            $("#rom_kickstart").attr("src", rom_infos.hasRom.startsWith("true") ?
-            "img/rom_patched.png":"img/rom.png");
-            $("#kickstart_title").html(rom_infos.romTitle+"<br>"+rom_infos.romVersion+"<br>"+rom_infos.romReleased);
+            let icon="img/rom.png";
+            if(rom_infos.hasRom == "false")
+            {
+                icon="img/rom_empty.png";
+            }
+            else if(rom_infos.romTitle.toLowerCase().indexOf("aros")>=0)
+            {
+                icon="img/rom_aros.png";
+            }
+            else if(rom_infos.romTitle.toLowerCase().indexOf("unknown")>=0)
+            {
+                icon="img/rom_unknown.png";
+            }
+            else if(rom_infos.romTitle.toLowerCase().indexOf("patched")>=0)
+            {
+                icon="img/rom_patched.png";
+            }
+            else
+            {
+                icon="img/rom_original.png";
+            }
+ 
+            $("#rom_kickstart").attr("src", icon);
+            $("#kickstart_title").html(`${rom_infos.romTitle}<br>${rom_infos.romVersion}<br>${rom_infos.romReleased}<br>${rom_infos.romModel}`);
 
             $("#button_delete_kickstart").show();
         }
-    } catch(e){}
+    } catch(e){
+        all_fine=false; //maybe it needs a rom extension file
+        console.error(e);
+    }
+    try{
+        let selected_rom_ext=localStorage.getItem('rom_ext');
+        let the_rom_ext=await loadStoredItem(selected_rom_ext,".rom_ext_file");
+        if (the_rom_ext==null){
+            $("#rom_kickstart_ext").attr("src", "img/rom_empty.png");
+            $("#kickstart_ext_title").text("empty socket");
+
+            $("#button_delete_kickstart_ext").hide();
+        }
+        else
+        {
+            let rom_infos=JSON.parse(wasm_rom_info());
+            let icon="img/rom.png";
+            if(rom_infos.hasExt == "false")
+            {
+                icon="img/rom_empty.png";
+            }
+            else if(rom_infos.extTitle.toLowerCase().indexOf("aros")>=0)
+            {
+                icon="img/rom_aros.png";
+            }
+            else if(rom_infos.extTitle.toLowerCase().indexOf("unknown")>=0)
+            {
+                icon="img/rom_unknown.png";
+            }
+            else if(rom_infos.extTitle.toLowerCase().indexOf("patched")>=0)
+            {
+                icon="img/rom_patched.png";
+            }
+            else
+            {
+                icon="img/rom_original.png";
+            }
+
+            $("#rom_kickstart_ext").attr("src", icon);
+            $("#kickstart_ext_title").html(`${rom_infos.extTitle}<br>${rom_infos.extVersion}<br>${rom_infos.extReleased}<br>${rom_infos.extModel}`);
+
+            $("#button_delete_kickstart_ext").show();
+        }
+    } catch(e){
+        console.error(e);
+    }
+
     return all_fine;
 }
 
@@ -581,11 +655,14 @@ function configure_file_dialog(reset=false)
     try{
         if($("#modal_roms").is(":visible"))
         {
-            var romtype = wasm_loadfile(file_slot_file_name, file_slot_file, file_slot_file.byteLength);
+            var romtype = wasm_loadfile(file_slot_file_name+
+                (file_slot_file_name.indexOf("ext")<0?".rom_file":".rom_ext_file")
+                , file_slot_file, file_slot_file.byteLength);
             if(romtype != "")
             {
-                localStorage.setItem(romtype+".bin", ToBase64(file_slot_file));
-                load_roms(false);
+                localStorage.setItem(romtype, file_slot_file_name);
+                save_rom(file_slot_file_name, romtype, file_slot_file);
+                load_roms(/*false*/ true); // true to load reload an already selected extension, when the rom was just changed
             }
         }
         else
@@ -1409,6 +1486,7 @@ function InitWrappers() {
                 if(romtype != "")
                 {
                     localStorage.setItem(romtype+".bin", ToBase64(byteArray));
+                    save_rom(romtype+".bin", romtype,  byteArray);
                     load_roms(false);
                 }
             }
@@ -2498,11 +2576,14 @@ $('.layer').change( function(event) {
         }, false);
 
         document.getElementById(id_delete).addEventListener("click", function(e) {
+            let selected_rom=localStorage.getItem(id_local_storage);
             save_setting(id_local_storage, null);
+            delete_rom(selected_rom);
             load_roms(true);
         }, false);
     }
-    bindROMUI('rom_kickstart', 'button_delete_kickstart', "rom.bin");
+    bindROMUI('rom_kickstart', 'button_delete_kickstart', "rom");
+    bindROMUI('rom_kickstart_ext', 'button_delete_kickstart_ext', "rom_ext");
 
 //---- rom dialog end
 

@@ -284,10 +284,33 @@
       </button>
       </div>
     </div>
-    <div  class="col-md-4">
-      <img id="rom_kickstart" src="img/rom_empty.png" class="card-img" alt="...">
+    <div class="col-md-4">
+      <div class="mt-2">
+        <img id="rom_kickstart" src="img/rom_empty.png" class="card-img" alt="...">
+      </div>
     </div>
-
+  </div>
+</div>
+              </div> 
+              <div class="col mx-2"> 
+<div class="container card mb-3" style="max-width: 540px;">
+  <div class="row no-gutters">
+    <div class="col-md-8">
+      <div class="card-body">
+        <h5 class="card-title">kickstart ext</h5>
+        <p class="card-text" id="kickstart_ext_title">(optional)</p>
+      <button type="button" id="button_delete_kickstart_ext" class="btn btn-sm icon">
+        <svg width="1.6em" height="auto" viewBox="0 0 16 16" class="bi bi-trash-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path fill-rule="evenodd" d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z"/>
+        </svg>
+      </button>
+      </div>
+    </div>
+    <div  class="col-md-4">
+      <div class="mt-2">
+        <img id="rom_kickstart_ext" src="img/rom_empty.png" class="card-img" alt="...">
+      </div>
+    </div>
   </div>
 </div>
               </div> 
@@ -301,7 +324,7 @@
 
           </div>
           <div class="modal-footer">
-            <div style="display:none" class="justify-start"><button id="button_fetch_open_roms" type="button" class="btn btn-primary"><img src="img/mega.png"/> install open roms</button><a href="https://github.com/MEGA65/open-roms/tree/master/bin" target="_blank">&nbsp;learn more...</a></div>
+            <div class="justify-start"><button id="button_fetch_open_roms" type="button" class="btn btn-primary">install AROS <img style="width:2em" src="img/aros_half.png"/></button><a href="https://github.com/MEGA65/open-roms/tree/master/bin" target="_blank">&nbsp;learn more...</a></div>
 
             <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
           </div>
@@ -322,6 +345,9 @@
           </div>
           <div class="modal-body">
             <p>most settings are permanent and will be saved to your local browser storage</p>    
+
+            <button id="button_rom_dialog" type="button" class="btn btn-primary mt-2 mb-3">kickstart system roms ...</button>
+
             <div class="custom-control custom-switch mt-1">
               <input type="checkbox" class="custom-control-input" id="cb_debug_output" />
               <label class="custom-control-label" for="cb_debug_output">show live debug output</label>
@@ -469,7 +495,6 @@
             <div id="hardware_settings">
             </div>
 
-            <button id="button_rom_dialog" type="button" class="btn btn-primary mt-5">system roms ...</button>
         
             <hr>
             <div class="mt-3" style="font-size: small;">

@@ -67,6 +67,7 @@ publish:
 	cp -r js $(PUBLISH_FOLDER)
 	cp -r css $(PUBLISH_FOLDER)
 	cp -r img $(PUBLISH_FOLDER)
+	cp -r roms $(PUBLISH_FOLDER)
 #cp -r roms $(PUBLISH_FOLDER)
 	cp index.html $(PUBLISH_FOLDER)
 	cp run.html $(PUBLISH_FOLDER)
