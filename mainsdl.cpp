@@ -9,6 +9,7 @@
 #include "Amiga.h"
 #include "AmigaTypes.h"
 #include "RomFile.h"
+#include "ExtendedRomFile.h"
 #include "ADFFile.h"
 #include "DMSFile.h"
 #include "EXEFile.h"
@@ -476,6 +477,8 @@ void send_message_to_js(const char * msg, long data)
 }
 
 bool paused_the_emscripten_main_loop=false;
+
+bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
 void theListener(const void * amiga, long type, long data){
 /*  
@@ -489,9 +492,14 @@ void theListener(const void * amiga, long type, long data){
   }
 */
   const char *message_as_string =  (const char *)MsgTypeEnum::key((MsgType)type);
-  printf("vAmiga message=%s, data=%ld\n", message_as_string, data);
-  send_message_to_js(message_as_string, data);
-
+  if(type == MSG_SER_IN || type == MSG_SER_OUT)
+  {
+  }
+  else
+  {
+    printf("vAmiga message=%s, data=%ld\n", message_as_string, data);
+    send_message_to_js(message_as_string, data);
+  }
   if(type == MSG_DISK_INSERT)
   {
 //    ((Amiga *)amiga)->drive8.dump();
@@ -841,7 +849,7 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
     }
   }
 
-  if(file_still_unprocessed)
+  if(file_still_unprocessed && util::extractSuffix(filename)=="rom_file")
   {
     bool wasRunnable = true;
     try { wrapper->amiga->isReady(); } catch(...) { wasRunnable=false; }
@@ -858,38 +866,110 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
       printf("%s\n", ErrorCodeEnum::key(ec));
       return "";
     }
-    
-    wrapper->amiga->suspend();
+
+    if(wrapper->amiga->isPoweredOn())
+    {
+      wrapper->amiga->powerOff();
+    }
+//    wrapper->amiga->suspend();
     try { 
       wrapper->amiga->mem.loadRom(*rom); 
       
       printf("Loaded ROM image %s.\n", name);
       
-      wrapper->amiga->powerOn();
     }  
     catch(VAError &exception) { 
       printf("Failed to flash ROM image %s.\n", name);
       ErrorCode ec=exception.data;
       printf("%s\n", ErrorCodeEnum::key(ec));
+      return "";
     }
-    wrapper->amiga->resume();
+    const char *rom_type="rom";
+    try
+    {
+        bool is_ready_now = true;
+        try { wrapper->amiga->isReady(); } catch(...) { is_ready_now=false; }
 
+        if (!wasRunnable && is_ready_now)
+        {
+          printf("was not runnable is ready now (rom)\n");
+          wrapper->amiga->powerOn();
+        
+          //wrapper->amiga->putMessage(MSG_READY_TO_RUN);
+          const char* ready_msg= "READY_TO_RUN";
+          printf("sending ready message %s.\n", ready_msg);
+          send_message_to_js(ready_msg);    
+        }
+
+        delete rom;
+        wrapper->amiga->powerOn();
+//        wrapper->amiga->resume();
+    }    
+    catch(VAError &exception) { 
+      ErrorCode ec=exception.data;
+      printf("%s\n", ErrorCodeEnum::key(ec));
+    } 
+
+    return rom_type;    
+  }
+  
+  if(file_still_unprocessed && util::extractSuffix(filename)=="rom_ext_file")
+  {
+    bool wasRunnable = true;
+    try { wrapper->amiga->isReady(); } catch(...) { wasRunnable=false; }
+
+    ExtendedRomFile *rom = NULL;
+    try
+    {
+      printf("try to build ExtendedRomFile\n");
+      rom = new ExtendedRomFile(blob, len);
+    }
+    catch(VAError &exception) {
+      printf("Failed to read ROM_EXT image file %s\n", name);
+      ErrorCode ec=exception.data;
+      printf("%s\n", ErrorCodeEnum::key(ec));
+      return "";
+    }
+
+    if(wrapper->amiga->isPoweredOn())
+    {
+      wrapper->amiga->powerOff();
+    }
+    //wrapper->amiga->suspend();
+    try { 
+      wrapper->amiga->mem.loadExt(*rom); 
+      
+      printf("Loaded ROM_EXT image %s.\n", name);
+      
+    }  
+    catch(VAError &exception) { 
+      printf("Failed to flash ROM_EXT image %s.\n", name);
+      ErrorCode ec=exception.data;
+      printf("%s\n", ErrorCodeEnum::key(ec));
+    }
+  
 
     bool is_ready_now = true;
     try { wrapper->amiga->isReady(); } catch(...) { is_ready_now=false; }
 
     if (!wasRunnable && is_ready_now)
     {
+      printf("was not runnable is ready now (romext)\n");
+      wrapper->amiga->powerOn();
+
        //wrapper->amiga->putMessage(MSG_READY_TO_RUN);
       const char* ready_msg= "READY_TO_RUN";
       printf("sending ready message %s.\n", ready_msg);
       send_message_to_js(ready_msg);    
     }
 
-    const char *rom_type="rom";
+    const char *rom_type="rom_ext";
     delete rom;
+    //wrapper->amiga->resume();
+    wrapper->amiga->powerOn();
     return rom_type;    
   }
+
   return "";
 }
 
@@ -920,17 +1000,18 @@ extern "C" void wasm_run()
 
   wrapper->amiga->run();
 
-  if(paused_the_emscripten_main_loop)
+  if(paused_the_emscripten_main_loop || already_run_the_emscripten_main_loop)
   {
-    printf("emscripten_resume_main_loop at MSG_RUN\n");
+    printf("emscripten_resume_main_loop at MSG_RUN %u, %u\n", paused_the_emscripten_main_loop, already_run_the_emscripten_main_loop);
     emscripten_resume_main_loop();
   }
   else
   {
-    printf("emscripten_set_main_loop_arg() at MSG_RUN\n");
+    printf("emscripten_set_main_loop_arg() at MSG_RUN %u, %u\n", paused_the_emscripten_main_loop, already_run_the_emscripten_main_loop);
+    already_run_the_emscripten_main_loop=true;
+
     emscripten_set_main_loop_arg(draw_one_frame_into_SDL, (void *)wrapper->amiga, 0, 1);
     printf("after emscripten_set_main_loop_arg() at MSG_RUN\n");
-
   }
 
 }
@@ -1107,22 +1188,27 @@ char json_result[1024];
 extern "C" const char* wasm_rom_info()
 {
 
-  sprintf(json_result, "{\"hasRom\":\"%s\", \"romTitle\":\"%s\", \"romVersion\":\"%s\", \"romReleased\":\"%s\", \"romModel\":\"%s\" }",
+  sprintf(json_result, "{\"hasRom\":\"%s\",\"hasExt\":\"%s\", \"romTitle\":\"%s\", \"romVersion\":\"%s\", \"romReleased\":\"%s\", \"romModel\":\"%s\", \"extTitle\":\"%s\", \"extVersion\":\"%s\", \"extReleased\":\"%s\", \"extModel\":\"%s\" }",
     wrapper->amiga->mem.hasRom()?"true":"false",
+    wrapper->amiga->mem.hasExt()?"true":"false",
     wrapper->amiga->mem.romTitle(),
     wrapper->amiga->mem.romVersion(),
     wrapper->amiga->mem.romReleased(),
-    ""
-//    wrapper->amiga->mem.romModel()
+    wrapper->amiga->mem.romModel(),
+    wrapper->amiga->mem.extTitle(),
+    wrapper->amiga->mem.extVersion(),
+    wrapper->amiga->mem.extReleased(),
+    wrapper->amiga->mem.extModel()
   );
 
+/*
   printf("%s, %s, %s, %s\n",      wrapper->amiga->mem.romTitle(),
     wrapper->amiga->mem.romVersion(),
     wrapper->amiga->mem.romReleased(),
     ""
 //    wrapper->amiga->mem.romModel()
   );
-
+*/
   return json_result;
 }
 

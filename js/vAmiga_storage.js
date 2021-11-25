@@ -50,7 +50,7 @@ function initDB() {
   });
 
   
-  let openReq =  indexedDB.open('vcAmigaDB', 4);
+  let openReq =  indexedDB.open('vcAmigaDB', 5);
 
   openReq.onupgradeneeded = function (event){
       let _db = openReq.result;
@@ -76,6 +76,11 @@ function initDB() {
       {
          //alert("create two local object stores");
          var custom_buttons_store=_db.createObjectStore('custom_buttons', {keyPath: 'title'});
+      }
+      if(!_db.objectStoreNames.contains('roms'))
+      {
+         var snapshot_store=_db.createObjectStore('roms', {keyPath: 'id', autoIncrement: false});
+         snapshot_store.createIndex("type", "type", { unique: false });
       }
 
   };
@@ -369,4 +374,78 @@ async function get_custom_buttons_app_scope(the_app_title, callback_fn)
         callback_fn(empty_custom_buttons);
       }
   };
+}
+
+
+
+//--- roms
+async function save_rom(the_name, extension_or_rom, the_data) {
+  let the_rom = {
+    id: the_name,
+    type: extension_or_rom,
+    data: the_data //,
+//    created: new Date()
+  };
+
+  let tx = (await db()).transaction('roms', 'readwrite');
+  tx.oncomplete = function() {
+    console.log("Transaction is complete");
+  };
+  tx.onabort = function() {
+    console.log("Transaction is aborted");
+  };
+ 
+  try {
+    let req = tx.objectStore('roms').put(the_rom);
+    req.onsuccess= function(e){ 
+        console.log("wrote rom with id="+e.target.result)        
+    };
+    req.onerror = function(e){ 
+        console.error("could not write rom: ",  req.error) 
+    };
+  } catch(err) {
+    if (err.name == 'ConstraintError') {
+      alert("Such rom exists already");
+    } else {
+      throw err;
+    }
+  }
+}
+
+async function load_rom(the_id)
+{
+  return new Promise(async (resolve, reject) => {
+
+    let transaction = (await db()).transaction("roms"); 
+    let roms = transaction.objectStore("roms");
+ 
+    let request = roms.get(the_id);
+
+    request.onsuccess = function() {
+        resolve(request.result);
+    };
+    request.onerror = function(e){ 
+      console.error("could not read roms: ",  request.error) 
+      reject(request.error);
+    };
+  });
+}
+
+async function delete_rom(the_id)
+{
+  return new Promise(async (resolve, reject) => {
+
+    let transaction = (await db()).transaction("roms",'readwrite'); 
+    let roms = transaction.objectStore("roms");
+ 
+    let request = roms.delete(the_id);
+
+    request.onsuccess = function() {
+        resolve(request.result);
+    };
+    request.onerror = function(e){ 
+      console.error("could not read roms: ",  request.error) 
+      reject(request.error);
+    };
+  });
 }
