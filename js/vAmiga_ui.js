@@ -460,7 +460,7 @@ async function load_roms(install_to_core){
         if (the_rom==null){
             all_fine=false;
             $("#rom_kickstart").attr("src", "img/rom_empty.png");
-            $("#kickstart_title").text("empty socket");
+            $("#kickstart_title").html("empty socket<br>(required)");
 
             $("#button_delete_kickstart").hide();
         }
@@ -503,7 +503,7 @@ async function load_roms(install_to_core){
         let the_rom_ext=await loadStoredItem(selected_rom_ext,".rom_ext_file");
         if (the_rom_ext==null){
             $("#rom_kickstart_ext").attr("src", "img/rom_empty.png");
-            $("#kickstart_ext_title").text("empty socket");
+            $("#kickstart_ext_title").html("empty socket<br>(optional)");
 
             $("#button_delete_kickstart_ext").hide();
         }
