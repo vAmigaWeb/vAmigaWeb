@@ -81,6 +81,19 @@ background-color: var(--green) !important;
     color: #aaa !important;
 }
 
+#stored_roms, #stored_exts {
+    background-color: inherit !important;
+    border-color: var(--darkbg);
+    color: var(--darkbg) !important;
+}
+
+[data-theme="dark"] #stored_roms, [data-theme="dark"] #stored_exts {
+    border-color: var(--light);
+    color: #aaa !important;
+}
+
+
+
 
 .btn-sm
 {
