@@ -452,6 +452,10 @@ async function load_roms(install_to_core){
             return null;
         }
     }
+
+    fill_available_roms('rom', 'stored_roms');
+    fill_available_roms('rom_ext', 'stored_exts');       
+
     
     var all_fine = true;
     try{
@@ -483,6 +487,10 @@ async function load_roms(install_to_core){
             else if(rom_infos.romTitle.toLowerCase().indexOf("patched")>=0)
             {
                 icon="img/rom_patched.png";
+            }
+            else if(rom_infos.romTitle.toLowerCase().indexOf("hyperion")>=0)
+            {
+                icon="img/rom_hyperion.png";
             }
             else
             {
@@ -526,6 +534,10 @@ async function load_roms(install_to_core){
             else if(rom_infos.extTitle.toLowerCase().indexOf("patched")>=0)
             {
                 icon="img/rom_patched.png";
+            }
+            else if(rom_infos.romTitle.toLowerCase().indexOf("hyperion")>=0)
+            {
+                icon="img/rom_hyperion.png";
             }
             else
             {
@@ -1486,7 +1498,7 @@ function InitWrappers() {
                 if(romtype != "")
                 {
                     localStorage.setItem(romtype+".bin", ToBase64(byteArray));
-                    save_rom(romtype+".bin", romtype,  byteArray);
+                    save_rom(romtype+".bin", romtype,  byteArray);                    
                     load_roms(false);
                 }
             }
@@ -2549,9 +2561,27 @@ $('.layer').change( function(event) {
 
 
 //---- rom dialog start
-   document.getElementById('button_rom_dialog').addEventListener("click", function(e) {
+    fill_available_roms=async function (rom_type, select_id){
+        let stored_roms=await list_rom_type_entries(rom_type);
+        let html_rom_list=`<option value="empty">empty</option>`;
+        let selected_rom=localStorage.getItem(rom_type);
+        for(rom of stored_roms)
+        {
+            html_rom_list+= `<option value="${rom.id}" ${selected_rom ==rom.id?"selected":""}>${rom.id}</option>`;
+        }
+        $(`#${select_id}`).html(html_rom_list);
+
+        document.getElementById(select_id).onchange = function() {
+            let selected_rom = document.getElementById(select_id).value; 
+            save_setting(rom_type, selected_rom);
+            load_roms(true);
+        }
+    }
+
+   document.getElementById('button_rom_dialog').addEventListener("click", async function(e) {
      $('#modal_settings').modal('hide');
      load_roms(false); //update to current roms
+
      setTimeout(function() { $('#modal_roms').modal('show');}, 500);
    }, false);
 
