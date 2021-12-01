@@ -331,3 +331,22 @@ button[id^="detail_run"] {
     background-color: var(--darkbg);
     color: var(--light);
 }
+
+
+
+
+.keycap_shift {
+    font-size:x-small;
+}
+
+[shift-keys="pressed"] .keycap_shift {
+    font-size:medium;
+}
+
+.keycap {
+    font-size:medium;
+}
+
+[shift-keys="pressed"] .keycap {
+    font-size:x-small;
+}
