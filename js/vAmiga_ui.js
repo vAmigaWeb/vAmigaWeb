@@ -897,7 +897,6 @@ function is_any_text_input_active()
     return active;
 }
 
-var shift_pressed_state=false;
 function keydown(e) {
     if(is_any_text_input_active())
         return;
@@ -935,12 +934,7 @@ function keydown(e) {
         }
     }
 
-    if(use_symbolic_map && e.code.toLowerCase().startsWith("shift"))
-    {
-        shift_pressed_state=true;
-        return;
-    }
-    var c64code = translateKey2(e.code, e.key, !use_symbolic_map);
+    var c64code = translateKey2(e.code, e.key);
     if(c64code !== undefined)
     {
         if(c64code.modifier != null)
@@ -976,18 +970,7 @@ function keyup(e) {
         }
     }
 
-    if(use_symbolic_map && e.code.toLowerCase().startsWith("shift"))
-    {
-        if(shift_pressed_state)
-        {//when shift is released before the keyup of the shiftkey is done
-         //release the shift in c64 too, because the following keyup will not include the shiftkey
-            shift_pressed_state=false;
-            var c64code = translateKey2(e.code, e.key, use_positional_mapping=true);
-            wasm_schedule_key(c64code.raw_key[0], c64code.raw_key[1], 0, 1);
-        }
-        return;
-    }
-    var c64code = translateKey2(e.code, e.key, !use_symbolic_map);
+    var c64code = translateKey2(e.code, e.key);
     if(c64code !== undefined )
     {
         wasm_schedule_key(c64code.raw_key[0], c64code.raw_key[1], 0, 1);
@@ -1798,14 +1781,6 @@ function InitWrappers() {
 
 
 
-//----
-    symbolic_mapping_switch = $('#symbolic_mapping_switch');
-    use_symbolic_map=load_setting('use_symbolic_map', true);
-    symbolic_mapping_switch.prop('checked', use_symbolic_map);
-    symbolic_mapping_switch.change( function() {
-        use_symbolic_map=this.checked;
-        save_setting('use_symbolic_map', use_symbolic_map);
-    });
 
 //----
     lock_action_button_switch = $('#lock_action_button_switch');
