@@ -1,19 +1,21 @@
+var shift_pressed_count=0;
 function translateKey(keycode, key)
 {
     console.log('keycode='+keycode + ', key='+key);
     var mapindex;
-    var sym_key = symbolic_map[key.toLowerCase()];
+//    var sym_key = symbolic_map[key.toLowerCase()];
     var c64code;
-    if(sym_key!== undefined) // && !Array.isArray(sym_key))
+/*    if(sym_key!== undefined) // && !Array.isArray(sym_key))
     {//if there is a symbolic mapping ... use it instead of the positional mapping
         var raw_key_with_modifier=create_key_composition(sym_key);
         c64code=raw_key_with_modifier.raw_key;
     } 
     else
     {//when there is no symbolic mapping fall back to positional mapping
+*/
         mapindex=key_translation_map[ keycode ];
         c64code=[mapindex,0];
-    }
+//    }
     return c64code;
 }
 
@@ -162,8 +164,8 @@ symbolic_map = {
     '<': ['ShiftLeft','Comma'],
     '>': ['ShiftLeft','Period'],
     'shiftrunstop': ['ShiftLeft','runStop'],   //load from tape shortcut
-    'ArrowLeft': ['ShiftLeft','ArrowRight'],
-    'ArrowUp': ['ShiftLeft','ArrowDown'],
+//    'ArrowLeft': ['ShiftLeft','ArrowRight'],
+//    'ArrowUp': ['ShiftLeft','ArrowDown'],
     '\n': 'Enter',
     'Dead': 'upArrow', '^': 'upArrow' //^
 }
@@ -171,112 +173,128 @@ symbolic_map = {
 key_translation_map =  
         {//https://github.com/dirkwhoffmann/vAmiga/blob/164c04d75f0ae739dd9f2ff2c28520db05e7c047/GUI/Peripherals/AmigaKey.swift
 
-    // First row
-    Backspace:0x41,
-    Enter:0x44,
-    ArrowLeft:0x4F,
-    ArrowRight:0x4E,
-    F7:0x56,
-    F8:0x57,
+//--- ANSI
+    Grave:0,
+    Digit1:1,
+    Digit2:2, 
+    Digit3:3,
+    Digit4:4,
+    Digit5:5,
+    Digit6:6,
+    Digit7:7,
+    Digit8:8,
+    Digit9:9,
+    Digit0:10,
+    Minus: 0x0B, 
+    Equal: 0x0C, 
+    Backslash: 0x0D, 
+
+    Numpad0:  0x0F,
+
+    KeyQ     :0x10,
+    KeyW     :0x11,
+    KeyE     :0x12,
+    KeyR     :0x13,
+    KeyT     :0x14,
+    KeyY     :0x15,
+    KeyU     :0x16,
+    KeyI     :0x17,
+    KeyO     :0x18,
+    KeyP     :0x19,
+    BracketLeft: 0x1a,
+    BracketRight: 0x1b,
+
+    Numpad1:  0x1d,
+    Numpad2:  0x1e,
+    Numpad3:  0x1f,
+
+    KeyA     :0x20,
+    KeyS     :0x21,
+    KeyD     :0x22,
+    KeyF     :0x23,
+    KeyG     :0x24,
+    KeyH     :0x25,
+    KeyJ     :0x26,
+    KeyK     :0x27,
+    KeyL     :0x28,
+    Semicolon:0x29,
+    Quote    :0x2a,
+
+    Numpad4:  0x2d,
+    Numpad5:  0x2e,
+    Numpad6:  0x2f,
+
+    KeyZ     :0x31,
+    KeyX     :0x32,
+    KeyC     :0x33,
+    KeyV     :0x34,
+    KeyB     :0x35,
+    KeyN     :0x36,
+    KeyM     :0x37,
+    Comma    :0x38,
+    Period   :0x39,
+    Slash    :0x3a,
+
+    NumpadDecimal: 0x3c,
+    Numpad7:  0x3d,
+    Numpad8:  0x3e,
+    Numpad9:  0x3f,
+
+//--- Extra Keys on international Amigas (ISO style)
+    hashtag: 0x2b, //[.generic: "", .german: "^ #", .italian: "§ \u{00F9}"], 
+    laceBrace: 0x30, // [.generic: "", .german: "> <", .italian: "> <"],
+
+// Amiga keycodes 0x40 - 0x5F (Codes common to all keyboards)
+    Space:      0x40,
+    Backspace:  0x41,
+    Tab:        0x42,
+    NumpadEnter:0x43,
+    Enter:      0x44,
+    Escape:     0x45,
+    Delete:     0x46,
+    NumpadSubtract: 0x4A,
+    ArrowUp:    0x4C,
+    ArrowDown:  0x4D,
+    ArrowRight: 0x4E,
+    ArrowLeft:  0x4F,
     F1:0x50,
     F2:0x51,
     F3:0x52,
     F4:0x53,
     F5:0x54,
     F6:0x55,
-    ArrowUp:0x4C,
-    ArrowDown:0x4D,
-    
-    // Second row
-    Digit3: 3,
-    KeyW:0x11,
-    KeyA:0x20,
-    Digit4:4,
-    KeyZ:0x31,
-    KeyS:0x21,
-    KeyE:0x12,
-    ShiftRight:0x61,
-    ShiftLeft:0x60,
-    
-    // Third row
-    Digit5:5,
-    KeyR     :0x13,
-    KeyD     :0x22,
-    Digit6:6,
-    KeyC     :0x33,
-    KeyF     :0x23,
-    KeyT     :0x14,
-    KeyX     :0x32,
-    
-    // Fourth row
-    Digit7:7,
-    KeyY     :0x15,
-    KeyG     :0x24,
-    Digit8:8,
-    KeyB     :0x35,
-    KeyH     :0x25,
-    KeyU     :0x16,
-    KeyV     :0x34,
-    
-    // Fifth row
-    Digit9:9,
-    KeyI     :0x17,
-    KeyJ     :0x26,
-    Digit0:10,
-    KeyM     :0x37,
-    KeyK     :0x27,
-    KeyO     :0x18,
-    KeyN     :0x36,
-    
-    // Sixth row
-    Minus:11,  //plus
-    KeyP     :0x19,
-    KeyL     :0x28,
-    Equal :12, //minus
-    Period:59, 
-    Semicolon :44, //colon
-    BracketLeft :28, //@
-    Comma :58,
-    
-    // Seventh row
-    pound :13,
-    BracketRight:29, //asterisk
-    Quote:45,  //semicolon
-    home  :14,
-    rightShift:61,
-    Backslash :46, //equal
-    upArrow :30,
-    Slash :60,
+    F7:0x56,
+    F8:0x57,
+    F9:0x58,
+    F10:0x59,
 
-    // Eights row
-    Digit1:1,
-    Delete :0x46,   //left arrow
-    ControlLeft   :17,
-    Digit2:2,
-    Space :0x40,
-    commodore :49,  //commodore
-    commodore :49,  //commodore
-    KeyQ     :18,
-    runStop   :33,
-    
-    // Restore key
-    restore   :31
+    keypadLBracket: 0x5A, //?? no javascript code
+    keypadRBracket: 0x5B, //?? no javascript code
+    NumpadDivide:   0x5C,
+    NumpadMultiply: 0x5D,
+    NumpadAdd:      0x5E,
+    Help:           0x5F,
 
+// 0x60 - 0x67 (Key codes for qualifier keys)
+    ShiftLeft:  0x60,
+    ShiftRight: 0x61,
+    CapsLock:   0x62,
+    ControlLeft:0x63,
+    AltLeft:    0x64,
+    AltRight:   0x65,
+    leftAmiga:  0x66, //?? no javascript code
+    rightAmiga: 0x67, //?? no javascript code   
 }        
-
-
-
-
 
 
 function installKeyboard() {
     keymap= [ 
-    [{k:'hide', c:'hide_keyboard'},{style:'width:30px'},{k:'!',c:'exclama',sym:'!'},{k:'"',c:'quot',sym:'"'},{k:'#',c:'hash',sym:'#'},{k:'$',c:'dollar',sym:'$'},{style:'width:180px'},{k:'F1',c:'F1'}, {k:'F2',c:'F2'},{k:'F3',c:'F3'},{k:'F4',c:'F4'},{k:'F5',c:'F5'},{k:'F6',c:'F6'},{k:'F7',c:'F7'},{k:'F8',c:'F8'}],
-    [{k:'<-',c:'Delete'}, {k:'1',c:'Digit1'},{k:'2',c:'Digit2'},{k:'3',c:'Digit3'},{k:'4',c:'Digit4'},{k:'5',c:'Digit5'},{k:'6',c:'Digit6'},{k:'7',c:'Digit7'},{k:'8',c:'Digit8'},{k:'9',c:'Digit9'},{k:'0',c:'Digit0'},{k:'+', c:'Minus'},{k:'-', c:'Equal'},{k:'€', c:'pound'},{k:'CLR/Home', c:'home'},{k:'Inst/DEL',c:'Backspace'} ], 
-    [{k:'CTRL',c:'ControlLeft'}, {k:'Q'},{k:'W'},{k:'E'},{k:'R'},{k:'T'},{k:'Y'},{k:'U'},{k:'I'},{k:'O'},{k:'P'},{k:'@',c:'BracketLeft'},{k:'*', c:'BracketRight'},{k:'up',c:'upArrow'},{k:'RESTORE', c:'restore'}], 
-    [{k:'RunStop',c:'runStop'},{k:'ShftLock', c:'shiftlock'},{k:'A'},{k:'S'},{k:'D'},{k:'F'},{k:'G'},{k:'H'},{k:'J'},{k:'K'},{k:'L'},{k:':', c:'Semicolon'},{k:';', c:'Quote'},{k:'=', c:'Backslash'},{k:'RETURN',c:'Enter'}], 
-    [{k:'C=', c:'commodore'},{k:'SHIFT',c:'ShiftLeft'},{k:'Z'},{k:'X'},{k:'C'},{k:'V'},{k:'B'},{k:'N'},{k:'M'},{k:',',c:'Comma'},{k:'.',c:'Period'},{k:'/', c:'Slash'},{k:'SHIFT',c:'rightShift',style:"padding:0"}, {k:'UP',c:'UP',sym:'ArrowUp'}],
-    [{style:'width:138px'},{k:'SPACE', c:'Space', style:'width:450px'},{style:'width:60px'}, {k:'LEFT',c:'left',sym:'ArrowLeft'},{k:'DOWN', c:'ArrowDown'},{k:'RIGHT', c:'ArrowRight'}]
+    [{k:'Esc', c:'Escape'},{style:'width:20px'},{k:'F1',c:'F1'}, {k:'F2',c:'F2'},{k:'F3',c:'F3'},{k:'F4',c:'F4'},{k:'F5',c:'F5'},{style:'width:20px'},{k:'F6',c:'F6'},{k:'F7',c:'F7'},{k:'F8',c:'F8'},{k:'F9',c:'F9'},{k:'F10',c:'F10'},{style:'width:30px'},{k:'hide', c:'hide_keyboard'}],
+    [{k:'`',c:'Grave'}, {k:'1', sk:'!',c:'Digit1'},{k:'2', sk:'@',c:'Digit2'},{k:'3', sk:'#',c:'Digit3'},{k:'4', sk:'$', c:'Digit4'},{k:'5',sk:'%',c:'Digit5'},{k:'6', sk:'^',c:'Digit6'},{k:'7',sk:'&',c:'Digit7'},{k:'8',sk:'*',c:'Digit8'},{k:'9', sk:'(',c:'Digit9'},{k:'0', sk:')',c:'Digit0'},{k:'-', sk:'_',c:'Minus'},{k:'=',sk:'+', c:'Equal'},{k:'\\',sk:'|', c:'Backslash'},{k:'\u{2190}',c:'Backspace'}, {k:'Del',c:'Delete'}, {k:'Help',c:'Help'}, ], 
+    [{k:'\u{21e5}',c:'Tab',style:"width:80px"}, {k:'Q'},{k:'W'},{k:'E'},{k:'R'},{k:'T'},{k:'Y'},{k:'U'},{k:'I'},{k:'O'},{k:'P'},{k:'[',sk:'{',c:'BracketLeft'},{k:']', sk:'}',c:'BracketRight'}], 
+    [{k:'CTRL',c:'ControlLeft'},{k:'CapsLock', c:'CapsLock'},{k:'A'},{k:'S'},{k:'D'},{k:'F'},{k:'G'},{k:'H'},{k:'J'},{k:'K'},{k:'L'},{k:';', sk:':', c:'Semicolon'},{k:',', sk:'\"', c:'Quote'},{k:'#', sk:'^', c:'hashtag'},{k:'\u{21b5}',c:'Enter',style:"width:80px"}], 
+    [{k:'\u{21e7}',c:'ShiftLeft',style:"padding-right:50px"},{k:'<', sk:'>', c:'laceBrace'},{k:'Z'},{k:'X'},{k:'C'},{k:'V'},{k:'B'},{k:'N'},{k:'M'},{k:',',sk:'<',c:'Comma'},{k:'.',sk:'>',c:'Period'},{k:'/',sk:'?', c:'Slash'},{k:'\u{21e7}',c:'ShiftRight',style:"padding-right:50px"},{style:'width:45px'}, {k:'\u{2191}',c:'UP',sym:'ArrowUp'}],
+    [{style:'width:138px'},{k:'Alt', c:'AltLeft'},{k:'Amiga', c:'leftAmiga'},{k:'SPACE', c:'Space', style:'width:450px'},{k:'Amiga', c:'rightAmiga'},{k:'Alt', c:'AltRight'},{style:'width:10px'}, {k:'\u{2190}',c:'left',sym:'ArrowLeft'},{k:'\u{2193}', c:'ArrowDown'},{k:'\u{2192}', c:'ArrowRight'}]
     ];
 
     var the_keyBoard='';
@@ -308,11 +326,34 @@ function installKeyboard() {
                 {
                     label = `<svg xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16"><path d="M14 5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h12zM2 4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H2z"/><path d="M13 10.25a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm0-2a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm-5 0A.25.25 0 0 1 8.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 8 8.75v-.5zm2 0a.25.25 0 0 1 .25-.25h1.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-1.5a.25.25 0 0 1-.25-.25v-.5zm1 2a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm-5-2A.25.25 0 0 1 6.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 6 8.75v-.5zm-2 0A.25.25 0 0 1 4.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 4 8.75v-.5zm-2 0A.25.25 0 0 1 2.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 2 8.75v-.5zm11-2a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm-2 0a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm-2 0A.25.25 0 0 1 9.25 6h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 9 6.75v-.5zm-2 0A.25.25 0 0 1 7.25 6h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 7 6.75v-.5zm-2 0A.25.25 0 0 1 5.25 6h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 5 6.75v-.5zm-3 0A.25.25 0 0 1 2.25 6h1.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-1.5A.25.25 0 0 1 2 6.75v-.5zm0 4a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm2 0a.25.25 0 0 1 .25-.25h5.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-5.5a.25.25 0 0 1-.25-.25v-.5z"/></svg>`;
                 }
+                let shift_label=null;
+                if(typeof keydef.sk !== 'undefined')
+                {
+                    shift_label=keydef.sk;
+                }
 
                 the_keyBoard +='<button type="button" id="button_'+keydef.c+'" class="'+css+'"';
+                if(shift_label!= null)
+                {
+                    let style_composite_key=";padding-top:0;padding-bottom:0;";
+                    if(style==null)
+                        style=style_composite_key;
+                    else
+                        style+=style_composite_key;
+                }
                 if(style !=null)
                     the_keyBoard += ' style="'+style+'"';
-                the_keyBoard += '>'+label+'</button>'
+
+                the_keyBoard+='>';
+                if(shift_label==null)
+                {
+                    the_keyBoard += label;
+                }
+                else
+                {
+                    the_keyBoard+= `<div style="flex-direction:column"><div class="keycap_shift">${shift_label}</div><div class="keycap">${label}</div><div>`;
+                }
+                the_keyBoard+='</button>';
             }
         });
         the_keyBoard+='</div>';
@@ -333,21 +374,32 @@ function installKeyboard() {
                     $('#virtual_keyboard').collapse('hide');
                     setTimeout( scaleVMCanvas, 500);
                }
-               else if(keydef.c == 'shiftlock')
+               else if(keydef.c == 'CapsLock')
                {
-                   var c64code = translateKey('ShiftLeft', 'ShiftLeft');
+                   let c64code = translateKey(keydef.c, keydef.k);
+                   var c64code2 = translateKey('ShiftLeft', 'ShiftLeft');
                    if(keydef.locked === undefined || keydef.locked == 0)
                    {
                      wasm_schedule_key(c64code[0], c64code[1], 1,0);                   
+                     wasm_schedule_key(c64code2[0], c64code2[1], 1,0);                   
+
                      keydef.locked = 1;
-                     $("#button_"+keydef.c).attr("style", "background-color: var(--green) !important");
+                     $("#button_"+keydef.c).attr("style", "background-color: var(--green) !important;"+keydef.style);
+                     document.body.setAttribute('shift-keys', 'pressed');
+                     shift_pressed_count++;
+                     
                    }
                    else
                    {
+                     wasm_schedule_key(c64code2[0], c64code2[1], 0, 0);                   
                      wasm_schedule_key(c64code[0], c64code[1], 0, 0);                   
                      keydef.locked = 0;
                      $("#button_"+keydef.c).attr("style", "");
-                   
+                     shift_pressed_count--;
+                     if(shift_pressed_count==0)
+                     {
+                        document.body.removeAttribute('shift-keys');
+                     }              
                    }
                }
                else if(keydef.sym !== undefined)
@@ -360,16 +412,23 @@ function installKeyboard() {
                 if(c64code !== undefined){
                     wasm_schedule_key(c64code[0], c64code[1], 1,0);
 
-                    if(keydef.c == 'ShiftLeft' ||keydef.c == 'rightShift')
+                    if(keydef.c == 'ShiftLeft' ||keydef.c == 'ShiftRight')
                     {
-                        $("#button_"+keydef.c).attr("style", "background-color: var(--green) !important");
-                    
+                        $("#button_"+keydef.c).attr("style", "background-color: var(--green) !important;"+keydef.style);
+                        document.body.setAttribute('shift-keys', 'pressed');
+                        shift_pressed_count++;
+                            
                         setTimeout(() => {
                             wasm_schedule_key(c64code[0], c64code[1], 0,1);
-                            $("#button_"+keydef.c).attr("style", "");
+                            $("#button_"+keydef.c).attr("style", keydef.style);    
+                            shift_pressed_count--;
+                            if(shift_pressed_count==0)
+                            {
+                               document.body.removeAttribute('shift-keys');
+                            }   
                         }, 1000*4);
                     }
-                    else if(keydef.c == 'commodore')
+                    else if(keydef.c == 'leftAmiga')
                     {
                         $("#button_"+keydef.c).attr("style", "background-color: var(--blue) !important");
                     
@@ -389,16 +448,6 @@ function installKeyboard() {
                         }, 1000*4);
                     
                     }
-                    else if(keydef.c == 'runStop')
-                    {
-                        $("#button_"+keydef.c).attr("style", "background-color: var(--red) !important");
-                    
-                        setTimeout(() => {
-                            wasm_schedule_key(c64code[0], c64code[1], 0, 1);
-                            $("#button_"+keydef.c).attr("style", "");
-                        }, 1000*4);
-                    
-                    }
                     else
                     {  //release the key automatically after a short time ...
                         setTimeout(() => {
@@ -410,7 +459,6 @@ function installKeyboard() {
             });
         });
     });
-
 
 }
 
