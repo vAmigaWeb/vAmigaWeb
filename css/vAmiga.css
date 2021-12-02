@@ -350,3 +350,21 @@ button[id^="detail_run"] {
 [shift-keys="pressed"] .keycap {
     font-size:x-small;
 }
+
+
+.darkkey {
+    background-color: rgb(78,87,95);
+    border-color: #222222;
+}
+.capslock {
+    font-size:xx-small;
+}
+
+.amigakey { 
+    color: red;
+    font-style: italic;
+    font-family: serif;
+    font-size: x-large;
+    padding-top: 0;
+    padding-bottom: 0;
+}

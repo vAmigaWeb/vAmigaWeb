@@ -262,12 +262,12 @@ key_translation_map =
 
 function installKeyboard() {
     keymap= [ 
-    [{k:'Esc', c:'Escape'},{style:'width:20px'},{k:'F1',c:'F1'}, {k:'F2',c:'F2'},{k:'F3',c:'F3'},{k:'F4',c:'F4'},{k:'F5',c:'F5'},{style:'width:20px'},{k:'F6',c:'F6'},{k:'F7',c:'F7'},{k:'F8',c:'F8'},{k:'F9',c:'F9'},{k:'F10',c:'F10'},{style:'width:30px'},{k:'hide', c:'hide_keyboard'}],
-    [{k:'`',c:'Grave'}, {k:'1', sk:'!',c:'Digit1'},{k:'2', sk:'@',c:'Digit2'},{k:'3', sk:'#',c:'Digit3'},{k:'4', sk:'$', c:'Digit4'},{k:'5',sk:'%',c:'Digit5'},{k:'6', sk:'^',c:'Digit6'},{k:'7',sk:'&',c:'Digit7'},{k:'8',sk:'*',c:'Digit8'},{k:'9', sk:'(',c:'Digit9'},{k:'0', sk:')',c:'Digit0'},{k:'-', sk:'_',c:'Minus'},{k:'=',sk:'+', c:'Equal'},{k:'\\',sk:'|', c:'Backslash'},{k:'\u{2190}',c:'Backspace'}, {k:'Del',c:'Delete'}, {k:'Help',c:'Help'}, ], 
-    [{k:'\u{21e5}',c:'Tab',style:"width:80px"}, {k:'Q'},{k:'W'},{k:'E'},{k:'R'},{k:'T'},{k:'Y'},{k:'U'},{k:'I'},{k:'O'},{k:'P'},{k:'[',sk:'{',c:'BracketLeft'},{k:']', sk:'}',c:'BracketRight'}], 
-    [{k:'CTRL',c:'ControlLeft'},{k:'CapsLock', c:'CapsLock'},{k:'A'},{k:'S'},{k:'D'},{k:'F'},{k:'G'},{k:'H'},{k:'J'},{k:'K'},{k:'L'},{k:';', sk:':', c:'Semicolon'},{k:',', sk:'\"', c:'Quote'},{k:'#', sk:'^', c:'hashtag'},{k:'\u{21b5}',c:'Enter',style:"width:80px"}], 
-    [{k:'\u{21e7}',c:'ShiftLeft',style:"padding-right:50px"},{k:'<', sk:'>', c:'laceBrace'},{k:'Z'},{k:'X'},{k:'C'},{k:'V'},{k:'B'},{k:'N'},{k:'M'},{k:',',sk:'<',c:'Comma'},{k:'.',sk:'>',c:'Period'},{k:'/',sk:'?', c:'Slash'},{k:'\u{21e7}',c:'ShiftRight',style:"padding-right:50px"},{style:'width:45px'}, {k:'\u{2191}',c:'UP',sym:'ArrowUp'}],
-    [{style:'width:138px'},{k:'Alt', c:'AltLeft'},{k:'Amiga', c:'leftAmiga'},{k:'SPACE', c:'Space', style:'width:450px'},{k:'Amiga', c:'rightAmiga'},{k:'Alt', c:'AltRight'},{style:'width:10px'}, {k:'\u{2190}',c:'left',sym:'ArrowLeft'},{k:'\u{2193}', c:'ArrowDown'},{k:'\u{2192}', c:'ArrowRight'}]
+    [{k:'Esc', c:'Escape',cls:'darkkey'},{style:'width:20px'},{k:'F1',c:'F1', cls:'darkkey'}, {k:'F2',c:'F2',cls:'darkkey'},{k:'F3',c:'F3',cls:'darkkey'},{k:'F4',c:'F4',cls:'darkkey'},{k:'F5',c:'F5',cls:'darkkey'},{style:'width:20px'},{k:'F6',c:'F6',cls:'darkkey'},{k:'F7',c:'F7',cls:'darkkey'},{k:'F8',c:'F8',cls:'darkkey'},{k:'F9',c:'F9',cls:'darkkey'},{k:'F10',c:'F10',cls:'darkkey'},{style:'width:15px'},{k:'Del',c:'Delete',cls:'darkkey'},{style:'width:15px'},{k:'hide', c:'hide_keyboard',cls:'darkkey'}],
+    [{k:'`',c:'Grave'}, {k:'1', sk:'!',c:'Digit1'},{k:'2', sk:'@',c:'Digit2'},{k:'3', sk:'#',c:'Digit3'},{k:'4', sk:'$', c:'Digit4'},{k:'5',sk:'%',c:'Digit5'},{k:'6', sk:'^',c:'Digit6'},{k:'7',sk:'&',c:'Digit7'},{k:'8',sk:'*',c:'Digit8'},{k:'9', sk:'(',c:'Digit9'},{k:'0', sk:')',c:'Digit0'},{k:'-', sk:'_',c:'Minus'},{k:'=',sk:'+', c:'Equal'},{k:'\\',sk:'|', c:'Backslash'},{k:'\u{2190}',c:'Backspace'}, {k:'Help',c:'Help'}, {k:'7',c:'Numpad7'},{k:'8',c:'Numpad8'},{k:'9',c:'Numpad9'} ], 
+    [{k:'\u{21e5}',c:'Tab',style:"width:80px"}, {k:'Q'},{k:'W'},{k:'E'},{k:'R'},{k:'T'},{k:'Y'},{k:'U'},{k:'I'},{k:'O'},{k:'P'},{k:'[',sk:'{',c:'BracketLeft'},{k:']', sk:'}',c:'BracketRight'}, {k:'\u{21b5}',c:'Enter',style:"width:80px"},{style:'width:10px'}, {k:'4',c:'Numpad4'},{k:'5',c:'Numpad5'},{k:'6',c:'Numpad6'}], 
+    [{k:'CTRL',c:'ControlLeft',style:'font-size:xx-small'},{k:'CAPS</br>LOCK', c:'CapsLock',cls:'capslock'},{k:'A'},{k:'S'},{k:'D'},{k:'F'},{k:'G'},{k:'H'},{k:'J'},{k:'K'},{k:'L'},{k:';', sk:':', c:'Semicolon'},{k:',', sk:'\"', c:'Quote'},{k:'#', sk:'^', c:'hashtag'},{style:'width:70px'}, {k:'1',c:'Numpad1'},{k:'2',c:'Numpad2'},{k:'3',c:'Numpad3'}], 
+    [{k:'\u{21e7}',c:'ShiftLeft',style:"padding-right:51px"},{k:'<', sk:'>', c:'laceBrace'},{k:'Z'},{k:'X'},{k:'C'},{k:'V'},{k:'B'},{k:'N'},{k:'M'},{k:',',sk:'<',c:'Comma'},{k:'.',sk:'>',c:'Period'},{k:'/',sk:'?', c:'Slash'},{k:'\u{21e7}',c:'ShiftRight',style:'padding-right:10px'},{style:'width:10px'}, {k:'\u{2191}',c:'UP',sym:'ArrowUp'}, {style:'width:30px'}, {k:'0',c:'Numpad0', style:'padding-right:57px'},{k:'.',c:'NumpadDecimal'}],
+    [{style:'width:138px'},{k:'Alt', c:'AltLeft'},{k:'A', c:'leftAmiga', cls:'amigakey'},{k:'SPACE', c:'Space', style:'width:450px'},{k:'A', c:'rightAmiga', cls:'amigakey'},{k:'Alt', c:'AltRight'},{style:'width:10px'}, {k:'\u{2190}',c:'left',sym:'ArrowLeft'},{k:'\u{2193}', c:'ArrowDown'},{k:'\u{2192}', c:'ArrowRight'}, {style:'width:15px'}, {k:'-',c:'NumpadSubtract'},{k:'Enter',c:'NumpadEnter'}]
     ];
 
     var the_keyBoard='';
@@ -286,14 +286,20 @@ function installKeyboard() {
             }
             else
             {
+                let cls = '';
+                if(keydef.cls !== undefined)
+                {
+                    cls=keydef.cls;
+                }
                 if(keydef.c === undefined)
                     keydef.c = 'Key'+keydef.k;
-                var css = "btn btn-secondary ml-1 mt-1";
+                var css = `btn btn-secondary ml-1 mt-1 ${cls}`;
                 var style = null; 
                 if(keydef.css !== undefined)
                     css = keydef.css; 
                 if(keydef.style !== undefined)
                     style = keydef.style; 
+
                 let label = keydef.k;
                 if(label == "hide")
                 {
@@ -401,9 +407,9 @@ function installKeyboard() {
                             }   
                         }, 1000*4);
                     }
-                    else if(keydef.c == 'leftAmiga')
+                    else if(keydef.c == 'leftAmiga'||keydef.c == 'rightAmiga')
                     {
-                        $("#button_"+keydef.c).attr("style", "background-color: var(--blue) !important");
+                        $("#button_"+keydef.c).attr("style", "background-color: var(--green) !important;"+keydef.style);
                     
                         setTimeout(() => {
                             wasm_schedule_key(c64code[0], c64code[1], 0,1);
