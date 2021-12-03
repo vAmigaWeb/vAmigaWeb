@@ -17,7 +17,7 @@ current features / release state:
 
 +joystick controls - ok
 
-+keyboard - done partially ... some keys still are not mapped
++keyboard - ok
 
 +mouse - ok, via browsers pointerlock API for desktops and android (iOS does not support pointerlock API)
 
