@@ -1131,7 +1131,7 @@ function handleGamePad(portnr, gamepad)
     }
 
 
-    if(gamepad.buttons.length >= 15 && bReleaseY && bReleaseX)
+    if(gamepad.buttons.length > 15 && bReleaseY && bReleaseX)
     {
         if(gamepad.buttons[12].pressed)
         {bReleaseY=false;
