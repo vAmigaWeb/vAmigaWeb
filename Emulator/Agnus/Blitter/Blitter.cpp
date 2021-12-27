@@ -11,7 +11,7 @@
 #include "Blitter.h"
 #include "Agnus.h"
 #include "Checksum.h"
-#include "IO.h"
+#include "IOUtils.h"
 #include "SuspendableThread.h"
 
 Blitter::Blitter(Amiga& ref) : SubComponent(ref)
@@ -107,7 +107,7 @@ Blitter::setConfigItem(Option option, i64 value)
             }
 
             suspended {
-                config.accuracy = value;
+                config.accuracy = (isize)value;
             }
             return;
             
@@ -252,7 +252,7 @@ Blitter::doMintermLogic(u16 a, u16 b, u16 c, u8 minterm) const
         if (minterm & 0b00000010) result2 |= ~a & ~b &  c;
         if (minterm & 0b00000001) result2 |= ~a & ~b & ~c;
     
-        if (result != result2) panic("Blitter minterm error\n");
+        if (result != result2) fatal("Blitter minterm error\n");
     }
     
     return result;
@@ -618,7 +618,7 @@ Blitter::beginBlit()
             
             linecount++;
             check1 = check2 = util::fnv_1a_init32();
-            msg("Line %zd (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x\n",
+            msg("Line %ld (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x\n",
                 linecount, bltsizeH, bltsizeV,
                 bltconUSEA(), bltconUSEB(), bltconUSEC(), bltconUSED(),
                 bltcon0,
@@ -637,7 +637,7 @@ Blitter::beginBlit()
             
             copycount++;
             check1 = check2 = util::fnv_1a_init32();
-            msg("Blit %zd (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x %s%s\n",
+            msg("Blit %ld (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x %s%s\n",
                 copycount,
                 bltsizeH, bltsizeV,
                 bltconUSEA(), bltconUSEB(), bltconUSEC(), bltconUSED(),
@@ -659,8 +659,8 @@ Blitter::beginLineBlit(isize level)
 {
     static u64 verbose = 0;
 
-    if (BLT_CHECKSUM && verbose++ == 0) {
-        msg("Performing level %zd line blits.\n", level);
+    if (verbose++ == 0) {
+        debug(BLT_CHECKSUM, "Performing level %ld line blits.\n", level);
     }
     if (bltcon0 & BLTCON0_USEB) {
         trace(XFILES, "Performing line blit with channel B enabled\n");
@@ -685,8 +685,8 @@ Blitter::beginCopyBlit(isize level)
 {
     static u64 verbose = 0;
 
-    if (BLT_CHECKSUM && verbose++ == 0) {
-        msg("Performing level %zd copy blits.\n", level);
+    if (verbose++ == 0) {
+        debug(BLT_CHECKSUM, "Performing level %ld copy blits.\n", level);
     }
 
     switch (level) {
@@ -703,7 +703,7 @@ Blitter::beginCopyBlit(isize level)
 void
 Blitter::clearBusyFlag()
 {
-    debug(BLTTIM_DEBUG, "(%zd,%zd) Blitter bbusy\n", agnus.pos.v, agnus.pos.h);
+    debug(BLTTIM_DEBUG, "(%ld,%ld) Blitter bbusy\n", agnus.pos.v, agnus.pos.h);
 
     // Clear the Blitter busy flag
     bbusy = false;
@@ -712,7 +712,7 @@ Blitter::clearBusyFlag()
 void
 Blitter::endBlit()
 {
-    debug(BLTTIM_DEBUG, "(%zd,%zd) Blitter terminates\n", agnus.pos.v, agnus.pos.h);
+    debug(BLTTIM_DEBUG, "(%ld,%ld) Blitter terminates\n", agnus.pos.v, agnus.pos.h);
     
     running = false;
     

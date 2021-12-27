@@ -79,6 +79,7 @@ enum_long(OPT)
     OPT_SERIAL_DEVICE,
 
     // Compatibility
+    OPT_HIDDEN_BITPLANES,
     OPT_HIDDEN_SPRITES,
     OPT_HIDDEN_LAYERS,
     OPT_HIDDEN_LAYER_ALPHA,
@@ -114,16 +115,23 @@ enum_long(OPT)
     OPT_AUDPAN,
     OPT_AUDVOL,
     OPT_AUDVOLL,
-    OPT_AUDVOLR
+    OPT_AUDVOLR,
+    
+    // Remote server
+    OPT_SRV_MODE,
+    OPT_SRV_PORT,
+
+    // GDB server
+    OPT_GDB_VERBOSE    
 };
 typedef OPT Option;
 
 #ifdef __cplusplus
 struct OptionEnum : util::Reflection<OptionEnum, Option>
 {    
-    static long min() { return 0; }
-    static long max() { return OPT_AUDVOLR; }
-    static bool isValid(long value) { return value >= min() && value <= max(); }
+    static long minVal() { return 0; }
+    static long maxVal() { return OPT_AUDVOLR; }
+    static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
 
     static const char *prefix() { return "OPT"; }
     static const char *key(Option value)
@@ -170,6 +178,7 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
                 
             case OPT_SERIAL_DEVICE:       return "SERIAL_DEVICE";
  
+            case OPT_HIDDEN_BITPLANES:    return "HIDDEN_BITPLANES";
             case OPT_HIDDEN_SPRITES:      return "HIDDEN_SPRITES";
             case OPT_HIDDEN_LAYERS:       return "HIDDEN_LAYERS";
             case OPT_HIDDEN_LAYER_ALPHA:  return "HIDDEN_LAYER_ALPHA";
@@ -199,6 +208,11 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
             case OPT_AUDVOL:              return "AUDVOL";
             case OPT_AUDVOLL:             return "AUDVOLL";
             case OPT_AUDVOLR:             return "AUDVOLR";
+
+            case OPT_SRV_MODE:            return "MODE";
+            case OPT_SRV_PORT:            return "PORT";
+                
+            case OPT_GDB_VERBOSE:         return "VERBOSE";
         }
         return "???";
     }
@@ -216,9 +230,9 @@ typedef EMULATOR_STATE EmulatorState;
 #ifdef __cplusplus
 struct EmulatorStateEnum : util::Reflection<EmulatorStateEnum, EmulatorState>
 {
-    static long min() { return 0; }
-    static long max() { return EMULATOR_STATE_RUNNING; }
-    static bool isValid(long value) { return value >= min() && value <= max(); }
+    static long minVal() { return 0; }
+    static long maxVal() { return EMULATOR_STATE_RUNNING; }
+    static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
 
     static const char *prefix() { return "EMULATOR_STATE"; }
     static const char *key(EmulatorState value)

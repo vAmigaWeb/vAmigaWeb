@@ -10,19 +10,26 @@
 #pragma once
 
 #include "Types.h"
-#include <arpa/inet.h>
 
 //
 // Optimizing code
 //
 
+#ifdef _MSC_VER
+
+#define unreachable    __assume(false)
+#define likely(x)      (x)
+#define unlikely(x)    (x)
+
+#else
+
 #define unreachable    __builtin_unreachable()
-#define fatalError     assert(false); __builtin_unreachable()
-
-#define assume(x)      do { if (!(x)) __builtin_unreachable(); } while(false)
-
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
+
+#endif
+
+#define fatalError     assert(false); unreachable
 
 
 //
@@ -58,6 +65,7 @@
 #define BYTE1(x) LO_BYTE((x) >> 8)
 #define BYTE2(x) LO_BYTE((x) >> 16)
 #define BYTE3(x) LO_BYTE((x) >> 24)
+#define GET_BYTE(x,nr) LO_BYTE((x) >> (8 * (nr)))
 
 // Returns a non-zero value if the n-th bit is set in x
 #define GET_BIT(x,nr) ((x) & (1 << (nr)))
@@ -100,18 +108,10 @@
 #define R16BE(a) HI_LO(*(u8 *)(a), *(u8 *)((a)+1))
 #define R32BE(a) HI_HI_LO_LO(*(u8 *)(a), *(u8 *)((a)+1), *(u8 *)((a)+2), *(u8 *)((a)+3))
 
-#define R8BE_ALIGNED(a)  (*(u8 *)(a))
-#define R16BE_ALIGNED(a) (htons(*(u16 *)(a)))
-#define R32BE_ALIGNED(a) (htonl(*(u32 *)(a)))
-
 // Writes a value in big-endian format
 #define W8BE(a,v)  { *(u8 *)(a) = (v); }
 #define W16BE(a,v) { *(u8 *)(a) = HI_BYTE(v); *(u8 *)((a)+1) = LO_BYTE(v); }
 #define W32BE(a,v) { W16BE(a,HI_WORD(v)); W16BE((a)+2,LO_WORD(v)); }
-
-#define W8BE_ALIGNED(a,v)  { *(u8 *)(a) = (u8)(v); }
-#define W16BE_ALIGNED(a,v) { *(u16 *)(a) = ntohs((u16)v); }
-#define W32BE_ALIGNED(a,v) { *(u32 *)(a) = ntohl((u32)v); }
 
 
 //

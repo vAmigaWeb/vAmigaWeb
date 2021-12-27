@@ -16,9 +16,11 @@
 #include "CPU.h"
 #include "Denise.h"
 #include "Drive.h"
+#include "GdbServer.h"
 #include "Keyboard.h"
 #include "Memory.h"
 #include "MsgQueue.h"
+#include "OSDebugger.h"
 #include "Paula.h"
 #include "RegressionTester.h"
 #include "RetroShell.h"
@@ -78,10 +80,15 @@ public:
     // Shortcuts to all four drives
     Drive *df[4] = { &df0, &df1, &df2, &df3 };
     
+    // Gateway to the GUI
+    MsgQueue msgQueue = MsgQueue(*this);
+
     // Misc
     RetroShell retroShell = RetroShell(*this);
+    OSDebugger osDebugger = OSDebugger(*this);
+    RemoteServer remoteServer = RemoteServer(*this);
+    GdbServer gdbServer = GdbServer(*this);
     RegressionTester regressionTester = RegressionTester(*this);
-    MsgQueue msgQueue = MsgQueue(*this);
     
     
     //
@@ -153,6 +160,8 @@ private:
     void _halt() override;
     void _warpOn() override;
     void _warpOff() override;
+    void _debugOn() override;
+    void _debugOff() override;
     void _inspect() const override;
 
     template <class T>
@@ -177,8 +186,10 @@ private:
     // Methods from Thread
     //
     
+private:
+
 public:
-    
+
     void execute() override;
 
     
@@ -186,7 +197,6 @@ public:
     // Configuring
     //
     
-public:
         
     // Gets a single configuration item
     i64 getConfigItem(Option option) const;

@@ -37,9 +37,9 @@ Moira::saveToStackBrief(u16 sr, u32 pc)
     } else {
 
         reg.sp -= 6;
-        writeM <MEM_DATA, Word> ((reg.sp + 4) & ~1, pc & 0xFFFF);
-        writeM <MEM_DATA, Word> ((reg.sp + 0) & ~1, sr);
-        writeM <MEM_DATA, Word> ((reg.sp + 2) & ~1, pc >> 16);
+        writeMS <MEM_DATA, Word> ((reg.sp + 4) & ~1, pc & 0xFFFF);
+        writeMS <MEM_DATA, Word> ((reg.sp + 0) & ~1, sr);
+        writeMS <MEM_DATA, Word> ((reg.sp + 2) & ~1, pc >> 16);
     }
 }
 
@@ -59,10 +59,12 @@ Moira::execAddressError(AEStackFrame frame, int delay)
     flags &= ~CPU_TRACE_EXCEPTION;
     sync(8);
 
-    // Write stack frame
-    bool doubleFault;
-    if (!(doubleFault = misaligned<Word>(reg.sp))) {
+    // A misaligned stack pointer will cause a "double fault"
+    bool doubleFault = misaligned<Word>(reg.sp);
+
+    if (!doubleFault) {
         
+        // Write stack frame
         saveToStack(frame);
         sync(2);
         jumpToVector(3);
@@ -208,14 +210,14 @@ Moira::execIrqException(u8 level)
         
     sync(6);
     reg.sp -= 6;
-    writeM <MEM_DATA, Word> (reg.sp + 4, reg.pc & 0xFFFF);
+    writeMS <MEM_DATA, Word> (reg.sp + 4, reg.pc & 0xFFFF);
 
     sync(4);
     queue.ird = getIrqVector(level);
     
     sync(4);
-    writeM <MEM_DATA, Word> (reg.sp + 0, status);
-    writeM <MEM_DATA, Word> (reg.sp + 2, reg.pc >> 16);
+    writeMS <MEM_DATA, Word> (reg.sp + 0, status);
+    writeMS <MEM_DATA, Word> (reg.sp + 2, reg.pc >> 16);
 
     jumpToVector<AE_SET_CB3>(queue.ird);
 }

@@ -10,7 +10,7 @@
 #include "config.h"
 #include "Script.h"
 #include "Amiga.h"
-#include "IO.h"
+#include "IOUtils.h"
 
 #include <sstream>
 
@@ -31,5 +31,5 @@ void
 Script::execute(class Amiga &amiga)
 {
     string s((char *)data, size);
-    try { amiga.retroShell.execScript(s); } catch (util::Exception &e) { }
+    try { amiga.retroShell.execScript(s); } catch (util::Exception &) { }
 }

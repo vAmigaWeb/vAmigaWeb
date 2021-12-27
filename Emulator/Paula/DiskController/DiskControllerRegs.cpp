@@ -36,7 +36,7 @@ DiskController::pokeDSKLEN(u16 value)
 void
 DiskController::setDSKLEN(u16 oldValue, u16 newValue)
 {
-    trace(DSKREG_DEBUG, "setDSKLEN(%x) [%zd,%zd,%zd]\n",
+    trace(DSKREG_DEBUG, "setDSKLEN(%x) [%ld,%ld,%ld]\n",
           newValue, df0.head.cylinder, df0.head.side, df0.head.offset);
 
     Drive *drive = getSelectedDrive();
@@ -62,14 +62,14 @@ DiskController::setDSKLEN(u16 oldValue, u16 newValue)
     if (oldValue & newValue & 0x8000) {
 
         if (state != DRIVE_DMA_OFF) {
-            trace(XFILES, "XFILES (DSKLEN): Written in DMA state %lld\n", state);
+            trace(XFILES, "XFILES (DSKLEN): Written in DMA state %ld\n", state);
         }
 
         // Only proceed if there are bytes to process
         if ((dsklen & 0x3FFF) == 0) { paula.raiseIrq(INT_DSKBLK); return; }
 
         // In debug mode, reset head position to generate reproducable results
-        if (ALIGN_HEAD && drive) drive->head.offset = 0;
+        if constexpr (ALIGN_HEAD) if (drive) drive->head.offset = 0;
 
         // Check if the WRITE bit (bit 14) also has been written twice
         if (oldValue & newValue & 0x4000) {
@@ -201,9 +201,9 @@ DiskController::PRBdidChange(u8 oldValue, u8 newValue)
     if (oldSelected != selected) {
         
         if (selected == -1) {
-            debug(DSKREG_DEBUG, "Deselecting df%zd\n", oldSelected);
+            debug(DSKREG_DEBUG, "Deselecting df%ld\n", oldSelected);
         } else {
-            debug(DSKREG_DEBUG, "Selecting df%zd\n", selected);
+            debug(DSKREG_DEBUG, "Selecting df%ld\n", selected);
         }
 
         // Inform the GUI

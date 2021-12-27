@@ -12,7 +12,7 @@
 #include "Amiga.h"
 #include "BootBlockImage.h"
 #include "FSTypes.h"
-#include "IO.h"
+#include "IOUtils.h"
 #include "Parser.h"
 #include <fstream>
 #include <sstream>
@@ -31,6 +31,12 @@ template <> void
 RetroShell::exec <Token::close> (Arguments &argv, long param)
 {
     msgQueue.put(MSG_CLOSE_CONSOLE);
+}
+
+template <> void
+RetroShell::exec <Token::help> (Arguments &argv, long param)
+{
+    retroShell.help(argv.empty() ? "" : argv.front());
 }
 
 template <> void
@@ -280,6 +286,13 @@ RetroShell::exec <Token::cpu, Token::config> (Arguments &argv, long param)
 }
 
 template <> void
+RetroShell::exec <Token::cpu, Token::set, Token::regreset> (Arguments &argv, long param)
+{
+    auto value = util::parseNum(argv.front());
+    amiga.configure(OPT_REG_RESET_VAL, value);
+}
+
+template <> void
 RetroShell::exec <Token::cpu, Token::inspect, Token::state> (Arguments& argv, long param)
 {
     dump(amiga.cpu, dump::State);
@@ -292,10 +305,10 @@ RetroShell::exec <Token::cpu, Token::inspect, Token::registers> (Arguments& argv
 }
 
 template <> void
-RetroShell::exec <Token::cpu, Token::set, Token::regreset> (Arguments &argv, long param)
+RetroShell::exec <Token::cpu, Token::jump> (Arguments &argv, long param)
 {
     auto value = util::parseNum(argv.front());
-    amiga.configure(OPT_REG_RESET_VAL, value);
+    amiga.cpu.jump((u32)value);
 }
 
 
@@ -502,6 +515,24 @@ template <> void
 RetroShell::exec <Token::denise, Token::set, Token::clxplfplf> (Arguments &argv, long param)
 {
     amiga.configure(OPT_CLX_PLF_PLF, util::parseBool(argv.front()));
+}
+
+template <> void
+RetroShell::exec <Token::denise, Token::hide, Token::bitplanes> (Arguments &argv, long param)
+{
+    amiga.configure(OPT_HIDDEN_BITPLANES, util::parseNum(argv.front()));
+}
+
+template <> void
+RetroShell::exec <Token::denise, Token::hide, Token::sprites> (Arguments &argv, long param)
+{
+    amiga.configure(OPT_HIDDEN_SPRITES, util::parseNum(argv.front()));
+}
+
+template <> void
+RetroShell::exec <Token::denise, Token::hide, Token::layers> (Arguments &argv, long param)
+{
+    amiga.configure(OPT_HIDDEN_LAYERS, util::parseNum(argv.front()));
 }
 
 template <> void
@@ -804,34 +835,50 @@ RetroShell::exec <Token::keyboard, Token::inspect> (Arguments& argv, long param)
 template <> void
 RetroShell::exec <Token::mouse, Token::config> (Arguments& argv, long param)
 {
-    dump(amiga.controlPort1.mouse, dump::Config);
+    auto &port = (param == 0) ? amiga.controlPort1 : amiga.controlPort2;
+    dump(port.mouse, dump::Config);
 }
 
 template <> void
 RetroShell::exec <Token::mouse, Token::set, Token::pullup> (Arguments &argv, long param)
 {
-    amiga.configure(OPT_PULLUP_RESISTORS, PORT_1, util::parseBool(argv.front()));
-    amiga.configure(OPT_PULLUP_RESISTORS, PORT_2, util::parseBool(argv.front()));
+    auto port = (param == 0) ? PORT_1 : PORT_2;
+    amiga.configure(OPT_PULLUP_RESISTORS, port, util::parseBool(argv.front()));
 }
 
 template <> void
 RetroShell::exec <Token::mouse, Token::set, Token::shakedetector> (Arguments &argv, long param)
 {
-    amiga.configure(OPT_SHAKE_DETECTION, PORT_1, util::parseBool(argv.front()));
-    amiga.configure(OPT_SHAKE_DETECTION, PORT_2, util::parseBool(argv.front()));
+    auto port = (param == 0) ? PORT_1 : PORT_2;
+    amiga.configure(OPT_SHAKE_DETECTION, port, util::parseBool(argv.front()));
 }
 
 template <> void
 RetroShell::exec <Token::mouse, Token::set, Token::velocity> (Arguments &argv, long param)
 {
-    amiga.configure(OPT_MOUSE_VELOCITY, PORT_1, util::parseNum(argv.front()));
-    amiga.configure(OPT_MOUSE_VELOCITY, PORT_2, util::parseNum(argv.front()));
+    auto port = (param == 0) ? PORT_1 : PORT_2;
+    amiga.configure(OPT_MOUSE_VELOCITY, port, util::parseNum(argv.front()));
 }
 
 template <> void
 RetroShell::exec <Token::mouse, Token::inspect> (Arguments& argv, long param)
 {
-    dump(amiga.keyboard, dump::State);
+    auto &port = (param == 0) ? amiga.controlPort1 : amiga.controlPort2;
+    dump(port.mouse, dump::State);
+}
+
+template <> void
+RetroShell::exec <Token::mouse, Token::press, Token::left> (Arguments& argv, long param)
+{
+    auto &port = (param == 0) ? amiga.controlPort1 : amiga.controlPort2;
+    port.mouse.pressAndReleaseLeft();
+}
+
+template <> void
+RetroShell::exec <Token::mouse, Token::press, Token::right> (Arguments& argv, long param)
+{
+    auto &port = (param == 0) ? amiga.controlPort1 : amiga.controlPort2;
+    port.mouse.pressAndReleaseRight();
 }
 
 
@@ -1065,4 +1112,162 @@ template <> void
 RetroShell::exec <Token::dfn, Token::inspect> (Arguments& argv, long param)
 {
     dump(*amiga.df[param], dump::State);
+}
+
+template <> void
+RetroShell::exec <Token::os, Token::execbase> (Arguments& argv, long param)
+{
+    std::stringstream ss;
+    osDebugger.dumpExecBase(ss);
+
+    *this << ss;
+}
+
+template <> void
+RetroShell::exec <Token::os, Token::interrupts> (Arguments& argv, long param)
+{
+    std::stringstream ss;
+    osDebugger.dumpIntVectors(ss);
+
+    *this << ss;
+}
+
+template <> void
+RetroShell::exec <Token::os, Token::libraries> (Arguments& argv, long param)
+{
+    std::stringstream ss;
+    isize num;
+    
+    if (argv.empty()) {
+        osDebugger.dumpLibraries(ss);
+    } else if (util::parseHex(argv.front(), &num)) {
+        osDebugger.dumpLibrary(ss, (u32)num);
+    } else {
+        osDebugger.dumpLibrary(ss, argv.front());
+    }
+    
+    *this << ss;
+}
+
+template <> void
+RetroShell::exec <Token::os, Token::devices> (Arguments& argv, long param)
+{
+    std::stringstream ss;
+    isize num;
+    
+    if (argv.empty()) {
+        osDebugger.dumpDevices(ss);
+    } else if (util::parseHex(argv.front(), &num)) {
+        osDebugger.dumpDevice(ss, (u32)num);
+    } else {
+        osDebugger.dumpDevice(ss, argv.front());
+    }
+    
+    *this << ss;
+}
+
+template <> void
+RetroShell::exec <Token::os, Token::resources> (Arguments& argv, long param)
+{
+    std::stringstream ss;
+    isize num;
+    
+    if (argv.empty()) {
+        osDebugger.dumpResources(ss);
+    } else if (util::parseHex(argv.front(), &num)) {
+        osDebugger.dumpResource(ss, (u32)num);
+    } else {
+        osDebugger.dumpResource(ss, argv.front());
+    }
+    
+    *this << ss;
+}
+
+template <> void
+RetroShell::exec <Token::os, Token::tasks> (Arguments& argv, long param)
+{
+    std::stringstream ss;
+    isize num;
+    
+    if (argv.empty()) {
+        osDebugger.dumpTasks(ss);
+    } else if (util::parseHex(argv.front(), &num)) {
+        osDebugger.dumpTask(ss, (u32)num);
+    } else {
+        osDebugger.dumpTask(ss, argv.front());
+    }
+    
+    *this << ss;
+}
+
+template <> void
+RetroShell::exec <Token::os, Token::processes> (Arguments& argv, long param)
+{
+    std::stringstream ss;
+    isize num;
+    
+    if (argv.empty()) {
+        osDebugger.dumpProcesses(ss);
+    } else if (util::parseHex(argv.front(), &num)) {
+        osDebugger.dumpProcess(ss, (u32)num);
+    } else {
+        osDebugger.dumpProcess(ss, argv.front());
+    }
+    
+    *this << ss;
+}
+
+template <> void
+RetroShell::exec <Token::remote, Token::config> (Arguments &argv, long param)
+{
+    dump(remoteServer, dump::Config);
+}
+
+template <> void
+RetroShell::exec <Token::remote, Token::set, Token::mode> (Arguments &argv, long param)
+{
+    amiga.configure(OPT_SRV_MODE, util::parseEnum <ServerModeEnum> (argv[0]));
+}
+
+template <> void
+RetroShell::exec <Token::remote, Token::set, Token::port> (Arguments &argv, long param)
+{
+    amiga.configure(OPT_SRV_PORT, util::parseNum(argv.front()));
+}
+
+template <> void
+RetroShell::exec <Token::remote, Token::start> (Arguments& argv, long param)
+{
+    auto mode = remoteServer.getConfig().mode;
+    auto port = remoteServer.getConfig().port;
+    
+    if (mode == SRVMODE_TERMINAL) *this << "Starting terminal server";
+    if (mode == SRVMODE_GDB) *this << "Starting GDB server";
+    *this << " at port " << std::to_string(port) << "\n";
+
+    remoteServer.start();
+}
+
+template <> void
+RetroShell::exec <Token::remote, Token::stop> (Arguments& argv, long param)
+{
+    remoteServer.stop();
+}
+
+template <> void
+RetroShell::exec <Token::remote, Token::inspect> (Arguments& argv, long param)
+{
+    dump(remoteServer, dump::State);
+}
+
+template <> void
+RetroShell::exec <Token::gdb, Token::config> (Arguments &argv, long param)
+{
+    dump(gdbServer, dump::Config);
+}
+
+template <> void
+RetroShell::exec <Token::gdb, Token::set, Token::verbose> (Arguments &argv, long param)
+{
+    amiga.configure(OPT_GDB_VERBOSE, util::parseBool(argv.front()));
 }

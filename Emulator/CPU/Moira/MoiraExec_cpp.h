@@ -271,14 +271,16 @@ Moira::execAddxEa(u16 opcode)
     u32 result = addsub<I,S>(data1, data2);
 
     if constexpr (S == Long && !MIMIC_MUSASHI) {
+
         writeM <M, Word, POLLIPL> (ea2 + 2, result & 0xFFFF);
         prefetch();
         writeM<M, Word>(ea2, result >> 16);
-        return;
-    }
 
-    prefetch();
-    writeM<M, S>(ea2, result);
+    } else {
+
+        prefetch();
+        writeM<M, S>(ea2, result);
+    }
 }
 
 template<Instr I, Mode M, Size S> void
@@ -362,7 +364,7 @@ Moira::execAndiccr(u16 opcode)
     u32 result = logic<I,S>(src, dst);
     setCCR((u8)result);
 
-    (void)readM<MEM_DATA, Word>(reg.pc+2);
+    (void)readMS <MEM_DATA, Word> (reg.pc+2);
     prefetch<POLLIPL>();
 }
 
@@ -379,7 +381,7 @@ Moira::execAndisr(u16 opcode)
     u32 result = logic<I,S>(src, dst);
     setSR((u16)result);
 
-    (void)readM<MEM_DATA, Word>(reg.pc+2);
+    (void)readMS <MEM_DATA, Word> (reg.pc+2);
     prefetch<POLLIPL>();
 }
 
@@ -664,7 +666,7 @@ Moira::execDbcc(u16 opcode)
             fullPrefetch<POLLIPL>();
             return;
         } else {
-            (void)readM<MEM_PROG, Word>(reg.pc + 2);
+            (void)readMS <MEM_PROG, Word> (reg.pc + 2);
         }
     } else {
         sync(2);
@@ -784,7 +786,7 @@ Moira::execJsr(u16 opcode)
     // Jump to new address
     reg.pc = ea;
 
-    queue.irc = (u16)readM<MEM_PROG, Word>(ea);
+    queue.irc = (u16)readMS <MEM_PROG, Word> (ea);
     prefetch<POLLIPL>();
 }
 
@@ -1155,7 +1157,7 @@ Moira::execMovemEaRg(u16 opcode)
         return;
     }
     
-    if constexpr (S == Long) (void)readM<MEM_DATA, Word>(ea);
+    if constexpr (S == Long) (void)readMS <MEM_DATA, Word> (ea);
 
     switch (M) {
 
@@ -1183,7 +1185,7 @@ Moira::execMovemEaRg(u16 opcode)
             break;
         }
     }
-    if constexpr (S == Word) (void)readM<MEM_DATA, Word>(ea);
+    if constexpr (S == Word) (void)readMS <MEM_DATA, Word> (ea);
     
     prefetch<POLLIPL>();
 }
@@ -1279,15 +1281,15 @@ Moira::execMovepEaDx(u16 opcode)
 
         case Long:
         {
-            dx |= readM <MEM_DATA, Byte> (ea) << 24; ea += 2;
-            dx |= readM <MEM_DATA, Byte> (ea) << 16; ea += 2;
+            dx |= readMS <MEM_DATA, Byte> (ea) << 24; ea += 2;
+            dx |= readMS <MEM_DATA, Byte> (ea) << 16; ea += 2;
             // fallthrough
         }
         case Word:
         {
-            dx |= readM <MEM_DATA, Byte> (ea) << 8; ea += 2;
+            dx |= readMS <MEM_DATA, Byte> (ea) << 8; ea += 2;
             pollIpl();
-            dx |= readM <MEM_DATA, Byte> (ea) << 0;
+            dx |= readMS <MEM_DATA, Byte> (ea) << 0;
         }
 
     }
@@ -1322,7 +1324,7 @@ Moira::execMoveToCcr(u16 opcode)
     sync(4);
     setCCR((u8)data);
 
-    (void)readM <MEM_PROG, Word> (reg.pc + 2);
+    (void)readMS <MEM_PROG, Word> (reg.pc + 2);
     prefetch<POLLIPL>();
 }
 
@@ -1364,7 +1366,7 @@ Moira::execMoveToSr(u16 opcode)
     sync(4);
     setSR((u16)data);
 
-    (void)readM <MEM_PROG, Word> (reg.pc + 2);
+    (void)readMS <MEM_PROG, Word> (reg.pc + 2);
     prefetch<POLLIPL>();
 }
 
@@ -1605,10 +1607,10 @@ Moira::execRte(u16 opcode)
 {
     SUPERVISOR_MODE_ONLY
 
-    u16 newsr = (u16)readM<MEM_DATA, Word>(reg.sp);
+    u16 newsr = (u16)readMS <MEM_DATA, Word> (reg.sp);
     reg.sp += 2;
 
-    u32 newpc = readM<MEM_DATA, Long>(reg.sp);
+    u32 newpc = readMS <MEM_DATA, Long> (reg.sp);
     reg.sp += 4;
 
     setSR(newsr);
@@ -1632,7 +1634,7 @@ Moira::execRtr(u16 opcode)
     
     reg.sp += 2;
 
-    u32 newpc = readM<MEM_DATA, Long>(reg.sp);
+    u32 newpc = readMS <MEM_DATA, Long> (reg.sp);
     reg.sp += 4;
     
     setCCR((u8)newccr);
@@ -1782,7 +1784,7 @@ Moira::execTrapv(u16 opcode)
 {
     if (reg.sr.v) {
 
-        (void)readM<MEM_PROG, Word>(reg.pc + 2);
+        (void)readMS <MEM_PROG, Word> (reg.pc + 2);
         execTrapException(7);
 
     } else {

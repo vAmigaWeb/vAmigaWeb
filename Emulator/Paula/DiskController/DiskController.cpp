@@ -12,7 +12,7 @@
 #include "Agnus.h"
 #include "ADFFile.h"
 #include "Drive.h"
-#include "IO.h"
+#include "IOUtils.h"
 #include "MsgQueue.h"
 #include "Paula.h"
 #include "SuspendableThread.h"
@@ -629,7 +629,7 @@ DiskController::performTurboRead(Drive *drive)
         agnus.dskpt += 2;
     }
     
-    debug(DSK_CHECKSUM, "Turbo read %s: cyl: %zd side: %zd offset: %zd ",
+    debug(DSK_CHECKSUM, "Turbo read %s: cyl: %ld side: %ld offset: %ld ",
           drive->getDescription(),
           drive->head.cylinder,
           drive->head.side,

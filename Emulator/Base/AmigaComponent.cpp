@@ -15,7 +15,11 @@
 void
 AmigaComponent::initialize()
 {    
-    for (AmigaComponent *c : subComponents) { c->initialize(); }
+    for (AmigaComponent *c : subComponents) { 
+        printf("init component\n");
+        c->initialize(); 
+    }
+    printf("_initialize\n");
     _initialize();
 }
 
@@ -88,7 +92,7 @@ AmigaComponent::load(const u8 *buffer)
         throw VAError(ERROR_SNAP_CORRUPTED);
     }
     
-    debug(SNP_DEBUG, "Loaded %zd bytes (expected %zd)\n", result, size());
+    debug(SNP_DEBUG, "Loaded %ld bytes (expected %ld)\n", result, size());
     return result;
 }
 
@@ -115,7 +119,7 @@ AmigaComponent::save(u8 *buffer)
     ptr += didSaveToBuffer(ptr);
     isize result = (isize)(ptr - buffer);
     
-    debug(SNP_DEBUG, "Saved %zd bytes (expected %zd)\n", result, size());
+    debug(SNP_DEBUG, "Saved %ld bytes (expected %ld)\n", result, size());
     assert(result == size());
 
     return result;

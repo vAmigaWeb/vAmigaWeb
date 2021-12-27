@@ -27,7 +27,7 @@ AudioFilter::setSampleRate(double sampleRate)
     const double ff = f_cutoff / sampleRate;
     
     // Compute coefficients
-    const double ita = 1.0/ tan(M_PI*ff);
+    const double ita = 1.0/ tan(M_PI * ff);
     const double q = sqrt(2.0);
     
     b0 = 1.0 / (1.0 + q * ita + ita * ita);

@@ -9,6 +9,8 @@
 
 #pragma once
 
+#ifdef SCREEN_RECORDER
+
 #include "SubComponent.h"
 #include "Chrono.h"
 #include "Muxer.h"
@@ -87,6 +89,10 @@ class Recorder : public SubComponent {
     // Time stamps
     util::Time recStart;
     util::Time recStop;
+    
+    // Temporary storage for audio and video data
+    u32 *videoData = nullptr;
+    float *audioData = nullptr;
     
     
     //
@@ -195,3 +201,5 @@ private:
     void finalize();
     void abort();
 };
+
+#endif

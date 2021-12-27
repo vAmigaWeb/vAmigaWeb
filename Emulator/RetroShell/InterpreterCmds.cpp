@@ -28,6 +28,12 @@ Interpreter::registerInstructions()
              &RetroShell::exec <Token::close>);
     root.seek("close")->hidden = true;
 
+    root.add({"help"},
+             "command", "Prints usage information",
+             &RetroShell::exec <Token::help>);
+    root.seek("help")->hidden = true;
+    root.seek("help")->maxArgs = 1;
+
     root.add({"joshua"},
              "command", "",
              &RetroShell::exec <Token::easteregg>);
@@ -234,6 +240,10 @@ Interpreter::registerInstructions()
              "command", "Displays the current register values",
              &RetroShell::exec <Token::cpu, Token::inspect, Token::registers>);
 
+    root.add({"cpu", "jump"},
+             "command", "Jumps to the specified address",
+             &RetroShell::exec <Token::cpu, Token::jump>, 1);
+
     
     //
     // CIA
@@ -410,6 +420,21 @@ Interpreter::registerInstructions()
              "key", "Enables or disables playfield-playfield collision detection",
              &RetroShell::exec <Token::denise, Token::set, Token::clxplfplf>, 1);
     
+    root.add({"denise", "hide"},
+             "command", "Hides bitplanes, sprites, or layers");
+
+    root.add({"denise", "hide", "bitplanes"},
+             "key", "Wipes out certain bitplane data",
+             &RetroShell::exec <Token::denise, Token::hide, Token::bitplanes>, 1);
+
+    root.add({"denise", "hide", "sprites"},
+             "key", "Wipes out certain sprite data",
+             &RetroShell::exec <Token::denise, Token::hide, Token::sprites>, 1);
+
+    root.add({"denise", "hide", "sprites"},
+             "key", "Makes certain drawing layers transparent",
+             &RetroShell::exec <Token::denise, Token::hide, Token::layers>, 1);
+
     root.add({"denise", "inspect"},
              "command", "Displays the internal state");
 
@@ -711,32 +736,51 @@ Interpreter::registerInstructions()
     // Mouse
     //
 
-    root.add({"mouse"},
-             "component", "Mouse");
+    root.add({"mouse1"},
+             "component", "Port 1 mouse");
 
-    root.add({"mouse", "config"},
-             "command", "Displays the current configuration",
-             &RetroShell::exec <Token::mouse, Token::config>);
-    
-    root.add({"mouse", "set"},
-             "command", "Configures the component");
+    root.add({"mouse2"},
+             "component", "Port 2 mouse");
+
+    for (isize i = 0; i < 2; i++) {
+
+        string mouse = (i == 0) ? "mouse1" : "mouse2";
         
-    root.add({"mouse", "set", "pullup"},
-             "key", "Enables or disables the emulation of pull-up resistors",
-             &RetroShell::exec <Token::mouse, Token::set, Token::pullup>, 1);
+        root.add({mouse, "config"},
+                 "command", "Displays the current configuration",
+                 &RetroShell::exec <Token::mouse, Token::config>, 0, i);
+        
+        root.add({mouse, "set"},
+                 "command", "Configures the component");
+        
+        root.add({mouse, "set", "pullup"},
+                 "key", "Enables or disables the emulation of pull-up resistors",
+                 &RetroShell::exec <Token::mouse, Token::set, Token::pullup>, 1, i);
+        
+        root.add({mouse, "set", "shakedetector"},
+                 "key", "Enables or disables the shake detector",
+                 &RetroShell::exec <Token::mouse, Token::set, Token::shakedetector>, 1, i);
+        
+        root.add({mouse, "set", "velocity"},
+                 "key", "Sets the horizontal and vertical mouse velocity",
+                 &RetroShell::exec <Token::mouse, Token::set, Token::velocity>, 1, i);
+        
+        root.add({mouse, "inspect"},
+                 "command", "Displays the internal state",
+                 &RetroShell::exec <Token::mouse, Token::inspect>, 0, i);
 
-    root.add({"mouse", "set", "shakedetector"},
-             "key", "Enables or disables the shake detector",
-             &RetroShell::exec <Token::mouse, Token::set, Token::shakedetector>, 1);
+        root.add({mouse, "press"},
+                 "command", "Presses a mouse button");
 
-    root.add({"mouse", "set", "velocity"},
-             "key", "Sets the horizontal and vertical mouse velocity",
-             &RetroShell::exec <Token::mouse, Token::set, Token::velocity>, 1);
+        root.add({mouse, "press", "left"},
+                 "command", "Presses the left mouse button",
+                 &RetroShell::exec <Token::mouse, Token::press, Token::left>, 0, i);
+        
+        root.add({mouse, "press", "right"},
+                 "command", "Presses the right mouse button",
+                 &RetroShell::exec <Token::mouse, Token::press, Token::right>, 0, i);
+    }
 
-    root.add({"mouse", "inspect"},
-             "command", "Displays the internal state",
-             &RetroShell::exec <Token::mouse, Token::inspect>);
-    
     
     //
     // Serial port
@@ -899,4 +943,97 @@ Interpreter::registerInstructions()
                  "command", "Displays the internal state",
                  &RetroShell::exec <Token::dfn, Token::inspect>);
     }
+
+    //
+    // OS Debugger
+    //
+
+    root.add({"os"},
+             "component", "AmigaOS debugger");
+
+    root.add({"os", "execbase"},
+             "command", "Displays information about the ExecBase struct",
+             &RetroShell::exec <Token::os, Token::execbase>);
+
+    root.add({"os", "interrupts"},
+             "command", "Lists all interrupt handlers",
+             &RetroShell::exec <Token::os, Token::interrupts>);
+
+    root.add({"os", "libraries"},
+             "command", "Lists all libraries",
+             &RetroShell::exec <Token::os, Token::libraries>);
+    root.seek("os")->seek("libraries")->maxArgs = 1;
+    
+    root.add({"os", "devices"},
+             "command", "Lists all devices",
+             &RetroShell::exec <Token::os, Token::devices>);
+    root.seek("os")->seek("devices")->maxArgs = 1;
+
+    root.add({"os", "resources"},
+             "command", "Lists all resources",
+             &RetroShell::exec <Token::os, Token::resources>);
+    root.seek("os")->seek("resources")->maxArgs = 1;
+
+    root.add({"os", "tasks"},
+             "command", "Lists all tasks",
+             &RetroShell::exec <Token::os, Token::tasks>);
+    root.seek("os")->seek("tasks")->maxArgs = 1;
+
+    root.add({"os", "processes"},
+             "command", "Lists all processes",
+             &RetroShell::exec <Token::os, Token::processes>);
+    root.seek("os")->seek("processes")->maxArgs = 1;
+
+    //
+    // Remote server
+    //
+        
+    root.add({"remote"},
+             "component", "Remote server");
+
+    root.add({"remote", "config"},
+             "command", "Displays the current configuration",
+             &RetroShell::exec <Token::remote, Token::config>);
+    
+    root.add({"remote", "set"},
+             "command", "Configures the component");
+        
+    root.add({"remote", "set", "mode"},
+             "key", "Selects the server protocol",
+             &RetroShell::exec <Token::remote, Token::set, Token::mode>, 1);
+
+    root.add({"remote", "set", "port"},
+             "key", "Assigns the port number",
+             &RetroShell::exec <Token::remote, Token::set, Token::port>, 1);
+
+    root.add({"remote", "start"},
+             "command", "Starts the debug server",
+             &RetroShell::exec <Token::remote, Token::start>, 0);
+
+    root.add({"remote", "stop"},
+             "command", "Stops the debug server",
+             &RetroShell::exec <Token::remote, Token::stop>, 0);
+
+    root.add({"remote", "inspect"},
+             "command", "Displays the internal state",
+             &RetroShell::exec <Token::remote, Token::inspect>, 0);
+    
+    //
+    // GDB server
+    //
+        
+    root.add({"gdbserver"},
+             "component", "GDB server");
+    root.seek("gdbserver")->hidden = true;
+
+    root.add({"gdbserver", "config"},
+             "command", "Displays the current configuration",
+             &RetroShell::exec <Token::gdb, Token::config>);
+    
+    root.add({"gdbserver", "set"},
+             "command", "Configures the component");
+        
+    root.add({"gdbserver", "set", "verbose"},
+             "key", "Enables or disables verbose mode",
+             &RetroShell::exec <Token::gdb, Token::set, Token::verbose>, 1);
 }

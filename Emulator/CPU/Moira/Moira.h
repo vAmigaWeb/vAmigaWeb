@@ -19,8 +19,12 @@
 
 namespace moira {
 
-// Execution control flags
-
+#ifdef _MSC_VER
+#define unreachable    __assume(false)
+#else
+#define unreachable    __builtin_unreachable()
+#endif
+#define fatalError     assert(false); unreachable
 
 class Moira : public SubComponent {
 
@@ -307,8 +311,7 @@ public:
 protected:
 
     // Advances the clock (called before each memory access)
-    void sync(int cycles); 
-    // virtual void sync(int cycles) { clock += cycles; }
+    void sync(int cycles);
 
 
     //

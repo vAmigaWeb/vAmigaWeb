@@ -9,8 +9,9 @@
 
 #include "config.h"
 #include "RTC.h"
+#include "Chrono.h"
 #include "CPU.h"
-#include "IO.h"
+#include "IOUtils.h"
 #include "Memory.h"
 
 i64
@@ -118,7 +119,7 @@ RTC::getTime()
     Cycle result;
     Cycle master = cpu.getMasterClock();
 
-    long timeBetweenCalls = AS_SEC(master - lastCall);
+    auto timeBetweenCalls = AS_SEC(master - lastCall);
            
     if (timeBetweenCalls > 2) {
 
@@ -186,7 +187,7 @@ RTC::spypeek(isize nr) const
             result = reg[bank()][nr];
     }
         
-    trace(RTC_DEBUG, "peek(%zu) = $%X [bank %zu]\n", nr, result, bank());
+    trace(RTC_DEBUG, "peek(%ld) = $%X [bank %ld]\n", nr, result, bank());
     return result;
 }
 
@@ -195,7 +196,7 @@ RTC::poke(isize nr, u8 value)
 {
     assert(nr < 16);
 
-    trace(RTC_DEBUG, "poke(%zu, $%02X) [bank %zu]\n", nr, value, bank());
+    trace(RTC_DEBUG, "poke(%ld, $%02X) [bank %ld]\n", nr, value, bank());
 
     // Ony proceed if a real-time clock is installed
     if (rtc.isPresent()) return;
@@ -221,10 +222,10 @@ RTC::time2registers()
     time_t rtcTime = getTime();
     
     // Convert the time_t value to a tm struct
-    tm *t = localtime(&rtcTime);
+    auto t = util::Time::local(rtcTime);
     
     // Write the registers
-    config.model == RTC_RICOH ? time2registersRicoh(t) : time2registersOki(t);
+    config.model == RTC_RICOH ? time2registersRicoh(&t) : time2registersOki(&t);
 }
 
 void

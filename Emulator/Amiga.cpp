@@ -39,7 +39,6 @@ Amiga::Amiga()
      */
     
     subComponents = std::vector<AmigaComponent *> {
-
         &agnus,
         &rtc,
         &denise,
@@ -58,8 +57,11 @@ Amiga::Amiga()
         &mem,
         &cpu,
         &retroShell,
+        &remoteServer,
+        &gdbServer,
         &regressionTester,
-        &msgQueue
+        &msgQueue,
+
     };
 
     // Set up the initial state
@@ -87,7 +89,6 @@ Amiga::Amiga()
         msg("       PixelEngine : %zu bytes\n", sizeof(PixelEngine));
         msg("               RTC : %zu bytes\n", sizeof(RTC));
         msg("           Sampler : %zu bytes\n", sizeof(Sampler));
-        msg("    ScreenRecorder : %zu bytes\n", sizeof(Recorder));
         msg("        SerialPort : %zu bytes\n", sizeof(SerialPort));
         msg("            Volume : %zu bytes\n", sizeof(Volume));
         msg("             Zorro : %zu bytes\n", sizeof(ZorroManager));
@@ -103,7 +104,7 @@ Amiga::~Amiga()
 void
 Amiga::prefix() const
 {
-    fprintf(stderr, "[%lld] (%3zd,%3zd) ",
+    fprintf(stderr, "[%lld] (%3ld,%3ld) ",
             agnus.frame.nr, agnus.pos.v, agnus.pos.h);
 
     fprintf(stderr, "%06X ", cpu.getPC0());
@@ -166,6 +167,7 @@ Amiga::getConfigItem(Option option) const
             return agnus.getConfigItem(option);
             
         case OPT_DENISE_REVISION:
+        case OPT_HIDDEN_BITPLANES:
         case OPT_HIDDEN_SPRITES:
         case OPT_HIDDEN_LAYERS:
         case OPT_HIDDEN_LAYER_ALPHA:
@@ -295,17 +297,24 @@ Amiga::getConfigItem(Option option, long id) const
             if (id == PORT_2) return controlPort2.joystick.getConfigItem(option);
             fatalError;
 
+        case OPT_SRV_MODE:
+        case OPT_SRV_PORT:
+
+            return remoteServer.getConfigItem(option);
+
+        case OPT_GDB_VERBOSE:
+            
+            return gdbServer.getConfigItem(option);
+            
         default:
             fatalError;
-    }
-    
-    return 0;
+    }    
 }
 
 void
 Amiga::configure(Option option, i64 value)
 {
-    debug(CNF_DEBUG, "configure(%lld, %lld)\n", option, value);
+    debug(CNF_DEBUG, "configure(%s, %lld)\n", OptionEnum::key(option), value);
 
     // The following options do not send a message to the GUI
     static std::vector<Option> quiet = {
@@ -337,6 +346,7 @@ Amiga::configure(Option option, i64 value)
             break;
             
         case OPT_DENISE_REVISION:
+        case OPT_HIDDEN_BITPLANES:
         case OPT_HIDDEN_SPRITES:
         case OPT_HIDDEN_LAYERS:
         case OPT_HIDDEN_LAYER_ALPHA:
@@ -467,6 +477,17 @@ Amiga::configure(Option option, i64 value)
             controlPort1.joystick.setConfigItem(option, value);
             controlPort2.joystick.setConfigItem(option, value);
             break;
+            
+        case OPT_SRV_MODE:
+        case OPT_SRV_PORT:
+
+            remoteServer.setConfigItem(option, value);
+            break;
+
+        case OPT_GDB_VERBOSE:
+            
+            gdbServer.setConfigItem(option, value);
+            break;
 
         default:
             fatalError;
@@ -480,7 +501,7 @@ Amiga::configure(Option option, i64 value)
 void
 Amiga::configure(Option option, long id, i64 value)
 {
-    debug(CNF_DEBUG, "configure(%lld, %ld, %lld)\n", option, id, value);
+    debug(CNF_DEBUG, "configure(%s, %ld, %lld)\n", OptionEnum::key(option), id, value);
 
     // Check if this option has been locked for debugging
     value = overrideOption(option, value);
@@ -803,6 +824,22 @@ Amiga::_warpOff()
 }
 
 void
+Amiga::_debugOn()
+{
+    debug(RUN_DEBUG, "_debugOn\n");
+
+    msgQueue.put(MSG_DEBUG_ON);
+}
+
+void
+Amiga::_debugOff()
+{
+    debug(RUN_DEBUG, "_debugOff\n");
+
+    msgQueue.put(MSG_DEBUG_OFF);
+}
+
+void
 Amiga::execute()
 {    
     while(1) {
@@ -844,7 +881,7 @@ Amiga::execute()
             if (flags & RL::BREAKPOINT_REACHED) {
                 clearFlag(RL::BREAKPOINT_REACHED);
                 inspect();
-                msgQueue.put(MSG_BREAKPOINT_REACHED, cpu.debugger.breakpointPC);
+                msgQueue.put(MSG_BREAKPOINT_REACHED, (long)cpu.debugger.breakpointPC);
                 newState = EXEC_PAUSED;
                 break;
             }
@@ -853,7 +890,7 @@ Amiga::execute()
             if (flags & RL::WATCHPOINT_REACHED) {
                 clearFlag(RL::WATCHPOINT_REACHED);
                 inspect();
-                msgQueue.put(MSG_WATCHPOINT_REACHED, cpu.debugger.watchpointPC);
+                msgQueue.put(MSG_WATCHPOINT_REACHED, (long)cpu.debugger.watchpointPC);
                 newState = EXEC_PAUSED;
                 break;
             }

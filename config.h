@@ -179,8 +179,11 @@ static const int IMG_DEBUG       = 0; // IMG files
 // Other components
 static const int RTC_DEBUG       = 0; // Real-time clock
 static const int KBD_DEBUG       = 0; // Keyboard
-static const int REC_DEBUG       = 0; // Screen recorder
 
+// Misc
+static const int REC_DEBUG       = 0; // Screen recorder
+static const int SRV_DEBUG       = 1; // Remote server
+static const int GDB_DEBUG       = 1; // GDB server
 
 //
 // Forced error conditions
@@ -195,6 +198,7 @@ static const int FORCE_SNAP_TOO_OLD        = 0;
 static const int FORCE_SNAP_TOO_NEW        = 0;
 static const int FORCE_SNAP_CORRUPTED      = 0;
 static const int FORCE_DISK_INVALID_LAYOUT = 0;
+static const int FORCE_DMS_CANT_CREATE     = 0;
 static const int FORCE_RECORDING_ERROR     = 0;
 
 

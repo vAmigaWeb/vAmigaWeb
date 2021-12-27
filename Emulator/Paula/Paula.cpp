@@ -11,7 +11,7 @@
 #include "Paula.h"
 #include "Agnus.h"
 #include "CPU.h"
-#include "IO.h"
+#include "IOUtils.h"
 
 Paula::Paula(Amiga& ref) : SubComponent(ref)
 {
@@ -123,7 +123,7 @@ Paula::scheduleIrqAbs(IrqSource src, Cycle trigger)
     assert(trigger != 0);
     assert(scheduler.id[SLOT_IRQ] == IRQ_CHECK);
 
-    trace(INT_DEBUG, "scheduleIrq(%lld, %lld)\n", src, trigger);
+    trace(INT_DEBUG, "scheduleIrq(%ld, %lld)\n", src, trigger);
 
     // Record the interrupt request
     if (trigger < setIntreq[src])

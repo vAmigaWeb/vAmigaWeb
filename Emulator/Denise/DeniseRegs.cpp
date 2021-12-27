@@ -146,8 +146,8 @@ Denise::setBPLCON2(u16 newValue)
 
     bplcon2 = newValue;
 
-    if (pf1px() > 4) trace(XFILES, "XFILES (BPLCON2): PF1P = %d\n", pf1px());
-    if (pf2px() > 4) trace(XFILES, "XFILES (BPLCON2): PF2P = %d\n", pf2px());
+    if (pf1px() > 4) { trace(XFILES, "XFILES (BPLCON2): PF1P = %d\n", pf1px()); }
+    if (pf2px() > 4) { trace(XFILES, "XFILES (BPLCON2): PF2P = %d\n", pf2px()); }
     
     // Record the register change
     i64 pixel = 4 * agnus.pos.h + 4;
@@ -194,9 +194,9 @@ template <isize x, Accessor s> void
 Denise::pokeBPLxDAT(u16 value)
 {
     assert(x < 6);
-    trace(BPLREG_DEBUG, "pokeBPL%zdDAT(%X)\n", x + 1, value);
+    trace(BPLREG_DEBUG, "pokeBPL%ldDAT(%X)\n", x + 1, value);
 
-    if (s == ACCESSOR_AGNUS) {
+    if constexpr (s == ACCESSOR_AGNUS) {
         /*
         debug("BPL%dDAT written by Agnus (%x)\n", x, value);
         */
@@ -209,11 +209,11 @@ template <isize x> void
 Denise::setBPLxDAT(u16 value)
 {
     assert(x < 6);
-    trace(BPLDAT_DEBUG, "setBPL%zdDAT(%X)\n", x + 1, value);
+    trace(BPLDAT_DEBUG, "setBPL%ldDAT(%X)\n", x + 1, value);
 
     bpldat[x] = value;
 
-    if (x == 0) {
+    if constexpr (x == 0) {
         
         updateShiftRegisters();
         
@@ -234,7 +234,7 @@ template <isize x> void
 Denise::pokeSPRxPOS(u16 value)
 {
     assert(x < 8);
-    trace(SPRREG_DEBUG, "pokeSPR%zdPOS(%X)\n", x, value);
+    trace(SPRREG_DEBUG, "pokeSPR%ldPOS(%X)\n", x, value);
 
     // 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0  (Ex = VSTART)
     // E7 E6 E5 E4 E3 E2 E1 E0 H8 H7 H6 H5 H4 H3 H2 H1  (Hx = HSTART)
@@ -248,7 +248,7 @@ template <isize x> void
 Denise::pokeSPRxCTL(u16 value)
 {
     assert(x < 8);
-    trace(SPRREG_DEBUG, "pokeSPR%zdCTL(%X)\n", x, value);
+    trace(SPRREG_DEBUG, "pokeSPR%ldCTL(%X)\n", x, value);
 
     // 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
     // L7 L6 L5 L4 L3 L2 L1 L0 AT  -  -  -  - E8 L8 H0  (Lx = VSTOP)
@@ -265,7 +265,7 @@ template <isize x> void
 Denise::pokeSPRxDATA(u16 value)
 {
     assert(x < 8);
-    trace(SPRREG_DEBUG, "pokeSPR%zdDATA(%X)\n", x, value);
+    trace(SPRREG_DEBUG, "pokeSPR%ldDATA(%X)\n", x, value);
     
     // If requested, let this sprite disappear by making it transparent
     if (GET_BIT(config.hiddenSprites, x)) value = 0;
@@ -282,7 +282,7 @@ template <isize x> void
 Denise::pokeSPRxDATB(u16 value)
 {
     assert(x < 8);
-    trace(SPRREG_DEBUG, "pokeSPR%zdDATB(%X)\n", x, value);
+    trace(SPRREG_DEBUG, "pokeSPR%ldDATB(%X)\n", x, value);
     
     // If requested, let this sprite disappear by making it transparent
     if (GET_BIT(config.hiddenSprites, x)) value = 0;
@@ -295,13 +295,16 @@ Denise::pokeSPRxDATB(u16 value)
 template <Accessor s, isize xx> void
 Denise::pokeCOLORxx(u16 value)
 {
-    trace(COLREG_DEBUG, "pokeCOLOR%02zd(%X)\n", xx, value);
+    trace(COLREG_DEBUG, "pokeCOLOR%02ld(%X)\n", xx, value);
 
     u32 reg = 0x180 + 2*xx;
     isize pos = agnus.pos.h;
 
-    // If the CPU modifies color, the change takes effect one DMA cycle earlier
-    if (s != ACCESSOR_AGNUS && agnus.pos.h != 0) pos--;
+    if constexpr (s == ACCESSOR_CPU) {
+
+        // If the CPU writes, the change takes effect one DMA cycle earlier
+        if (agnus.pos.h != 0) pos--;
+    }
     
     // Record the color change
     pixelEngine.colChanges.insert(4 * pos, RegChange { reg, value } );

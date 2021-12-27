@@ -17,10 +17,15 @@ enum_long(ERROR_CODE)
     ERROR_OK,
     ERROR_UNKNOWN,
     
+    // Emulator state
+    ERROR_POWERED_OFF,
+    ERROR_POWERED_ON,
+    ERROR_RUNNING,
+
     // Configuration
     ERROR_OPT_UNSUPPORTED,
     ERROR_OPT_INVARG,
-    ERROR_OPT_LOCKED,
+    ERROR_OPT_LOCKED,               // DEPRECATED: Replace by ERROR_POWERED_ON
 
     // Memory
     ERROR_OUT_OF_MEMORY,
@@ -60,11 +65,27 @@ enum_long(ERROR_CODE)
     ERROR_EXT_FACTOR5,
     ERROR_EXT_INCOMPATIBLE,
     ERROR_EXT_CORRUPTED,
-
+    ERROR_DMS_CANT_CREATE,
+    
     // Encrypted Roms
     ERROR_MISSING_ROM_KEY,
     ERROR_INVALID_ROM_KEY,
     
+    // OS Debugger
+    ERROR_OSDB,
+    
+    // GDB server
+    ERROR_SOCK_CANT_CREATE,
+    ERROR_SOCK_CANT_CONNECT,
+    ERROR_SOCK_DISCONNECTED,
+    ERROR_GDB_SERVER_RUNNING,
+    ERROR_GDB_SERVER_NOT_RUNNING,
+    ERROR_GDB_NO_ACK,
+    ERROR_GDB_INVALID_FORMAT,
+    ERROR_GDB_INVALID_CHECKSUM,
+    ERROR_GDB_UNRECOGNIZED_CMD,
+    ERROR_GDB_UNSUPPORTED_CMD,
+
     // File system
     ERROR_FS_UNKNOWN,
     ERROR_FS_UNSUPPORTED,
@@ -107,9 +128,9 @@ typedef ERROR_CODE ErrorCode;
 #ifdef __cplusplus
 struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
 {
-    static long min() { return 0; }
-    static long max() { return ERROR_FS_INVALID_HASHTABLE_SIZE; }
-    static bool isValid(long value) { return value >= min() && value <= max(); }
+    static long minVal() { return 0; }
+    static long maxVal() { return ERROR_FS_INVALID_HASHTABLE_SIZE; }
+    static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
     
     static const char *prefix() { return "ERROR"; }
     static const char *key(ErrorCode value)
@@ -119,9 +140,13 @@ struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
             case ERROR_OK:                          return "OK";
             case ERROR_UNKNOWN:                     return "UNKNOWN";
                 
-            case ERROR_OPT_UNSUPPORTED:             return "ERROR_OPT_UNSUPPORTED";
-            case ERROR_OPT_INVARG:                  return "ERROR_OPT_INVARG";
-            case ERROR_OPT_LOCKED:                  return "ERROR_OPT_LOCKED";
+            case ERROR_POWERED_OFF:                 return "POWERED_OFF";
+            case ERROR_POWERED_ON:                  return "POWERED_ON";
+            case ERROR_RUNNING:                     return "RUNNING";
+
+            case ERROR_OPT_UNSUPPORTED:             return "OPT_UNSUPPORTED";
+            case ERROR_OPT_INVARG:                  return "OPT_INVARG";
+            case ERROR_OPT_LOCKED:                  return "OPT_LOCKED";
                 
             case ERROR_OUT_OF_MEMORY:               return "OUT_OF_MEMORY";
 
@@ -132,7 +157,7 @@ struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
             case ERROR_FILE_CANT_WRITE:             return "FILE_CANT_WRITE";
             case ERROR_FILE_CANT_CREATE:            return "FILE_CANT_CREATE";
 
-            case ERROR_CHIP_RAM_MISSING:            return "ERROR_CHIP_RAM_MISSING";
+            case ERROR_CHIP_RAM_MISSING:            return "CHIP_RAM_MISSING";
             case ERROR_CHIP_RAM_LIMIT:              return "CHIP_RAM_LIMIT";
             case ERROR_AROS_RAM_LIMIT:              return "AROS_RAM_LIMIT";
 
@@ -150,13 +175,27 @@ struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
             case ERROR_SNAP_TOO_OLD:                return "SNAP_TOO_OLD";
             case ERROR_SNAP_TOO_NEW:                return "SNAP_TOO_NEW";
                 
-            case ERROR_EXT_FACTOR5:             return "EXT_UNSUPPORTED";
+            case ERROR_EXT_FACTOR5:                 return "EXT_UNSUPPORTED";
             case ERROR_EXT_INCOMPATIBLE:            return "EXT_INCOMPATIBLE";
             case ERROR_EXT_CORRUPTED:               return "EXT_CORRUPTED";
+                
+            case ERROR_DMS_CANT_CREATE:             return "DMS_CANT_CREATE";
                 
             case ERROR_MISSING_ROM_KEY:             return "MISSING_ROM_KEY";
             case ERROR_INVALID_ROM_KEY:             return "INVALID_ROM_KEY";
                 
+            case ERROR_OSDB:                        return "OSDB";
+            case ERROR_SOCK_CANT_CREATE:            return "SOCK_CANT_CREATE";
+            case ERROR_SOCK_CANT_CONNECT:           return "SOCK_CANT_CONNECT";
+            case ERROR_SOCK_DISCONNECTED:           return "SOCK_DISCONNECTED";
+            case ERROR_GDB_SERVER_RUNNING:          return "GDB_SERVER_RUNNING";
+            case ERROR_GDB_SERVER_NOT_RUNNING:      return "GDB_SERVER_NOT_RUNNING";
+            case ERROR_GDB_NO_ACK:                  return "GDB_NO_ACK";
+            case ERROR_GDB_INVALID_FORMAT:          return "GDB_INVALID_FORMAT";
+            case ERROR_GDB_INVALID_CHECKSUM:        return "GDB_INVALID_CHECKSUM";
+            case ERROR_GDB_UNRECOGNIZED_CMD:        return "GDB_UNRECOGNIZED_CMD";
+            case ERROR_GDB_UNSUPPORTED_CMD:         return "GDB_UNSUPPORTED_CMD";
+
             case ERROR_FS_UNKNOWN:                  return "FS_UNKNOWN";
             case ERROR_FS_UNSUPPORTED:              return "FS_UNSUPPORTED";
             case ERROR_FS_WRONG_BSIZE:              return "FS_WRONG_BSIZE";

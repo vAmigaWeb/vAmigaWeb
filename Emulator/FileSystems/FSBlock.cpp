@@ -343,7 +343,7 @@ FSBlock::check(bool strict) const
         
         if ((error = check(i, &expected, strict)) != ERROR_OK) {
             count++;
-            debug(FS_DEBUG, "Block %d [%zd.%zd]: %s\n", nr, i / 4, i % 4,
+            debug(FS_DEBUG, "Block %d [%ld.%ld]: %s\n", nr, i / 4, i % 4,
                   ErrorCodeEnum::key(error));
         }
     }
@@ -670,10 +670,10 @@ FSBlock::dump() const
             msg("         Name : %s\n", getName().c_str());
             msg("      Created : %s\n", getCreationDate().str().c_str());
             msg("     Modified : %s\n", getModificationDate().str().c_str());
-            msg("   Hash table : "); dumpHashTable(); printf("\n");
+            msg("   Hash table : "); dumpHashTable(); msg("\n");
             msg("Bitmap blocks : ");
             for (isize i = 0; i < 25; i++) {
-                if (isize ref = getBmBlockRef(i)) msg("%zd ", ref);
+                if (isize ref = getBmBlockRef(i)) msg("%ld ", ref);
             }
             msg("\n");
             msg("   Next BmExt : %d\n", getNextBmExtBlockRef());
@@ -689,7 +689,7 @@ FSBlock::dump() const
                     }
                 }
             }
-            msg("         Free : %zd blocks\n", count);
+            msg("           Free : %ld blocks\n", count);
         }
         case FS_BITMAP_EXT_BLOCK:
         {
@@ -698,16 +698,16 @@ FSBlock::dump() const
                 if (Block ref = getBmBlockRef(i)) msg("%d ", ref);
             }
             msg("\n");
-            msg("         Next : %d\n", getNextBmExtBlockRef());
+            msg("           Next : %d\n", getNextBmExtBlockRef());
             break;
         }
         case FS_USERDIR_BLOCK:
             
-            printf("        Name: %s\n", getName().c_str());
-            printf("     Comment: %s\n", getComment().c_str());
-            printf("     Created: %s\n", getCreationDate().str().c_str());
-            printf("      Parent: %d\n", getParentDirRef());
-            printf("        Next: %d\n", getNextHashRef());
+            msg("           Name : %s\n", getName().c_str());
+            msg("        Comment : %s\n", getComment().c_str());
+            msg("        Created : %s\n", getCreationDate().str().c_str());
+            msg("         Parent : %d\n", getParentDirRef());
+            msg("           Next : %d\n", getNextHashRef());
             break;
             
         case FS_FILEHEADER_BLOCK:
@@ -718,7 +718,7 @@ FSBlock::dump() const
             msg("           Next : %d\n", getNextHashRef());
             msg("      File size : %d\n", getFileSize());
 
-            msg("    Block count : %zd / %zd\n", getNumDataBlockRefs(), getMaxDataBlockRefs());
+            msg("    Block count : %ld / %ld\n", getNumDataBlockRefs(), getMaxDataBlockRefs());
             msg("          First : %d\n", getFirstDataBlockRef());
             msg("     Parent dir : %d\n", getParentDirRef());
             msg(" FileList block : %d\n", getNextListBlockRef());
@@ -730,11 +730,11 @@ FSBlock::dump() const
             
         case FS_FILELIST_BLOCK:
             
-            msg(" Block count : %zd / %zd\n", getNumDataBlockRefs(), getMaxDataBlockRefs());
-            msg("       First : %d\n", getFirstDataBlockRef());
-            msg("Header block : %d\n", getFileHeaderRef());
-            msg("   Extension : %d\n", getNextListBlockRef());
-            msg(" Data blocks : ");
+            msg("    Block count : %ld / %ld\n", getNumDataBlockRefs(), getMaxDataBlockRefs());
+            msg("          First : %d\n", getFirstDataBlockRef());
+            msg("   Header block : %d\n", getFileHeaderRef());
+            msg("      Extension : %d\n", getNextListBlockRef());
+            msg("    Data blocks : ");
             for (isize i = 0; i < getNumDataBlockRefs(); i++) msg("%d ", getDataBlockRef(i));
             msg("\n");
             break;
@@ -786,7 +786,7 @@ FSBlock::exportBlock(u8 *dst, isize size)
 }
 
 ErrorCode
-FSBlock::exportBlock(const string &path)
+FSBlock::exportBlock(const fs::path &path)
 {
     switch (type) {
             
@@ -799,27 +799,26 @@ FSBlock::exportBlock(const string &path)
 }
 
 ErrorCode
-FSBlock::exportUserDirBlock(const string &path)
+FSBlock::exportUserDirBlock(const fs::path &path)
 {
-    string filename = path + "/" + partition.dev.getPath(this);
+    auto name = path / partition.dev.getPath(this);
     
-    // Try to create a directory on the host file system
-    if (mkdir(filename.c_str(), 0777) != 0) return ERROR_FS_CANNOT_CREATE_DIR;
-    
+    if (!util::createDirectory(name.string())) {
+        return ERROR_FS_CANNOT_CREATE_DIR;
+    }
+
     return ERROR_OK;
 }
 
 ErrorCode
-FSBlock::exportFileHeaderBlock(const string &path)
+FSBlock::exportFileHeaderBlock(const fs::path &path)
 {
-    string filename = path + "/" + partition.dev.getPath(this);
+    auto filename = path / partition.dev.getPath(this);
     
-    FILE *file = fopen(filename.c_str(), "w");
-    if (file == nullptr) return ERROR_FS_CANNOT_CREATE_FILE;
+    std::ofstream file(filename.string(), std::ofstream::binary);
+    if (!file.is_open()) return ERROR_FS_CANNOT_CREATE_FILE;
     
     writeData(file);
-    fclose(file);
-        
     return ERROR_OK;
 }
 
@@ -1350,7 +1349,7 @@ FSBlock::dumpHashTable() const
         
         u32 value = read32(data + 24 + 4 * i);
         if (value) {
-            msg("%zd: %d ", i, value);
+            msg("%ld: %d ", i, value);
         }
     }
 }
@@ -1361,7 +1360,7 @@ FSBlock::writeBootBlock(BootBlockId id, isize page)
     assert(page == 0 || page == 1);
     assert(type == FS_BOOT_BLOCK);
     
-    debug(FS_DEBUG, "writeBootBlock(%s, %zd)\n", BootBlockIdEnum::key(id), page);
+    debug(FS_DEBUG, "writeBootBlock(%s, %ld)\n", BootBlockIdEnum::key(id), page);
     
     if (id != BB_NONE) {
         
@@ -1621,9 +1620,9 @@ FSBlock::addData(const u8 *buffer, isize size)
             isize numDataBlocks = partition.requiredDataBlocks(size);
             isize numListBlocks = partition.requiredFileListBlocks(size);
             
-            debug(FS_DEBUG, "Required data blocks : %zd\n", numDataBlocks);
-            debug(FS_DEBUG, "Required list blocks : %zd\n", numListBlocks);
-            debug(FS_DEBUG, "         Free blocks : %zd\n", partition.freeBlocks());
+            debug(FS_DEBUG, "Required data blocks : %ld\n", numDataBlocks);
+            debug(FS_DEBUG, "Required list blocks : %ld\n", numListBlocks);
+            debug(FS_DEBUG, "         Free blocks : %ld\n", partition.freeBlocks());
             
             if (partition.freeBlocks() < numDataBlocks + numListBlocks) {
                 warn("Not enough free blocks\n");
@@ -1679,7 +1678,7 @@ FSBlock::addData(const u8 *buffer, isize size)
 }
 
 isize
-FSBlock::writeData(FILE *file)
+FSBlock::writeData(std::ostream& os)
 {
     // Only call this function for file header blocks
     assert(type == FS_FILEHEADER_BLOCK);
@@ -1702,7 +1701,7 @@ FSBlock::writeData(FILE *file)
             Block ref = getDataBlockRef(i);
             if (FSBlock *dataBlock = partition.dev.dataBlockPtr(getDataBlockRef(i))) {
                 
-                isize bytesWritten = dataBlock->writeData(file, bytesRemaining);
+                isize bytesWritten = dataBlock->writeData(os, bytesRemaining);
                 bytesTotal += bytesWritten;
                 bytesRemaining -= bytesWritten;
                 
@@ -1717,29 +1716,27 @@ FSBlock::writeData(FILE *file)
     }
     
     if (bytesRemaining != 0) {
-        warn("%zd remaining bytes. Expected 0.\n", bytesRemaining);
+        warn("%ld remaining bytes. Expected 0.\n", bytesRemaining);
     }
     
     return bytesTotal;
 }
 
 isize
-FSBlock::writeData(FILE *file, isize size)
+FSBlock::writeData(std::ostream& os, isize size)
 {
-    assert(file);
-    
     isize count = std::min(dsize(), size);
     
     switch (type) {
             
         case FS_DATA_BLOCK_OFS:
             
-            for (isize i = 0; i < count; i++) fputc(data[i + 24], file);
+            os.write((char *)(data + 24), count);
             return count;
             
         case FS_DATA_BLOCK_FFS:
             
-            for (isize i = 0; i < count; i++) fputc(data[i], file);
+            os.write((char *)data, count);
             return count;
             
         default:

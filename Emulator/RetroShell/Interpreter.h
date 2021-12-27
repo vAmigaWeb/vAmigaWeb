@@ -21,27 +21,26 @@ enum class Token
     
     // Components
     agnus, amiga, audio, blitter, cia, controlport, copper, cpu, dc, denise,
-    dfn, dmadebugger, keyboard, memory, monitor, mouse, paula, regression,
-    screenshot, serial, rtc,
+    dfn, dmadebugger, gdb, keyboard, memory, monitor, mouse, os, paula,
+    regression, remote, screenshot, serial, rtc,
 
     // Commands
-    about, audiate, autosync, clear, config, connect, debug, disable,
-    disconnect, dsksync, easteregg, eject, enable, close, hide, init, insert,
-    inspect, list, load, lock, off, on, open, pause, power, reset, run, save,
-    set, setup, show, source, wait,
-    
-    // Categories
-    checksums, devices, dma, events, registers, state,
-        
+    about, audiate, autosync, clear, close, config, connect, debug, disable,
+    disconnect, dsksync, easteregg, eject, enable, jump, help, hide, init, insert,
+    inspect, list, load, lock, off, on, open, pause, power, press, reset, run,
+    save, set, setup, show, source, start, stop, wait,
+            
     // Keys
-    accuracy, bankmap, bitplanes, brightness, channel, chip, clxsprspr,
-    clxsprplf, clxplfplf, color, contrast, cutout, defaultbb, defaultfs, delay,
-    device, disk, esync, extrom, extstart, fast, filename, filter, joystick,
-    keyset, mechanics, mode, model, opacity, palette, pan, path, poll, pullup,
-    raminitpattern, refresh, regreset, revision, rom, sampling, saturation,
-    saveroms, searchpath, shakedetector, slow, slowramdelay, slowrammirror,
-    speed, sprites, step, swapdelay, tod, todbug, unmappingtype, velocity,
-    volume, wom
+    accuracy, bankmap, bitplanes, brightness, channel, checksums, chip,
+    clxsprspr, clxsprplf, clxplfplf, color, contrast, cutout, defaultbb,
+    defaultfs, delay, device, devices, disk, dma, esync, events, execbase,
+    extrom, extstart, fast, filename, filter, interrupts, joystick, keyset,
+    layers, left, library, libraries, mechanics, mode, model, opacity, palette,
+    pan, path, poll, port, ports, process, processes, pullup, raminitpattern,
+    refresh, registers, regreset, resource, resources, revision, right, rom,
+    sampling, saturation, saveroms, searchpath, shakedetector, slow,
+    slowramdelay,slowrammirror, speed, sprites, state, step, swapdelay, task,
+    tasks, tod, todbug, unmappingtype, verbose, velocity, volume, wom
 };
 
 struct TooFewArgumentsError : public util::ParseError {

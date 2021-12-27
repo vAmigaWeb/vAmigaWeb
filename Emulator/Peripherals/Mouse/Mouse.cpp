@@ -9,9 +9,10 @@
 
 #include "config.h"
 #include "Mouse.h"
+#include "Agnus.h"
 #include "Chrono.h"
 #include "ControlPort.h"
-#include "IO.h"
+#include "IOUtils.h"
 #include "MsgQueue.h"
 
 Mouse::Mouse(Amiga& ref, ControlPort& pref) : SubComponent(ref), port(pref)
@@ -95,7 +96,7 @@ Mouse::setConfigItem(Option option, i64 value)
             if (value < 0 || value > 255) {
                 throw VAError(ERROR_OPT_INVARG, "0 ... 255");
             }
-            config.velocity= value;
+            config.velocity = (isize)value;
             updateScalingFactors();
             return;
 
@@ -346,3 +347,63 @@ ShakeDetector::isShakingRel(double dx) {
     
     return false;
 }
+
+void
+Mouse::pressAndReleaseLeft(Cycle duration, Cycle delay)
+{
+    if (port.isPort1()) {
+        agnus.scheduleRel <SLOT_MSE1> (delay, MSE_PUSH_LEFT, duration);
+    } else {
+        agnus.scheduleRel <SLOT_MSE2> (delay, MSE_PUSH_LEFT, duration);
+    }
+}
+
+void
+Mouse::pressAndReleaseRight(Cycle duration, Cycle delay)
+{
+    if (port.isPort1()) {
+        agnus.scheduleRel <SLOT_MSE1> (delay, MSE_PUSH_RIGHT, duration);
+    } else {
+        agnus.scheduleRel <SLOT_MSE2> (delay, MSE_PUSH_RIGHT, duration);
+    }
+}
+
+template <EventSlot s> void
+Mouse::serviceMouseEvent()
+{
+    auto id = scheduler.id[s];
+    auto duration = scheduler.data[s];
+    
+    switch (id) {
+
+        case MSE_PUSH_LEFT:
+            
+            setLeftButton(true);
+            agnus.scheduleRel <s> (duration, MSE_RELEASE_LEFT);
+            break;
+            
+        case MSE_RELEASE_LEFT:
+            
+            setLeftButton(false);
+            scheduler.cancel <s> ();
+            break;
+
+        case MSE_PUSH_RIGHT:
+            
+            setRightButton(true);
+            agnus.scheduleRel <s> (duration, MSE_RELEASE_RIGHT);
+            break;
+            
+        case MSE_RELEASE_RIGHT:
+            
+            setRightButton(false);
+            scheduler.cancel <s> ();
+            break;
+
+        default:
+            fatalError;
+    }
+}
+
+template void Mouse::serviceMouseEvent<SLOT_MSE1>();
+template void Mouse::serviceMouseEvent<SLOT_MSE2>();

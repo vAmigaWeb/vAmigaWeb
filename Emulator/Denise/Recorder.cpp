@@ -7,12 +7,15 @@
 // See https://www.gnu.org for license information
 // -----------------------------------------------------------------------------
 
+#ifdef SCREEN_RECORDER
+
 #include "config.h"
 #include "Recorder.h"
-#include "IO.h"
+#include "IOUtils.h"
 #include "Denise.h"
 #include "MsgQueue.h"
 #include "Paula.h"
+#include <unistd.h>
 
 Recorder::Recorder(Amiga& ref) : SubComponent(ref)
 {
@@ -100,6 +103,14 @@ Recorder::startRecording(int x1, int y1, int x2, int y2,
         sampleRate = 44100;
         samplesPerFrame = sampleRate / frameRate;
         
+        // Create temporary buffers
+        debug(REC_DEBUG, "Creating buffers...\n");
+
+        if (videoData) delete [] videoData;
+        if (audioData) delete [] audioData;
+        videoData = new u32[(x2 - x1) * (y2 - y1)];
+        audioData = new float[2 * samplesPerFrame];
+        
         // Create pipes
         debug(REC_DEBUG, "Creating pipes...\n");
         
@@ -108,12 +119,12 @@ Recorder::startRecording(int x1, int y1, int x2, int y2,
         if (mkfifo(videoPipePath().c_str(), 0666) == -1) return false;
         if (mkfifo(audioPipePath().c_str(), 0666) == -1) return false;
         
-        debug(REC_DEBUG, "Pipes created\n");
-        dump();
-        
+
         //
         // Assemble the command line arguments for the video encoder
         //
+        
+        debug(REC_DEBUG, "Assembling command line arguments\n");
         
         // Path to the FFmpeg executable
         string cmd1 = ffmpegPath() + " -nostdin";
@@ -327,9 +338,8 @@ Recorder::recordVideo(Cycle target)
     isize width = sizeof(u32) * (cutout.x2 - cutout.x1);
     isize height = cutout.y2 - cutout.y1;
     isize offset = cutout.y1 * HPIXELS + cutout.x1 + HBLANK_MIN * 4;
-    u8 *data = new u8[width * height];
     u8 *src = (u8 *)(buffer.data + offset);
-    u8 *dst = data;
+    u8 *dst = (u8 *)videoData;
     
     for (isize y = 0; y < height; y++, src += 4 * HPIXELS, dst += width) {
         std::memcpy(dst, src, width);
@@ -338,7 +348,7 @@ Recorder::recordVideo(Cycle target)
     // Feed the video pipe
     assert(videoPipe != -1);
     isize length = width * height;
-    isize written = write(videoPipe, data, length);
+    isize written = write(videoPipe, videoData, length);
     
     if (written != length || FORCE_RECORDING_ERROR) {
         state = State::abort;
@@ -365,13 +375,12 @@ Recorder::recordAudio(Cycle target)
     audioClock = target;
     
     // Copy samples to buffer
-    float *samples = new float[2 * samplesPerFrame];
-    muxer.copy(samples, samplesPerFrame);
+    muxer.copy(audioData, samplesPerFrame);
     
     // Feed the audio pipe
     assert(audioPipe != -1);
     isize length = 2 * sizeof(float) * samplesPerFrame;
-    isize written = write(audioPipe, (u8 *)samples, length);
+    isize written = write(audioPipe, (u8 *)audioData, length);
  
     if (written != length || FORCE_RECORDING_ERROR) {
         state = State::abort;
@@ -405,3 +414,5 @@ Recorder::abort()
     finalize();
     msgQueue.put(MSG_RECORDING_ABORTED);
 }
+
+#endif

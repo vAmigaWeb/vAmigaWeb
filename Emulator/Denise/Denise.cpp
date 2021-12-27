@@ -12,16 +12,19 @@
 #include "Agnus.h"
 #include "Amiga.h"
 #include "ControlPort.h"
-#include "IO.h"
+#include "IOUtils.h"
 #include "SSEUtils.h"
 
 Denise::Denise(Amiga& ref) : SubComponent(ref)
 {    
     subComponents = std::vector<AmigaComponent *> {
         
-        &pixelEngine,
-        &screenRecorder
+        &pixelEngine
     };
+    
+#ifdef SCREEN_RECORDER
+    subComponents.push_back(&screenRecorder);
+#endif
 }
 
 void
@@ -41,6 +44,7 @@ Denise::getDefaultConfig()
     DeniseConfig defaults;
 
     defaults.revision = DENISE_OCS;
+    defaults.hiddenBitplanes = 0;
     defaults.hiddenSprites = 0;
     defaults.hiddenLayers = 0;
     defaults.hiddenLayerAlpha = 128;
@@ -57,6 +61,7 @@ Denise::resetConfig()
     auto defaults = getDefaultConfig();
     
     setConfigItem(OPT_DENISE_REVISION, defaults.revision);
+    setConfigItem(OPT_HIDDEN_BITPLANES, defaults.hiddenBitplanes);
     setConfigItem(OPT_HIDDEN_SPRITES, defaults.hiddenSprites);
     setConfigItem(OPT_HIDDEN_LAYERS, defaults.hiddenLayers);
     setConfigItem(OPT_HIDDEN_LAYER_ALPHA, defaults.hiddenLayerAlpha);
@@ -71,6 +76,7 @@ Denise::getConfigItem(Option option) const
     switch (option) {
             
         case OPT_DENISE_REVISION:     return config.revision;
+        case OPT_HIDDEN_BITPLANES:    return config.hiddenBitplanes;
         case OPT_HIDDEN_SPRITES:      return config.hiddenSprites;
         case OPT_HIDDEN_LAYERS:       return config.hiddenLayers;
         case OPT_HIDDEN_LAYER_ALPHA:  return config.hiddenLayerAlpha;
@@ -97,6 +103,11 @@ Denise::setConfigItem(Option option, i64 value)
             config.revision = (DeniseRevision)value;
             return;
                         
+        case OPT_HIDDEN_BITPLANES:
+            
+            config.hiddenBitplanes = (u8)value;
+            return;
+
         case OPT_HIDDEN_SPRITES:
             
             config.hiddenSprites = (u8)value;
@@ -172,6 +183,8 @@ Denise::_dump(dump::Category category, std::ostream& os) const
         
         os << tab("Chip revision");
         os << DeniseRevisionEnum::key(config.revision) << std::endl;
+        os << tab("Hidden bitplanes");
+        os << hex(config.hiddenBitplanes) << std::endl;
         os << tab("Hidden sprites");
         os << hex(config.hiddenSprites) << std::endl;
         os << tab("Hidden layers");
@@ -468,6 +481,14 @@ Denise::translate()
 {
     Pixel pixel = 0;
 
+    // Wipe out some bitplane data if requested
+    if (config.hiddenBitplanes) {
+    
+        for (isize i = 0; i < isizeof(bBuffer); i++) {
+            bBuffer[i] &= ~config.hiddenBitplanes;
+        }
+    }
+    
     // Start with the playfield state as it was at the beginning of the line
     PFState state;
     state.zpf1 = zPF1(initialBplcon2);
@@ -482,7 +503,7 @@ Denise::translate()
     // Iterate over all recorded register changes
     for (isize i = 0, end = conChanges.end(); i < end; i++) {
 
-        Cycle trigger = conChanges.keys[i];
+        Pixel trigger = (Pixel)conChanges.keys[i];
         RegChange &change = conChanges.elements[i];
 
         // Translate a chunk of bitplane data
@@ -533,7 +554,7 @@ Denise::translateSPF(Pixel from, Pixel to, PFState &state)
      * Denise/BPLCON0/invprio0 to Denise/BPLCON0/invprio3
      */
     
-    if (unlikely(!state.zpf2 && !state.ham)) {
+    if (!state.zpf2 && !state.ham) {
         
         for (Pixel i = from; i < to; i++) {
 
@@ -663,7 +684,7 @@ Denise::drawSpritePair()
                 
         for (isize i = 0, end = sprChanges[pair].end(); i < end; i++) {
             
-            Cycle trigger = sprChanges[pair].keys[i];
+            Pixel trigger = (Pixel)sprChanges[pair].keys[i];
             RegChange &change = sprChanges[pair].elements[i];
             
             // Draw a chunk of pixels
@@ -888,13 +909,12 @@ Denise::drawAttachedSpritePixelPair(Pixel hpos)
     assert(IS_ODD(x));
     assert(hpos >= spriteClipBegin && hpos < spriteClipEnd);
 
-    auto a1 = !!GET_BIT(ssra[x-1], 15);
-    auto b1 = !!GET_BIT(ssrb[x-1], 15);
-    auto a2 = !!GET_BIT(ssra[x],   15);
-    auto b2 = !!GET_BIT(ssrb[x],   15);
-
-    auto col = (u8)(b2 << 3 | a2 << 2 | b1 << 1 | a1);
-
+    u8 col =
+    ((ssra[x-1] >> 15) & 0b0001) |
+    ((ssrb[x-1] >> 14) & 0b0010) |
+    ((ssra[x]   >> 13) & 0b0100) |
+    ((ssrb[x]   >> 12) & 0b1000) ;
+    
     if (col) {
 
         u16 z = Z_SP[x];
@@ -971,7 +991,7 @@ template <int x> void
 Denise::checkS2SCollisions(Pixel start, Pixel end)
 {
     // For odd sprites, only proceed if collision detection is enabled
-    if (IS_ODD(x) && !GET_BIT(clxcon, 12 + (x/2))) return;
+    if constexpr (IS_ODD(x)) if (!GET_BIT(clxcon, 12 + (x/2))) return;
 
     // Set up the sprite comparison masks
     u16 comp01 = Z_SP0 | (GET_BIT(clxcon, 12) ? Z_SP1 : 0);
@@ -1014,7 +1034,7 @@ template <int x> void
 Denise::checkS2PCollisions(Pixel start, Pixel end)
 {
     // For the odd sprites, only proceed if collision detection is enabled
-    if (IS_ODD(x) && !ensp<x>()) return;
+    if constexpr (IS_ODD(x)) if (!ensp<x>()) return;
     
     u8 enabled1 = enbp1();
     u8 enabled2 = enbp2();

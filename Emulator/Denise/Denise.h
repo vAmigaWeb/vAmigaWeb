@@ -38,12 +38,15 @@ public:
     // Color synthesizer for computing RGBA values
     PixelEngine pixelEngine = PixelEngine(amiga);
 
-    // A screen recorder for creating video streams
-    Recorder screenRecorder = Recorder(amiga);
-
     // Sprite tracker
     DeniseDebugger debugger = DeniseDebugger(amiga);
 
+#ifdef SCREEN_RECORDER
+    
+    // A screen recorder for creating video streams
+    Recorder screenRecorder = Recorder(amiga);
+
+#endif
     
     //
     // Counters
@@ -96,10 +99,10 @@ public:
      * Note: The upper two array elements are dummy elements. We need them in
      * order to pass the array as parameter to function transposeSSE().
      */
-    u16 __attribute__ ((aligned (64))) shiftReg[8];
+    alignas(16) u16 shiftReg[8];
 
     // Bit slices computed out of the shift registers
-    u8 __attribute__ ((aligned (64))) slice[16];
+    alignas(16) u8 slice[16];
     
     // Indicates the DMA cycle where the shift register gets filled
     isize fillPos; 
@@ -201,17 +204,16 @@ public:
      * When the bBuffer is translated into the iBuffer, a depth buffer is build.
      * This buffer serves multiple purposes.
      *
-     * 1. The depth buffer it is used to implement the display priority. For
-     *    example, it is used to decide whether to draw a sprite pixel in front
-     *    of or behind a particular playing field pixel. Note: The larger the
-     *    value, the closer a pixel is. In traditonal z-buffers, it is the other
-     *    way round.
+     * 1. The depth buffer is utilized to manage display priority. For example,
+     *    it is used to decide whether to draw a sprite pixel in front of or
+     *    behind a particular playfield pixel. Note: The larger the value, the
+     *    closer a pixel is. In traditonal z-buffers, it is the other way round.
      *
      * 2. The depth buffer is utilized to code meta-information about the pixels
      *    in the current rasterline. This is done by coding the pixel depth with
      *    special bit patterns storing that information. E.g., the pixel depth
-     *    can be used to determine, if the pixel has been drawn in dual-
-     *    playfield mode or if a sprite-to-sprite collision has taken place.
+     *    can be used to determine if the pixel has been drawn in dual-
+     *    playfield mode or if a sprite-to-sprite collision has occurred.
      *
      * The following bit format is utilized:
      *

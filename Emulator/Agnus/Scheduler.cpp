@@ -10,12 +10,14 @@
 #include "config.h"
 #include "Scheduler.h"
 #include "CIA.h"
+#include "ControlPort.h"
 #include "CPU.h"
 #include "Agnus.h"
+#include "RemoteServer.h"
 #include "Paula.h"
 #include "Keyboard.h"
 #include "Drive.h"
-#include "IO.h"
+#include "IOUtils.h"
 #include <iomanip>
 
 const char *
@@ -318,6 +320,31 @@ Scheduler::eventName(EventSlot slot, EventID id)
                 default:            return "*** INVALID ***";
             }
             break;
+            
+        case SLOT_MSE1:
+        case SLOT_MSE2:
+            
+            switch (id) {
+                    
+                case EVENT_NONE:        return "none";
+                case MSE_PUSH_LEFT:     return "MSE_PUSH_LEFT";
+                case MSE_RELEASE_LEFT:  return "MSE_RELEASE_LEFT";
+                case MSE_PUSH_RIGHT:    return "MSE_PUSH_RIGHT";
+                case MSE_RELEASE_RIGHT: return "MSE_RELEASE_RIGHT";
+                default:                return "*** INVALID ***";
+            }
+            break;
+
+        case SLOT_KEY:
+            
+            switch (id) {
+                    
+                case EVENT_NONE:        return "none";
+                case KEY_PRESS:         return "KEY_PRESS";
+                case KEY_RELEASE:       return "KEY_RELEASE";
+                default:                return "*** INVALID ***";
+            }
+            break;
 
         case SLOT_INS:
 
@@ -345,7 +372,7 @@ Scheduler::eventName(EventSlot slot, EventID id)
 void
 Scheduler::_initialize()
 {
-
+    printf("scheduler initialize\n");
 }
 
 void
@@ -474,10 +501,11 @@ Scheduler::getSlotInfo(isize nr) const
 {
     assert_enum(EventSlot, nr);
     
-    if (!isRunning()) inspectSlot(nr);
-    
-    synchronized { return slotInfo[nr]; }
-    unreachable;
+    {   SYNCHRONIZED
+
+        if (!isRunning()) inspectSlot(nr);
+        return slotInfo[nr];
+    }
 }
 
 void
@@ -572,6 +600,15 @@ Scheduler::executeUntil(Cycle cycle) {
             }
             if (isDue<SLOT_DC3>(cycle)) {
                 df3.serviceDiskChangeEvent <SLOT_DC3> ();
+            }
+            if (isDue<SLOT_MSE1>(cycle)) {
+                controlPort1.mouse.serviceMouseEvent <SLOT_MSE1> ();
+            }
+            if (isDue<SLOT_MSE2>(cycle)) {
+                controlPort2.mouse.serviceMouseEvent <SLOT_MSE2> ();
+            }
+            if (isDue<SLOT_KEY>(cycle)) {
+                keyboard.serviceKeyEvent();
             }
             if (isDue<SLOT_INS>(cycle)) {
                 agnus.serviceINSEvent(id[SLOT_INS]);

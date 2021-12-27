@@ -9,7 +9,7 @@
 
 #include "config.h"
 #include "RomFile.h"
-#include "IO.h"
+#include "IOUtils.h"
 
 //
 // Boot Roms
@@ -558,7 +558,7 @@ RomFile::isRomBuffer(const u8 *buf, isize len)
 bool
 RomFile::isRomFile(const string &path)
 {
-    std::ifstream stream(path);
+    std::ifstream stream(path, std::ifstream::binary);
     return stream.is_open() ? isCompatible(stream) : false;
 }
 

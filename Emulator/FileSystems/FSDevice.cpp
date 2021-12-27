@@ -8,7 +8,7 @@
 // -----------------------------------------------------------------------------
 
 #include "config.h"
-#include "IO.h"
+#include "IOUtils.h"
 #include "FSDevice.h"
 #include "MemUtils.h"
 #include <climits>
@@ -27,7 +27,7 @@ FSDevice::init(isize capacity)
 void
 FSDevice::init(FSDeviceDescriptor &layout)
 {
-    init(layout.numBlocks);
+    init((isize)layout.numBlocks);
     
     if constexpr (FS_DEBUG) { layout.dump(); }
     
@@ -148,7 +148,7 @@ FSDevice::_dump(dump::Category category, std::ostream& os) const
         
         if (blocks[i]->type == FS_EMPTY_BLOCK) continue;
         
-        msg("\nBlock %zu (%d):", i, blocks[i]->nr);
+        msg("\nBlock %ld (%d):", i, blocks[i]->nr);
         msg(" %s\n", FSBlockTypeEnum::key(blocks[i]->type));
                 
         blocks[i]->dump(); 
@@ -393,7 +393,7 @@ FSDevice::createFile(const string &name, const u8 *buf, isize size)
 FSBlock *
 FSDevice::createFile(const string &name, const string &str)
 {
-    return createFile(name, (const u8 *)str.c_str(), str.size());
+    return createFile(name, (const u8 *)str.c_str(), (isize)str.size());
 }
 
 Block
@@ -571,7 +571,7 @@ FSDevice::check(bool strict) const
 {
     FSErrorReport result;
 
-    isize total = 0, min = SSIZE_MAX, max = 0;
+    isize total = 0, min = INT_MAX, max = 0;
     
     // Analyze all partions
     for (auto &p : partitions) p->check(strict, result);
@@ -805,7 +805,7 @@ FSDevice::exportBlocks(Block first, Block last, u8 *dst, isize size, ErrorCode *
     
     isize count = last - first + 1;
     
-    debug(FS_DEBUG, "Exporting %zd blocks (%d - %d)\n", count, first, last);
+    debug(FS_DEBUG, "Exporting %ld blocks (%d - %d)\n", count, first, last);
 
     // Only proceed if the (predicted) block size matches
     if (size % bsize != 0) {
@@ -834,50 +834,53 @@ FSDevice::exportBlocks(Block first, Block last, u8 *dst, isize size, ErrorCode *
     return true;
 }
 
+#include <iostream>
+
 void
 FSDevice::importDirectory(const string &path, bool recursive)
 {
-    DIR *dir = opendir(path.c_str());
-    if (dir == nullptr) throw VAError(ERROR_FILE_CANT_READ);
+    fs::directory_entry dir;
     
-    importDirectory(path, dir, recursive);
-    closedir(dir);
+    try { dir = fs::directory_entry(path); }
+    catch (...) { throw VAError(ERROR_FILE_CANT_READ); }
+    
+    importDirectory(dir, recursive);
 }
 
 void
-FSDevice::importDirectory(const string &path, DIR *dir, bool recursive)
+FSDevice::importDirectory(const fs::directory_entry &dir, bool recursive)
 {
-    assert(dir);
-    
-    struct dirent *item;
-    
-    while ((item = readdir(dir))) {
-
-        // Skip '.', '..' and all hidden files
-        if (item->d_name[0] == '.') continue;
-
-        // Assemble file name
-        string name = path + "/" + string(item->d_name);
+  
+    for (const auto& entry : fs::directory_iterator(dir)) {
         
-        debug(FS_DEBUG, "Importing %s\n", name.c_str());
-        
-        if (item->d_type == DT_DIR) {
+        const auto path = entry.path().string();
+        const auto name = entry.path().filename().string();
+
+        // Skip all hidden files
+        if (name[0] == '.') continue;
+
+        debug(FS_DEBUG, "Importing %s\n", path.c_str());
+
+        if (entry.is_directory()) {
             
             // Add directory
-            if(createDir(item->d_name) && recursive) {
-                changeDir(item->d_name);
-                importDirectory(name, recursive);
+            if(createDir(name) && recursive) {
+
+                changeDir(name);
+                importDirectory(entry, recursive);
             }
-            
-        } else {
+        }
+
+        if (entry.is_regular_file()) {
             
             // Add file
             u8 *buffer; isize size;
-            if (util::loadFile(string(name), &buffer, &size)) {
-                createFile(item->d_name, buffer, size);
-                delete(buffer);
+            if (util::loadFile(string(path), &buffer, &size)) {
+                
+                createFile(name, buffer, size);
+                delete [] (buffer);
             }
-        }        
+        }
     }
 }
 
@@ -891,7 +894,7 @@ FSDevice::exportDirectory(const string &path)
     // Collect files and directories
     std::vector<Block> items;
     collect(cd, items);
-    
+        
     // Export all items
     for (auto const& i : items) {
         if (ErrorCode error = blockPtr(i)->exportBlock(path.c_str()); error != ERROR_OK) {
@@ -899,5 +902,5 @@ FSDevice::exportDirectory(const string &path)
         }
     }
     
-    msg("Exported %zu items", items.size());
+    debug(FS_DEBUG, "Exported %zu items", items.size());
 }
