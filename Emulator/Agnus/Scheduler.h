@@ -11,7 +11,6 @@
 
 #include "SchedulerTypes.h"
 #include "SubComponent.h"
-// #include "Event.h"
 
 /* About the event scheduler
  *
@@ -207,6 +206,7 @@ public:
         
         if constexpr (isTertiarySlot(s)) {
             if (cycle < trigger[SLOT_TER]) trigger[SLOT_TER] = cycle;
+            if (cycle < trigger[SLOT_SEC]) trigger[SLOT_SEC] = cycle;
         }
         if constexpr (isSecondarySlot(s)) {
             if (cycle < trigger[SLOT_SEC]) trigger[SLOT_SEC] = cycle;

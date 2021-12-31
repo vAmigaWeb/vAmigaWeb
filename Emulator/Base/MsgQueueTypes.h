@@ -39,6 +39,8 @@ enum_long(MSG_TYPE)
     MSG_POWER_LED_OFF,
 
     // Retro shell
+    MSG_CLOSE_CONSOLE,
+    MSG_UPDATE_CONSOLE,
     MSG_SCRIPT_DONE,
     MSG_SCRIPT_PAUSE,
     MSG_SCRIPT_ABORT,
@@ -91,22 +93,20 @@ enum_long(MSG_TYPE)
     MSG_RECORDING_STARTED,
     MSG_RECORDING_STOPPED,
     MSG_RECORDING_ABORTED,
-    
-    // Console
-    MSG_CLOSE_CONSOLE,
-    
+        
     // DMA Debugging
     MSG_DMA_DEBUG_ON,
     MSG_DMA_DEBUG_OFF,
 
     // Remote server
-    MSG_SRV_START,
-    MSG_SRV_STOP,
-    MSG_SRV_CONNECT,
-    MSG_SRV_DISCONNECT,
+    MSG_SRV_OFF,
+    MSG_SRV_STARTING,
+    MSG_SRV_LISTENING,
+    MSG_SRV_CONNECTED,
+    MSG_SRV_STOPPING,
+    MSG_SRV_ERROR,
     MSG_SRV_RECEIVE,
-    MSG_SRV_SEND,
-    MSG_SRV_ERROR
+    MSG_SRV_SEND
 };
 typedef MSG_TYPE MsgType;
 
@@ -114,7 +114,7 @@ typedef MSG_TYPE MsgType;
 struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
 {
     static long minVal() { return 0; }
-    static long maxVal() { return MSG_SRV_STOP; }
+    static long maxVal() { return MSG_SRV_ERROR; }
     static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
 
     static const char *prefix() { return "MSG"; }
@@ -143,6 +143,8 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
             case MSG_POWER_LED_DIM:         return "POWER_LED_DIM";
             case MSG_POWER_LED_OFF:         return "POWER_LED_OFF";
 
+            case MSG_CLOSE_CONSOLE:         return "CLOSE_CONSOLE";
+            case MSG_UPDATE_CONSOLE:        return "UPDATE_CONSOLE";
             case MSG_SCRIPT_DONE:           return "SCRIPT_DONE";
             case MSG_SCRIPT_PAUSE:          return "SCRIPT_PAUSE";
             case MSG_SCRIPT_ABORT:          return "SCRIPT_ABORT";
@@ -187,16 +189,15 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
             case MSG_RECORDING_STARTED:     return "RECORDING_STARTED";
             case MSG_RECORDING_STOPPED:     return "RECORDING_STOPPED";
             case MSG_RECORDING_ABORTED:     return "RECORDING_ABORTED";
-                
-            case MSG_CLOSE_CONSOLE:         return "CLOSE_CONSOLE";
-                
+                                
             case MSG_DMA_DEBUG_ON:          return "DMA_DEBUG_ON";
             case MSG_DMA_DEBUG_OFF:         return "DMA_DEBUG_OFF";
-                
-            case MSG_SRV_START:             return "SRV_START";
-            case MSG_SRV_STOP:              return "SRV_STOP";
-            case MSG_SRV_CONNECT:           return "SRV_CONNECT";
-            case MSG_SRV_DISCONNECT:        return "SRV_DISCONNECT";
+                                
+            case MSG_SRV_OFF:               return "SRV_OFF";
+            case MSG_SRV_STARTING:          return "SRV_STARTING";
+            case MSG_SRV_LISTENING:         return "SRV_LISTENING";
+            case MSG_SRV_CONNECTED:         return "SRV_CONNECTED";
+            case MSG_SRV_STOPPING:          return "SRV_STOPPING";
             case MSG_SRV_RECEIVE:           return "SRV_RECEIVE";
             case MSG_SRV_SEND:              return "SRV_SEND";
             case MSG_SRV_ERROR:             return "SRV_ERROR";

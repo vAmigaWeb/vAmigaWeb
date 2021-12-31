@@ -10,10 +10,13 @@
 #pragma once
 
 #include "UARTTypes.h"
+#include "Constants.h"
 #include "SubComponent.h"
 #include "SchedulerTypes.h"
 
 class UART : public SubComponent {
+    
+    friend class SerServer;
     
     // Result of the latest inspection
     mutable UARTInfo info = {};
@@ -118,13 +121,16 @@ public:
     // Serial port period and control
     void pokeSERPER(u16 value);
 
-    // Returns the baud rate (converted to DMA cycles)
-    int rate() const { return (int)DMA_CYCLES((serper & 0x7FFF) + 1); }
+    // Returns the pulse width measured in master cylces
+    Cycle pulseWidth() const { return DMA_CYCLES((serper & 0x7FFF) + 1); }
 
+    // Returns the baud rate
+    isize baudRate() const { return MASTER_FREQUENCY / (isize)pulseWidth(); }
+    
 private:
 
     // Returns the length of a received packet (8 or 9 bits)
-    int packetLength() const { return GET_BIT(serper, 15) ? 9 : 8; }
+    isize packetLength() const { return GET_BIT(serper, 15) ? 9 : 8; }
 
     // Returns true if the shift register is empty
     bool shiftRegEmpty() const { return transmitShiftReg == 0; }
@@ -150,7 +156,7 @@ public:
 
 
     //
-    // Serving events
+    // Serving events (UARTEvents.cpp)
     //
 
 public:

@@ -8,7 +8,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS False)
 
-
 # Set the optimization level (if not specified on the command line)
 if(NOT CMAKE_BUILD_TYPE)
 #  set(CMAKE_BUILD_TYPE Release)
@@ -35,12 +34,6 @@ else()
 #  target_compile_options(vAmigaCore PRIVATE -g) 
 endif()
 
-# Enable additional features on certain architectures
-if(NOT WIN32)
-#  target_compile_definitions(vAmigaCore PUBLIC SCREEN_RECORDER)
-  target_compile_definitions(vAmigaCore PUBLIC GDB_SERVER)
-endif()
-
 # Add include paths
 target_include_directories(vAmigaCore PUBLIC
 ${CMAKE_CURRENT_SOURCE_DIR}/.
@@ -56,6 +49,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/Paula/Audio
 ${CMAKE_CURRENT_SOURCE_DIR}/Paula/DiskController
 ${CMAKE_CURRENT_SOURCE_DIR}/Paula/UART
 ${CMAKE_CURRENT_SOURCE_DIR}/Denise
+${CMAKE_CURRENT_SOURCE_DIR}/Denise/Recorder
 ${CMAKE_CURRENT_SOURCE_DIR}/Agnus
 ${CMAKE_CURRENT_SOURCE_DIR}/Agnus/Copper
 ${CMAKE_CURRENT_SOURCE_DIR}/Agnus/Blitter
@@ -72,8 +66,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/FileSystems
 ${CMAKE_CURRENT_SOURCE_DIR}/RetroShell
 ${CMAKE_CURRENT_SOURCE_DIR}/Misc
 ${CMAKE_CURRENT_SOURCE_DIR}/Misc/OSDebugger
-${CMAKE_CURRENT_SOURCE_DIR}/Misc/RemoteServer
-${CMAKE_CURRENT_SOURCE_DIR}/Misc/GdbServer
+${CMAKE_CURRENT_SOURCE_DIR}/Misc/RemoteServers
 ${CMAKE_CURRENT_SOURCE_DIR}/Misc/RegressionTester
 ${CMAKE_CURRENT_SOURCE_DIR}/xdms)
 

@@ -320,7 +320,9 @@ PixelEngine::swapBuffers()
 u32 *
 PixelEngine::getNoise() const
 {
-    int offset = rand() % (VPIXELS * HPIXELS);
+    static u32 offset = 0;
+    
+    offset = (offset + 100) % PIXELS;
     return noise + offset;
 }
 

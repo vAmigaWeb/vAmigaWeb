@@ -13,11 +13,11 @@
 #include "ControlPort.h"
 #include "CPU.h"
 #include "Agnus.h"
-#include "RemoteServer.h"
 #include "Paula.h"
 #include "Keyboard.h"
 #include "Drive.h"
 #include "IOUtils.h"
+#include "RemoteManager.h"
 #include <iomanip>
 
 const char *
@@ -346,6 +346,26 @@ Scheduler::eventName(EventSlot slot, EventID id)
             }
             break;
 
+        case SLOT_SRV:
+            
+            switch (id) {
+                    
+                case EVENT_NONE:        return "none";
+                case SRV_LAUNCH_DAEMON: return "SRV_LAUNCH_DAEMON";
+                default:                return "*** INVALID ***";
+            }
+            break;
+
+        case SLOT_SER:
+            
+            switch (id) {
+                    
+                case EVENT_NONE:        return "none";
+                case SER_RECEIVE:       return "SER_RECEIVE";
+                default:                return "*** INVALID ***";
+            }
+            break;
+            
         case SLOT_INS:
 
             switch (id) {
@@ -372,7 +392,7 @@ Scheduler::eventName(EventSlot slot, EventID id)
 void
 Scheduler::_initialize()
 {
-    printf("scheduler initialize\n");
+
 }
 
 void
@@ -609,6 +629,12 @@ Scheduler::executeUntil(Cycle cycle) {
             }
             if (isDue<SLOT_KEY>(cycle)) {
                 keyboard.serviceKeyEvent();
+            }
+            if (isDue<SLOT_SRV>(cycle)) {
+                remoteManager.serviceServerEvent();
+            }
+            if (isDue<SLOT_SER>(cycle)) {
+                remoteManager.serServer.serviceSerEvent();
             }
             if (isDue<SLOT_INS>(cycle)) {
                 agnus.serviceINSEvent(id[SLOT_INS]);

@@ -415,6 +415,16 @@ OSDebugger::read(u32 addr, std::vector <os::Library> &result) const
 }
 
 void
+OSDebugger::read(const string &prName, os::SegList &result) const
+{
+    os::Process process;
+    if (searchProcess(prName, process)) {
+        
+        read(process, result);
+    }
+}
+
+void
 OSDebugger::read(const os::Process &pr, os::SegList &result) const
 {
     /* I don't fully understand the SegList structures as they are build by
@@ -450,7 +460,7 @@ OSDebugger::read(u32 addr, os::SegList &result) const
 {
     for (isize i = 0; isValidPtr(addr) && i < 128; i++) {
         
-        auto size = mem.spypeek32 <ACCESSOR_CPU> (addr - 4);
+        auto size = mem.spypeek32 <ACCESSOR_CPU> (addr - 4) - 8;
         auto next = mem.spypeek32 <ACCESSOR_CPU> (addr);
         auto data = addr + 4;
         

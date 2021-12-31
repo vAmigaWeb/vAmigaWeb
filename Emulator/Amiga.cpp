@@ -39,6 +39,7 @@ Amiga::Amiga()
      */
     
     subComponents = std::vector<AmigaComponent *> {
+
         &agnus,
         &rtc,
         &denise,
@@ -56,12 +57,10 @@ Amiga::Amiga()
         &ciaB,
         &mem,
         &cpu,
+        &remoteManager,
         &retroShell,
-        &remoteServer,
-        &gdbServer,
         &regressionTester,
-        &msgQueue,
-
+        &msgQueue
     };
 
     // Set up the initial state
@@ -87,6 +86,7 @@ Amiga::Amiga()
         msg("             Muxer : %zu bytes\n", sizeof(Muxer));
         msg("             Paula : %zu bytes\n", sizeof(Paula));
         msg("       PixelEngine : %zu bytes\n", sizeof(PixelEngine));
+        msg("     RemoteManager : %zu bytes\n", sizeof(RemoteManager));
         msg("               RTC : %zu bytes\n", sizeof(RTC));
         msg("           Sampler : %zu bytes\n", sizeof(Sampler));
         msg("        SerialPort : %zu bytes\n", sizeof(SerialPort));
@@ -123,7 +123,7 @@ Amiga::prefix() const
     fprintf(stderr, "%04X %04X ", paula.intena, paula.intreq);
 
     if (agnus.copper.servicing) {
-        fprintf(stderr, "[%06X] ", agnus.copper.getCopPC());
+        fprintf(stderr, "[%06X] ", agnus.copper.getCopPC0());
     }
 }
 
@@ -229,7 +229,7 @@ Amiga::getConfigItem(Option option) const
             return paula.diskController.getConfigItem(option);
             
         case OPT_SERIAL_DEVICE:
-            
+
             return serialPort.getConfigItem(option);
 
         case OPT_CIA_REVISION: 
@@ -296,15 +296,13 @@ Amiga::getConfigItem(Option option, long id) const
             if (id == PORT_1) return controlPort1.joystick.getConfigItem(option);
             if (id == PORT_2) return controlPort2.joystick.getConfigItem(option);
             fatalError;
-
-        case OPT_SRV_MODE:
-        case OPT_SRV_PORT:
-
-            return remoteServer.getConfigItem(option);
-
-        case OPT_GDB_VERBOSE:
             
-            return gdbServer.getConfigItem(option);
+        case OPT_SRV_PORT:
+        case OPT_SRV_PROTOCOL:
+        case OPT_SRV_AUTORUN:
+        case OPT_SRV_VERBOSE:
+
+            return remoteManager.getConfigItem(option, id);
             
         default:
             fatalError;
@@ -478,15 +476,12 @@ Amiga::configure(Option option, i64 value)
             controlPort2.joystick.setConfigItem(option, value);
             break;
             
-        case OPT_SRV_MODE:
         case OPT_SRV_PORT:
+        case OPT_SRV_PROTOCOL:
+        case OPT_SRV_AUTORUN:
+        case OPT_SRV_VERBOSE:
 
-            remoteServer.setConfigItem(option, value);
-            break;
-
-        case OPT_GDB_VERBOSE:
-            
-            gdbServer.setConfigItem(option, value);
+            remoteManager.setConfigItem(option, value);
             break;
 
         default:
@@ -572,6 +567,14 @@ Amiga::configure(Option option, long id, i64 value)
             if (id == PORT_2) controlPort2.joystick.setConfigItem(option, value);
             break;
 
+        case OPT_SRV_PORT:
+        case OPT_SRV_PROTOCOL:
+        case OPT_SRV_AUTORUN:
+        case OPT_SRV_VERBOSE:
+
+            remoteManager.setConfigItem(option, id, value);
+            break;
+            
         default:
             fatalError;
     }
@@ -795,6 +798,7 @@ Amiga::_pause()
 {
     debug(RUN_DEBUG, "_pause\n");
 
+    remoteManager.gdbServer.breakpointReached();
     inspect();
     msgQueue.put(MSG_PAUSE);
 }
@@ -837,6 +841,24 @@ Amiga::_debugOff()
     debug(RUN_DEBUG, "_debugOff\n");
 
     msgQueue.put(MSG_DEBUG_OFF);
+}
+
+isize
+Amiga::load(const u8 *buffer)
+{
+    auto result = AmigaComponent::load(buffer);
+    AmigaComponent::didLoad();
+    
+    return result;
+}
+
+isize
+Amiga::save(u8 *buffer)
+{
+    auto result = AmigaComponent::save(buffer);
+    AmigaComponent::didSave();
+    
+    return result;
 }
 
 void

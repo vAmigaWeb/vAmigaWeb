@@ -23,7 +23,9 @@
 #include "OSDebugger.h"
 #include "Paula.h"
 #include "RegressionTester.h"
+#include "RemoteManager.h"
 #include "RetroShell.h"
+#include "RshServer.h"
 #include "RTC.h"
 #include "SerialPort.h"
 #include "SuspendableThread.h"
@@ -85,9 +87,8 @@ public:
 
     // Misc
     RetroShell retroShell = RetroShell(*this);
+    RemoteManager remoteManager = RemoteManager(*this);
     OSDebugger osDebugger = OSDebugger(*this);
-    RemoteServer remoteServer = RemoteServer(*this);
-    GdbServer gdbServer = GdbServer(*this);
     RegressionTester regressionTester = RegressionTester(*this);
     
     
@@ -176,6 +177,13 @@ private:
         
     }
 
+public:
+    
+    isize load(const u8 *buffer) override;
+    isize save(u8 *buffer) override;
+
+private:
+    
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
     u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM; }
     isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }

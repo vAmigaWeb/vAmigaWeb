@@ -133,6 +133,7 @@ template <> void
 RetroShell::exec <Token::amiga, Token::power, Token::on> (Arguments &argv, long param)
 {
     amiga.powerOn();
+    amiga.run();
 }
 
 template <> void
@@ -1114,6 +1115,10 @@ RetroShell::exec <Token::dfn, Token::inspect> (Arguments& argv, long param)
     dump(*amiga.df[param], dump::State);
 }
 
+//
+// OSDebugger
+//
+
 template <> void
 RetroShell::exec <Token::os, Token::execbase> (Arguments& argv, long param)
 {
@@ -1217,57 +1222,152 @@ RetroShell::exec <Token::os, Token::processes> (Arguments& argv, long param)
     *this << ss;
 }
 
+//
+// Remote servers
+//
+
+/*
 template <> void
-RetroShell::exec <Token::remote, Token::config> (Arguments &argv, long param)
+RetroShell::exec <Token::server, Token::serial, Token::start> (Arguments& argv, long param)
 {
-    dump(remoteServer, dump::Config);
+    remoteManager.serServer.start();
 }
 
 template <> void
-RetroShell::exec <Token::remote, Token::set, Token::mode> (Arguments &argv, long param)
+RetroShell::exec <Token::server, Token::serial, Token::stop> (Arguments& argv, long param)
 {
-    amiga.configure(OPT_SRV_MODE, util::parseEnum <ServerModeEnum> (argv[0]));
+    remoteManager.serServer.stop();
 }
 
 template <> void
-RetroShell::exec <Token::remote, Token::set, Token::port> (Arguments &argv, long param)
+RetroShell::exec <Token::server, Token::serial, Token::disconnect> (Arguments& argv, long param)
 {
-    amiga.configure(OPT_SRV_PORT, util::parseNum(argv.front()));
+    remoteManager.serServer.disconnect();
+}
+*/
+
+template <> void
+RetroShell::exec <Token::server, Token::serial, Token::set, Token::port> (Arguments& argv, long param)
+{
+    remoteManager.serServer.setConfigItem(OPT_SRV_PORT, util::parseNum(argv.front()));
 }
 
 template <> void
-RetroShell::exec <Token::remote, Token::start> (Arguments& argv, long param)
+RetroShell::exec <Token::server, Token::serial, Token::set, Token::verbose> (Arguments& argv, long param)
 {
-    auto mode = remoteServer.getConfig().mode;
-    auto port = remoteServer.getConfig().port;
+    remoteManager.serServer.setConfigItem(OPT_SRV_PORT, util::parseBool(argv.front()));
+}
+
+template <> void
+RetroShell::exec <Token::server, Token::serial, Token::config> (Arguments& argv, long param)
+{
+    dump(remoteManager.serServer, dump::Config);
+}
+
+template <> void
+RetroShell::exec <Token::server, Token::serial, Token::inspect> (Arguments& argv, long param)
+{
+    dump(remoteManager.serServer, dump::State);
+}
+
+template <> void
+RetroShell::exec <Token::server, Token::rshell, Token::start> (Arguments& argv, long param)
+{
+    remoteManager.rshServer.start();
+}
+
+template <> void
+RetroShell::exec <Token::server, Token::rshell, Token::stop> (Arguments& argv, long param)
+{
+    remoteManager.serServer.stop();
+}
+
+template <> void
+RetroShell::exec <Token::server, Token::rshell, Token::disconnect> (Arguments& argv, long param)
+{
+    remoteManager.rshServer.disconnect();
+}
+
+template <> void
+RetroShell::exec <Token::server, Token::rshell, Token::set, Token::port> (Arguments& argv, long param)
+{
+    remoteManager.serServer.setConfigItem(OPT_SRV_PORT, util::parseNum(argv.front()));
+}
+
+template <> void
+RetroShell::exec <Token::server, Token::rshell, Token::set, Token::verbose> (Arguments& argv, long param)
+{
+    remoteManager.serServer.setConfigItem(OPT_SRV_PORT, util::parseBool(argv.front()));
+}
+
+template <> void
+RetroShell::exec <Token::server, Token::rshell, Token::config> (Arguments& argv, long param)
+{
+    dump(remoteManager.rshServer, dump::Config);
+}
+
+template <> void
+RetroShell::exec <Token::server, Token::rshell, Token::inspect> (Arguments& argv, long param)
+{
+    dump(remoteManager.rshServer, dump::State);
+}
+
+/*
+template <> void
+RetroShell::exec <Token::server, Token::gdb, Token::start> (Arguments& argv, long param)
+{
+    auto &server = remoteManager.gdbServer;
     
-    if (mode == SRVMODE_TERMINAL) *this << "Starting terminal server";
-    if (mode == SRVMODE_GDB) *this << "Starting GDB server";
-    *this << " at port " << std::to_string(port) << "\n";
-
-    remoteServer.start();
+    // Pass the process name to the server
+    server.setArgs( { argv[0] } );
+    
+    remoteManager.gdbServer.start();
 }
 
 template <> void
-RetroShell::exec <Token::remote, Token::stop> (Arguments& argv, long param)
+RetroShell::exec <Token::server, Token::gdb, Token::stop> (Arguments& argv, long param)
 {
-    remoteServer.stop();
+    remoteManager.gdbServer.stop();
 }
 
 template <> void
-RetroShell::exec <Token::remote, Token::inspect> (Arguments& argv, long param)
+RetroShell::exec <Token::server, Token::gdb, Token::disconnect> (Arguments& argv, long param)
 {
-    dump(remoteServer, dump::State);
+    remoteManager.gdbServer.disconnect();
+}
+*/
+template <> void
+RetroShell::exec <Token::server, Token::gdb, Token::attach> (Arguments& argv, long param)
+{
+    remoteManager.gdbServer.attach(argv.front());
 }
 
 template <> void
-RetroShell::exec <Token::gdb, Token::config> (Arguments &argv, long param)
+RetroShell::exec <Token::server, Token::gdb, Token::set, Token::port> (Arguments& argv, long param)
 {
-    dump(gdbServer, dump::Config);
+    remoteManager.gdbServer.setConfigItem(OPT_SRV_PORT, util::parseNum(argv.front()));
 }
 
 template <> void
-RetroShell::exec <Token::gdb, Token::set, Token::verbose> (Arguments &argv, long param)
+RetroShell::exec <Token::server, Token::gdb, Token::set, Token::verbose> (Arguments& argv, long param)
 {
-    amiga.configure(OPT_GDB_VERBOSE, util::parseBool(argv.front()));
+    remoteManager.serServer.setConfigItem(OPT_SRV_PORT, util::parseBool(argv.front()));
+}
+
+template <> void
+RetroShell::exec <Token::server, Token::gdb, Token::config> (Arguments& argv, long param)
+{
+    dump(remoteManager.gdbServer, dump::Config);
+}
+
+template <> void
+RetroShell::exec <Token::server, Token::gdb, Token::inspect> (Arguments& argv, long param)
+{
+    dump(remoteManager.gdbServer, dump::State);
+}
+
+template <> void
+RetroShell::exec <Token::server, Token::status> (Arguments& argv, long param)
+{
+    dump(remoteManager, dump::State);
 }

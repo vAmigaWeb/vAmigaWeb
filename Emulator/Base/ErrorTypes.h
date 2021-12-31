@@ -74,12 +74,23 @@ enum_long(ERROR_CODE)
     // OS Debugger
     ERROR_OSDB,
     
-    // GDB server
+    // Remote servers
     ERROR_SOCK_CANT_CREATE,
     ERROR_SOCK_CANT_CONNECT,
+    ERROR_SOCK_CANT_BIND,
+    ERROR_SOCK_CANT_LISTEN,
+    ERROR_SOCK_CANT_ACCEPT,
+    ERROR_SOCK_CANT_RECEIVE,
+    ERROR_SOCK_CANT_SEND,
     ERROR_SOCK_DISCONNECTED,
-    ERROR_GDB_SERVER_RUNNING,
-    ERROR_GDB_SERVER_NOT_RUNNING,
+    ERROR_SERVER_PORT_IN_USE,
+    ERROR_SERVER_ON,
+    ERROR_SERVER_OFF,
+    ERROR_SERVER_RUNNING,
+    ERROR_SERVER_NOT_RUNNING,
+    ERROR_SERVER_NO_CLIENT,
+
+    // GDB server
     ERROR_GDB_NO_ACK,
     ERROR_GDB_INVALID_FORMAT,
     ERROR_GDB_INVALID_CHECKSUM,
@@ -185,11 +196,22 @@ struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
             case ERROR_INVALID_ROM_KEY:             return "INVALID_ROM_KEY";
                 
             case ERROR_OSDB:                        return "OSDB";
+                
             case ERROR_SOCK_CANT_CREATE:            return "SOCK_CANT_CREATE";
             case ERROR_SOCK_CANT_CONNECT:           return "SOCK_CANT_CONNECT";
+            case ERROR_SOCK_CANT_BIND:              return "SOCK_CANT_BIND";
+            case ERROR_SOCK_CANT_LISTEN:            return "SOCK_CANT_LISTEN";
+            case ERROR_SOCK_CANT_ACCEPT:            return "SOCK_CANT_ACCEPT";
+            case ERROR_SOCK_CANT_RECEIVE:           return "SOCK_CANT_RECEIVE";
+            case ERROR_SOCK_CANT_SEND:              return "SOCK_CANT_SEND";
             case ERROR_SOCK_DISCONNECTED:           return "SOCK_DISCONNECTED";
-            case ERROR_GDB_SERVER_RUNNING:          return "GDB_SERVER_RUNNING";
-            case ERROR_GDB_SERVER_NOT_RUNNING:      return "GDB_SERVER_NOT_RUNNING";
+            case ERROR_SERVER_PORT_IN_USE:          return "SERVER_PORT_IN_USE";
+            case ERROR_SERVER_ON:                   return "SERVER_ON";
+            case ERROR_SERVER_OFF:                  return "SERVER_OFF";
+            case ERROR_SERVER_RUNNING:              return "SERVER_RUNNING";
+            case ERROR_SERVER_NOT_RUNNING:          return "SERVER_NOT_RUNNING";
+            case ERROR_SERVER_NO_CLIENT:            return "SERVER_NO_CLIENT";
+                
             case ERROR_GDB_NO_ACK:                  return "GDB_NO_ACK";
             case ERROR_GDB_INVALID_FORMAT:          return "GDB_INVALID_FORMAT";
             case ERROR_GDB_INVALID_CHECKSUM:        return "GDB_INVALID_CHECKSUM";

@@ -13,9 +13,7 @@
 #include "Parser.h"
 
 RetroShell::RetroShell(Amiga& ref) : SubComponent(ref), interpreter(ref)
-{
-    subComponents = std::vector<AmigaComponent *> { &remoteServer };
-    
+{    
     // Initialize the text storage
     clear();
 
@@ -24,14 +22,15 @@ RetroShell::RetroShell(Amiga& ref) : SubComponent(ref), interpreter(ref)
     
     // Print the startup message and the input prompt
     storage.welcome();
-    *this << prompt;
 }
 
 RetroShell&
 RetroShell::operator<<(char value)
 {
     storage << value;
-    remoteServer.send(SRVMODE_TERMINAL, value);
+    remoteManager.rshServer << value;
+    // isDirty = true;
+    needsDisplay();
     return *this;
 }
 
@@ -39,7 +38,9 @@ RetroShell&
 RetroShell::operator<<(const string& value)
 {
     storage << value;
-    remoteServer.send(SRVMODE_TERMINAL, value);
+    remoteManager.rshServer << value;
+    // isDirty = true;
+    needsDisplay();
     return *this;
 }
 
@@ -76,7 +77,7 @@ RetroShell::text()
     storage.text(all);
         
     // Add the input line
-    all += input + " ";
+    all += prompt + input + " ";
     
     return all.c_str();
 }
@@ -90,21 +91,33 @@ RetroShell::tab(isize pos)
         
         std::string fill(count, ' ');
         storage << fill;
-        remoteServer.send(SRVMODE_TERMINAL, fill);
+        remoteManager.rshServer << fill;
+        // isDirty = true;
+        needsDisplay();
     }
+}
+
+void
+RetroShell::needsDisplay()
+{
+    msgQueue.put(MSG_UPDATE_CONSOLE);
 }
 
 void
 RetroShell::clear()
 {
     storage.clear();
+    // isDirty = true;
+    needsDisplay();
 }
 
 void
 RetroShell::printHelp()
 {
     storage.printHelp();
-    remoteServer.printHelp();
+    remoteManager.rshServer << "Type 'help' for help.\n";
+    // isDirty = true;
+    needsDisplay();
 }
 
 void
@@ -194,6 +207,7 @@ RetroShell::press(RetroShellKey key)
             execUserCommand(input);
             input = "";
             cursor = 0;
+            remoteManager.rshServer.send(prompt);
             break;
             
         case RSKEY_CR:
@@ -204,7 +218,9 @@ RetroShell::press(RetroShellKey key)
     }
     
     tabPressed = key == RSKEY_TAB;
-    
+    // isDirty = true;
+    needsDisplay();
+
     assert(ipos >= 0 && ipos < historyLength());
     assert(cursor >= 0 && cursor <= inputLength());
 }
@@ -243,6 +259,8 @@ RetroShell::press(char c)
     }
 
     tabPressed = false;
+    // isDirty = true;
+    needsDisplay();
 }
 
 void
@@ -275,8 +293,6 @@ RetroShell::execUserCommand(const string &command)
         
         printHelp();
     }
-    
-    printPrompt();
 }
 
 void
@@ -429,7 +445,6 @@ RetroShell::vsyncHandler()
 {
     if (agnus.clock >= wakeUp) {
         
-        // Ask the external thread (GUI) to continue the script
         msgQueue.put(MSG_SCRIPT_WAKEUP);
         wakeUp = INT64_MAX;
     }

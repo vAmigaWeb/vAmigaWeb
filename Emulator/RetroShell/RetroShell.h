@@ -12,15 +12,12 @@
 #include "RetroShellTypes.h"
 #include "SubComponent.h"
 #include "Interpreter.h"
-#include "RemoteServer.h"
 #include "TextStorage.h"
 
 #include <sstream>
 #include <fstream>
 
 class RetroShell : public SubComponent {
-
-    friend class RemoteServer;
     
     // Interpreter for commands typed into the console window
     Interpreter interpreter;
@@ -29,8 +26,6 @@ class RetroShell : public SubComponent {
     //
     // Text storage
     //
-
-private:
     
     // The text storage
     TextStorage storage;
@@ -40,15 +35,10 @@ private:
     
     // The currently active input string
     isize ipos = 0;
-
-    // Wake up cycle for interrupted scripts
-    Cycle wakeUp = INT64_MAX;
-
-public:
-    
-    // Indicates if TAB was the most recently pressed key
-    bool tabPressed = false;
         
+    // Indicates if the the GUI needs a refresh
+    // [[deprecated]] bool isDirty = false;
+    
     
     //
     // User input
@@ -63,6 +53,9 @@ public:
     // Cursor position
     isize cursor = 0;
     
+    // Indicates if TAB was the most recently pressed key
+    bool tabPressed = false;
+
     
     //
     // Scripts
@@ -73,6 +66,9 @@ public:
     
     // The script line counter (first line = 1)
     isize scriptLine = 0;
+
+    // Wake up cycle for interrupted scripts
+    Cycle wakeUp = INT64_MAX;
 
     
     //
@@ -114,6 +110,9 @@ private:
 
 public:
     
+    // Returns the prompt
+    string getPrompt() { return prompt; }
+    
     // Returns the contents of the whole storage as a single C string
     const char *text();
         
@@ -126,12 +125,15 @@ public:
     RetroShell &operator<<(int value);
     RetroShell &operator<<(long value);
     RetroShell &operator<<(std::stringstream &stream);
-        
+            
+    // Signals the GUI to update the display if neccessary
+    // void flush(); 
+    
 private:
     
-    // Prints the command prompt
-    void printPrompt() { *this << prompt; }
-
+    // Marks the text storage as dirty
+    void needsDisplay();
+    
     // Clears the console window
     void clear();
     
@@ -201,14 +203,11 @@ private:
     
 public:
     
-    // void handler(const string& command) throws;
-    
     template <Token t1> void exec(Arguments& argv, long param) throws;
     template <Token t1, Token t2> void exec(Arguments& argv, long param) throws;
     template <Token t1, Token t2, Token t3> void exec(Arguments& argv, long param) throws;
+    template <Token t1, Token t2, Token t3, Token t4> void exec(Arguments& argv, long param) throws;
 
-private:
-    
     void dump(AmigaComponent &component, dump::Category category);
 
     
