@@ -66,7 +66,7 @@ function get_parameter_link()
         });
         parameter_link = call_obj.url;
         
-        call_param_openROMS=call_obj.openROMS === undefined ? null : call_obj.openROMS;
+        call_param_openROMS=call_obj.AROS === undefined ? null : call_obj.AROS;
         call_param_dialog_on_missing_roms = call_obj.dialog_on_missing_roms === undefined ? null : call_obj.dialog_on_missing_roms;
         call_param_dialog_on_disk = call_obj.dialog_on_disk === undefined ? null : call_obj.dialog_on_disk;
         call_param_2ndSID = call_obj._2ndSID === undefined ? null : "enabled at $"+call_obj._2ndSID;
@@ -1942,10 +1942,10 @@ bind_config_choice("OPT_DRIVE_SPEED", "drive speed",['-1', '1', '2', '4', '8'],'
 
 $('#hardware_settings').append(`<div class="mt-4">hardware settings</div><span style="font-size: smaller;">(shuts machine down on agnus model or memory change)</span>`);
 
-bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_DIP','OCS_PLCC','ECS_1MB','ECS_2MB'],'ECS_1MB');
-bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'512');
-bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'512');
-bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'0');
+bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_DIP','OCS_PLCC','ECS_1MB','ECS_2MB'],'ECS_2MB');
+bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'2048');
+bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0');
+bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048');
 
 
 

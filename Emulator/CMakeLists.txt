@@ -32,12 +32,12 @@ else()
   target_compile_options(vAmigaCore PRIVATE -Wno-unused-parameter)
   target_compile_options(vAmigaCore PRIVATE -O3)
   target_compile_options(vAmigaCore PRIVATE -Wfatal-errors -fexceptions)
-  target_compile_options(vAmigaCore PRIVATE -g) 
+#  target_compile_options(vAmigaCore PRIVATE -g) 
 endif()
 
 # Enable additional features on certain architectures
 if(NOT WIN32)
-  target_compile_definitions(vAmigaCore PUBLIC SCREEN_RECORDER)
+#  target_compile_definitions(vAmigaCore PUBLIC SCREEN_RECORDER)
   target_compile_definitions(vAmigaCore PUBLIC GDB_SERVER)
 endif()
 
