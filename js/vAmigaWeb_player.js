@@ -1,10 +1,10 @@
 /**
- * official vc64web player.
+ * official vAmigaWeb player.
  * checks whether jquery is already there, if not lazy loads it when emulator is started
  */
 
- var vc64web_player={
-    vc64web_url: 'https://vc64web.github.io/',
+ var vAmigaWeb_player={
+    vAmigaWeb_url: 'https://vamigaweb.github.io/',
     listens: false,
     loadScript: async function (url, callback){
         var script = document.createElement("script")
@@ -17,7 +17,7 @@
     inject_samesite_app_into_iframe: async function (){
         let ssfile = this.samesite_file;
         this.samesite_file= null;
-        let vc64web_window = document.getElementById("vc64web").contentWindow;
+        let vAmigaWeb_window = document.getElementById("vAmigaWeb").contentWindow;
         
         function FromBase64(str) {
                 return atob(str).split('').map(function (c) { return c.charCodeAt(0); });
@@ -76,7 +76,7 @@
             file_descriptor.file = new Uint8Array(await response.arrayBuffer());
         }
 
-        vc64web_window.postMessage(
+        vAmigaWeb_window.postMessage(
             file_descriptor, "*"
         );
 
@@ -113,8 +113,8 @@
         }
         else
         {
-            this.loadScript(`${this.vc64web_url}js/jquery-3.5.0.min.js` , 
-            function(){vc64web_player.load_into(element,params, address);});
+            this.loadScript(`${this.vAmigaWeb_url}js/jquery-3.5.0.min.js` , 
+            function(){vAmigaWeb_player.load_into(element,params, address);});
         }
     },
     show_reset_icon: false,
@@ -132,7 +132,7 @@
             }
             else
             {
-                alert("parameter element in the call vc64web_player.load(element, ...) is null.");
+                alert("parameter element in the call vAmigaWeb_player.load(element, ...) is null.");
                 return;
             }
         }
@@ -152,40 +152,40 @@
         //turn picture into iframe
         var emuview_html = `
 <div id="player_container" style="display:flex;flex-direction:column;">
-<iframe id="vc64web" width="100%" height="100%" src="${this.vc64web_url}${params}#${address}">
+<iframe id="vAmigaWeb" width="100%" height="100%" src="${this.vAmigaWeb_url}${params}#${address}">
 </iframe>
-<div style="display: flex"><svg id="stop_icon" class="player_icon_btn" onclick="vc64web_player.stop_emu_view();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
+<div style="display: flex"><svg id="stop_icon" class="player_icon_btn" onclick="vAmigaWeb_player.stop_emu_view();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
     <path d="M6.5 5A1.5 1.5 0 0 0 5 6.5v3A1.5 1.5 0 0 0 6.5 11h3A1.5 1.5 0 0 0 11 9.5v-3A1.5 1.5 0 0 0 9.5 5h-3z"/>
     <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4z"/>
 </svg>`;
 if(this.show_reset_icon)
 {
     emuview_html += 
-    `<svg id="btn_reset" class="player_icon_btn" onclick="vc64web_player.reset();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
+    `<svg id="btn_reset" class="player_icon_btn" onclick="vAmigaWeb_player.reset();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
     ${this.reset_icon}
     </svg>`;
 }
-emuview_html += `<svg  id="toggle_icon" class="player_icon_btn" onclick="vc64web_player.toggle_run();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
+emuview_html += `<svg  id="toggle_icon" class="player_icon_btn" onclick="vAmigaWeb_player.toggle_run();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
 ${this.pause_icon}
 </svg>
-<svg id="btn_unlock_audio" class="player_icon_btn" onclick="vc64web_player.toggle_audio();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
+<svg id="btn_unlock_audio" class="player_icon_btn" onclick="vAmigaWeb_player.toggle_audio();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
 ${this.audio_locked_icon}
 </svg>
-<svg id="btn_keyboard" class="player_icon_btn" onclick="vc64web_player.toggle_keyboard();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
+<svg id="btn_keyboard" class="player_icon_btn" onclick="vAmigaWeb_player.toggle_keyboard();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
 ${this.keyboard_icon}
 </svg>`;
 if(address.toLowerCase().endsWith(".zip"))
 {
     emuview_html += 
-    `<svg id="btn_zip" class="player_icon_btn" style="margin-top:4px;margin-left:auto" onclick="vc64web_player.open_zip();return false;" xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
+    `<svg id="btn_zip" class="player_icon_btn" style="margin-top:4px;margin-left:auto" onclick="vAmigaWeb_player.open_zip();return false;" xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
     ${this.folder_icon}
     </svg>`;
 }
 emuview_html += 
-`<svg id="btn_overlay" class="player_icon_btn" style="margin-top:4px;margin-left:auto" onclick="vc64web_player.toggle_overlay();return false;" xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
+`<svg id="btn_overlay" class="player_icon_btn" style="margin-top:4px;margin-left:auto" onclick="vAmigaWeb_player.toggle_overlay();return false;" xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
 ${this.overlay_on_icon}
 </svg>
-<a id="btn_open_in_extra_tab" title="open fullwindow in new browser tab" style="border:none;width:1.5em;margin-top:4px" onclick="vc64web_player.stop_emu_view();" href="${this.vc64web_url}${params}#${address}" target="blank">
+<a id="btn_open_in_extra_tab" title="open fullwindow in new browser tab" style="border:none;width:1.5em;margin-top:4px" onclick="vAmigaWeb_player.stop_emu_view();" href="${this.vAmigaWeb_url}${params}#${address}" target="blank">
     <svg class="player_icon_btn" xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
   <path fill-rule="evenodd" d="M15 2a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2zM0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm5.854 8.803a.5.5 0 1 1-.708-.707L9.243 6H6.475a.5.5 0 1 1 0-1h3.975a.5.5 0 0 1 .5.5v3.975a.5.5 0 1 1-1 0V6.707l-4.096 4.096z"/>
 </svg>
@@ -197,15 +197,15 @@ ${this.overlay_on_icon}
 
         $('#player_container').css("width",this.preview_pic_width);
 
-        $vc64web = $('#vc64web');
-        $vc64web.height($vc64web.width() * 212/320);
+        $vAmigaWeb = $('#vAmigaWeb');
+        $vAmigaWeb.height($vAmigaWeb.width() * 212/320);
         $(window).on('resize', function() { 
             setTimeout(()=>{
-                if( vc64web_player.is_overlay)
+                if( vAmigaWeb_player.is_overlay)
                 {
-                    vc64web_player.scale_overlay();
+                    vAmigaWeb_player.scale_overlay();
                 }
-                $vc64web.height($vc64web.width() * 212/320);
+                $vAmigaWeb.height($vAmigaWeb.width() * 212/320);
             }, 130);
             
         });
@@ -217,25 +217,25 @@ ${this.overlay_on_icon}
 		{//skip parent elements without width
 		  parent=parent.parent();		  
 		}
-		vc64web_player.preview_pic_width = parent.width();
-                $('#player_container').css("width",vc64web_player.preview_pic_width);
+		vAmigaWeb_player.preview_pic_width = parent.width();
+                $('#player_container').css("width",vAmigaWeb_player.preview_pic_width);
             }, 100);
         });
 
         document.addEventListener("click", this.grab_focus);
-        document.getElementById("vc64web").onload = this.grab_focus;
+        document.getElementById("vAmigaWeb").onload = this.grab_focus;
 
         this.state_poller = setInterval(function(){ 
-            let vc64web=document.getElementById("vc64web");            
-            vc64web.contentWindow.postMessage("poll_state", "*");
+            let vAmigaWeb=document.getElementById("vAmigaWeb");            
+            vAmigaWeb.contentWindow.postMessage("poll_state", "*");
         }, 900);
     },
     grab_focus: function(){            
-        let vc64web=document.getElementById("vc64web");            
-        if(vc64web != null)
+        let vAmigaWeb=document.getElementById("vAmigaWeb");            
+        if(vAmigaWeb != null)
         {
             document.activeElement.blur();
-            vc64web.focus();
+            vAmigaWeb.focus();
         }
     },
     state_poller: null,
@@ -270,12 +270,12 @@ ${this.overlay_on_icon}
             this.scale_overlay();
             this.is_overlay=true;
         }
-        $vc64web.height($vc64web.width() * 212/320);
+        $vAmigaWeb.height($vAmigaWeb.width() * 212/320);
         
-        let vc64web=document.getElementById("vc64web");
+        let vAmigaWeb=document.getElementById("vAmigaWeb");
         //the blur and refocus is only needed for safari, when it goes into overlay
         document.activeElement.blur(); 
-        vc64web.focus();
+        vAmigaWeb.focus();
     },
     scale_overlay: function(){
         var ratio=320/212; //1.6;
@@ -293,9 +293,9 @@ ${this.overlay_on_icon}
         $('#player_container').css({"position": "fixed", "top": `${margin_top}vh`, "left": `${margin_left}vw`, "width": `${width_percent}vw`, "z-index": 1000});
     },
     toggle_run: function () {
-        var vc64web = document.getElementById("vc64web").contentWindow;
+        var vAmigaWeb = document.getElementById("vAmigaWeb").contentWindow;
         //click emulators run toggle button
-        vc64web.postMessage("button_run()", "*");
+        vAmigaWeb.postMessage("button_run()", "*");
     },
     last_run_state:null,
     render_run_state: function (is_running)
@@ -310,13 +310,13 @@ ${this.overlay_on_icon}
     },
     toggle_keyboard: function()
     {			
-        var vc64web = document.getElementById("vc64web").contentWindow;
-        vc64web.postMessage({cmd:"script", script:"virtual_keyboard_clipping=false;action('keyboard');"}, "*");
+        var vAmigaWeb = document.getElementById("vAmigaWeb").contentWindow;
+        vAmigaWeb.postMessage({cmd:"script", script:"virtual_keyboard_clipping=false;action('keyboard');"}, "*");
     },
     toggle_audio: function()
     {			
-        var vc64web = document.getElementById("vc64web").contentWindow;
-        vc64web.postMessage("toggle_audio()", "*");
+        var vAmigaWeb = document.getElementById("vAmigaWeb").contentWindow;
+        vAmigaWeb.postMessage("toggle_audio()", "*");
     },
     last_audio_state:null,
     render_current_audio_state: function(state)
@@ -325,9 +325,9 @@ ${this.overlay_on_icon}
         this.last_audio_state=state;
     },
     open_zip: function () {
-        var vc64web = document.getElementById("vc64web").contentWindow;
+        var vAmigaWeb = document.getElementById("vAmigaWeb").contentWindow;
         //click emulators open_zip button
-        vc64web.postMessage("open_zip()", "*");
+        vAmigaWeb.postMessage("open_zip()", "*");
     },
     reset: function () {
         this.exec(()=>{wasm_reset()});
@@ -349,8 +349,8 @@ ${this.overlay_on_icon}
         document.removeEventListener("click", this.grab_focus);
     },
     send_script: function(the_script) { 
-        let vc64web = document.getElementById("vc64web").contentWindow;
-        vc64web.postMessage({cmd:"script", script: the_script}, "*");
+        let vAmigaWeb = document.getElementById("vAmigaWeb").contentWindow;
+        vAmigaWeb.postMessage({cmd:"script", script: the_script}, "*");
     },
     exec: function(the_function, the_param) { 
         let function_as_string=`(${the_function.toString()})(${the_param == undefined?'':"'"+the_param+"'"});`;

@@ -1,7 +1,7 @@
-<span style="display: flex;justify-content: center;">example how to embed a c64 prg into an existing html page</span> 
+<span style="display: flex;justify-content: center;">example how to embed an Amiga file into an existing html page</span> 
 
-<!-- vc64web-block start -->
-<script src="js/vc64web_player.js"></script>
+<!-- vAmigaWeb-block start -->
+<script src="js/vAmigaWeb_player.js"></script>
 
 <style>
 	body {
@@ -11,7 +11,7 @@
     #player_container {
         background-color: darkgray;
     }
-    #vc64web {
+    #vAmigaWeb {
         border:none;
     }
     .player_icon_btn {
@@ -48,11 +48,11 @@
         <img style="width:100%" src="https://vc64web.github.io/doc/images/wolfling.gif" 
             ontouchstart="touched=true"
             onclick="
-            vc64web_player.vc64web_url='./';  //the emulator files are in the same folder as the run.html
+            vAmigaWeb_player.vAmigaWeb_url='./';  //the emulator files are in the same folder as the run.html
             let touch=(typeof touched!='undefined')?touched:false;touched=false;
             let config={
                 touch:touch,
-                openROMS:true,
+                AROS:true,
                 navbar:false,   //you can also enable this and disable the players toolbar (see styles section above)
                 wide:true,
                 border:0.3,
@@ -63,12 +63,12 @@
                 //dark: false,
                 //dialog_on_missing_roms: false,
                 //dialog_on_disk: false,
-                url:'doc/media/wolfling14.prg'
+                url:'doc/media/Rink_a_Dink-REDUX_by_Lemon-Point_(final).adf'
             }; 
-            vc64web_player.load(this,encodeURIComponent(JSON.stringify(config)));
+            vAmigaWeb_player.load(this,encodeURIComponent(JSON.stringify(config)));
             return false;"		
         />
     </div>
 </div>
 <br>
-<!-- vc64web-block end -->
+<!-- vAmigaWeb-block end -->

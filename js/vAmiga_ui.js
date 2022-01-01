@@ -1423,9 +1423,8 @@ function InitWrappers() {
         if(event.data == "poll_state")
         {
             window.parent.postMessage({ msg: 'render_run_state', value: is_running()},"*");
-            var audio_context=get_audio_context(); 
             window.parent.postMessage({ msg: 'render_current_audio_state', 
-                value: audio_context == null ? 'suspended' : audio_context.state},"*"); 
+                value: audioContext == null ? 'suspended' : audioContext.state},"*"); 
         }
         else if(event.data == "button_run()")
         {
@@ -1437,7 +1436,7 @@ function InitWrappers() {
         }
         else if(event.data == "toggle_audio()")
         {
-            var context = get_audio_context();
+            var context = audioContext; //get_audio_context();
             if (context !=null)
             {
                 if(context.state == 'suspended') {
@@ -1449,7 +1448,7 @@ function InitWrappers() {
                 }
             }
             window.parent.postMessage({ msg: 'render_current_audio_state', 
-                value: audio_context == null ? 'suspended' : audio_context.state },"*");
+                value: audioContext == null ? 'suspended' : audioContext.state },"*");
         }
         else if(event.data == "open_zip()")
         {

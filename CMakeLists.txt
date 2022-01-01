@@ -41,7 +41,7 @@ add_custom_target(run
 
 
 #publish complete build to a gh-pages folder
-set(PUBLISH_FOLDER "../../vAmigaWeb.github.io")
+set(PUBLISH_FOLDER "../../vAmigaWeb.github.io2")
 add_custom_target(publish
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${PUBLISH_FOLDER}/roms
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${PUBLISH_FOLDER}/css
