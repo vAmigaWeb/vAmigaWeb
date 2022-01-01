@@ -38,6 +38,15 @@ Time::now()
     return (i64)mach_absolute_time() * tb.numer / tb.denom;
 }
 
+std::tm
+Time::local(const std::time_t &time)
+{
+    std::tm local {};
+    localtime_r(&time, &local);
+    
+    return local;
+}
+    
 void
 Time::sleep()
 {
@@ -70,6 +79,15 @@ Time::now()
 #else
  return (uint64_t)(emscripten_get_now()*1000000.0);
 #endif
+}
+
+std::tm
+Time::local(const std::time_t &time)
+{
+    std::tm local {};
+    localtime_r(&time, &local);
+    
+    return local;
 }
 
 void

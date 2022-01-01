@@ -16,6 +16,14 @@
 
 #include <vector>
 
+/* The following macro can be utilized to prevent multiple threads to enter the
+ * same code block. It mimics the behaviour of the well known Java construct
+ * 'synchronized(this) { }'. To secure a code-block, use the following syntax:
+ * { SYNCHRONIZED <commands }
+ */
+#define SYNCHRONIZED util::AutoMutex _am(mutex);
+
+// Old-styple sychronized macro (DEPRECATED)
 #define synchronized \
 for (util::AutoMutex _am(mutex); _am.active; _am.active = false)
 
@@ -154,10 +162,11 @@ public:
      */
     template<class T> T getInfo(T &cachedValues) const {
         
-        if (!isRunning()) inspect();
-        
-        synchronized { return cachedValues; }
-        unreachable;
+        {   SYNCHRONIZED
+            
+            if (!isRunning()) inspect();
+            return cachedValues;
+        }
     }
     
     //
@@ -173,13 +182,17 @@ public:
     virtual u64 _checksum() = 0;
 
     // Loads the internal state from a memory buffer
-    isize load(const u8 *buf) throws;
+    virtual isize load(const u8 *buf) throws;
     virtual isize _load(const u8 *buf) = 0;
-    
+    virtual void didLoad();
+    virtual void _didLoad() { };
+
     // Saves the internal state to a memory buffer
-    isize save(u8 *buf);
+    virtual isize save(u8 *buf);
     virtual isize _save(u8 *buf) = 0;
-    
+    virtual void didSave();
+    virtual void _didSave() { };
+
     /* Delegation methods called inside load() or save(). Some components
      * override these methods to add custom behavior if not all elements can be
      * processed by the default implementation.

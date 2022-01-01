@@ -68,11 +68,11 @@ FSPartition::FSPartition(FSDevice &dev, FSPartitionDescriptor &layout) : FSParti
 void
 FSPartition::info() const
 {
-    msg("DOS%lld  ",       dos);
-    msg("%6lld (x %3zd) ", numBlocks(), bsize());
-    msg("%6zd  ",          usedBlocks());
-    msg("%6zd   ",         freeBlocks());
-    msg("%3zd%%   ",       (isize)(100.0 * usedBlocks() / numBlocks()));
+    msg("DOS%ld  ",        dos);
+    msg("%6ld (x %3ld) ",  numBlocks(), bsize());
+    msg("%6ld  ",          usedBlocks());
+    msg("%6ld   ",         freeBlocks());
+    msg("%3ld%%   ",       (isize)(100.0 * usedBlocks() / numBlocks()));
     msg("%s\n",            getName().c_str());
     msg("\n");
 }
@@ -162,7 +162,7 @@ FSPartition::bsize() const
     return dev.bsize;
 }
 
-i64
+isize
 FSPartition::numBlocks() const
 {
     return numCyls() * dev.numHeads * dev.numSectors;
@@ -237,9 +237,9 @@ FSPartition::requiredBlocks(isize fileSize) const
     isize numFileListBlocks = requiredFileListBlocks(fileSize);
     
     debug(FS_DEBUG, "Required file header blocks : %d\n",  1);
-    debug(FS_DEBUG, "       Required data blocks : %zd\n", numDataBlocks);
-    debug(FS_DEBUG, "  Required file list blocks : %zd\n", numFileListBlocks);
-    debug(FS_DEBUG, "                Free blocks : %zd\n", freeBlocks());
+    debug(FS_DEBUG, "       Required data blocks : %ld\n", numDataBlocks);
+    debug(FS_DEBUG, "  Required file list blocks : %ld\n", numFileListBlocks);
+    debug(FS_DEBUG, "                Free blocks : %ld\n", freeBlocks());
     
     return 1 + numDataBlocks + numFileListBlocks;
 }
@@ -366,14 +366,14 @@ FSPartition::newFileHeaderBlock(const string &name)
 FSBlock *
 FSPartition::bmBlockForBlock(Block nr)
 {
-    assert(nr >= 2 && nr < numBlocks());
+    assert(nr >= 2 && (isize)nr < numBlocks());
         
     // Locate the bitmap block
     isize bitsPerBlock = (bsize() - 4) * 8;
     isize bmNr = (nr - 2) / bitsPerBlock;
 
     if (bmNr >= (isize)bmBlocks.size()) {
-        warn("Allocation bit is located in non-existent bitmap block %zd\n", bmNr);
+        warn("Allocation bit is located in non-existent bitmap block %ld\n", bmNr);
         return nullptr;
     }
 
@@ -430,7 +430,7 @@ FSPartition::locateAllocationBit(Block nr, isize *byte, isize *bit) const
     FSBlock *bm;
     bm = (bmNr < (isize)bmBlocks.size()) ? dev.bitmapBlockPtr(bmBlocks[bmNr]) : nullptr;
     if (bm == nullptr) {
-        warn("Allocation bit is located in non-existent bitmap block %zd\n", bmNr);
+        warn("Allocation bit is located in non-existent bitmap block %ld\n", bmNr);
         return nullptr;
     }
     
@@ -474,7 +474,7 @@ FSPartition::killVirus()
     assert(dev.blocks[firstBlock + 0]->type == FS_BOOT_BLOCK);
     assert(dev.blocks[firstBlock + 1]->type == FS_BOOT_BLOCK);
 
-    long id = isOFS() ? BB_AMIGADOS_13 : isFFS() ? BB_AMIGADOS_20 : BB_NONE;
+    auto id = isOFS() ? BB_AMIGADOS_13 : isFFS() ? BB_AMIGADOS_20 : BB_NONE;
 
     if (id != BB_NONE) {
         dev.blocks[firstBlock + 0]->writeBootBlock(id, 0);

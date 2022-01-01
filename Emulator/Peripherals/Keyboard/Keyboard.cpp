@@ -11,7 +11,7 @@
 #include "Keyboard.h"
 #include "Agnus.h"
 #include "CIA.h"
-#include "IO.h"
+#include "IOUtils.h"
 #include "MsgQueue.h"
 
 void
@@ -193,13 +193,13 @@ Keyboard::setSPLine(bool value, Cycle cycle)
 
     if (accept) {
 
-        trace(KBD_DEBUG, "Accepting handshake (SP low for %zd usec)\n", diff);
+        trace(KBD_DEBUG, "Accepting handshake (SP low for %ld usec)\n", diff);
         processHandshake();
     }
 
     if (reject) {
 
-        trace(KBD_DEBUG, "REJECTING handshake (SP low for %zd usec)\n", diff);
+        trace(KBD_DEBUG, "REJECTING handshake (SP low for %ld usec)\n", diff);
     }
 }
 

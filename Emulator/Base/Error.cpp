@@ -20,6 +20,18 @@ VAError::VAError(ErrorCode code, const string &s)
             fatalError;
             break;
             
+        case ERROR_POWERED_OFF:
+            description = "The emulator is powered off.";
+            break;
+
+        case ERROR_POWERED_ON:
+            description = "The emulator is powered on.";
+            break;
+
+        case ERROR_RUNNING:
+            description = "The emulator is running.";
+            break;
+
         case ERROR_OPT_UNSUPPORTED:
             description = "This option is not supported yet.";
             break;
@@ -137,12 +149,20 @@ VAError::VAError(ErrorCode code, const string &s)
             description += " corrupted or inconsistend file data.";
             break;
 
+        case ERROR_DMS_CANT_CREATE:
+            description = "Failed to extract the DMS archive.";
+            break;
+            
         case ERROR_MISSING_ROM_KEY:
             description = "No \"rom.key\" file found.";
             break;
 
         case ERROR_INVALID_ROM_KEY:
             description = "Invalid Rom key.";
+            break;
+            
+        case ERROR_OSDB:
+            description = "OS Debugger: " + s;
             break;
             
         case ERROR_FS_UNSUPPORTED:
@@ -178,7 +198,9 @@ VAError::VAError(ErrorCode code, const string &s)
             break;
 
         default:
-            description = "Error code " + std::to_string(data) + " (" + ErrorCodeEnum::key(data) + ").";
+            description =
+            "Error code " + std::to_string(data) +
+            " (" + ErrorCodeEnum::key((ErrorCode)data) + ").";
             break;
     }
 }

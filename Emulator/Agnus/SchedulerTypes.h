@@ -58,6 +58,11 @@ enum_long(SLOT)
     SLOT_DC1,                       // Disk change (Df1)
     SLOT_DC2,                       // Disk change (Df2)
     SLOT_DC3,                       // Disk change (Df3)
+    SLOT_MSE1,                      // Port 1 mouse
+    SLOT_MSE2,                      // Port 2 mouse
+    SLOT_KEY,                       // Auto-typing
+    SLOT_SRV,                       // Remote server manager
+    SLOT_SER,                       // Serial remote server
     SLOT_INS,                       // Handles periodic calls to inspect()
 
     SLOT_COUNT
@@ -67,9 +72,9 @@ typedef SLOT EventSlot;
 #ifdef __cplusplus
 struct EventSlotEnum : util::Reflection<EventSlotEnum, EventSlot>
 {
-    static long min() { return 0; }
-    static long max() { return SLOT_COUNT - 1; }
-    static bool isValid(long value) { return value >= min() && value <= max(); }
+    static long minVal() { return 0; }
+    static long maxVal() { return SLOT_COUNT - 1; }
+    static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
     
     static const char *prefix() { return "SLOT"; }
     static const char *key(EventSlot value)
@@ -104,6 +109,11 @@ struct EventSlotEnum : util::Reflection<EventSlotEnum, EventSlot>
             case SLOT_DC1:   return "DC1";
             case SLOT_DC2:   return "DC2";
             case SLOT_DC3:   return "DC3";
+            case SLOT_MSE1:  return "MSE1";
+            case SLOT_MSE2:  return "MSE2";
+            case SLOT_KEY:   return "KEY";
+            case SLOT_SRV:   return "SRV";
+            case SLOT_SER:   return "SER";
             case SLOT_INS:   return "INS";
 
             case SLOT_COUNT: return "???";
@@ -216,11 +226,6 @@ enum_i8(EventID)
     DSK_ROTATE = 1,
     DSK_EVENT_COUNT,
 
-    // Disk change slot
-    DCH_INSERT = 1,
-    DCH_EJECT,
-    DCH_EVENT_COUNT,
-
     // Strobe slot
     VBL_STROBE0 = 1,
     VBL_STROBE1,
@@ -263,6 +268,40 @@ enum_i8(EventID)
     SCR_TAKE = 1,
     SCR_EVENT_COUNT,
     
+    // Rasterline slot
+    RAS_HSYNC = 1,
+    RAS_EVENT_COUNT,
+    
+    // SEC slot
+    TER_TRIGGER = 1,
+    TER_EVENT_COUNT,
+    
+    //
+    // Events in tertiary event table
+    //
+    
+    // Disk change slot
+    DCH_INSERT = 1,
+    DCH_EJECT,
+    DCH_EVENT_COUNT,
+
+    // Mouse
+    MSE_PUSH_LEFT = 1,
+    MSE_RELEASE_LEFT,
+    MSE_PUSH_RIGHT,
+    MSE_RELEASE_RIGHT,
+    MSE_EVENT_COUNT,
+
+    // Auto typing
+    KEY_PRESS = 1,
+    KEY_RELEASE,
+
+    // Remote server manager
+    SRV_LAUNCH_DAEMON = 1,
+    
+    // Serial remote server
+    SER_RECEIVE = 1,
+    
     // Inspector slot
     INS_AMIGA = 1,
     INS_CPU,
@@ -273,15 +312,7 @@ enum_i8(EventID)
     INS_DENISE,
     INS_PORTS,
     INS_EVENTS,
-    INS_EVENT_COUNT,
-
-    // Rasterline slot
-    RAS_HSYNC = 1,
-    RAS_EVENT_COUNT,
-    
-    // SEC slot
-    TER_TRIGGER = 1,
-    TER_EVENT_COUNT
+    INS_EVENT_COUNT
 };
 
 static inline bool isRegEvent(EventID id) { return id < REG_EVENT_COUNT; }
@@ -339,7 +370,7 @@ typedef struct
     Cycle dmaClock;
     Cycle ciaAClock;
     Cycle ciaBClock;
-    long frame;
+    i64 frame;
     long vpos;
     long hpos;
 }

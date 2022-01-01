@@ -90,13 +90,13 @@ Agnus::initDasEventTable()
 {
     std::memset(dasDMA, 0, sizeof(dasDMA));
 
-    for (isize dmacon = 0; dmacon < 64; dmacon++) {
+    for (isize enable = 0; enable < 64; enable++) {
 
-        EventID *p = dasDMA[dmacon];
+        EventID *p = dasDMA[enable];
 
         p[0x01] = DAS_REFRESH;
 
-        if (dmacon & DSKEN) {
+        if (enable & DSKEN) {
             
             p[0x07] = DAS_D0;
             p[0x09] = DAS_D1;
@@ -109,7 +109,7 @@ Agnus::initDasEventTable()
         p[0x11] = DAS_A2;
         p[0x13] = DAS_A3;
         
-        if (dmacon & SPREN) {
+        if (enable & SPREN) {
             
             p[0x15] = DAS_S0_1;
             p[0x17] = DAS_S0_2;
@@ -132,55 +132,6 @@ Agnus::initDasEventTable()
         p[0xDF] = DAS_SDMA;
         p[0x66] = DAS_TICK;
     }
-}
-
-template <int x> bool
-Agnus::isBplDmaCycle()
-{
-    EventID id = bplEvent[pos.h] & ~3;
-    
-    switch (x) {
-            
-        case 1: return id == BPL_L1 || id == BPL_H1;
-        case 2: return id == BPL_L2 || id == BPL_H2;
-        case 3: return id == BPL_L3 || id == BPL_H3;
-        case 4: return id == BPL_L4 || id == BPL_H4;
-        case 5: return id == BPL_L5;
-        case 6: return id == BPL_L6;
-    }
-    fatalError;
-}
-
-template <int x> bool
-Agnus::isSprDmaCycle()
-{
-    EventID id = dasEvent[pos.h];
-    
-    if constexpr (x == 0) { return id == DAS_S0_1 || id == DAS_S0_2; }
-    if constexpr (x == 1) { return id == DAS_S1_1 || id == DAS_S1_2; }
-    if constexpr (x == 2) { return id == DAS_S2_1 || id == DAS_S2_2; }
-    if constexpr (x == 3) { return id == DAS_S3_1 || id == DAS_S3_2; }
-    if constexpr (x == 4) { return id == DAS_S4_1 || id == DAS_S4_2; }
-    if constexpr (x == 5) { return id == DAS_S5_1 || id == DAS_S5_2; }
-    if constexpr (x == 6) { return id == DAS_S6_1 || id == DAS_S6_2; }
-    if constexpr (x == 7) { return id == DAS_S7_1 || id == DAS_S7_2; }
-}
-
-template <int x> bool
-Agnus::isAudDmaCycle()
-{
-    EventID id = dasEvent[pos.h];
-    
-    if constexpr (x == 0) { return id == DAS_A0; }
-    if constexpr (x == 1) { return id == DAS_A1; }
-    if constexpr (x == 2) { return id == DAS_A2; }
-    if constexpr (x == 3) { return id == DAS_A3; }
-}
-
-bool
-Agnus::isDskDmaCycle(Accessor a)
-{
-    assert(false);
 }
 
 void
@@ -241,7 +192,7 @@ Agnus::busIsFree()
         if (!copdma()) return false;
         
         // Deny in cycle E0
-        if (unlikely(pos.h == 0xE0)) {
+        if (pos.h == 0xE0) {
          
             // If the Copper wants the bus in E0, nobody can have it
             busOwner[pos.h] = BUS_BLOCKED;
@@ -596,24 +547,3 @@ template bool Agnus::allocateBus<BUS_BLITTER>();
 
 template bool Agnus::busIsFree<BUS_COPPER>();
 template bool Agnus::busIsFree<BUS_BLITTER>();
-
-template bool Agnus::isBplDmaCycle<1>();
-template bool Agnus::isBplDmaCycle<2>();
-template bool Agnus::isBplDmaCycle<3>();
-template bool Agnus::isBplDmaCycle<4>();
-template bool Agnus::isBplDmaCycle<5>();
-template bool Agnus::isBplDmaCycle<6>();
-
-template bool Agnus::isSprDmaCycle<0>();
-template bool Agnus::isSprDmaCycle<1>();
-template bool Agnus::isSprDmaCycle<2>();
-template bool Agnus::isSprDmaCycle<3>();
-template bool Agnus::isSprDmaCycle<4>();
-template bool Agnus::isSprDmaCycle<5>();
-template bool Agnus::isSprDmaCycle<6>();
-template bool Agnus::isSprDmaCycle<7>();
-
-template bool Agnus::isAudDmaCycle<0>();
-template bool Agnus::isAudDmaCycle<1>();
-template bool Agnus::isAudDmaCycle<2>();
-template bool Agnus::isAudDmaCycle<3>();

@@ -244,54 +244,48 @@ Memory::setConfigItem(Option option, i64 value)
             return;
             
         case OPT_SAVE_ROMS:
-            
-            suspended {
-                config.saveRoms = value;
-            }
+        {
+            SUSPENDED
+            config.saveRoms = value;
             return;
-            
+        }
         case OPT_SLOW_RAM_DELAY:
-                        
-            suspended {
-                config.slowRamDelay = value;
-            }
+        {
+            SUSPENDED
+            config.slowRamDelay = value;
             return;
-            
+        }
         case OPT_BANKMAP:
-            
+        {
             if (!BankMapEnum::isValid(value)) {
                 throw VAError(ERROR_OPT_INVARG, BankMapEnum::keyList());
             }
             
-            suspended {
-                config.bankMap = (BankMap)value;
-                updateMemSrcTables();
-            }
+            SUSPENDED
+            config.bankMap = (BankMap)value;
+            updateMemSrcTables();
             return;
-
+        }
         case OPT_UNMAPPING_TYPE:
-            
+        {
             if (!UnmappedMemoryEnum::isValid(value)) {
                 throw VAError(ERROR_OPT_INVARG, UnmappedMemoryEnum::keyList());
             }
             
-            suspended {
-                config.unmappingType = (UnmappedMemory)value;
-            }
+            SUSPENDED
+            config.unmappingType = (UnmappedMemory)value;
             return;
-            
+        }
         case OPT_RAM_INIT_PATTERN:
-            
+
             if (!RamInitPatternEnum::isValid(value)) {
                 throw VAError(ERROR_OPT_INVARG, RamInitPatternEnum::keyList());
             }
 
-            suspended {
-                config.ramInitPattern = (RamInitPattern)value;
-            }
+            { SUSPENDED config.ramInitPattern = (RamInitPattern)value; }
             if (isPoweredOff()) fillRamWithInitPattern();
             return;
-            
+
         default:
             fatalError;
     }
@@ -503,7 +497,7 @@ Memory::alloc(i32 bytes, u8 *&ptr, i32 &size, u32 &mask, bool update)
         mask = size - 1;
         
         if ((uintptr_t)ptr & 1) {
-            panic("Memory at %p (%d bytes) is not aligned\n", (void *)ptr, bytes);
+            fatal("Memory at %p (%d bytes) is not aligned\n", (void *)ptr, bytes);
         }
     }
     
@@ -617,7 +611,7 @@ Memory::romVersion()
     static char str[32];
 
     if (romIdentifier() == ROM_UNKNOWN) {
-        sprintf(str, "CRC %x", romFingerprint());
+        snprintf(str, sizeof(str), "CRC %x", romFingerprint());
         return str;
     }
 
@@ -648,7 +642,7 @@ Memory::extVersion()
     static char str[32];
 
     if (extIdentifier() == ROM_UNKNOWN) {
-        sprintf(str, "CRC %x", extFingerprint());
+        snprintf(str, sizeof(str), "CRC %x", extFingerprint());
         return str;
     }
 
@@ -912,6 +906,54 @@ Memory::updateAgnusMemSrcTable()
     }
 }
 
+bool
+Memory::inChipRam(u32 addr)
+{
+    if (addr > 0xFFFFFF) return false;
+        
+    auto memSrc = cpuMemSrc[addr >> 16];
+    return memSrc == MEM_CHIP || memSrc == MEM_CHIP_MIRROR;
+}
+
+bool
+Memory::inSlowRam(u32 addr)
+{
+    if (addr > 0xFFFFFF) return false;
+        
+    auto memSrc = cpuMemSrc[addr >> 16];
+    return memSrc == MEM_SLOW || memSrc == MEM_SLOW_MIRROR;
+}
+
+bool
+Memory::inFastRam(u32 addr)
+{
+    if (addr > 0xFFFFFF) return false;
+        
+    auto memSrc = cpuMemSrc[addr >> 16];
+    return memSrc == MEM_FAST;
+}
+
+bool
+Memory::inRam(u32 addr)
+{
+    return inChipRam(addr) || inSlowRam(addr) || inFastRam(addr);
+}
+
+bool
+Memory::inRom(u32 addr)
+{
+    if (addr > 0xFFFFFF) return false;
+        
+    auto memSrc = cpuMemSrc[addr >> 16];
+    
+    return
+    memSrc == MEM_ROM ||
+    memSrc == MEM_ROM_MIRROR ||
+    memSrc == MEM_WOM ||
+    memSrc == MEM_EXT;
+}
+
+
 //
 // Peek (CPU)
 //
@@ -928,6 +970,22 @@ Memory::spypeek16 <ACCESSOR_CPU, MEM_NONE> (u32 addr) const
         default:
             fatalError;
     }
+}
+
+template <Accessor acc, MemorySource src> u8
+Memory::spypeek8(u32 addr) const
+{
+    auto word = spypeek16 <acc, src> (addr & ~1);
+    return IS_EVEN(addr) ? HI_BYTE(word) : LO_BYTE(word);
+}
+
+template <Accessor acc, MemorySource src> u32
+Memory::spypeek32(u32 addr) const
+{
+    auto hi = spypeek16 <acc, src> (addr);
+    auto lo = spypeek16 <acc, src> (addr + 2);
+    
+    return HI_W_LO_W(hi, lo);
 }
 
 template<> u8
@@ -1282,7 +1340,7 @@ Memory::peek16 <ACCESSOR_CPU> (u32 addr)
             fatalError;
     }
 }
-
+    
 template<> u16
 Memory::spypeek16 <ACCESSOR_CPU> (u32 addr) const
 {
@@ -1310,6 +1368,22 @@ Memory::spypeek16 <ACCESSOR_CPU> (u32 addr) const
         default:
             fatalError;
     }
+}
+
+template<> u8
+Memory::spypeek8 <ACCESSOR_CPU> (u32 addr) const
+{
+    auto word = spypeek16 <ACCESSOR_CPU> (addr & ~1);
+    return IS_EVEN(addr) ? HI_BYTE(word) : LO_BYTE(word);
+}
+
+template<> u32
+Memory::spypeek32 <ACCESSOR_CPU> (u32 addr) const
+{
+    auto hi = spypeek16 <ACCESSOR_CPU> (addr);
+    auto lo = spypeek16 <ACCESSOR_CPU> (addr + 2);
+    
+    return HI_W_LO_W(hi, lo);
 }
 
 
@@ -1995,10 +2069,7 @@ Memory::spypeekCustom16(u32 addr) const
 {
     assert(IS_EVEN(addr));
     
-    switch (addr & 0x1FE) {
-            
-    }
-
+    // TODO: ADD IMPLEMENTATION
     return 42;
 }
 
@@ -2510,6 +2581,40 @@ Memory::hex(u32 addr, isize bytes)
     }
 
     return str;
+}
+
+std::vector <u32>
+Memory::search(u64 pattern, isize bytes)
+{
+    std::vector <u32> result;
+
+    // Iterate through all memory banks
+    for (isize bank = 0; bank < 256; bank++) {
+        
+        // Only proceed if this memory bank is mapped
+        if (cpuMemSrc[bank] == MEM_NONE) continue;
+
+        auto lo = (u32)(bank << 16);
+        auto hi = lo + 0xFFFF;
+
+        for (u32 addr = lo; addr <= hi; addr++) {
+
+            isize j;
+            
+            for (j = 0; j < bytes; j++) {
+
+                auto mem = spypeek8 <ACCESSOR_CPU> (addr + (u32)j);
+                if (GET_BYTE(pattern, bytes - 1 - j) != mem) break;
+            }
+            if (j == bytes && result.size() < 128) {
+                
+                result.push_back(addr);
+                if (result.size() >= 128) break;
+            }
+        }
+    }
+    
+    return result;
 }
 
 template void Memory::pokeCustom16 <ACCESSOR_CPU> (u32 addr, u16 value);

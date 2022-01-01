@@ -11,7 +11,7 @@
 #include "CPU.h"
 #include "Agnus.h"
 #include "Amiga.h"
-#include "IO.h"
+#include "IOUtils.h"
 #include "Memory.h"
 #include "MsgQueue.h"
 
@@ -453,9 +453,16 @@ CPU::disassembleInstr(isize *len)
 {
     return disassembleInstr(reg.pc0, len);
 }
+
 const char *
 CPU::disassembleWords(isize len)
 {
     return disassembleWords(reg.pc0, len);
-    return "";
+}
+
+void
+CPU::jump(u32 addr)
+{
+    SUSPENDED
+    debugger.jump(addr);
 }

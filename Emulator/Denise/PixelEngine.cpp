@@ -142,7 +142,7 @@ PixelEngine::setConfigItem(Option option, i64 value)
                 throw VAError(ERROR_OPT_INVARG, PaletteEnum::keyList());
             }
             
-            config.palette = value;
+            config.palette = (Palette)value;
             updateRGBA();
             return;
 
@@ -152,7 +152,7 @@ PixelEngine::setConfigItem(Option option, i64 value)
                 throw VAError(ERROR_OPT_INVARG, "0...100");
             }
             
-            config.brightness = value;
+            config.brightness = (isize)value;
             updateRGBA();
             return;
             
@@ -162,7 +162,7 @@ PixelEngine::setConfigItem(Option option, i64 value)
                 throw VAError(ERROR_OPT_INVARG, "0...100");
             }
             
-            config.contrast = value;
+            config.contrast = (isize)value;
             updateRGBA();
             return;
 
@@ -172,7 +172,7 @@ PixelEngine::setConfigItem(Option option, i64 value)
                 throw VAError(ERROR_OPT_INVARG, "0...100");
             }
             
-            config.saturation = value;
+            config.saturation = (isize)value;
             updateRGBA();
             return;
 
@@ -298,20 +298,31 @@ PixelEngine::adjustRGB(u8 &r, u8 &g, u8 &b)
 ScreenBuffer
 PixelEngine::getStableBuffer()
 {
-    ScreenBuffer result;
-    
-    synchronized {
-        result = (frameBuffer == &emuTexture[0]) ? emuTexture[1] : emuTexture[0];
+    if (frameBuffer == &emuTexture[0]) {
+        return emuTexture[1];
+    } else {
+        return emuTexture[0];
     }
+}
+
+void
+PixelEngine::swapBuffers()
+{
+    // Only proceed if the GUI is not using the stable buffer right now
+    lockStableBuffer();
     
-    assert(result.data);
-    return result;
+    frameBuffer = (frameBuffer == &emuTexture[0]) ? &emuTexture[1] : &emuTexture[0];
+    frameBuffer->longFrame = agnus.frame.lof;
+
+    unlockStableBuffer();
 }
 
 u32 *
 PixelEngine::getNoise() const
 {
-    int offset = rand() % (VPIXELS * HPIXELS);
+    static u32 offset = 0;
+    
+    offset = (offset + 100) % PIXELS;
     return noise + offset;
 }
 
@@ -329,12 +340,7 @@ PixelEngine::pixelAddr(isize pixel) const
 void
 PixelEngine::vsyncHandler()
 {
-    // Switch the working buffer
-    synchronized {
-        frameBuffer = (frameBuffer == &emuTexture[0]) ? &emuTexture[1] : &emuTexture[0];
-        frameBuffer->longFrame = agnus.frame.lof;
-    }
-    
+    swapBuffers();
     dmaDebugger.vSyncHandler();
 }
 
@@ -405,7 +411,7 @@ PixelEngine::colorize(isize line)
     colChanges.clear();
 
     // Wipe out the HBLANK area
-    for (Pixel pixel = 4 * HBLANK_MIN; pixel <= 4 * HBLANK_MAX; pixel++) {
+    for (pixel = 4 * HBLANK_MIN; pixel <= 4 * HBLANK_MAX; pixel++) {
         dst[pixel] = rgbaHBlank;
     }
 }

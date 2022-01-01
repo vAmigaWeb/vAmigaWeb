@@ -10,7 +10,7 @@
 #include "config.h"
 #include "Muxer.h"
 #include "CIA.h"
-#include "IO.h"
+#include "IOUtils.h"
 #include "MsgQueue.h"
 #include <cmath>
 #include <algorithm>
@@ -259,7 +259,7 @@ Muxer::setSampleRate(double hz)
     trace(AUD_DEBUG, "setSampleRate(%f)\n", hz);
 
     sampleRate = hz;
-    cyclesPerSample = MHz(MASTER_FREQUENCY) / hz;
+    cyclesPerSample = MASTER_FREQUENCY / hz;
 
     filterL.setSampleRate(hz);
     filterR.setSampleRate(hz);
@@ -372,7 +372,7 @@ Muxer::synthesize(Cycle clock, long count, double cyclesPerSample)
     // Check for a buffer overflow
     if (stream.count() + count >= stream.cap()) handleBufferOverflow();
 
-    double cycle = clock;
+    double cycle = (double)clock;
     bool filter = ciaa.powerLED() || config.filterAlwaysOn;
 
     for (long i = 0; i < count; i++) {
@@ -417,7 +417,7 @@ Muxer::handleBufferUnderflow()
     // (1) The consumer runs slightly faster than the producer
     // (2) The producer is halted or not startet yet
     
-    debug(AUDBUF_DEBUG, "UNDERFLOW (r: %zd w: %zd)\n", stream.r, stream.w);
+    debug(AUDBUF_DEBUG, "UNDERFLOW (r: %ld w: %ld)\n", stream.r, stream.w);
     
     // Reset the write pointer
     stream.alignWritePtr();
@@ -445,7 +445,7 @@ Muxer::handleBufferOverflow()
     // (1) The consumer runs slightly slower than the producer
     // (2) The consumer is halted or not startet yet
     
-    debug(AUDBUF_DEBUG, "OVERFLOW (r: %zd w: %zd)\n", stream.r, stream.w);
+    debug(AUDBUF_DEBUG, "OVERFLOW (r: %ld w: %ld)\n", stream.r, stream.w);
     
     // Reset the write pointer
     stream.alignWritePtr();

@@ -16,15 +16,19 @@
 #include "CPU.h"
 #include "Denise.h"
 #include "Drive.h"
+#include "GdbServer.h"
 #include "Keyboard.h"
 #include "Memory.h"
 #include "MsgQueue.h"
+#include "OSDebugger.h"
 #include "Paula.h"
 #include "RegressionTester.h"
+#include "RemoteManager.h"
 #include "RetroShell.h"
+#include "RshServer.h"
 #include "RTC.h"
 #include "SerialPort.h"
-#include "SuspendableThread.h"
+#include "Thread.h"
 #include "ZorroManager.h"
 
 /* A complete virtual Amiga. This class is the most prominent one of all. To
@@ -78,10 +82,14 @@ public:
     // Shortcuts to all four drives
     Drive *df[4] = { &df0, &df1, &df2, &df3 };
     
+    // Gateway to the GUI
+    MsgQueue msgQueue = MsgQueue(*this);
+
     // Misc
     RetroShell retroShell = RetroShell(*this);
+    RemoteManager remoteManager = RemoteManager(*this);
+    OSDebugger osDebugger = OSDebugger(*this);
     RegressionTester regressionTester = RegressionTester(*this);
-    MsgQueue msgQueue = MsgQueue(*this);
     
     
     //
@@ -153,6 +161,8 @@ private:
     void _halt() override;
     void _warpOn() override;
     void _warpOff() override;
+    void _debugOn() override;
+    void _debugOff() override;
     void _inspect() const override;
 
     template <class T>
@@ -167,6 +177,13 @@ private:
         
     }
 
+public:
+    
+    isize load(const u8 *buffer) override;
+    isize save(u8 *buffer) override;
+
+private:
+    
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
     u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM; }
     isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
@@ -177,8 +194,8 @@ private:
     // Methods from Thread
     //
     
-public:
     
+public:
     void execute() override;
 
     
@@ -186,7 +203,6 @@ public:
     // Configuring
     //
     
-public:
         
     // Gets a single configuration item
     i64 getConfigItem(Option option) const;

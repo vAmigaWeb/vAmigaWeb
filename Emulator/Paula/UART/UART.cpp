@@ -12,6 +12,7 @@
 #include "Agnus.h"
 #include "MsgQueue.h"
 #include "Paula.h"
+#include "RemoteManager.h"
 #include "SerialPort.h"
 #include <iostream>
 
@@ -25,13 +26,14 @@ UART::_reset(bool hard)
 void
 UART::_inspect() const
 {
-    synchronized {
-        
-        info.receiveBuffer = receiveBuffer;
-        info.receiveShiftReg = receiveShiftReg;
-        info.transmitBuffer = transmitBuffer;
-        info.transmitShiftReg = transmitShiftReg;
-    }
+    SYNCHRONIZED
+    
+    info.serper = serper;
+    info.baudRate = baudRate();
+    info.receiveBuffer = receiveBuffer;
+    info.receiveShiftReg = receiveShiftReg;
+    info.transmitBuffer = transmitBuffer;
+    info.transmitShiftReg = transmitShiftReg;
 }
 
 void
@@ -87,8 +89,9 @@ void
 UART::pokeSERPER(u16 value)
 {
     trace(SER_DEBUG, "pokeSERPER(%X)\n", value);
-
     serper = value;
+    trace(SER_DEBUG, "New baud rate = %ld\n", baudRate());
+
 }
 
 void
@@ -99,10 +102,14 @@ UART::copyToTransmitShiftRegister()
     assert(transmitShiftReg == 0);
     assert(transmitBuffer != 0);
 
+    // Send the byte to the null modem cable
+    auto byte = (char)(transmitBuffer & 0xFF);
+    remoteManager.serServer << byte;
+    
     // Inform the GUI about the outgoing data
     msgQueue.put(MSG_SER_OUT, transmitBuffer);
-    trace(SER_DEBUG, "transmitBuffer: %X ('%c')\n", transmitBuffer & 0xFF, transmitBuffer & 0xFF);
-
+    trace(SER_DEBUG, "transmitBuffer: %X ('%c')\n", byte, byte);
+    
     // Move the contents of the transmit buffer into the shift register
     transmitShiftReg = transmitBuffer;
     transmitBuffer = 0;
@@ -131,14 +138,11 @@ UART::copyFromReceiveShiftRegister()
     // Inform the GUI about the incoming data
     msgQueue.put(MSG_SER_IN, receiveBuffer);
 
-    // msg("receiveBuffer: %X ('%c')\n", receiveBuffer & 0xFF, receiveBuffer & 0xFF);
-
     count++;
 
     // Update the overrun bit
-    // Bit will be 1 if the RBF interrupt hasn't been acknowledged yet
     ovrun = GET_BIT(paula.intreq, 11);
-    if (ovrun) trace(SER_DEBUG, "OVERRUN BIT IS 1\n");
+    if (ovrun) { trace(SER_DEBUG, "OVERRUN BIT IS 1\n"); }
 
     // Trigger the RBF interrupt (Read Buffer Full)
     trace(SER_DEBUG, "Triggering RBF interrupt\n");
@@ -165,7 +169,7 @@ UART::rxdHasChanged(bool value)
         recCnt = 0;
 
         // Trigger the event in the middle of the first data bit
-        Cycle delay = rate() * 3 / 2;
+        Cycle delay = pulseWidth() * 3 / 2;
 
         // Schedule the event
         agnus.scheduleRel<SLOT_RXD>(delay, RXD_BIT);

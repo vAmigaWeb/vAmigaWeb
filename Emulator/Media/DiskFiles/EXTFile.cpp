@@ -12,7 +12,7 @@
 #include "Disk.h"
 #include "Drive.h"
 #include "FSDevice.h"
-#include "IO.h"
+#include "IOUtils.h"
 
 const std::vector<string> EXTFile::extAdfHeaders =
 {
@@ -178,7 +178,7 @@ EXTFile::encodeDisk(class Disk &disk) const
     assert(data);
     
     isize tracks = storedTracks();
-    debug(MFM_DEBUG, "Encoding Amiga disk with %zd tracks\n", tracks);
+    debug(MFM_DEBUG, "Encoding Amiga disk with %ld tracks\n", tracks);
 
     // Start with an unformatted disk
     disk.clearDisk();
@@ -194,7 +194,7 @@ EXTFile::encodeTrack(class Disk &disk, Track t) const
     
     for (isize i = 0; i < numTracks; i++) {
 
-        debug(MFM_DEBUG, "Encoding track %zd\n", i);
+        debug(MFM_DEBUG, "Encoding track %ld\n", i);
         
         auto numBits = usedBitsForTrack(i);
         assert(numBits % 8 == 0);
@@ -214,8 +214,9 @@ EXTFile::decodeDisk(Disk &disk)
     auto numTracks = disk.numTracks();
     
     // Magic bytes
-    std::strcpy((char *)p, "UAE-1ADF");
-
+    p[0] = 'U'; p[1] = 'A'; p[2] = 'E'; p[3] = '-';
+    p[4] = '1'; p[5] = 'A'; p[6] = 'D'; p[7] = 'F';
+    
     // Reserved
     assert(p[8] == 0);
     assert(p[9] == 0);
@@ -263,7 +264,7 @@ EXTFile::decodeDisk(Disk &disk)
         }
     }
     
-    debug(ADF_DEBUG, "Wrote %zd bytes\n", p - data);
+    debug(ADF_DEBUG, "Wrote %td bytes\n", p - data);
 }
 
 isize

@@ -11,8 +11,8 @@
 #include "Blitter.h"
 #include "Agnus.h"
 #include "Checksum.h"
-#include "IO.h"
-#include "SuspendableThread.h"
+#include "IOUtils.h"
+#include "Thread.h"
 
 Blitter::Blitter(Amiga& ref) : SubComponent(ref)
 {
@@ -101,16 +101,15 @@ Blitter::setConfigItem(Option option, i64 value)
     switch (option) {
             
         case OPT_BLITTER_ACCURACY:
-                      
+        {
             if (value < 0 || value > 2) {
                 throw VAError(ERROR_OPT_INVARG, "0, 1, 2");
             }
-
-            suspended {
-                config.accuracy = value;
-            }
-            return;
             
+            SUSPENDED
+            config.accuracy = (isize)value;
+            return;
+        }
         default:
             fatalError;
     }
@@ -119,40 +118,49 @@ Blitter::setConfigItem(Option option, i64 value)
 void
 Blitter::_inspect() const
 {
-    synchronized {
-        
-        info.bltcon0 = bltcon0;
-        info.bltcon1 = bltcon1;
-        info.ash = bltconASH();
-        info.bsh = bltconBSH();
-        info.minterm = bltconLF();
-        info.bltapt  = bltapt;
-        info.bltbpt  = bltbpt;
-        info.bltcpt  = bltcpt;
-        info.bltdpt  = bltdpt;
-        info.bltafwm = bltafwm;
-        info.bltalwm = bltalwm;
-        info.bltamod = bltamod;
-        info.bltbmod = bltbmod;
-        info.bltcmod = bltcmod;
-        info.bltdmod = bltdmod;
-        info.aold = aold;
-        info.bold = bold;
-        info.anew = anew;
-        info.bnew = bnew;
-        info.ahold = ahold;
-        info.bhold = bhold;
-        info.chold = chold;
-        info.dhold = dhold;
-        info.bbusy = bbusy;
-        info.bzero = bzero;
-        info.firstWord = isFirstWord();
-        info.lastWord = isLastWord();
-        info.fci = bltconFCI();
-        info.fco = fillCarry;
-        info.fillEnable = bltconFE();
-        info.storeToDest = bltconUSED() && !lockD;
-    }
+    SYNCHRONIZED
+    
+    auto minterm = bltconLF();
+    auto mintermOut = doMintermLogic(ahold, bhold, chold, (u8)minterm);
+    
+    info.bltcon0 = bltcon0;
+    info.bltcon1 = bltcon1;
+    info.ash = bltconASH();
+    info.bsh = bltconBSH();
+    info.minterm = bltconLF();
+    info.bltapt  = bltapt;
+    info.bltbpt  = bltbpt;
+    info.bltcpt  = bltcpt;
+    info.bltdpt  = bltdpt;
+    info.bltafwm = bltafwm;
+    info.bltalwm = bltalwm;
+    info.bltamod = bltamod;
+    info.bltbmod = bltbmod;
+    info.bltcmod = bltcmod;
+    info.bltdmod = bltdmod;
+    info.aold = aold;
+    info.bold = bold;
+    info.anew = anew;
+    info.bnew = bnew;
+    info.ahold = ahold;
+    info.bhold = bhold;
+    info.chold = chold;
+    info.dhold = dhold;
+    info.barrelAin = anew & mask;
+    info.barrelAout = barrelShifter(anew & mask, aold, bltconASH(), bltconDESC());
+    info.barrelBin = bnew;
+    info.barrelBout = barrelShifter(bnew, bold, bltconBSH(), bltconDESC());
+    info.mintermOut = mintermOut;
+    info.fillIn = mintermOut;
+    info.fillOut = dhold;
+    info.bbusy = bbusy;
+    info.bzero = bzero;
+    info.firstWord = isFirstWord();
+    info.lastWord = isLastWord();
+    info.fci = bltconFCI();
+    info.fco = fillCarry;
+    info.fillEnable = bltconFE();
+    info.storeToDest = bltconUSED() && !lockD;
 }
 
 void
@@ -225,7 +233,7 @@ Blitter::_dump(dump::Category category, std::ostream& os) const
 }
 
 u16
-Blitter::barrelShifter(u16 anew, u16 aold, u16 shift, bool desc)
+Blitter::barrelShifter(u16 anew, u16 aold, u16 shift, bool desc) const
 {
     if (desc) {
         return (u16)(HI_W_LO_W(anew, aold) >> (16 - shift));
@@ -252,7 +260,7 @@ Blitter::doMintermLogic(u16 a, u16 b, u16 c, u8 minterm) const
         if (minterm & 0b00000010) result2 |= ~a & ~b &  c;
         if (minterm & 0b00000001) result2 |= ~a & ~b & ~c;
     
-        if (result != result2) panic("Blitter minterm error\n");
+        if (result != result2) fatal("Blitter minterm error\n");
     }
     
     return result;
@@ -522,7 +530,7 @@ Blitter::doMintermLogicQuick(u16 a, u16 b, u16 c, u8 minterm) const
 }
 
 void
-Blitter::doFill(u16 &data, bool &carry)
+Blitter::doFill(u16 &data, bool &carry) const
 {
     assert(carry == 0 || carry == 1);
 
@@ -618,7 +626,7 @@ Blitter::beginBlit()
             
             linecount++;
             check1 = check2 = util::fnv_1a_init32();
-            msg("Line %zd (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x\n",
+            msg("Line %ld (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x\n",
                 linecount, bltsizeH, bltsizeV,
                 bltconUSEA(), bltconUSEB(), bltconUSEC(), bltconUSED(),
                 bltcon0,
@@ -637,7 +645,7 @@ Blitter::beginBlit()
             
             copycount++;
             check1 = check2 = util::fnv_1a_init32();
-            msg("Blit %zd (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x %s%s\n",
+            msg("Blit %ld (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x %s%s\n",
                 copycount,
                 bltsizeH, bltsizeV,
                 bltconUSEA(), bltconUSEB(), bltconUSEC(), bltconUSED(),
@@ -659,8 +667,8 @@ Blitter::beginLineBlit(isize level)
 {
     static u64 verbose = 0;
 
-    if (BLT_CHECKSUM && verbose++ == 0) {
-        msg("Performing level %zd line blits.\n", level);
+    if (verbose++ == 0) {
+        debug(BLT_CHECKSUM, "Performing level %ld line blits.\n", level);
     }
     if (bltcon0 & BLTCON0_USEB) {
         trace(XFILES, "Performing line blit with channel B enabled\n");
@@ -685,8 +693,8 @@ Blitter::beginCopyBlit(isize level)
 {
     static u64 verbose = 0;
 
-    if (BLT_CHECKSUM && verbose++ == 0) {
-        msg("Performing level %zd copy blits.\n", level);
+    if (verbose++ == 0) {
+        debug(BLT_CHECKSUM, "Performing level %ld copy blits.\n", level);
     }
 
     switch (level) {
@@ -703,7 +711,7 @@ Blitter::beginCopyBlit(isize level)
 void
 Blitter::clearBusyFlag()
 {
-    debug(BLTTIM_DEBUG, "(%zd,%zd) Blitter bbusy\n", agnus.pos.v, agnus.pos.h);
+    debug(BLTTIM_DEBUG, "(%ld,%ld) Blitter bbusy\n", agnus.pos.v, agnus.pos.h);
 
     // Clear the Blitter busy flag
     bbusy = false;
@@ -712,7 +720,7 @@ Blitter::clearBusyFlag()
 void
 Blitter::endBlit()
 {
-    debug(BLTTIM_DEBUG, "(%zd,%zd) Blitter terminates\n", agnus.pos.v, agnus.pos.h);
+    debug(BLTTIM_DEBUG, "(%ld,%ld) Blitter terminates\n", agnus.pos.v, agnus.pos.h);
     
     running = false;
     

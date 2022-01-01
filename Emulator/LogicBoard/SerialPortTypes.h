@@ -19,24 +19,26 @@
 enum_long(SPD)
 {
     SPD_NONE,
-    SPD_LOOPBACK
+    SPD_LOOPBACK,
+    SPD_NULLMODEM
 };
 typedef SPD SerialPortDevice;
 
 #ifdef __cplusplus
 struct SerialPortDeviceEnum : util::Reflection<SerialPortDeviceEnum, SerialPortDevice>
 {
-    static long min() { return 0; }
-    static long max() { return SPD_LOOPBACK; }
-    static bool isValid(long value) { return value >= min() && value <= max(); }
+    static long minVal() { return 0; }
+    static long maxVal() { return SPD_NULLMODEM; }
+    static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
     
     static const char *prefix() { return "SPD"; }
     static const char *key(SerialPortDevice value)
     {
         switch (value) {
-                
+
             case SPD_NONE:      return "NONE";
             case SPD_LOOPBACK:  return "LOOPBACK";
+            case SPD_NULLMODEM: return "NULLMODEM";
         }
         return "???";
     }

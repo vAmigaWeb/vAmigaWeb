@@ -99,14 +99,14 @@ class Thread : public AmigaComponent, util::Wakeable {
     volatile ExecutionState newState = EXEC_OFF;
 
     // The current warp state and a change request
-    volatile bool warpMode = false;
-    volatile bool newWarpMode = false;
+    volatile u8 warpMode = 0;
+    volatile u8 newWarpMode = 0;
 
     // The current debug state and a change request
-    volatile bool debugMode = false;
-    volatile bool newDebugMode = false;
+    volatile u8 debugMode = 0;
+    volatile u8 newDebugMode = 0;
 
-    // Indicates if warp mode or debug mode is locked
+    // Indicates if warp mode or debug mode is locked (DEPRECATED)
     bool warpLock = false;
     bool debugLock = false;
     
@@ -192,19 +192,19 @@ public:
     void pause(bool blocking = true);
     void halt(bool blocking = true);
     
-    bool inWarpMode() const { return warpMode; }
-    void warpOn(bool blocking = true);
-    void warpOff(bool blocking = true);
+    bool inWarpMode() const { return warpMode != 0; }
+    void warpOn(isize source = 0);
+    void warpOff(isize source = 0);
 
-    bool inDebugMode() const { return debugMode; }
-    void debugOn(bool blocking = true);
-    void debugOff(bool blocking = true);
+    bool inDebugMode() const { return debugMode != 0; }
+    void debugOn(isize source = 0);
+    void debugOff(isize source = 0);
 
 private:
 
     void changeStateTo(ExecutionState requestedState, bool blocking);
-    void changeWarpTo(bool value, bool blocking);
-    void changeDebugTo(bool value, bool blocking);
+    void changeWarpTo(u8 value, bool blocking = true);
+    void changeDebugTo(u8 value, bool blocking = true);
     
     
     //
@@ -221,3 +221,52 @@ private:
     // Wait until the thread has terminated
     void join() { if (thread.joinable()) thread.join(); }
 };
+
+/* This class extends class Thread by a suspend-resume mechanism for pausing
+ * the thread temporarily. This functionality is utilized frequently by the GUI
+ * to carry out atomic state-change operations that cannot be performed while
+ * the emulator is running. To pause the emulator temporarily, the critical
+ * code section can be embedded in a suspend/resume block like so:
+ *
+ *       suspend();
+ *       do something with the internal state;
+ *       resume();
+ *
+ * It it safe to nest multiple suspend/resume blocks, but it is essential
+ * that each call to suspend() is followed by a call to resume(). As a result,
+ * the critical code section must not be exited in the middle, e.g., by
+ * throwing an exception. It is therefore recommended to use the SUSPENDED
+ * macro which is exit-safe. It is used in the following way:
+ *
+ *    {  SUSPENDED
+ *
+ *       Do something with the internal state;
+ *       return or throw an exceptions as you like;
+ *    }
+ */
+
+class SuspendableThread : public Thread {
+    
+private:
+    
+    isize suspendCounter = 0;
+
+public:
+
+    void suspend() override;
+    void resume() override;
+};
+
+class AutoResume {
+
+    AmigaComponent *comp;
+    
+public:
+
+    bool active = true;
+
+    AutoResume(AmigaComponent *c) : comp(c) { comp->suspend(); }
+    ~AutoResume() { comp->resume(); }
+};
+
+#define SUSPENDED AutoResume _ar(this);

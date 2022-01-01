@@ -21,7 +21,7 @@
 // Snapshot version number
 #define SNP_MAJOR 1
 #define SNP_MINOR 0
-#define SNP_SUBMINOR 7
+#define SNP_SUBMINOR 8
 
 // Uncomment this setting in a release build
 #define RELEASEBUILD
@@ -179,7 +179,12 @@ static const int IMG_DEBUG       = 0; // IMG files
 // Other components
 static const int RTC_DEBUG       = 0; // Real-time clock
 static const int KBD_DEBUG       = 0; // Keyboard
+
+// Misc
 static const int REC_DEBUG       = 0; // Screen recorder
+static const int SCK_DEBUG       = 0; // Sockets
+static const int SRV_DEBUG       = 0; // Remote server
+static const int GDB_DEBUG       = 0; // GDB server
 
 
 //
@@ -195,6 +200,7 @@ static const int FORCE_SNAP_TOO_OLD        = 0;
 static const int FORCE_SNAP_TOO_NEW        = 0;
 static const int FORCE_SNAP_CORRUPTED      = 0;
 static const int FORCE_DISK_INVALID_LAYOUT = 0;
+static const int FORCE_DMS_CANT_CREATE     = 0;
 static const int FORCE_RECORDING_ERROR     = 0;
 
 

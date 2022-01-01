@@ -319,8 +319,8 @@ public:
 
     // Imports a directory from the host file system
     void importDirectory(const string &path, bool recursive = true) throws;
-    void importDirectory(const string &path, DIR *dir, bool recursive = true) throws;
-
+    void importDirectory(const fs::directory_entry &dir, bool recursive) throws;
+    
     // Exports the volume to a buffer compatible with the ADF format
     bool exportVolume(u8 *dst, isize size);
     bool exportVolume(u8 *dst, isize size, ErrorCode *error);

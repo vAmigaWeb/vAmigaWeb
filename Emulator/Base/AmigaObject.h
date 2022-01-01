@@ -47,14 +47,15 @@
 namespace dump {
 enum Category : usize {
     
-    Config    = 0b000000001,
-    State     = 0b000000010,
-    Registers = 0b000000100,
-    Checksums = 0b000001000,
-    Dma       = 0b000010000,
-    BankMap   = 0b000100000,
-    List1     = 0b001000000,
-    List2     = 0b010000000,
+    BankMap   = 0b000000001,
+    Checksums = 0b000000010,
+    Config    = 0b000000100,
+    Dma       = 0b000001000,
+    List1     = 0b000010000,
+    List2     = 0b000100000,
+    Registers = 0b001000000,
+    Segments  = 0b010000000,
+    State     = 0b100000000,
 };
 }
 
@@ -91,7 +92,7 @@ public:
  *
  *   - msg    Information message   (Shows up in all builds)
  *   - warn   Warning message       (Shows up in all builds)
- *   - panic  Panic message + Exit  (Shows up in all builds)
+ *   - fatal  Error message + Exit  (Shows up in all builds)
  *   - debug  Debug message         (Shows up in debug builds, only)
  *   - plain  Plain debug message   (Shows up in debug builds, only)
  *   - trace  Detailed debug output (Shows up in debug builds, only)
@@ -116,8 +117,8 @@ fprintf(stderr, format, ##__VA_ARGS__);
 #define warn(format, ...) \
 fprintf(stderr, "Warning: " format, ##__VA_ARGS__);
 
-#define panic(format, ...) \
-fprintf(stderr, "Panic: " format, ##__VA_ARGS__); exit(1);
+#define fatal(format, ...) \
+{ fprintf(stderr, "Fatal: " format, ##__VA_ARGS__); exit(1); }
 
 #ifndef NDEBUG
 

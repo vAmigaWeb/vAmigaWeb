@@ -9,8 +9,14 @@
 
 #include "config.h"
 #include "SerialPort.h"
-#include "UART.h"
-#include "IO.h"
+#include "IOUtils.h"
+#include "Amiga.h"
+
+void
+SerialPort::_didLoad()
+{
+    printf("SerialPort::_didLoad()\n");
+}
 
 SerialPortConfig
 SerialPort::getDefaultConfig()
@@ -36,7 +42,7 @@ SerialPort::getConfigItem(Option option) const
     switch (option) {
             
         case OPT_SERIAL_DEVICE:  return (i64)config.device;
-        
+
         default:
             fatalError;
     }
@@ -53,7 +59,7 @@ SerialPort::setConfigItem(Option option, i64 value)
                 throw VAError(ERROR_OPT_INVARG, SerialPortDeviceEnum::keyList());
             }
             
-            config.device = (SerialPortDevice)value;
+            config.device = (SerialPortDevice)value;            
             return;
                         
         default:

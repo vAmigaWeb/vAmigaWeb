@@ -88,8 +88,20 @@ AmigaComponent::load(const u8 *buffer)
         throw VAError(ERROR_SNAP_CORRUPTED);
     }
     
-    debug(SNP_DEBUG, "Loaded %zd bytes (expected %zd)\n", result, size());
+    debug(SNP_DEBUG, "Loaded %ld bytes (expected %ld)\n", result, size());
     return result;
+}
+
+void
+AmigaComponent::didLoad()
+{
+    assert(!isRunning());
+        
+    for (AmigaComponent *c : subComponents) {
+        c->didLoad();
+    }
+
+    _didLoad();
 }
 
 isize
@@ -115,10 +127,22 @@ AmigaComponent::save(u8 *buffer)
     ptr += didSaveToBuffer(ptr);
     isize result = (isize)(ptr - buffer);
     
-    debug(SNP_DEBUG, "Saved %zd bytes (expected %zd)\n", result, size());
+    debug(SNP_DEBUG, "Saved %ld bytes (expected %ld)\n", result, size());
     assert(result == size());
 
     return result;
+}
+
+void
+AmigaComponent::didSave()
+{
+    assert(!isRunning());
+        
+    for (AmigaComponent *c : subComponents) {
+        c->didSave();
+    }
+
+    _didSave();
 }
 
 void

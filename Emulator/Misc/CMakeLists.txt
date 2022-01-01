@@ -1,0 +1,3 @@
+add_subdirectory(OSDebugger)
+add_subdirectory(RemoteServers)
+add_subdirectory(RegressionTester)

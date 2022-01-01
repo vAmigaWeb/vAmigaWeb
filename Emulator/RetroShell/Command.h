@@ -36,8 +36,9 @@ struct Command {
     // Command handler
     void (RetroShell::*action)(Arguments&, long) = nullptr;
     
-    // Number of additional arguments expected by the command handler
-    isize numArgs = 0;
+    // Minimum and maximum number of arguments expected by the command handler
+    isize minArgs = 0;
+    isize maxArgs = 0;
     
     // An additional paramter passed to the command handler
     long param = 0;
@@ -46,11 +47,23 @@ struct Command {
     bool hidden = false;
         
     // Creates a new node in the command tree
-    void add(const std::vector<string> tokens,
+    void add(const std::vector<string> &tokens,
+             const string &type,
+             const string &help);
+    
+    void add(const std::vector<string> &tokens,
              const string &type,
              const string &help,
-             void (RetroShell::*action)(Arguments&, long) = nullptr,
-             isize numArgs = 0, long param = 0);
+             void (RetroShell::*action)(Arguments&, long),
+             isize numArgs,
+             long param = 0);
+    
+    void add(const std::vector<string> &tokens,
+             const string &type,
+             const string &help,
+             void (RetroShell::*action)(Arguments&, long),
+             std::pair <isize,isize> numArgs,
+             long param = 0);
 
     // Removes a registered command
     void remove(const string& token);

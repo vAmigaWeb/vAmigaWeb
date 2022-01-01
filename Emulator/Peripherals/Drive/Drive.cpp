@@ -175,7 +175,7 @@ Drive::setConfigItem(Option option, i64 value)
                 throw VAError(ERROR_OPT_INVARG, FSVolumeTypeEnum::keyList());
             }
             
-            config.defaultFileSystem = value;
+            config.defaultFileSystem = (FSVolumeType)value;
             return;
 
         case OPT_DEFAULT_BOOTBLOCK:
@@ -184,7 +184,7 @@ Drive::setConfigItem(Option option, i64 value)
                 throw VAError(ERROR_OPT_INVARG, BootBlockIdEnum::keyList());
             }
             
-            config.defaultBootBlock = value;
+            config.defaultBootBlock = (BootBlockId)value;
             return;
 
         default:
@@ -326,7 +326,7 @@ Drive::_load(const u8 *buffer)
     }
 
     result = (isize)(reader.ptr - buffer);
-    trace(SNP_DEBUG, "Recreated from %zd bytes\n", result);
+    trace(SNP_DEBUG, "Recreated from %ld bytes\n", result);
     return result;
 }
 
@@ -353,7 +353,7 @@ Drive::_save(u8 *buffer)
     }
     
     result = (isize)(writer.ptr - buffer);
-    trace(SNP_DEBUG, "Serialized to %zd bytes\n", result);
+    trace(SNP_DEBUG, "Serialized to %ld bytes\n", result);
     return result;
 }
 
@@ -583,7 +583,7 @@ Drive::findSyncMark()
         break;
     }
 
-    trace(DSK_DEBUG, "Moving to SYNC mark at offset %zd\n", head.offset);
+    trace(DSK_DEBUG, "Moving to SYNC mark at offset %ld\n", head.offset);
 }
 
 bool
@@ -612,7 +612,7 @@ Drive::step(isize dir)
             head.cylinder--;
             recordCylinder(head.cylinder);
         }
-        debug(DSK_CHECKSUM, "Stepping down to cylinder %zd\n", head.cylinder);
+        debug(DSK_CHECKSUM, "Stepping down to cylinder %ld\n", head.cylinder);
 
     } else {
         
@@ -621,7 +621,7 @@ Drive::step(isize dir)
             head.cylinder++;
             recordCylinder(head.cylinder);
         }
-        debug(DSK_CHECKSUM, "Stepping up to cylinder %zd\n", head.cylinder);
+        debug(DSK_CHECKSUM, "Stepping up to cylinder %ld\n", head.cylinder);
     }
     
     // Push drive head forward
@@ -757,7 +757,7 @@ Drive::ejectDisk(Cycle delay)
 {
     debug(DSK_DEBUG, "ejectDisk <%d> (%lld)\n", s, delay);
     
-    suspended {
+    {   SUSPENDED
 
         // Schedule an ejection event
         agnus.scheduleRel <s> (delay, DCH_EJECT);
@@ -788,7 +788,7 @@ Drive::insertDisk(std::unique_ptr<Disk> disk, Cycle delay)
     // Only proceed if the provided disk is compatible with this drive
     if (!isInsertable(*disk)) throw VAError(ERROR_DISK_INCOMPATIBLE);
 
-    suspended {
+    {   SUSPENDED
         
         // Get ownership of the disk
         diskToInsert = std::move(disk);
@@ -843,7 +843,7 @@ Drive::swapDisk(std::unique_ptr<Disk> disk)
     // Determine delay (in pause mode, we insert immediately)
     auto delay = isRunning() ? config.diskSwapDelay : 0;
         
-    suspended {
+    {   SUSPENDED
 
         if (hasDisk()) {
 

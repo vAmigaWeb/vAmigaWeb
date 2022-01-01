@@ -1,4 +1,4 @@
-var vc64web_version ="1.0.7"; //minimum requirement for snapshot version to be compatible
+var vc64web_version ="1.0.8"; //minimum requirement for snapshot version to be compatible
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 

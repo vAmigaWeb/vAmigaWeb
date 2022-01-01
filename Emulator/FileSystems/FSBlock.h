@@ -12,6 +12,7 @@
 #include "AmigaObject.h"
 #include "FSTypes.h"
 #include "FSObjects.h"
+#include "IOUtils.h"
 #include "BootBlockImage.h"
 #include <vector>
 
@@ -142,12 +143,12 @@ public:
     void exportBlock(u8 *dst, isize bsize);
     
     // Exports this block to the host file system
-    ErrorCode exportBlock(const string &path);
+    ErrorCode exportBlock(const fs::path &path);
         
 private:
     
-    ErrorCode exportUserDirBlock(const string &path);
-    ErrorCode exportFileHeaderBlock(const string &path);
+    ErrorCode exportUserDirBlock(const fs::path &path);
+    ErrorCode exportFileHeaderBlock(const fs::path &path);
 
                 
     //
@@ -300,8 +301,8 @@ public:
     // Exporting
     //
     
-    isize writeData(FILE *file);
-    isize writeData(FILE *file, isize size);
+    isize writeData(std::ostream& os);
+    isize writeData(std::ostream& os, isize size);
 };
 
 typedef FSBlock* BlockPtr;
@@ -331,7 +332,7 @@ if (value > (u32)exp) \
 { *expected = (u8)(exp); return ERROR_FS_EXPECTED_SMALLER_VALUE; } }
 
 #define EXPECT_DOS_REVISION { \
-if (!FSVolumeTypeEnum::isValid(value)) return ERROR_FS_EXPECTED_DOS_REVISION; }
+if (!FSVolumeTypeEnum::isValid((isize)value)) return ERROR_FS_EXPECTED_DOS_REVISION; }
 
 #define EXPECT_REF { \
 if (!partition.dev.block(value)) return ERROR_FS_EXPECTED_REF; }

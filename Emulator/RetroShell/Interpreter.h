@@ -17,31 +17,23 @@
 
 enum class Token
 {
-    none,
-    
-    // Components
-    agnus, amiga, audio, blitter, cia, controlport, copper, cpu, dc, denise,
-    dfn, dmadebugger, keyboard, memory, monitor, mouse, paula, regression,
-    screenshot, serial, rtc,
-
-    // Commands
-    about, audiate, autosync, clear, config, connect, debug, disable,
-    disconnect, dsksync, easteregg, eject, enable, close, hide, init, insert,
-    inspect, list, load, lock, off, on, open, pause, power, reset, run, save,
-    set, setup, show, source, wait,
-    
-    // Categories
-    checksums, devices, dma, events, registers, state,
-        
-    // Keys
-    accuracy, bankmap, bitplanes, brightness, channel, chip, clxsprspr,
-    clxsprplf, clxplfplf, color, contrast, cutout, defaultbb, defaultfs, delay,
-    device, disk, esync, extrom, extstart, fast, filename, filter, joystick,
-    keyset, mechanics, mode, model, opacity, palette, pan, path, poll, pullup,
-    raminitpattern, refresh, regreset, revision, rom, sampling, saturation,
-    saveroms, searchpath, shakedetector, slow, slowramdelay, slowrammirror,
-    speed, sprites, step, swapdelay, tod, todbug, unmappingtype, velocity,
-    volume, wom
+    about, accuracy, agnus, amiga, attach, audiate, audio, autosync, bankmap,
+    bitplanes, blitter, brightness, channel, checksums, chip, cia, clear, close,
+    clxsprspr, clxsprplf, clxplfplf, color, config, connect, contrast,
+    controlport, copper, cpu, cutout, dc, debug, defaultbb, defaultfs, delay,
+    denise, detach, device, devices, dfn, disable, disconnect, disk, dma,
+    dmadebugger, dsksync, easteregg, eject, enable, esync, events, execbase,
+    extrom, extstart, fast, filename, filter, gdb, help, hide, init, info,
+    insert, inspect, interrupts, joystick, jump, keyboard, keyset, layers, left,
+    library, libraries, list, load, lock,mechanics, memory, mode, model,
+    monitor, mouse, none, off, on, opacity, open, os, palette, pan, path,
+    paula, pause, poll, port, ports, power, press, process, processes, pullup,
+    raminitpattern, refresh, registers, regreset, regression, reset, resource,
+    resources, revision, right, rom, rshell, rtc, run, sampling, saturation,
+    save, saveroms, screenshot, searchpath, serial, server, set, setup,
+    shakedetector, show, slow, slowramdelay,slowrammirror, source, speed,
+    sprites, start, state, status, step, stop, swapdelay, task, tasks, tod,
+    todbug, unmappingtype, verbose, velocity, volume, wait, wom
 };
 
 struct TooFewArgumentsError : public util::ParseError {

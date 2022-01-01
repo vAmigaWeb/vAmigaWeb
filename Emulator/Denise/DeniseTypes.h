@@ -27,9 +27,9 @@ typedef DENISE_REV DeniseRevision;
 #ifdef __cplusplus
 struct DeniseRevisionEnum : util::Reflection<DeniseRevisionEnum, DeniseRevision>
 {    
-    static long min() { return 0; }
-    static long max() { return DENISE_ECS; }
-    static bool isValid(long value) { return value >= min() && value <= max(); }
+    static long minVal() { return 0; }
+    static long maxVal() { return DENISE_ECS; }
+    static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
 
     static const char *prefix() { return "DENISE"; }
     static const char *key(DeniseRevision value)
@@ -70,9 +70,12 @@ typedef struct
     // Emulated chip model
     DeniseRevision revision;
     
+    // Hides certain bitplanes
+    u8 hiddenBitplanes;
+
     // Hides certain sprites
     u8 hiddenSprites;
-
+    
     // Hides certain graphics layers
     u16 hiddenLayers;
     

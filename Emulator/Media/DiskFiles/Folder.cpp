@@ -10,17 +10,12 @@
 #include "config.h"
 #include "Folder.h"
 #include "FSDevice.h"
+#include "IOUtils.h"
 
 bool
 Folder::isCompatible(const string &path)
 {
-    DIR *dir;
-    
-    // We accept all directories
-    if ((dir = opendir(path.c_str())) == nullptr) return false;
-    
-    closedir(dir);
-    return true;
+    return util::isDirectory(path);
 }
 
 void
@@ -33,6 +28,9 @@ Folder::init(const string &path)
 
     // Create a file system and import the directory
     FSDevice volume(FS_OFS, path.c_str());
+    
+    // Make the volume bootable
+    volume.makeBootable(BB_AMIGADOS_13);
     
     // Check the file system for errors
     volume.info();

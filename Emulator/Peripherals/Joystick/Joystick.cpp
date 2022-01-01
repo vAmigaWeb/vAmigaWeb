@@ -11,7 +11,7 @@
 #include "Joystick.h"
 #include "Agnus.h"
 #include "ControlPort.h"
-#include "IO.h"
+#include "IOUtils.h"
 
 Joystick::Joystick(Amiga& ref, ControlPort& pref) : SubComponent(ref), port(pref)
 {
@@ -87,7 +87,7 @@ Joystick::setConfigItem(Option option, i64 value)
 
         case OPT_AUTOFIRE_BULLETS:
             
-            config.autofireBullets = value;
+            config.autofireBullets = (isize)value;
             
             // Update the bullet counter if we're currently firing
             if (bulletCounter > 0) reload();
@@ -96,7 +96,7 @@ Joystick::setConfigItem(Option option, i64 value)
 
         case OPT_AUTOFIRE_DELAY:
             
-            config.autofireDelay = value;
+            config.autofireDelay = (isize)value;
             return;
 
         default:
