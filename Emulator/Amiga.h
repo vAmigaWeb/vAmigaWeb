@@ -28,7 +28,7 @@
 #include "RshServer.h"
 #include "RTC.h"
 #include "SerialPort.h"
-#include "SuspendableThread.h"
+#include "Thread.h"
 #include "ZorroManager.h"
 
 /* A complete virtual Amiga. This class is the most prominent one of all. To
@@ -194,10 +194,8 @@ private:
     // Methods from Thread
     //
     
-private:
-
+    
 public:
-
     void execute() override;
 
     
