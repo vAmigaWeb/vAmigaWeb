@@ -37,6 +37,7 @@ add_custom_target(run
     COMMAND ${CMAKE_COMMAND} -E copy vAmiga.js ..
     COMMAND ${CMAKE_COMMAND} -E copy vAmiga.wasm ..
     COMMAND ${CMAKE_COMMAND} -E chdir .. python3 -m http.server 8080
+	DEPENDS vAmiga
 )
 
 
@@ -62,4 +63,5 @@ add_custom_target(publish
 	COMMAND ${CMAKE_COMMAND} -E copy ../run.html ${PUBLISH_FOLDER}
 	COMMAND ${CMAKE_COMMAND} -E copy ../sw.js ${PUBLISH_FOLDER}
 	COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${PUBLISH_FOLDER}
+	DEPENDS vAmiga
 )
