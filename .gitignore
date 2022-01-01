@@ -1,5 +1,9 @@
 #roms
 #*.bin
+build
+index.html
+vAmiga.js
+vAmiga.wasm
 
 # Prerequisites
 *.d
