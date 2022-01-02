@@ -420,7 +420,7 @@ var collectors = {
                         var version = snapshot.data[6] +'.'+snapshot.data[7]+'.'+snapshot.data[8];
                         if(!version.startsWith(vc64web_version))
                         {
-                            alert(`This snapshot has been taken with the older virtual C64 version ${version} and can not be loaded with the current version ${vc64web_version}, sorry.`);
+                            alert(`This snapshot has been taken with the older vAmiga version ${version} and can not be loaded with the current version ${vc64web_version}, sorry.`);
                             return;
                         }
                         wasm_loadfile(
