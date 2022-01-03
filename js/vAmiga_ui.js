@@ -11,6 +11,7 @@ let call_param_dialog_on_missing_roms=null;
 let call_param_dialog_on_disk=null;
 let call_param_SID=null;
 
+
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
 
 const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -76,6 +77,8 @@ function get_parameter_link()
         call_param_border=call_obj.border === undefined ? null : call_obj.border;
         call_param_touch=call_obj.touch === undefined ? null : call_obj.touch;
         call_param_dark=call_obj.dark === undefined ? null : call_obj.dark;
+        call_param_warpto=call_obj.warpto === undefined ? null : call_obj.warpto;
+
         if(call_obj.touch)
         {
             call_param_touch=true;
@@ -337,6 +340,9 @@ function message_handler(msg, data)
 
             }catch(e){}},
         150);
+        if(call_param_warpto !=null){
+             wasm_configure("warp_to_frame", `${call_param_warpto}`);
+        }
     }
     else if(msg == "MSG_ROM_MISSING")
     {        
