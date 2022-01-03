@@ -10,6 +10,8 @@ let call_param_buttons=[];
 let call_param_dialog_on_missing_roms=null;
 let call_param_dialog_on_disk=null;
 let call_param_SID=null;
+let call_param_mouse=null;
+
 
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
 
@@ -76,6 +78,9 @@ function get_parameter_link()
         call_param_border=call_obj.border === undefined ? null : call_obj.border;
         call_param_touch=call_obj.touch === undefined ? null : call_obj.touch;
         call_param_dark=call_obj.dark === undefined ? null : call_obj.dark;
+        call_param_warpto=call_obj.warpto === undefined ? null : call_obj.warpto;
+        call_param_mouse=call_obj.mouse === undefined ? null : call_obj.mouse;
+
         if(call_obj.touch)
         {
             call_param_touch=true;
@@ -83,7 +88,7 @@ function get_parameter_link()
         }
         if(call_obj.port1)
         {
-            port1=call_param_touch != true ? "keys":"touch";          
+            port1=call_param_touch == true ?"touch":"keys";          
             port2="none";
             $('#port1').val(port1);
             $('#port2').val(port2);
@@ -91,11 +96,10 @@ function get_parameter_link()
         if(call_obj.port2)
         {
             port1="none";
-            port2=call_param_touch != true ? "keys":"touch";
+            port2=call_param_touch == true ? "touch":"keys";
             $('#port1').val(port1);       
             $('#port2').val(port2);
         }
-        
         
         if(call_obj.buttons !== undefined && call_param_buttons.length==0)
         {
@@ -337,6 +341,9 @@ function message_handler(msg, data)
 
             }catch(e){}},
         150);
+        if(call_param_warpto !=null){
+             wasm_configure("warp_to_frame", `${call_param_warpto}`);
+        }
     }
     else if(msg == "MSG_ROM_MISSING")
     {        
@@ -1703,7 +1710,31 @@ function InitWrappers() {
             }
         }
     }
-
+    //check if call_param_mouse is set
+    if(call_param_mouse)
+    {
+        if(call_param_touch==true)
+        {
+            port1="mouse touchpad2";
+            $('#port1').val(port1);
+            mouse_touchpad_pattern=port1;
+            mouse_touchpad_port=1;
+            canvas.addEventListener('touchstart',emulate_mouse_touchpad_start, false);
+            canvas.addEventListener('touchmove',emulate_mouse_touchpad_move, false);
+            canvas.addEventListener('touchend',emulate_mouse_touchpad_end, false);
+            if(port2=="touch")
+            {
+                port2="none";
+                $('#port2').val(port2);
+            }    
+        }
+        else
+        { 
+            port1="mouse";
+            $('#port1').val(port1);
+            canvas.addEventListener('click', request_pointerlock);
+        }
+    }
     //--
 
     installKeyboard();

@@ -205,7 +205,7 @@ int eventFilter(void* thisC64, SDL_Event* event) {
     }
     return 1;
 }
-
+unsigned int warp_to_frame=0;
 int sum_samples=0;
 double last_time = 0.0 ;
 unsigned int executed_frame_count=0;
@@ -268,6 +268,12 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     {
       amiga->execute();
       i--;
+      if(amiga->agnus.frame.nr > warp_to_frame)
+      {
+        printf("reached warp_to_frame count\n");
+        amiga->warpOff();
+        warp_to_frame=0;
+      }
     }
     start_time=now;
     total_executed_frame_count=0;
@@ -1372,13 +1378,18 @@ extern "C" void wasm_set_sample_rate(unsigned sample_rate)
 }
 
 
-
-
 extern "C" const char* wasm_configure(char* option, char* _value)
 {
   sprintf(config_result,""); 
   auto value = std::string(_value);
   printf("wasm_configure %s = %s\n", option, value.c_str());
+
+  if(strcmp(option,"warp_to_frame") == 0 )
+  {
+    warp_to_frame= util::parseNum(value);
+    wrapper->amiga->warpOn();
+    return config_result;
+  }
 
   bool was_powered_on=wrapper->amiga->isPoweredOn();
 
