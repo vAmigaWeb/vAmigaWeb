@@ -11,6 +11,7 @@ let call_param_dialog_on_missing_roms=null;
 let call_param_dialog_on_disk=null;
 let call_param_SID=null;
 let call_param_mouse=null;
+let call_param_warpto=null;
 
 
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
