@@ -259,7 +259,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
 
 
   Amiga *amiga = (Amiga *)thisAmiga;
-
+  bool show_stat=true;
   if(amiga->inWarpMode() == true)
   {
     printf("warping at least 25 frames at once ...\n");
@@ -268,7 +268,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     {
       amiga->execute();
       i--;
-      if(amiga->agnus.frame.nr > warp_to_frame)
+      if(warp_to_frame>0 && amiga->agnus.frame.nr > warp_to_frame)
       {
         printf("reached warp_to_frame count\n");
         amiga->warpOff();
@@ -277,32 +277,35 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     }
     start_time=now;
     total_executed_frame_count=0;
-    targetFrameCount=1;  
+    targetFrameCount=1;
+    show_stat=false;
   }
-
-  //lost the sync
-  if(targetFrameCount-total_executed_frame_count > max_gap)
+  if(show_stat)
   {
-      printf("lost sync target=%lld, total_executed=%lld\n", targetFrameCount, total_executed_frame_count);
-      //reset timer
-      //because we are out of sync, we do now skip max_gap-1 emulation frames 
-      start_time=now;
-      total_executed_frame_count=0;
-      targetFrameCount=1;  //we are hoplessly behind but do at least one in this round  
-  }
+    //lost the sync
+    if(targetFrameCount-total_executed_frame_count > max_gap)
+    {
+        printf("lost sync target=%lld, total_executed=%lld\n", targetFrameCount, total_executed_frame_count);
+        //reset timer
+        //because we are out of sync, we do now skip max_gap-1 emulation frames 
+        start_time=now;
+        total_executed_frame_count=0;
+        targetFrameCount=1;  //we are hoplessly behind but do at least one in this round  
+    }
 
-  if(now-last_time>= 1000.0)
-  { 
-    double passed_time= now - last_time;
-    last_time = now;
+    if(now-last_time>= 1000.0)
+    { 
+      double passed_time= now - last_time;
+      last_time = now;
 
-    seconds += 1; 
-    frames += rendered_frame_count;
-    printf("time[ms]=%.0lf, audio_samples=%d, frames [executed=%u, rendered=%u] avg_fps=%u\n", 
-    passed_time, sum_samples, executed_frame_count, rendered_frame_count, frames/seconds);
-    sum_samples=0; 
-    rendered_frame_count=0;
-    executed_frame_count=0;
+      seconds += 1; 
+      frames += rendered_frame_count;
+      printf("time[ms]=%.0lf, audio_samples=%d, frames [executed=%u, rendered=%u] avg_fps=%u\n", 
+      passed_time, sum_samples, executed_frame_count, rendered_frame_count, frames/seconds);
+      sum_samples=0; 
+      rendered_frame_count=0;
+      executed_frame_count=0;
+    }
   }
 
   while(total_executed_frame_count < targetFrameCount) {
@@ -487,16 +490,22 @@ bool paused_the_emscripten_main_loop=false;
 bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
 void theListener(const void * amiga, long type, long data){
-/*  
-  if(warp_mode && type == MSG_IEC_BUS_BUSY && !((Amiga *)amiga)->inWarpMode())
+  if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.frame.nr < warp_to_frame)
   {
-    ((Amiga *)amiga)->warpOn(); //setWarp(true);
+    //skip automatic warp mode on disk load
   }
-  else if(type == MSG_IEC_BUS_IDLE && ((Amiga *)amiga)->inWarpMode())
+  else
   {
-    ((Amiga *)amiga)->warpOff(); //setWarp(false);
+    if(warp_mode && type == MSG_DRIVE_MOTOR_ON && !((Amiga *)amiga)->inWarpMode())
+    {
+      ((Amiga *)amiga)->warpOn(); //setWarp(true);
+    }
+    else if(type == MSG_DRIVE_MOTOR_OFF && ((Amiga *)amiga)->inWarpMode())
+    {
+      ((Amiga *)amiga)->warpOff(); //setWarp(false);
+    }
   }
-*/
+
   const char *message_as_string =  (const char *)MsgTypeEnum::key((MsgType)type);
   if(type == MSG_SER_IN || type == MSG_SER_OUT)
   {
@@ -768,10 +777,11 @@ extern "C" void wasm_set_warp(unsigned on)
   )
   {
 */
-    if(warp_mode)
+/*    if(warp_mode)
       wrapper->amiga->warpOn();
     else
       wrapper->amiga->warpOff();
+*/
 /*  }*/
 }
 

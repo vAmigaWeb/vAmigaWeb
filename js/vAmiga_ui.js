@@ -791,6 +791,7 @@ function configure_file_dialog(reset=false)
                         $("#button_insert_file").attr("disabled", true);
                         var path = $(this).text();
                         uncompress_progress='0';
+                        if(is_running()) wasm_halt();
                         zip.file(path).async("uint8array", 
                             function updateCallback(metadata) {
                                 //console.log("progression: " + metadata.percent.toFixed(2) + " %");
@@ -801,6 +802,7 @@ function configure_file_dialog(reset=false)
                                     $("#button_insert_file").html(`extract ${uncompress_progress}%`);
                                 }
                             }).then(function (u8) {
+                                if(is_running()) wasm_run();
                                 file_slot_file_name=path;
                                 file_slot_file=u8;
 
