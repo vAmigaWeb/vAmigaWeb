@@ -1413,9 +1413,22 @@ function InitWrappers() {
         worklet_node.connect(audioContext.destination);        
     }
     
-    connect_audio_processor();
 
-    document.addEventListener('click',connect_audio_processor, false);
+    click_unlock=async function() {
+        await connect_audio_processor();
+        if(audioContext.state === 'running') {
+            document.removeEventListener('click',click_unlock);
+        }
+    }
+    touch_unlock=async function() {
+        await connect_audio_processor();
+        if(audioContext.state === 'running') {
+            document.getElementById('canvas').removeEventListener('touchstart',touch_unlock);
+        }
+    }
+    document.addEventListener('click',click_unlock, false);
+    //iOS safari does not bubble click events on canvas so we add this extra event handler here
+    document.getElementById('canvas').addEventListener('touchstart',touch_unlock,false);
 
     get_audio_context=function() {
         if (typeof Module === 'undefined'
