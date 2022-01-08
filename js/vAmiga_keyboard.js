@@ -2,21 +2,8 @@ var shift_pressed_count=0;
 function translateKey(keycode, key)
 {
     console.log('keycode='+keycode + ', key='+key);
-    var mapindex;
-//    var sym_key = symbolic_map[key.toLowerCase()];
-    var c64code;
-/*    if(sym_key!== undefined) // && !Array.isArray(sym_key))
-    {//if there is a symbolic mapping ... use it instead of the positional mapping
-        var raw_key_with_modifier=create_key_composition(sym_key);
-        c64code=raw_key_with_modifier.raw_key;
-    } 
-    else
-    {//when there is no symbolic mapping fall back to positional mapping
-*/
-        mapindex=key_translation_map[ keycode ];
-        c64code=[mapindex,0];
-//    }
-    return c64code;
+    let mapindex=key_translation_map[ keycode ];
+    return [mapindex,0];
 }
 
 function isUpperCase(s){
@@ -259,8 +246,27 @@ key_translation_map =
     rightAmiga: 0x67, //?? no javascript code   
 }        
 
+function reset_keyboard()
+{
+    let reset_mod_key=function(the_mod_key){
+        document.body.setAttribute(the_mod_key+'-key', '');
+    }
+    reset_mod_key('ControlLeft');
+    reset_mod_key('ShiftLeft');
+    reset_mod_key('ShiftRight');
+    reset_mod_key('shift');
+    reset_mod_key('CapsLock');
+    reset_mod_key('leftAmiga');
+    reset_mod_key('rightAmiga');
+    reset_mod_key('AltLeft');
+    reset_mod_key('AltRight');
+
+    shift_pressed_count=0;
+}
 
 function installKeyboard() {
+    reset_keyboard();
+
     keymap= [ 
     [{k:'Esc', c:'Escape',cls:'darkkey'},{style:'width:20px'},{k:'F1',c:'F1', cls:'darkkey'}, {k:'F2',c:'F2',cls:'darkkey'},{k:'F3',c:'F3',cls:'darkkey'},{k:'F4',c:'F4',cls:'darkkey'},{k:'F5',c:'F5',cls:'darkkey'},{style:'width:20px'},{k:'F6',c:'F6',cls:'darkkey'},{k:'F7',c:'F7',cls:'darkkey'},{k:'F8',c:'F8',cls:'darkkey'},{k:'F9',c:'F9',cls:'darkkey'},{k:'F10',c:'F10',cls:'darkkey'},{style:'width:15px'},{k:'Del',c:'Delete',cls:'darkkey'},{style:'width:15px'},{k:'hide', c:'hide_keyboard',cls:'darkkey'}],
     [{k:'`',c:'Grave'}, {k:'1', sk:'!',c:'Digit1'},{k:'2', sk:'@',c:'Digit2'},{k:'3', sk:'#',c:'Digit3'},{k:'4', sk:'$', c:'Digit4'},{k:'5',sk:'%',c:'Digit5'},{k:'6', sk:'^',c:'Digit6'},{k:'7',sk:'&',c:'Digit7'},{k:'8',sk:'*',c:'Digit8'},{k:'9', sk:'(',c:'Digit9'},{k:'0', sk:')',c:'Digit0'},{k:'-', sk:'_',c:'Minus'},{k:'=',sk:'+', c:'Equal'},{k:'\\',sk:'|', c:'Backslash'},{k:'\u{2190}',c:'Backspace'}, {k:'Help',c:'Help'}, {k:'7',c:'Numpad7'},{k:'8',c:'Numpad8'},{k:'9',c:'Numpad9'} ], 
@@ -339,6 +345,51 @@ function installKeyboard() {
     });
     $('#divKeyboardRows').html(the_keyBoard);
 
+    release_modifiers=function()
+    {
+        let release_key = function (theModKey) {
+            if(document.body.getAttribute(theModKey+'-key')=='pressed')
+            {
+                let c64code = translateKey(theModKey, theModKey);
+                wasm_schedule_key(c64code[0], c64code[1], 0,1);
+                $("#button_"+theModKey).attr("style", "");
+                document.body.setAttribute(theModKey+'-key','');
+            }
+        }
+
+        release_key('ControlLeft');
+        release_key('leftAmiga');
+        release_key('rightAmiga');
+        release_key('AltLeft');
+        release_key('AltRight');
+
+        if(document.body.getAttribute('ShiftLeft-key')=='pressed')
+        {
+            let c64code = translateKey('ShiftLeft', 'ShiftLeft');
+            
+            if(document.body.getAttribute('CapsLock-key')!='pressed')
+                wasm_schedule_key(c64code[0], c64code[1], 0,1);
+            
+            document.body.setAttribute('ShiftLeft-key', '');
+            shift_pressed_count--;
+            if(shift_pressed_count==0)
+            {
+                document.body.setAttribute('shift-keys', '');
+            }
+        }
+        if(document.body.getAttribute('ShiftRight-key')=='pressed')
+        {
+            let c64code = translateKey('ShiftRight', 'ShiftRight');
+            wasm_schedule_key(c64code[0], c64code[1], 0,1);
+            document.body.setAttribute('ShiftRight-key', '');
+            shift_pressed_count--;
+            if(shift_pressed_count==0)
+            {
+                document.body.setAttribute('shift-keys', '');
+            }
+        }
+    }
+
     keymap.forEach(row => {
         row.forEach(keydef => {
             if(keydef.k === undefined)
@@ -393,21 +444,24 @@ function installKeyboard() {
 
                     if(keydef.c == 'ShiftLeft' ||keydef.c == 'ShiftRight')
                     {
-                        $("#button_"+keydef.c).attr("style", "background-color: var(--green) !important;"+keydef.style);
-                        document.body.setAttribute('shift-keys', 'pressed');
-                        shift_pressed_count++;
-                            
-                        setTimeout(() => {
+                        if(document.body.getAttribute(keydef.c+'-key')=='')
+                        {
+                            document.body.setAttribute('shift-keys', 'pressed');
+                            document.body.setAttribute(keydef.c+'-key', 'pressed');
+                            shift_pressed_count++;
+                        }
+                        else
+                        {
+                            document.body.setAttribute(keydef.c+'-key', '');
                             wasm_schedule_key(c64code[0], c64code[1], 0,1);
-                            $("#button_"+keydef.c).attr("style", keydef.style);    
                             shift_pressed_count--;
                             if(shift_pressed_count==0)
                             {
-                               document.body.removeAttribute('shift-keys');
+                               document.body.setAttribute('shift-keys', '');
                             }   
-                        }, 1000*4);
+                        }
                     }
-                    else if(keydef.c == 'leftAmiga'||keydef.c == 'rightAmiga')
+/*                    else if(keydef.c == 'leftAmiga'||keydef.c == 'rightAmiga')
                     {
                         $("#button_"+keydef.c).attr("style", "background-color: var(--green) !important;"+keydef.style);
                     
@@ -417,18 +471,26 @@ function installKeyboard() {
                         }, 1000*4);
                     
                     }
-                    else if(keydef.c == 'ControlLeft')
+*/                    else if(keydef.c == 'ControlLeft' ||
+                                keydef.c == 'leftAmiga'||keydef.c == 'rightAmiga' ||
+                                keydef.c == 'AltLeft'||keydef.c == 'AltRight')
                     {
-                        $("#button_"+keydef.c).attr("style", "background-color: var(--blue) !important");
-                    
-                        setTimeout(() => {
+                        if(document.body.getAttribute(keydef.c+'-key')=='')
+                        {
+//                            $("#button_"+keydef.c).attr("style", "background-color: var(--blue) !important");
+                            document.body.setAttribute(keydef.c+'-key', 'pressed');
+                        }
+                        else
+                        {
+                            document.body.setAttribute(keydef.c+'-key', '');
                             wasm_schedule_key(c64code[0], c64code[1], 0,1);
-                            $("#button_"+keydef.c).attr("style", "");
-                        }, 1000*4);
-                    
+//                            $("#button_"+keydef.c).attr("style", "");
+                        }                    
                     }
                     else
-                    {  //release the key automatically after a short time ...
+                    {  
+                        release_modifiers();
+                        //release the key automatically after a short time ...
                         setTimeout(() => {
                             wasm_schedule_key(c64code[0], c64code[1], 0, 1);
                         }, 100);

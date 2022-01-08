@@ -368,3 +368,19 @@ button[id^="detail_run"] {
     padding-top: 0;
     padding-bottom: 0;
 }
+
+[ControlLeft-key="pressed"] #button_ControlLeft
+{
+    background-color: var(--blue) !important
+}
+
+[CapsLock-key="pressed"]  #button_CapsLock, 
+[ShiftLeft-key="pressed"]  #button_ShiftLeft,
+[ShiftRight-key="pressed"] #button_ShiftRight,
+[leftAmiga-key="pressed"]  #button_leftAmiga,
+[rightAmiga-key="pressed"] #button_rightAmiga,
+[AltLeft-key="pressed"]  #button_AltLeft,
+[AltRight-key="pressed"] #button_AltRight
+{
+    background-color: var(--green) !important;
+}
