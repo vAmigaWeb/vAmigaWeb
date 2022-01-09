@@ -777,11 +777,10 @@ extern "C" void wasm_set_warp(unsigned on)
   )
   {
 */
-/*    if(warp_mode)
-      wrapper->amiga->warpOn();
-    else
+  if(warp_mode == false && wrapper->amiga->inWarpMode())
+  {
       wrapper->amiga->warpOff();
-*/
+  }
 /*  }*/
 }
 
