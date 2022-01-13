@@ -145,7 +145,7 @@ function get_parameter_link()
                 }
                 else
                 { // it must be a setting
-                    if(token.match(/openROMS=true/i))
+                    if(token.match(/AROS=true/i))
                     {
                         call_param_openROMS=true;
                     }
@@ -207,6 +207,14 @@ function get_parameter_link()
                     {
                         call_param_dialog_on_disk=token.match(/.*(true|false)/i)[1].toLowerCase() == 'true';
                     }
+                    else if(token.match(/warpto=([0-9]*)/i))
+                    {
+                        call_param_warpto=token.match(/warpto=([0-9]*)/i)[1];
+                    }
+                    else if(token.match(/mouse=(true|false)/i))
+                    {
+                        call_param_mouse=token.match(/.*(true|false)/i)[1].toLowerCase() == 'true';
+                    }            
                 }
             }
         }
