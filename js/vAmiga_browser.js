@@ -1036,7 +1036,7 @@ var collectors = {
 
                 if(app_title == "call_parameter" && id == 0)
                 {
-                    configure_file_dialog(reset=false);
+                    configure_file_dialog(reset=true);
                 }   
                 else
                 {               
