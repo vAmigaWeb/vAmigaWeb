@@ -11,7 +11,6 @@
 #include "Denise.h"
 #include "Agnus.h"
 #include "Amiga.h"
-#include "ControlPort.h"
 #include "IOUtils.h"
 #include "SSEUtils.h"
 
@@ -140,88 +139,6 @@ Denise::setConfigItem(Option option, i64 value)
     }
 }
 
-void
-Denise::_inspect() const
-{
-    synchronized {
-        
-        info.bplcon0 = bplcon0;
-        info.bplcon1 = bplcon1;
-        info.bplcon2 = bplcon2;
-        info.bpu = bpu();
-        
-        info.diwstrt = agnus.diwstrt;
-        info.diwstop = agnus.diwstop;
-        info.diwHstrt = agnus.diwHstrt;
-        info.diwHstop = agnus.diwHstop;
-        info.diwVstrt = agnus.diwVstrt;
-        info.diwVstop = agnus.diwVstop;
-        
-        info.joydat[0] = controlPort1.joydat();
-        info.joydat[1] = controlPort2.joydat();
-        info.clxdat = 0;
-        
-        for (isize i = 0; i < 6; i++) {
-            info.bpldat[i] = bpldat[i];
-        }
-        for (isize i = 0; i < 32; i++) {
-            info.colorReg[i] = pixelEngine.getColor(i);
-            info.color[i] = pixelEngine.getRGBA(i);
-        }
-    }
-}
-
-void
-Denise::_dump(dump::Category category, std::ostream& os) const
-{
-    using namespace util;
-    
-    if (category & dump::Config) {
-        
-        os << tab("Chip revision");
-        os << DeniseRevisionEnum::key(config.revision) << std::endl;
-        os << tab("Hidden bitplanes");
-        os << hex(config.hiddenBitplanes) << std::endl;
-        os << tab("Hidden sprites");
-        os << hex(config.hiddenSprites) << std::endl;
-        os << tab("Hidden layers");
-        os << hex(config.hiddenLayers) << std::endl;
-        os << tab("Hidden layer alpha");
-        os << dec(config.hiddenLayerAlpha) << std::endl;
-        os << tab("clxSprSpr");
-        os << bol(config.clxSprSpr) << std::endl;
-        os << tab("clxSprSpr");
-        os << bol(config.clxSprSpr) << std::endl;
-        os << tab("clxSprSpr");
-        os << bol(config.clxSprSpr) << std::endl;
-    }
-    
-    if (category & dump::Registers) {
-        
-        os << tab("BPLCON0");
-        os << hex(bplcon0) << std::endl;
-        os << tab("BPLCON1");
-        os << hex(bplcon1) << std::endl;
-        os << tab("BPLCON2");
-        os << hex(bplcon2) << std::endl;
-        os << tab("BPLCON3");
-        os << hex(bplcon3) << std::endl;
-    
-        os << tab("SPRxDATA");
-        for (isize i = 0; i < 8; i++) os << hex(sprdata[i]) << ' ';
-        os << std::endl;
-        os << tab("SPRxDATB");
-        for (isize i = 0; i < 8; i++) os << hex(sprdatb[i]) << ' ';
-        os << std::endl;
-        os << tab("SPRxPOS");
-        for (isize i = 0; i < 8; i++) os << hex(sprpos[i]) << ' ';
-        os << std::endl;
-        os << tab("SPRxCTL");
-        for (isize i = 0; i < 8; i++) os << hex(sprctl[i]) << ' ';
-        os << std::endl;
-    }
-}
-
 bool
 Denise::spritePixelIsVisible(Pixel hpos) const
 {
@@ -230,54 +147,74 @@ Denise::spritePixelIsVisible(Pixel hpos) const
 }
 
 void
-Denise::updateShiftRegisters()
+Denise::updateShiftRegistersOdd()
 {
-    // Only proceed if the load cycle has been reached
-    if (agnus.pos.h < fillPos) return;
-    
-    fillPos = INT16_MAX;
-    armedOdd = true;
-    armedEven = true;
-    
+    switch (bpu()) {
+            
+        case 6:
+        case 5: shiftReg[4] = bpldatPipe[4];
+        case 4:
+        case 3: shiftReg[2] = bpldatPipe[2];
+        case 2:
+        case 1: shiftReg[0] = bpldatPipe[0];
+    }
+}
+
+void
+Denise::updateShiftRegistersEven()
+{
     switch (bpu()) {
             
         case 6: shiftReg[5] = bpldatPipe[5];
-        case 5: shiftReg[4] = bpldatPipe[4];
+        case 5:
         case 4: shiftReg[3] = bpldatPipe[3];
-        case 3: shiftReg[2] = bpldatPipe[2];
+        case 3:
         case 2: shiftReg[1] = bpldatPipe[1];
-        case 1: shiftReg[0] = bpldatPipe[0];
     }
-    
-    // On Intel machines, call the optimized SSE code
-    #if (defined(__i386__) || defined(__x86_64__)) && defined(__MACH__)
-    
-    if (!NO_SSE) {
-        util::transposeSSE(shiftReg, slice);
-        return;
-    }
-    
-    #endif
-    
-    // On all other machines, fallback to the slower standard implementation
-    u32 mask = 0x8000;
+}
+
+void
+Denise::extractSlices(u8 slices[16])
+{
+    u16 mask = 0x8000;
     for (isize i = 0; i < 16; i++, mask >>= 1) {
         
-        slice[i] = (u8) ((!!(shiftReg[0] & mask) << 0) |
-                         (!!(shiftReg[1] & mask) << 1) |
-                         (!!(shiftReg[2] & mask) << 2) |
-                         (!!(shiftReg[3] & mask) << 3) |
-                         (!!(shiftReg[4] & mask) << 4) |
-                         (!!(shiftReg[5] & mask) << 5) );
+        slices[i] = (u8) ((!!(shiftReg[0] & mask) << 0) |
+                          (!!(shiftReg[1] & mask) << 1) |
+                          (!!(shiftReg[2] & mask) << 2) |
+                          (!!(shiftReg[3] & mask) << 3) |
+                          (!!(shiftReg[4] & mask) << 4) |
+                          (!!(shiftReg[5] & mask) << 5) );
+    }
+}
+
+void
+Denise::extractSlicesOdd(u8 slices[16])
+{
+    u16 mask = 0x8000;
+    for (isize i = 0; i < 16; i++, mask >>= 1) {
+        
+        slices[i] = (u8) ((!!(shiftReg[0] & mask) << 0) |
+                          (!!(shiftReg[2] & mask) << 2) |
+                          (!!(shiftReg[4] & mask) << 4) );
+    }
+}
+
+void
+Denise::extractSlicesEven(u8 slices[16])
+{
+    u16 mask = 0x8000;
+    for (isize i = 0; i < 16; i++, mask >>= 1) {
+        
+        slices[i] = (u8) ((!!(shiftReg[1] & mask) << 1) |
+                          (!!(shiftReg[3] & mask) << 3) |
+                          (!!(shiftReg[5] & mask) << 5) );
     }
 }
 
 template <bool hiresMode> void
 Denise::drawOdd(Pixel offset)
 {
-    assert(!hiresMode || (agnus.pos.h & 0x3) == agnus.scrollHiresOdd);
-    assert( hiresMode || (agnus.pos.h & 0x7) == agnus.scrollLoresOdd);
-
     static constexpr u16 masks[7] = {
         
        0b000000, // 0 bitplanes
@@ -292,9 +229,12 @@ Denise::drawOdd(Pixel offset)
     u16 mask = masks[bpu()];
     Pixel currentPixel = agnus.ppos() + offset;
     
+    u8 slices[16];
+    extractSlicesOdd(slices);
+    
     for (isize i = 0; i < 16; i++) {
         
-        u8 index = slice[i] & mask;
+        u8 index = slices[i] & mask;
         
         if (hiresMode) {
             
@@ -314,17 +254,13 @@ Denise::drawOdd(Pixel offset)
         }
     }
  
-    // Disarm and clear the shift registers
-    armedOdd = false;
+    // Clear the shift registers
     shiftReg[0] = shiftReg[2] = shiftReg[4] = 0;
 }
 
 template <bool hiresMode> void
 Denise::drawEven(Pixel offset)
-{
-    assert(!hiresMode || (agnus.pos.h & 0x3) == agnus.scrollHiresEven);
-    assert( hiresMode || (agnus.pos.h & 0x7) == agnus.scrollLoresEven);
-    
+{    
     static constexpr u16 masks[7] = {
         
        0b000000, // 0 bitplanes
@@ -339,10 +275,13 @@ Denise::drawEven(Pixel offset)
     u16 mask = masks[bpu()];
     Pixel currentPixel = agnus.ppos() + offset;
     
+    u8 slices[16];
+    extractSlicesEven(slices);
+    
     for (isize i = 0; i < 16; i++) {
 
-        u8 index = slice[i] & mask;
-
+        u8 index = slices[i] & mask;
+        
         if (hiresMode) {
             
             // Synthesize one hires pixel
@@ -361,14 +300,17 @@ Denise::drawEven(Pixel offset)
         }
     }
  
-    // Disarm and clear the shift registers
-    armedEven = false;
+    // Clear the shift registers
     shiftReg[1] = shiftReg[3] = shiftReg[5] = 0;
 }
 
 template <bool hiresMode> void
 Denise::drawBoth(Pixel offset)
 {
+    drawOdd<hiresMode>(offset);
+    drawEven<hiresMode>(offset);
+    
+    /*
     static constexpr u16 masks[7] = {
         
         0b000000, // 0 bitplanes
@@ -383,9 +325,12 @@ Denise::drawBoth(Pixel offset)
     u16 mask = masks[bpu()];
     Pixel currentPixel = agnus.ppos() + offset;
     
+    u8 slices[16];
+    extractSlices(slices);
+    
     for (isize i = 0; i < 16; i++) {
         
-        u8 index = slice[i] & mask;
+        u8 index = slices[i] & mask;
         
         if (hiresMode) {
             
@@ -405,25 +350,38 @@ Denise::drawBoth(Pixel offset)
     // Disarm and clear the shift registers
     armedEven = armedOdd = false;
     for (isize i = 0; i < 6; i++) shiftReg[i] = 0;
+    */
 }
 
 void
 Denise::drawHiresOdd()
 {
-    updateShiftRegisters();
-    if (armedOdd) drawOdd <true> (pixelOffsetOdd);
+    if (armedOdd) {
+        
+        updateShiftRegistersOdd();
+        drawOdd <true> (pixelOffsetOdd);
+        armedOdd = false;
+    }
 }
 
 void
 Denise::drawHiresEven()
 {
-    updateShiftRegisters();
-    if (armedEven) drawEven <true> (pixelOffsetEven);
+    if (armedEven) {
+        
+        updateShiftRegistersEven();
+        drawEven <true> (pixelOffsetEven);
+        armedEven = false;
+    }
 }
 
 void
 Denise::drawHiresBoth()
 {
+    drawHiresOdd();
+    drawHiresEven();
+    
+    /*
     updateShiftRegisters();
 
     if (armedOdd && armedEven && pixelOffsetOdd == pixelOffsetEven) {
@@ -438,39 +396,36 @@ Denise::drawHiresBoth()
         if (armedOdd) drawOdd <true> (pixelOffsetOdd);
         if (armedEven) drawEven <true> (pixelOffsetEven);
     }
+    */
 }
 
 void
 Denise::drawLoresOdd()
 {
-    updateShiftRegisters();
-    if (armedOdd) drawOdd <false> (pixelOffsetOdd);
+    if (armedOdd) {
+
+        updateShiftRegistersOdd();
+        drawOdd <false> (pixelOffsetOdd);
+        armedOdd = false;
+    }
 }
 
 void
 Denise::drawLoresEven()
 {
-    updateShiftRegisters();
-    if (armedEven) drawEven <false> (pixelOffsetEven);
+    if (armedEven) {
+        
+        updateShiftRegistersEven();
+        drawEven <false> (pixelOffsetEven);
+        armedEven = false;
+    }
 }
 
 void
 Denise::drawLoresBoth()
 {
-    updateShiftRegisters();
-
-    if (armedOdd && armedEven && pixelOffsetOdd == pixelOffsetEven) {
-
-        assert((agnus.pos.h & 0x7) == agnus.scrollLoresOdd);
-        assert((agnus.pos.h & 0x7) == agnus.scrollLoresEven);
-        
-        drawBoth <false> (pixelOffsetOdd);
-
-    } else {
-    
-        if (armedOdd) drawOdd <false> (pixelOffsetOdd);
-        if (armedEven) drawEven <false> (pixelOffsetEven);
-    }
+    drawLoresOdd();
+    drawLoresEven();
 }
 
 void
@@ -945,13 +900,9 @@ Denise::updateBorderColor()
 void
 Denise::drawBorder()
 {
-    // Check if the horizontal flipflop was set somewhere in this rasterline
-    bool hFlopWasSet = agnus.diwHFlop || agnus.diwHFlopOn != -1;
-
-    // Check if the whole line is blank (drawn in background color)
-    bool lineIsBlank = !agnus.diwVFlop || !hFlopWasSet;
-
-    if (lineIsBlank) {
+    bool hFlopWasSet = hflop || hflopOn != -1;
+    
+    if (agnus.sequencer.lineIsBlank || !hFlopWasSet) {
 
         // Draw blank line
         for (Pixel i = 0; i < HPIXELS; i++) {
@@ -961,15 +912,15 @@ Denise::drawBorder()
     } else {
 
         // Draw left border
-        if (!agnus.diwHFlop && agnus.diwHFlopOn != -1) {
-            for (isize i = 0; i < 2 * agnus.diwHFlopOn; i++) {
+        if (!hflop && hflopOn != -1) {
+            for (isize i = 0; i < 2 * hflopOn; i++) {
                 bBuffer[i] = iBuffer[i] = mBuffer[i] = borderColor;
             }
         }
 
         // Draw right border
-        if (agnus.diwHFlopOff != -1) {
-            for (isize i = 2 * agnus.diwHFlopOff; i < HPIXELS; i++) {
+        if (hflopOff != -1) {
+            for (isize i = 2 * hflopOff; i < HPIXELS; i++) {
                 bBuffer[i] = iBuffer[i] = mBuffer[i] = borderColor;
             }
         }
@@ -981,6 +932,9 @@ Denise::drawBorder()
             iBuffer[i] = mBuffer[i] = 64;
         }
     }
+#endif
+#ifdef COLUMN_DEBUG
+    iBuffer[4*COLUMN_DEBUG] = mBuffer[4*COLUMN_DEBUG] = 64;
 #endif
 }
 
@@ -1103,6 +1057,7 @@ Denise::checkP2PCollisions()
 void
 Denise::vsyncHandler()
 {
+    hflop = true;
     pixelEngine.vsyncHandler();
     debugger.vsyncHandler();
 }
@@ -1116,8 +1071,10 @@ Denise::beginOfLine(isize vpos)
     initialBplcon2 = bplcon2;
     wasArmed = armed;
 
-    // Prepare the bitplane shift registers
-    for (isize i = 0; i < 6; i++) shiftReg[i] = 0;
+    // Update the horizontal DIW flipflop
+    hflop = (hflopOff != -1) ? false : (hflopOn != -1) ? true : hflop;
+    hflopOn = denise.hstrt; 
+    hflopOff = denise.hstop;
 
     // Clear the bBuffer
     std::memset(bBuffer, 0, sizeof(bBuffer));

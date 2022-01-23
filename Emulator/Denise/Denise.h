@@ -57,6 +57,37 @@ public:
     // Registers
     //
     
+    // Register values as written by pokeDIWSTRT/STOP()
+    u16 diwstrt;
+    u16 diwstop;
+    
+    // Display window coordinates (extracted from DIWSTRT and DIWSTOP)
+    isize hstrt;
+    isize hstop;
+    
+    /* Denise contains a flipflop controlling the horizontal display window.
+     * It is cleared inside the border area and set inside the display area:
+     *
+     *   1. When hpos matches the position in DIWSTRT, the flipflop is set.
+     *   2. When hpos matches the position in DIWSTOP, the flipflop is reset.
+     *   3. The smallest recognised value for DIWSTRT is $02.
+     *   4. The largest recognised value for DIWSTOP is $(1)C7.
+     *
+     * The value of this variable is updated at the beginning of each
+     * rasterline and cannot change thereafter. It stores the value of the
+     * horizontal DIW flipflop as it was at the beginning of the rasterline.
+     * To find out the value of the horizontal flipflop inside or at the end
+     * of a rasterline, hFlopOn and hFlopOff need to be evaluated.
+     */
+    bool hflop;
+
+    /* At the end of a rasterline, these variable conains the pixel coordinates
+     * where the hpos counter matched diwHstrt or diwHstop, respectively. A
+     * value of -1 indicates that no matching event took place.
+     */
+    isize hflopOn;
+    isize hflopOff;
+    
     // Bitplane control registers
     u16 bplcon0;
     u16 bplcon1;
@@ -98,15 +129,9 @@ public:
      */
     alignas(16) u16 shiftReg[8];
 
-    // Bit slices computed out of the shift registers
-    alignas(16) u8 slice[16];
-    
-    // Indicates the DMA cycle where the shift register gets filled
-    isize fillPos; 
-    
     // Flags indicating that the shift registers have been loaded
-    bool armedEven;
     bool armedOdd;
+    bool armedEven;
 
     
     //
@@ -317,6 +342,13 @@ private:
 
         worker
         
+        << diwstrt
+        << diwstop
+        << hstrt
+        << hstop
+        << hflop
+        << hflopOn
+        << hflopOff
         << bplcon0
         << bplcon1
         << bplcon2
@@ -332,9 +364,8 @@ private:
         << clxdat
         << clxcon
         << shiftReg
-        << fillPos
-        << armedEven
         << armedOdd
+        << armedEven
         >> conChanges
         >> sprChanges
 
@@ -378,16 +409,29 @@ public:
     
     DeniseInfo getInfo() const { return AmigaComponent::getInfo(info); }
 
+    
+    //
+    // Working with the bitplane shift registers
+    //
+    
+public:
+    
+    // Transfers the bitplane pipeline registers to the shift registers
+    void updateShiftRegistersOdd();
+    void updateShiftRegistersEven();
 
+    // Extracts a bit slice from the shift registers
+    void extractSlices(u8 slices[16]);
+    void extractSlicesOdd(u8 slices[16]);
+    void extractSlicesEven(u8 slices[16]);
+
+    
     //
     // Drawing bitplanes
     //
 
 public:
-    
-    // Transfers the bitplane pipeline registers to the shift registers
-    void updateShiftRegisters();
-        
+            
     // Wrappers around the core drawing routines
     void drawHiresOdd();
     void drawHiresEven();
@@ -504,8 +548,8 @@ public:
     
 public:
 
-    // Called by Agnus if the DMACON register changes
-    void pokeDMACON(u16 oldValue, u16 newValue);
+    void setDIWSTRT(u16 value);
+    void setDIWSTOP(u16 value);
 
     u16 peekJOY0DATR();
     u16 peekJOY1DATR();
@@ -513,16 +557,16 @@ public:
 
     u16 peekDENISEID();
 
-    void pokeBPLCON0(u16 value);
+    template <Accessor s> void pokeBPLCON0(u16 value);
     void setBPLCON0(u16 oldValue, u16 newValue);
 
-    void pokeBPLCON1(u16 value);
+    template <Accessor s> void pokeBPLCON1(u16 value);
     void setBPLCON1(u16 oldValue, u16 newValue);
 
-    void pokeBPLCON2(u16 value);
+    template <Accessor s> void pokeBPLCON2(u16 value);
     void setBPLCON2(u16 value);
     
-    void pokeBPLCON3(u16 value);
+    template <Accessor s> void pokeBPLCON3(u16 value);
     void setBPLCON3(u16 value);
 
     u16 peekCLXDAT();

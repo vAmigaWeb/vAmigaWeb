@@ -27,12 +27,17 @@ Agnus::peekDMACONR()
     return result;
 }
 
-void
+template <Accessor s> void
 Agnus::pokeDMACON(u16 value)
 {
     trace(DMA_DEBUG, "pokeDMACON(%X)\n", value);
-    
-    setDMACON(dmacon, value);
+
+    // Schedule the write cycle
+    if constexpr (s == ACCESSOR_CPU) {
+        recordRegisterChange(DMA_CYCLES(1), SET_DMACON, value);
+    } else {
+        recordRegisterChange(DMA_CYCLES(2), SET_DMACON, value);
+    }
 }
 
 void
@@ -40,114 +45,127 @@ Agnus::setDMACON(u16 oldValue, u16 value)
 {
     trace(DMA_DEBUG, "setDMACON(%x, %x)\n", oldValue, value);
     
-    // Compute new value
     u16 newValue;
+    
     if (value & 0x8000) {
         newValue = (dmacon | value) & 0x07FF;
     } else {
         newValue = (dmacon & ~value) & 0x07FF;
     }
-    
-    if (oldValue == newValue) return;
-    
+    if (oldValue == newValue) {
+        
+        trace(SEQ_DEBUG, "setDMACON: Skipping (value does not change)\n");
+        return;
+    }
+        
     dmacon = newValue;
     
-    // Update variable dmaconAtDDFStrt if DDFSTRT has not been reached yet
-    if (pos.h + 2 < ddfstrtReached) dmaconAtDDFStrt = newValue;
-    
-    // Check the lowest 5 bits
-    bool oldDMAEN = (oldValue & DMAEN);
-    bool oldBPLEN = (oldValue & BPLEN) && oldDMAEN;
-    bool oldCOPEN = (oldValue & COPEN) && oldDMAEN;
-    bool oldBLTEN = (oldValue & BLTEN) && oldDMAEN;
-    bool oldSPREN = (oldValue & SPREN) && oldDMAEN;
-    bool oldDSKEN = (oldValue & DSKEN) && oldDMAEN;
-    bool oldAUD0EN = (oldValue & AUD0EN) && oldDMAEN;
-    bool oldAUD1EN = (oldValue & AUD1EN) && oldDMAEN;
-    bool oldAUD2EN = (oldValue & AUD2EN) && oldDMAEN;
-    bool oldAUD3EN = (oldValue & AUD3EN) && oldDMAEN;
-    
-    bool newDMAEN = (newValue & DMAEN);
-    bool newBPLEN = (newValue & BPLEN) && newDMAEN;
-    bool newCOPEN = (newValue & COPEN) && newDMAEN;
-    bool newBLTEN = (newValue & BLTEN) && newDMAEN;
-    bool newSPREN = (newValue & SPREN) && newDMAEN;
-    bool newDSKEN = (newValue & DSKEN) && newDMAEN;
-    bool newAUD0EN = (newValue & AUD0EN) && newDMAEN;
-    bool newAUD1EN = (newValue & AUD1EN) && newDMAEN;
-    bool newAUD2EN = (newValue & AUD2EN) && newDMAEN;
-    bool newAUD3EN = (newValue & AUD3EN) && newDMAEN;
-        
+    u16 oldDma = (oldValue & DMAEN) ? oldValue : 0;
+    u16 newDma = (newValue & DMAEN) ? newValue : 0;
+    u16 diff = oldDma ^ newDma;
+         
     // Inform the delegates
     blitter.pokeDMACON(oldValue, newValue);
     
     // Bitplane DMA
-    if (oldBPLEN ^ newBPLEN) {
-        
-        if (isOCS()) {
-            newBPLEN ? enableBplDmaOCS() : disableBplDmaOCS();
-        } else {
-            newBPLEN ? enableBplDmaECS() : disableBplDmaECS();
-        }
-        
-        hsyncActions |= HSYNC_UPDATE_BPL_TABLE;
-    }
-    
-    // Let Denise know about the change
-    denise.pokeDMACON(oldValue, newValue);
-        
+    if (diff & BPLEN) setBPLEN(newDma & BPLEN);
+                    
     // Disk DMA and sprite DMA
-    if ((oldDSKEN ^ newDSKEN) || (oldSPREN ^ newSPREN)) {
+    if (diff & (DSKEN | SPREN)) {
+                
+        if (diff & SPREN) setSPREN(newDma & SPREN);
+        if (diff & DSKEN) setDSKEN(newDma & DSKEN);
         
-        // Note: We don't need to rebuild the table if audio DMA changes,
-        // because audio events are always executed.
-        
-        if (oldSPREN ^ newSPREN) {
-            trace(DMA_DEBUG, "Sprite DMA %s\n", newSPREN ? "on" : "off");
-        }
-        if (oldDSKEN ^ newDSKEN) {
-            trace(DMA_DEBUG, "Disk DMA %s\n", newDSKEN ? "on" : "off");
-        }
-        
-        u16 newDAS = newDMAEN ? (newValue & 0x3F) : 0;
+        u16 newDAS = (newValue & DMAEN) ? (newValue & 0x3F) : 0;
         
         // Schedule the DAS DMA table to be rebuild
-        hsyncActions |= HSYNC_UPDATE_DAS_TABLE;
+        sequencer.hsyncActions |= UPDATE_DAS_TABLE;
         
         // Make the effect visible in the current rasterline as well
-        for (isize i = pos.h; i < HPOS_CNT; i++) {
-            dasEvent[i] = dasDMA[newDAS][i];
-        }
-        updateDasJumpTable();
-        
+        sequencer.updateDasEvents(newDAS);
+  
         // Rectify the currently scheduled DAS event
         scheduleDasEventForCycle(pos.h);
     }
     
     // Copper DMA
-    if (oldCOPEN ^ newCOPEN) {
-        trace(DMA_DEBUG, "Copper DMA %s\n", newCOPEN ? "on" : "off");
-        if (newCOPEN) copper.activeInThisFrame = true;
-    }
+    if (diff & COPEN) setCOPEN(newDma & COPEN);
     
     // Blitter DMA
-    if (oldBLTEN ^ newBLTEN) {
-        trace(DMA_DEBUG, "Blitter DMA %s\n", newBLTEN ? "on" : "off");
-    }
+    if (diff & BLTEN) setBLTEN(newDma & BLTEN);
     
     // Audio DMA
-    if (oldAUD0EN ^ newAUD0EN) {
-        newAUD0EN ? paula.channel0.enableDMA() : paula.channel0.disableDMA();
+    if (diff & (AUD0EN | AUD1EN | AUD2EN | AUD3EN)) {
+        
+        if (diff & AUD0EN) setAUD0EN(newDma & AUD0EN);
+        if (diff & AUD1EN) setAUD1EN(newDma & AUD1EN);
+        if (diff & AUD2EN) setAUD2EN(newDma & AUD2EN);
+        if (diff & AUD3EN) setAUD3EN(newDma & AUD3EN);
     }
-    if (oldAUD1EN ^ newAUD1EN) {
-        newAUD1EN ? paula.channel1.enableDMA() : paula.channel1.disableDMA();
+}
+
+void
+Agnus::setBPLEN(bool value)
+{
+    trace(SEQ_DEBUG, "setBPLEN(%d)\n", value);
+    
+    // Update the bitplane event table
+    if (value) {
+        sequencer.sigRecorder.insert(pos.h + 3, SIG_BMAPEN_SET);
+    } else {
+        sequencer.sigRecorder.insert(pos.h + 3, SIG_BMAPEN_CLR);
     }
-    if (oldAUD2EN ^ newAUD2EN) {
-        newAUD2EN ? paula.channel2.enableDMA() : paula.channel2.disableDMA();
-    }
-    if (oldAUD3EN ^ newAUD3EN) {
-        newAUD3EN ? paula.channel3.enableDMA() : paula.channel3.disableDMA();
-    }
+    sequencer.computeBplEventTable(sequencer.sigRecorder);
+}
+
+void
+Agnus::setCOPEN(bool value)
+{
+    trace(DMA_DEBUG, "Copper DMA %s\n", value ? "on" : "off");
+    
+    if (value) copper.activeInThisFrame = true;
+}
+
+void
+Agnus::setBLTEN(bool value)
+{
+    trace(DMA_DEBUG, "Blitter DMA %s\n", value ? "on" : "off");
+}
+
+void
+Agnus::setSPREN(bool value)
+{
+    trace(DMA_DEBUG, "Sprite DMA %s\n", value ? "on" : "off");
+}
+
+void
+Agnus::setDSKEN(bool value)
+{
+    trace(DMA_DEBUG, "Disk DMA %s\n", value ? "on" : "off");
+}
+
+void
+Agnus::setAUD0EN(bool value)
+{
+    value ? paula.channel0.enableDMA() : paula.channel0.disableDMA();
+}
+
+void
+Agnus::setAUD1EN(bool value)
+{
+    value ? paula.channel1.enableDMA() : paula.channel1.disableDMA();
+}
+
+void
+Agnus::setAUD2EN(bool value)
+{
+    value ? paula.channel2.enableDMA() : paula.channel2.disableDMA();
+}
+
+void
+Agnus::setAUD3EN(bool value)
+{
+    value ? paula.channel3.enableDMA() : paula.channel3.disableDMA();
 }
 
 u16
@@ -159,25 +177,17 @@ Agnus::peekVHPOSR()
     // Return the latched position if the counters are frozen
     if (ersy()) return HI_LO(latchedPos.v & 0xFF, latchedPos.h);
                      
-    auto posh = pos.h + 4;
-    auto posv = pos.v;
+    // The returned position is four cycles ahead
+    auto result = agnus.pos + Beam {0,4};
     
-    // Check if posh has wrapped over (we just added 4)
-    if (posh > HPOS_MAX) {
-        posh -= HPOS_CNT;
-        if (++posv >= frame.numLines()) posv = 0;
-    }
-    
-    // The value of posv only shows up in cycle 2 and later
-    if (posh > 1) {
-        return HI_LO(posv & 0xFF, posh);
-    }
+    // Rectify the vertical position if it has wrapped over
+    if (result.v >= frame.numLines()) result.v = 0;
     
     // In cycle 0 and 1, we need to return the old value of posv
-    if (posv > 0) {
-        return HI_LO((posv - 1) & 0xFF, posh);
+    if (result.h <= 1) {
+        return HI_LO(agnus.pos.v & 0xFF, result.h);
     } else {
-        return HI_LO(frame.prevLastLine() & 0xFF, posh);
+        return HI_LO(result.v & 0xFF, result.h);
     }
 }
 
@@ -247,6 +257,8 @@ Agnus::setVPOS(u16 value)
     trace(XFILES, "XFILES (VPOS): Making a %s frame\n", newlof ? "long" : "short");
     frame.lof = newlof;
     
+    // if (!newlof) amiga.signalStop();
+    
     /* Reschedule a pending VBL event with a trigger cycle that is consistent
      * with the new value of the LOF bit.
      */
@@ -260,48 +272,42 @@ Agnus::setVPOS(u16 value)
     }
 }
 
-void
+template <Accessor s> void
 Agnus::pokeBPLCON0(u16 value)
 {
-    trace(DMA_DEBUG, "pokeBPLCON0(%X)\n", value);
+    trace(DMA_DEBUG, "pokeBPLCON0(%04x)\n", value);
 
-    recordRegisterChange(DMA_CYCLES(4), SET_BPLCON0_AGNUS, value);
+    if (bplcon0 != value) {
+        recordRegisterChange(DMA_CYCLES(4), SET_BPLCON0_AGNUS, value);
+    }
 }
 
 void
 Agnus::setBPLCON0(u16 oldValue, u16 newValue)
 {
-    trace(DMA_DEBUG, "setBPLCON0(%X,%X)\n", oldValue, newValue);
-    
-    // Update variable bplcon0AtDDFStrt if DDFSTRT has not been reached yet
-    if (pos.h < ddfstrtReached) bplcon0AtDDFStrt = newValue;
-    
-    // Update the bpl event table in the next rasterline
-    hsyncActions |= HSYNC_UPDATE_BPL_TABLE;
-    
-    // Check if the hires bit or one of the BPU bits have been modified
+    trace(DMA_DEBUG | SEQ_DEBUG, "setBPLCON0(%04x,%04x)\n", oldValue, newValue);
+        
+    // Check if the hires bit of one of the BPU bits have been modified
     if ((oldValue ^ newValue) & 0xF000) {
-    
-        /*
-        if ((oldValue ^ newValue) & 0x8000) {
-            if (newValue & 0x8000) {
-                if (agnus.frame.nr > 2000) amiga.signalStop();
-            }
+            
+        // Record the change
+        sequencer.sigRecorder.insert(pos.h, SIG_CON | newValue >> 12);
+        
+        if (bpldma()) {
+
+            trace(SEQ_DEBUG, "setBPLCON0: Recomputing BPL event table\n");
+
+            // Recompute the bitplane event table
+            sequencer.computeBplEventTable(sequencer.sigRecorder);
+                
+            // Since the table has changed, we need to update the event slot
+            scheduleBplEventForCycle(pos.h);
+
+        } else {
+                
+            // Speed optimization: Recomputation will happen in the next line
+            trace(SEQ_DEBUG, "setBPLCON0: Postponing recomputation\n");
         }
-        */
-        
-        /* TODO:
-         * BPLCON0 is usually written in each frame. To speed up, just check
-         * hpos. If it is smaller than the start of the DMA window, a standard
-         * update() is enough and the scheduled update in hsyncActions
-         * (HSYNC_UPDATE_BPL_TABLE) can be omitted.
-         */
-        
-        // Update the DMA allocation table
-        updateBplEvents(dmaconAtDDFStrt, newValue, pos.h);
-        
-        // Since the table has changed, we also need to update the event slot
-        scheduleBplEventForCycle(pos.h);
     }
     
     // Latch the position counters if the ERSY bit is set
@@ -313,7 +319,7 @@ Agnus::setBPLCON0(u16 oldValue, u16 newValue)
 void
 Agnus::pokeBPLCON1(u16 value)
 {
-    trace(DMA_DEBUG, "pokeBPLCON1(%X)\n", value);
+    trace(DMA_DEBUG, "pokeBPLCON1(%04x)\n", value);
     
     if (bplcon1 != value) {
         recordRegisterChange(DMA_CYCLES(1), SET_BPLCON1_AGNUS, value);
@@ -324,279 +330,71 @@ void
 Agnus::setBPLCON1(u16 oldValue, u16 newValue)
 {
     assert(oldValue != newValue);
-    trace(DMA_DEBUG, "setBPLCON1(%X,%X)\n", oldValue, newValue);
-    
+    trace(DMA_DEBUG | SEQ_DEBUG, "setBPLCON1(%04x,%04x)\n", oldValue, newValue);
+
     bplcon1 = newValue & 0xFF;
     
     // Compute comparision values for the hpos counter
-    scrollLoresOdd  = (bplcon1 & 0b00001110) >> 1;
-    scrollLoresEven = (bplcon1 & 0b11100000) >> 5;
-    scrollHiresOdd  = (bplcon1 & 0b00000110) >> 1;
-    scrollHiresEven = (bplcon1 & 0b01100000) >> 5;
+    scrollOdd  = (bplcon1 & 0b00001110) >> 1;
+    scrollEven = (bplcon1 & 0b11100000) >> 5;
     
-    // Update the bitplane event table starting at the current hpos
-    updateBplEvents(pos.h);
+    // Update the bitplane event table
+    sequencer.computeBplEventTable(sequencer.sigRecorder);
     
     // Update the scheduled bitplane event according to the new table
     scheduleBplEventForCycle(pos.h);
-    
-    // Schedule the bitplane event table to be recomputed
-    agnus.hsyncActions |= HSYNC_UPDATE_BPL_TABLE;
 }
 
 template <Accessor s> void
 Agnus::pokeDIWSTRT(u16 value)
 {
-    trace(DIW_DEBUG, "pokeDIWSTRT<%s>(%X)\n", AccessorEnum::key(s), value);
-    recordRegisterChange(DMA_CYCLES(2), SET_DIWSTRT, value);
-}
-
-void
-Agnus::setDIWSTRT(u16 value)
-{
-    trace(DIW_DEBUG, "setDIWSTRT(%X)\n", value);
+    trace(DIW_DEBUG, "pokeDIWSTRT<%s>(%04x)\n", AccessorEnum::key(s), value);
     
-    // 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
-    // V7 V6 V5 V4 V3 V2 V1 V0 H7 H6 H5 H4 H3 H2 H1 H0  and  H8 = 0, V8 = 0
-    
-    diwstrt = value;
-    
-    // Extract the upper left corner of the display window
-    isize newDiwVstrt = HI_BYTE(value);
-    isize newDiwHstrt = LO_BYTE(value);
-    
-    trace(DIW_DEBUG, "newDiwVstrt = %ld newDiwHstrt = %ld\n", newDiwVstrt, newDiwHstrt);
-    
-    // Invalidate the horizontal coordinate if it is out of range
-    if (newDiwHstrt < 2) {
-        trace(DIW_DEBUG, "newDiwHstrt is too small\n");
-        newDiwHstrt = -1;
-    }
-    
-    /* Check if the change already takes effect in the current rasterline.
-     *
-     *     old: Old trigger coordinate (diwHstrt)
-     *     new: New trigger coordinate (newDiwHstrt)
-     *     cur: Position of the electron beam (derivable from pos.h)
-     *
-     * The following cases have to be taken into accout:
-     *
-     *    1) cur < old < new : Change takes effect in this rasterline.
-     *    2) cur < new < old : Change takes effect in this rasterline.
-     *    3) new < cur < old : Neither the old nor the new trigger hits.
-     *    4) new < old < cur : Already triggered. Nothing to do in this line.
-     *    5) old < cur < new : Already triggered. Nothing to do in this line.
-     *    6) old < new < cur : Already triggered. Nothing to do in this line.
-     */
-    
-    isize cur = 2 * pos.h;
-    
-    // (1) and (2)
-    if (cur < diwHstrt && cur < newDiwHstrt) {
-        
-        trace(DIW_DEBUG, "Updating DIW hflop immediately at %ld\n", cur);
-        diwHFlopOn = newDiwHstrt;
-    }
-    
-    // (3)
-    if (newDiwHstrt < cur && cur < diwHstrt) {
-        
-        trace(DIW_DEBUG, "DIW hflop not switched on in current line\n");
-        diwHFlopOn = -1;
-    }
-    
-    diwVstrt = newDiwVstrt;
-    diwHstrt = newDiwHstrt;
-    
-    /* Update the vertical DIW flipflop
-     * This is not 100% accurate. If the vertical DIW flipflop changes in the
-     * middle of a rasterline, the effect is immediately visible on a real
-     * Amiga. The current emulation code only evaluates the flipflop at the end
-     * of the rasterline in the drawing routine of Denise. Hence, the whole
-     * line will be blacked out, not just the rest of it.
-     */
-    if (pos.v == diwVstrt) diwVFlop = true;
-    if (pos.v == diwVstop) diwVFlop = false;
+    recordRegisterChange(DMA_CYCLES(4), SET_DIWSTRT_AGNUS, value);
+    recordRegisterChange(DMA_CYCLES(3), SET_DIWSTRT_DENISE, value);
 }
 
 template <Accessor s> void
 Agnus::pokeDIWSTOP(u16 value)
 {
-    trace(DIW_DEBUG, "pokeDIWSTOP<%s>(%X)\n", AccessorEnum::key(s), value);
-    recordRegisterChange(DMA_CYCLES(2), SET_DIWSTOP, value);
-}
-
-void
-Agnus::setDIWSTOP(u16 value)
-{
-    trace(DIW_DEBUG, "setDIWSTOP(%X)\n", value);
+    trace(DIW_DEBUG, "pokeDIWSTOP<%s>(%04x)\n", AccessorEnum::key(s), value);
     
-    // 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
-    // V7 V6 V5 V4 V3 V2 V1 V0 H7 H6 H5 H4 H3 H2 H1 H0  and  H8 = 1, V8 = !V7
-    
-    diwstop = value;
-    
-    // Extract the lower right corner of the display window
-    isize newDiwVstop = HI_BYTE(value) | ((value & 0x8000) ? 0 : 0x100);
-    isize newDiwHstop = LO_BYTE(value) | 0x100;
-    
-    trace(DIW_DEBUG, "newDiwVstop = %ld newDiwHstop = %ld\n", newDiwVstop, newDiwHstop);
-    
-    // Invalidate the coordinate if it is out of range
-    if (newDiwHstop > 0x1C7) {
-        trace(DIW_DEBUG, "newDiwHstop is too large\n");
-        newDiwHstop = -1;
-    }
-    
-    // Check if the change already takes effect in the current rasterline.
-    isize cur = 2 * pos.h;
-    
-    // (1) and (2) (see setDIWSTRT)
-    if (cur < diwHstop && cur < newDiwHstop) {
-        
-        trace(DIW_DEBUG, "Updating hFlopOff immediately at %ld\n", cur);
-        diwHFlopOff = newDiwHstop;
-    }
-    
-    // (3) (see setDIWSTRT)
-    if (newDiwHstop < cur && cur < diwHstop) {
-        
-        trace(DIW_DEBUG, "hFlop not switched off in current line\n");
-        diwHFlopOff = -1;
-    }
-    
-    diwVstop = newDiwVstop;
-    diwHstop = newDiwHstop;
-    
-    /* Update the vertical DIW flipflop
-     * This is not 100% accurate. See comment in setDIWSTRT().
-     */
-    if (pos.v == diwVstrt) diwVFlop = true;
-    if (pos.v == diwVstop) diwVFlop = false;
-}
-
-void
-Agnus::pokeDDFSTRT(u16 value)
-{
-    trace(DDF_DEBUG, "pokeDDFSTRT(%X)\n", value);
-    
-    //      15 13 12 11 10 09 08 07 06 05 04 03 02 01 00
-    // OCS: -- -- -- -- -- -- -- H8 H7 H6 H5 H4 H3 -- --
-    // ECS: -- -- -- -- -- -- -- H8 H7 H6 H5 H4 H3 H2 --
-    
-    value &= ddfMask();
-    recordRegisterChange(DMA_CYCLES(2), SET_DDFSTRT, value);
-}
-
-void
-Agnus::setDDFSTRT(u16 old, u16 value)
-{
-    trace(DDF_DEBUG, "setDDFSTRT(%X, %X)\n", old, value);
-    
-    ddfstrt = value;
-    
-    // Tell the hsync handler to recompute the DDF window
-    hsyncActions |= HSYNC_PREDICT_DDF;
-    
-    // Take immediate action if we haven't reached the old DDFSTRT cycle yet
-    if (pos.h < ddfstrtReached) {
-        
-        // Check if the new position has already been passed
-        if (ddfstrt <= pos.h + 2) {
-            
-            // DDFSTRT never matches in the current rasterline. Disable DMA
-            ddfstrtReached = -1;
-            clearBplEvents();
-            scheduleNextBplEvent();
-            
-        } else {
-            
-            // Update the matching position and recalculate the DMA table
-            ddfstrtReached = ddfstrt > HPOS_MAX ? -1 : ddfstrt;
-            computeDDFWindow();
-            updateBplEvents();
-            scheduleNextBplEvent();
-        }
-    }
-}
-
-void
-Agnus::pokeDDFSTOP(u16 value)
-{
-    trace(DDF_DEBUG, "pokeDDFSTOP(%X)\n", value);
-    
-    //      15 13 12 11 10 09 08 07 06 05 04 03 02 01 00
-    // OCS: -- -- -- -- -- -- -- H8 H7 H6 H5 H4 H3 -- --
-    // ECS: -- -- -- -- -- -- -- H8 H7 H6 H5 H4 H3 H2 --
-    
-    value &= ddfMask();
-    recordRegisterChange(DMA_CYCLES(2), SET_DDFSTOP, value);
-}
-
-void
-Agnus::setDDFSTOP(u16 old, u16 value)
-{
-    trace(DDF_DEBUG, "setDDFSTOP(%X, %X)\n", old, value);
-    
-    ddfstop = value;
-    
-    // Tell the hsync handler to recompute the DDF window
-    hsyncActions |= HSYNC_PREDICT_DDF;
-    
-    // Take action if we haven't reached the old DDFSTOP cycle yet
-    if (pos.h + 2 < ddfstopReached || ddfstopReached == -1) {
-        
-        // Check if the new position has already been passed
-        if (ddfstop <= pos.h + 2) {
-            
-            // DDFSTOP won't match in the current rasterline
-            ddfstopReached = -1;
-            
-        } else {
-            
-            // Update the matching position and recalculate the DMA table
-            ddfstopReached = (ddfstop > HPOS_MAX) ? -1 : ddfstop;
-            if (ddfstrtReached >= 0) {
-                computeDDFWindow();
-                updateBplEvents();
-                scheduleNextBplEvent();
-            }
-        }
-    }
+    recordRegisterChange(DMA_CYCLES(4), SET_DIWSTOP_AGNUS, value);
+    recordRegisterChange(DMA_CYCLES(3), SET_DIWSTOP_DENISE, value);
 }
 
 void
 Agnus::pokeBPL1MOD(u16 value)
 {
-    trace(BPLMOD_DEBUG, "pokeBPL1MOD(%X)\n", value);
+    trace(BPLMOD_DEBUG, "pokeBPL1MOD(%04x)\n", value);
     recordRegisterChange(DMA_CYCLES(2), SET_BPL1MOD, value);
 }
 
 void
 Agnus::setBPL1MOD(u16 value)
 {
-    trace(BPLMOD_DEBUG, "setBPL1MOD(%X)\n", value);
+    trace(BPLMOD_DEBUG, "setBPL1MOD(%04x)\n", value);
     bpl1mod = (i16)(value & 0xFFFE);
 }
 
 void
 Agnus::pokeBPL2MOD(u16 value)
 {
-    trace(BPLMOD_DEBUG, "pokeBPL2MOD(%X)\n", value);
+    trace(BPLMOD_DEBUG, "pokeBPL2MOD(%04x)\n", value);
     recordRegisterChange(DMA_CYCLES(2), SET_BPL2MOD, value);
 }
 
 void
 Agnus::setBPL2MOD(u16 value)
 {
-    trace(BPLMOD_DEBUG, "setBPL2MOD(%X)\n", value);
+    trace(BPLMOD_DEBUG, "setBPL2MOD(%04x)\n", value);
     bpl2mod = (i16)(value & 0xFFFE);
 }
 
 template <int x> void
 Agnus::pokeSPRxPOS(u16 value)
 {
-    trace(SPRREG_DEBUG, "pokeSPR%dPOS(%X)\n", x, value);
+    trace(SPRREG_DEBUG, "pokeSPR%dPOS(%04x)\n", x, value);
 
     // Compute the value of the vertical counter that is seen here
     i16 v = (i16)(pos.h < 0xDF ? pos.v : (pos.v + 1));
@@ -612,7 +410,7 @@ Agnus::pokeSPRxPOS(u16 value)
 template <int x> void
 Agnus::pokeSPRxCTL(u16 value)
 {
-    trace(SPRREG_DEBUG, "pokeSPR%dCTL(%X)\n", x, value);
+    trace(SPRREG_DEBUG, "pokeSPR%dCTL(%04x)\n", x, value);
 
     // Compute the value of the vertical counter that is seen here
     i16 v = (i16)(pos.h < 0xDF ? pos.v : (pos.v + 1));
@@ -732,7 +530,7 @@ template <int x, Accessor s> void
 Agnus::pokeBPLxPTL(u16 value)
 {
     trace(BPLREG_DEBUG, "pokeBPL%dPTL(%04x) [%s]\n", x, value, AccessorEnum::key(s));
-    
+
     // Schedule the write cycle
     if constexpr (s == ACCESSOR_CPU) {
         recordRegisterChange(DMA_CYCLES(1), SET_BPL1PTL + x - 1, value, s);
@@ -964,7 +762,14 @@ template void Agnus::pokeSPRxCTL<5>(u16 value);
 template void Agnus::pokeSPRxCTL<6>(u16 value);
 template void Agnus::pokeSPRxCTL<7>(u16 value);
 
+template void Agnus::pokeBPLCON0<ACCESSOR_CPU>(u16 value);
+template void Agnus::pokeBPLCON0<ACCESSOR_AGNUS>(u16 value);
+
+template void Agnus::pokeDMACON<ACCESSOR_CPU>(u16 value);
+template void Agnus::pokeDMACON<ACCESSOR_AGNUS>(u16 value);
+
 template void Agnus::pokeDIWSTRT<ACCESSOR_CPU>(u16 value);
 template void Agnus::pokeDIWSTRT<ACCESSOR_AGNUS>(u16 value);
+
 template void Agnus::pokeDIWSTOP<ACCESSOR_CPU>(u16 value);
 template void Agnus::pokeDIWSTOP<ACCESSOR_AGNUS>(u16 value);

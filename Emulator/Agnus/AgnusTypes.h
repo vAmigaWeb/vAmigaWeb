@@ -12,6 +12,7 @@
 #include "Aliases.h"
 #include "BusTypes.h"
 #include "SchedulerTypes.h"
+#include "SequencerTypes.h"
 #include "Reflection.h"
 
 //
@@ -43,35 +44,6 @@ struct AgnusRevisionEnum : util::Reflection<AgnusRevisionEnum, AgnusRevision>
             case AGNUS_OCS_PLCC: return "OCS_PLCC";
             case AGNUS_ECS_1MB:  return "ECS_1MB";
             case AGNUS_ECS_2MB:  return "ECS_2MB";
-        }
-        return "???";
-    }
-};
-#endif
-
-enum_long(DDF_STATE)
-{
-    DDF_OFF,
-    DDF_READY,
-    DDF_ON
-};
-typedef DDF_STATE DDFState;
-
-#ifdef __cplusplus
-struct DDFStateEnum : util::Reflection<DDFStateEnum, DDFState>
-{
-    static long minVal() { return 0; }
-    static long maxVal() { return DDF_ON; }
-    static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
-
-    static const char *prefix() { return "DDF"; }
-    static const char *key(AgnusRevision value)
-    {
-        switch (value) {
-                
-            case DDF_OFF:   return "OFF";
-            case DDF_READY: return "READY";
-            case DDF_ON:    return "ON";
         }
         return "???";
     }
@@ -126,7 +98,6 @@ typedef struct
 
     u16 dmacon;
     u16 bplcon0;
-    u8  bpu;
     u16 ddfstrt;
     u16 ddfstop;
     u16 diwstrt;
@@ -140,7 +111,6 @@ typedef struct
     u16 bltdmod;
     u16 bltcon0;
     
-    // u32 coppc;
     u32 coppc0;
     u32 dskpt;
     u32 bplpt[6];

@@ -21,7 +21,7 @@
 // Snapshot version number
 #define SNP_MAJOR 1
 #define SNP_MINOR 0
-#define SNP_SUBMINOR 8
+#define SNP_SUBMINOR 9
 
 // Uncomment this setting in a release build
 #define RELEASEBUILD
@@ -68,7 +68,7 @@ struct FloatStereo; typedef FloatStereo SampleType;
 // Uncomment to set a breakpoint on startup
 // #define INITIAL_BREAKPOINT 0xFC1354
 
-// Uncomment to colorize certain rasterlines
+// Uncomment to colorize a certain row or column
 // #define LINE_DEBUG (agnus.pos.v == 260 || agnus.pos.v == 300)
 
 //
@@ -83,8 +83,8 @@ static const int NO_SSE          = 0; // Don't use SSE extensions
 //
 
 // General
-static const int CNF_DEBUG       = 0; // Configuration options
 static const int XFILES          = 0; // Report paranormal activity
+static const int CNF_DEBUG       = 0; // Configuration options
 static const int OBJ_DEBUG       = 0; // Object life-times
 static const int MIMIC_UAE       = 0; // Enable to compare debug logs with UAE
 
@@ -107,6 +107,7 @@ static const int FAS_DEBUG       = 0; // Fast RAM
 // Agnus
 static const int DMA_DEBUG       = 0; // DMA registers
 static const int DDF_DEBUG       = 0; // Display data fetch
+static const int SEQ_DEBUG       = 0; // Bitplane sequencer
 static const int NO_PTR_DROPS    = 0; // Never drop a pointer register write
 
 // Copper
@@ -205,7 +206,9 @@ static const int FORCE_RECORDING_ERROR     = 0;
 
 
 #ifdef RELEASEBUILD
+#ifndef NDEBUG
 #define NDEBUG
+#endif
 static const int releaseBuild = 1;
 #else
 static const int releaseBuild = 0;

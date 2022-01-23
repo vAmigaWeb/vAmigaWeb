@@ -22,13 +22,13 @@ Agnus::scheduleFirstBplEvent()
 {
     assert(pos.h == 0 || pos.h == HPOS_MAX);
     
-    u8 dmacycle = nextBplEvent[0];
+    u8 dmacycle = sequencer.nextBplEvent[0];
     assert(dmacycle != 0);
         
     if (pos.h == 0) {
-        scheduleRel<SLOT_BPL>(DMA_CYCLES(dmacycle), bplEvent[dmacycle]);
+        scheduleRel<SLOT_BPL>(DMA_CYCLES(dmacycle), sequencer.bplEvent[dmacycle]);
     } else {
-        scheduleRel<SLOT_BPL>(DMA_CYCLES(dmacycle + 1), bplEvent[dmacycle]);
+        scheduleRel<SLOT_BPL>(DMA_CYCLES(dmacycle + 1), sequencer.bplEvent[dmacycle]);
     }
 }
 
@@ -37,8 +37,8 @@ Agnus::scheduleNextBplEvent(isize hpos)
 {
     assert(hpos >= 0 && hpos < HPOS_CNT);
 
-    if (u8 next = nextBplEvent[hpos]) {
-        scheduleRel<SLOT_BPL>(DMA_CYCLES(next - pos.h), bplEvent[next]);
+    if (u8 next = sequencer.nextBplEvent[hpos]) {
+        scheduleRel<SLOT_BPL>(DMA_CYCLES(next - pos.h), sequencer.bplEvent[next]);
     }
     assert(scheduler.hasEvent<SLOT_BPL>());
 }
@@ -48,8 +48,8 @@ Agnus::scheduleBplEventForCycle(isize hpos)
 {
     assert(hpos >= pos.h && hpos < HPOS_CNT);
 
-    if (bplEvent[hpos] != EVENT_NONE) {
-        scheduleRel<SLOT_BPL>(DMA_CYCLES(hpos - pos.h), bplEvent[hpos]);
+    if (sequencer.bplEvent[hpos] != EVENT_NONE) {
+        scheduleRel<SLOT_BPL>(DMA_CYCLES(hpos - pos.h), sequencer.bplEvent[hpos]);
     } else {
         scheduleNextBplEvent(hpos);
     }
@@ -62,13 +62,13 @@ Agnus::scheduleFirstDasEvent()
 {
     assert(pos.h == 0 || pos.h == HPOS_MAX);
     
-    u8 dmacycle = nextDasEvent[0];
+    u8 dmacycle = sequencer.nextDasEvent[0];
     assert(dmacycle != 0);
     
     if (pos.h == 0) {
-        scheduleRel<SLOT_DAS>(DMA_CYCLES(dmacycle), dasEvent[dmacycle]);
+        scheduleRel<SLOT_DAS>(DMA_CYCLES(dmacycle), sequencer.dasEvent[dmacycle]);
     } else {
-        scheduleRel<SLOT_DAS>(DMA_CYCLES(dmacycle + 1), dasEvent[dmacycle]);
+        scheduleRel<SLOT_DAS>(DMA_CYCLES(dmacycle + 1), sequencer.dasEvent[dmacycle]);
     }
 }
 
@@ -77,8 +77,8 @@ Agnus::scheduleNextDasEvent(isize hpos)
 {
     assert(hpos >= 0 && hpos < HPOS_CNT);
 
-    if (u8 next = nextDasEvent[hpos]) {
-        scheduleRel<SLOT_DAS>(DMA_CYCLES(next - pos.h), dasEvent[next]);
+    if (u8 next = sequencer.nextDasEvent[hpos]) {
+        scheduleRel<SLOT_DAS>(DMA_CYCLES(next - pos.h), sequencer.dasEvent[next]);
         assert(scheduler.hasEvent<SLOT_DAS>());
     } else {
         scheduler.cancel<SLOT_DAS>();
@@ -90,8 +90,8 @@ Agnus::scheduleDasEventForCycle(isize hpos)
 {
     assert(hpos >= pos.h && hpos < HPOS_CNT);
 
-    if (dasEvent[hpos] != EVENT_NONE) {
-        scheduleRel<SLOT_DAS>(DMA_CYCLES(hpos - pos.h), dasEvent[hpos]);
+    if (sequencer.dasEvent[hpos] != EVENT_NONE) {
+        scheduleRel<SLOT_DAS>(DMA_CYCLES(hpos - pos.h), sequencer.dasEvent[hpos]);
     } else {
         scheduleNextDasEvent(hpos);
     }
@@ -160,11 +160,13 @@ Agnus::serviceREGEvent(Cycle until)
                 
             case SET_DMACON: setDMACON(dmacon, change.value); break;
                 
-            case SET_DIWSTRT: setDIWSTRT(change.value); break;
-            case SET_DIWSTOP: setDIWSTOP(change.value); break;
-                
-            case SET_DDFSTRT: setDDFSTRT(ddfstrt, change.value); break;
-            case SET_DDFSTOP: setDDFSTOP(ddfstop, change.value); break;
+            case SET_DIWSTRT_AGNUS: sequencer.setDIWSTRT(change.value); break;
+            case SET_DIWSTRT_DENISE: denise.setDIWSTRT(change.value); break;
+            case SET_DIWSTOP_AGNUS: sequencer.setDIWSTOP(change.value); break;
+            case SET_DIWSTOP_DENISE: denise.setDIWSTOP(change.value); break;
+
+            case SET_DDFSTRT: sequencer.setDDFSTRT(change.value); break;
+            case SET_DDFSTOP: sequencer.setDDFSTOP(change.value); break;
                 
             case SET_BPL1MOD: setBPL1MOD(change.value); break;
             case SET_BPL2MOD: setBPL2MOD(change.value); break;
@@ -221,17 +223,34 @@ Agnus::serviceRASEvent()
     assert(scheduler.id[SLOT_RAS] == RAS_HSYNC);
     
     // Let the hsync handler be called at the beginning of the next DMA cycle
-    agnus.recordRegisterChange(DMA_CYCLES(1), SET_STRHOR, 1);
+    agnus.recordRegisterChange(0, SET_STRHOR, 1);
     
-    // Call the hsync handler
-    // hsyncHandler();
-
     // Reset the horizontal counter (-1 to compensate for the increment to come)
     pos.h = -1;
     
     // Reschedule event
     rescheduleRel<SLOT_RAS>(DMA_CYCLES(HPOS_CNT));
 }
+
+#define LO_NONE(x)      { serviceBPLEventLores<x>(); }
+#define LO_ODD(x)       { denise.drawLoresOdd();  LO_NONE(x) }
+#define LO_EVEN(x)      { denise.drawLoresEven(); LO_NONE(x) }
+#define LO_BOTH(x)      { denise.drawLoresBoth(); LO_NONE(x) }
+
+#define LO_MOD(x)       { LO_NONE(x); bplpt[x] += (x & 1) ? bpl2mod : bpl1mod; }
+#define LO_MOD_ODD(x)   { LO_ODD(x);  bplpt[x] += (x & 1) ? bpl2mod : bpl1mod; }
+#define LO_MOD_EVEN(x)  { LO_EVEN(x); bplpt[x] += (x & 1) ? bpl2mod : bpl1mod; }
+#define LO_MOD_BOTH(x)  { LO_BOTH(x); bplpt[x] += (x & 1) ? bpl2mod : bpl1mod; }
+
+#define HI_NONE(x)      { serviceBPLEventHires<x>(); }
+#define HI_ODD(x)       { denise.drawHiresOdd();  HI_NONE(x) }
+#define HI_EVEN(x)      { denise.drawHiresEven(); HI_NONE(x) }
+#define HI_BOTH(x)      { denise.drawHiresBoth(); HI_NONE(x) }
+
+#define HI_MOD(x)       { HI_NONE(x); bplpt[x] += (x & 1) ? bpl2mod : bpl1mod; }
+#define HI_MOD_ODD(x)   { HI_ODD(x);  bplpt[x] += (x & 1) ? bpl2mod : bpl1mod; }
+#define HI_MOD_EVEN(x)  { HI_EVEN(x); bplpt[x] += (x & 1) ? bpl2mod : bpl1mod; }
+#define HI_MOD_BOTH(x)  { HI_BOTH(x); bplpt[x] += (x & 1) ? bpl2mod : bpl1mod; }
 
 void
 Agnus::serviceBPLEvent(EventID id)
@@ -246,10 +265,101 @@ Agnus::serviceBPLEvent(EventID id)
             hires() ? denise.drawHiresEven() : denise.drawLoresEven();
             break;
 
-        case EVENT_NONE | DRAW_ODD | DRAW_EVEN:
+        case EVENT_NONE | DRAW_BOTH:
             hires() ? denise.drawHiresBoth() : denise.drawLoresBoth();
             break;
             
+        case BPL_H1:                    HI_NONE(0);     break;
+        case BPL_H1     | DRAW_ODD:     HI_ODD(0);      break;
+        case BPL_H1     | DRAW_EVEN:    HI_EVEN(0);     break;
+        case BPL_H1     | DRAW_BOTH:    HI_BOTH(0);     break;
+        case BPL_H1_MOD:                HI_MOD(0);      break;
+        case BPL_H1_MOD | DRAW_ODD:     HI_MOD_ODD(0);  break;
+        case BPL_H1_MOD | DRAW_EVEN:    HI_MOD_EVEN(0); break;
+        case BPL_H1_MOD | DRAW_BOTH:    HI_MOD_BOTH(0); break;
+
+        case BPL_H2:                    HI_NONE(1);     break;
+        case BPL_H2     | DRAW_ODD:     HI_ODD(1);      break;
+        case BPL_H2     | DRAW_EVEN:    HI_EVEN(1);     break;
+        case BPL_H2     | DRAW_BOTH:    HI_BOTH(1);     break;
+        case BPL_H2_MOD:                HI_MOD(1);      break;
+        case BPL_H2_MOD | DRAW_ODD:     HI_MOD_ODD(1);  break;
+        case BPL_H2_MOD | DRAW_EVEN:    HI_MOD_EVEN(1); break;
+        case BPL_H2_MOD | DRAW_BOTH:    HI_MOD_BOTH(1); break;
+
+        case BPL_H3:                    HI_NONE(2);     break;
+        case BPL_H3     | DRAW_ODD:     HI_ODD(2);      break;
+        case BPL_H3     | DRAW_EVEN:    HI_EVEN(2);     break;
+        case BPL_H3     | DRAW_BOTH:    HI_BOTH(2);     break;
+        case BPL_H3_MOD:                HI_MOD(2);      break;
+        case BPL_H3_MOD | DRAW_ODD:     HI_MOD_ODD(2);  break;
+        case BPL_H3_MOD | DRAW_EVEN:    HI_MOD_EVEN(2); break;
+        case BPL_H3_MOD | DRAW_BOTH:    HI_MOD_BOTH(2); break;
+
+        case BPL_H4:                    HI_NONE(3);     break;
+        case BPL_H4     | DRAW_ODD:     HI_ODD(3);      break;
+        case BPL_H4     | DRAW_EVEN:    HI_EVEN(3);     break;
+        case BPL_H4     | DRAW_BOTH:    HI_BOTH(3);     break;
+        case BPL_H4_MOD:                HI_MOD(3);      break;
+        case BPL_H4_MOD | DRAW_ODD:     HI_MOD_ODD(3);  break;
+        case BPL_H4_MOD | DRAW_EVEN:    HI_MOD_EVEN(3); break;
+        case BPL_H4_MOD | DRAW_BOTH:    HI_MOD_BOTH(3); break;
+
+        case BPL_L1:                    LO_NONE(0);     break;
+        case BPL_L1     | DRAW_ODD:     LO_ODD(0);      break;
+        case BPL_L1     | DRAW_EVEN:    LO_EVEN(0);     break;
+        case BPL_L1     | DRAW_BOTH:    LO_BOTH(0);     break;
+        case BPL_L1_MOD:                LO_MOD(0);      break;
+        case BPL_L1_MOD | DRAW_ODD:     LO_MOD_ODD(0);  break;
+        case BPL_L1_MOD | DRAW_EVEN:    LO_MOD_EVEN(0); break;
+        case BPL_L1_MOD | DRAW_BOTH:    LO_MOD_BOTH(0); break;
+
+        case BPL_L2:                    LO_NONE(1);     break;
+        case BPL_L2     | DRAW_ODD:     LO_ODD(1);      break;
+        case BPL_L2     | DRAW_EVEN:    LO_EVEN(1);     break;
+        case BPL_L2     | DRAW_BOTH:    LO_BOTH(1);     break;
+        case BPL_L2_MOD:                LO_MOD(1);      break;
+        case BPL_L2_MOD | DRAW_ODD:     LO_MOD_ODD(1);  break;
+        case BPL_L2_MOD | DRAW_EVEN:    LO_MOD_EVEN(1); break;
+        case BPL_L2_MOD | DRAW_BOTH:    LO_MOD_BOTH(1); break;
+
+        case BPL_L3:                    LO_NONE(2);     break;
+        case BPL_L3     | DRAW_ODD:     LO_ODD(2);      break;
+        case BPL_L3     | DRAW_EVEN:    LO_EVEN(2);     break;
+        case BPL_L3     | DRAW_BOTH:    LO_BOTH(2);     break;
+        case BPL_L3_MOD:                LO_MOD(2);      break;
+        case BPL_L3_MOD | DRAW_ODD:     LO_MOD_ODD(2);  break;
+        case BPL_L3_MOD | DRAW_EVEN:    LO_MOD_EVEN(2); break;
+        case BPL_L3_MOD | DRAW_BOTH:    LO_MOD_BOTH(2); break;
+
+        case BPL_L4:                    LO_NONE(3);     break;
+        case BPL_L4     | DRAW_ODD:     LO_ODD(3);      break;
+        case BPL_L4     | DRAW_EVEN:    LO_EVEN(3);     break;
+        case BPL_L4     | DRAW_BOTH:    LO_BOTH(3);     break;
+        case BPL_L4_MOD:                LO_MOD(3);      break;
+        case BPL_L4_MOD | DRAW_ODD:     LO_MOD_ODD(3);  break;
+        case BPL_L4_MOD | DRAW_EVEN:    LO_MOD_EVEN(3); break;
+        case BPL_L4_MOD | DRAW_BOTH:    LO_MOD_BOTH(3); break;
+
+        case BPL_L5:                    LO_NONE(4);     break;
+        case BPL_L5     | DRAW_ODD:     LO_ODD(4);      break;
+        case BPL_L5     | DRAW_EVEN:    LO_EVEN(4);     break;
+        case BPL_L5     | DRAW_BOTH:    LO_BOTH(4);     break;
+        case BPL_L5_MOD:                LO_MOD(4);      break;
+        case BPL_L5_MOD | DRAW_ODD:     LO_MOD_ODD(4);  break;
+        case BPL_L5_MOD | DRAW_EVEN:    LO_MOD_EVEN(4); break;
+        case BPL_L5_MOD | DRAW_BOTH:    LO_MOD_BOTH(4); break;
+
+        case BPL_L6:                    LO_NONE(5);     break;
+        case BPL_L6     | DRAW_ODD:     LO_ODD(5);      break;
+        case BPL_L6     | DRAW_EVEN:    LO_EVEN(5);     break;
+        case BPL_L6     | DRAW_BOTH:    LO_BOTH(5);     break;
+        case BPL_L6_MOD:                LO_MOD(5);      break;
+        case BPL_L6_MOD | DRAW_ODD:     LO_MOD_ODD(5);  break;
+        case BPL_L6_MOD | DRAW_EVEN:    LO_MOD_EVEN(5); break;
+        case BPL_L6_MOD | DRAW_BOTH:    LO_MOD_BOTH(5); break;
+
+        /*
         case BPL_H1:
             serviceBPLEventHires<0>();
             break;
@@ -293,18 +403,18 @@ Agnus::serviceBPLEvent(EventID id)
             break;
 
         case BPL_H2 | DRAW_ODD:
-            serviceBPLEventHires<1>();
             denise.drawHiresOdd();
+            serviceBPLEventHires<1>();
             break;
             
         case BPL_H2 | DRAW_EVEN:
-            serviceBPLEventHires<1>();
             denise.drawHiresEven();
+            serviceBPLEventHires<1>();
             break;
             
         case BPL_H2 | DRAW_ODD | DRAW_EVEN:
-            serviceBPLEventHires<1>();
             denise.drawHiresBoth();
+            serviceBPLEventHires<1>();
             break;
 
         case BPL_L2:
@@ -312,18 +422,18 @@ Agnus::serviceBPLEvent(EventID id)
             break;
 
         case BPL_L2 | DRAW_ODD:
-            serviceBPLEventLores<1>();
             denise.drawLoresOdd();
+            serviceBPLEventLores<1>();
             break;
             
         case BPL_L2 | DRAW_EVEN:
-            serviceBPLEventLores<1>();
             denise.drawLoresEven();
+            serviceBPLEventLores<1>();
             break;
             
         case BPL_L2 | DRAW_ODD | DRAW_EVEN:
-            serviceBPLEventLores<1>();
             denise.drawLoresBoth();
+            serviceBPLEventLores<1>();
             break;
 
         case BPL_H3:
@@ -331,18 +441,18 @@ Agnus::serviceBPLEvent(EventID id)
             break;
 
         case BPL_H3 | DRAW_ODD:
-            serviceBPLEventHires<2>();
             denise.drawHiresOdd();
+            serviceBPLEventHires<2>();
             break;
 
         case BPL_H3 | DRAW_EVEN:
-            serviceBPLEventHires<2>();
             denise.drawHiresEven();
+            serviceBPLEventHires<2>();
             break;
 
         case BPL_H3 | DRAW_ODD | DRAW_EVEN:
-            serviceBPLEventHires<2>();
             denise.drawHiresBoth();
+            serviceBPLEventHires<2>();
             break;
 
         case BPL_L3:
@@ -350,18 +460,18 @@ Agnus::serviceBPLEvent(EventID id)
             break;
 
         case BPL_L3 | DRAW_ODD:
-            serviceBPLEventLores<2>();
             denise.drawLoresOdd();
+            serviceBPLEventLores<2>();
             break;
 
         case BPL_L3 | DRAW_EVEN:
-            serviceBPLEventLores<2>();
             denise.drawLoresEven();
+            serviceBPLEventLores<2>();
             break;
 
         case BPL_L3 | DRAW_ODD | DRAW_EVEN:
-            serviceBPLEventLores<2>();
             denise.drawLoresBoth();
+            serviceBPLEventLores<2>();
             break;
 
         case BPL_H4:
@@ -369,18 +479,18 @@ Agnus::serviceBPLEvent(EventID id)
             break;
 
         case BPL_H4 | DRAW_ODD:
-            serviceBPLEventHires<3>();
             denise.drawHiresOdd();
+            serviceBPLEventHires<3>();
             break;
 
         case BPL_H4 | DRAW_EVEN:
-            serviceBPLEventHires<3>();
             denise.drawHiresEven();
+            serviceBPLEventHires<3>();
             break;
 
         case BPL_H4 | DRAW_ODD | DRAW_EVEN:
-            serviceBPLEventHires<3>();
             denise.drawHiresBoth();
+            serviceBPLEventHires<3>();
             break;
 
         case BPL_L4:
@@ -388,18 +498,18 @@ Agnus::serviceBPLEvent(EventID id)
             break;
 
         case BPL_L4 | DRAW_ODD:
-            serviceBPLEventLores<3>();
             denise.drawLoresOdd();
+            serviceBPLEventLores<3>();
             break;
 
         case BPL_L4 | DRAW_EVEN:
-            serviceBPLEventLores<3>();
             denise.drawLoresEven();
+            serviceBPLEventLores<3>();
             break;
 
         case BPL_L4 | DRAW_ODD | DRAW_EVEN:
-            serviceBPLEventLores<3>();
             denise.drawLoresBoth();
+            serviceBPLEventLores<3>();
             break;
 
         case BPL_L5:
@@ -407,18 +517,18 @@ Agnus::serviceBPLEvent(EventID id)
             break;
 
         case BPL_L5 | DRAW_ODD:
-            serviceBPLEventLores<4>();
             denise.drawLoresOdd();
+            serviceBPLEventLores<4>();
             break;
 
         case BPL_L5 | DRAW_EVEN:
-            serviceBPLEventLores<4>();
             denise.drawLoresEven();
+            serviceBPLEventLores<4>();
             break;
 
         case BPL_L5 | DRAW_ODD | DRAW_EVEN:
-            serviceBPLEventLores<4>();
             denise.drawLoresBoth();
+            serviceBPLEventLores<4>();
             break;
             
         case BPL_L6:
@@ -426,35 +536,20 @@ Agnus::serviceBPLEvent(EventID id)
             break;
 
         case BPL_L6 | DRAW_ODD:
-            serviceBPLEventLores<5>();
             denise.drawLoresOdd();
+            serviceBPLEventLores<5>();
             break;
 
         case BPL_L6 | DRAW_EVEN:
-            serviceBPLEventLores<5>();
             denise.drawLoresEven();
+            serviceBPLEventLores<5>();
             break;
 
         case BPL_L6 | DRAW_ODD | DRAW_EVEN:
-            serviceBPLEventLores<5>();
             denise.drawLoresBoth();
+            serviceBPLEventLores<5>();
             break;
-
-        case BPL_SR:
-            denise.updateShiftRegisters();
-            break;
-            
-        case BPL_SR | DRAW_ODD:
-            hires() ? denise.drawHiresOdd() : denise.drawLoresOdd();
-            break;
-            
-        case BPL_SR | DRAW_EVEN:
-            hires() ? denise.drawHiresEven() : denise.drawLoresEven();
-            break;
-            
-        case BPL_SR | DRAW_ODD | DRAW_EVEN:
-            hires() ? denise.drawHiresBoth() : denise.drawLoresBoth();
-            break;
+        */
             
         case BPL_EOL:
             assert(pos.h == 0xE2);
@@ -470,12 +565,13 @@ Agnus::serviceBPLEvent(EventID id)
             hires() ? denise.drawHiresEven() : denise.drawLoresEven();
             return;
 
-        case BPL_EOL | DRAW_ODD | DRAW_EVEN:
+        case BPL_EOL | DRAW_BOTH:
             assert(pos.h == 0xE2);
             hires() ? denise.drawHiresBoth() : denise.drawLoresBoth();
             return;
             
         default:
+            dump(dump::Dma);
             fatalError;
     }
 
@@ -488,15 +584,6 @@ Agnus::serviceBPLEventHires()
 {
     // Perform bitplane DMA
     denise.setBPLxDAT<nr>(doBitplaneDmaRead<nr>());
-    
-    // Add modulo if this is the last fetch unit
-    if (pos.h >= ddfHires.stop - 4) {
-
-        // trace(BPLMOD_DEBUG,
-        //       "Adding bpl%dmod = %d\n", (nr % 2), (nr % 2) ? bpl2mod : bpl1mod);
-
-        bplpt[nr] += (nr % 2) ? bpl2mod : bpl1mod;
-    }
 }
 
 template <isize nr> void
@@ -504,15 +591,6 @@ Agnus::serviceBPLEventLores()
 {
     // Perform bitplane DMA
     denise.setBPLxDAT<nr>(doBitplaneDmaRead<nr>());
-
-    // Add modulo if this is the last fetch unit
-    if (pos.h >= ddfLores.stop - 8) {
-
-        // trace(BPLMOD_DEBUG,
-        //       "Adding bpl%dmod = %d\n", (nr % 2), (nr % 2) ? bpl2mod : bpl1mod);
-
-        bplpt[nr] += (nr % 2) ? bpl2mod : bpl1mod;
-    }
 }
 
 void
@@ -563,7 +641,7 @@ Agnus::serviceVblEvent(EventID id)
 void
 Agnus::serviceDASEvent(EventID id)
 {
-    assert(id == dasEvent[pos.h]);
+    assert(id == sequencer.dasEvent[pos.h]);
 
     switch (id) {
 
