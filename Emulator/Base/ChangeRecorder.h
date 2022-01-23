@@ -10,7 +10,28 @@
 #pragma once
 
 #include "RingBuffer.h"
-#include "SchedulerTypes.h"
+#include "AgnusTypes.h"
+
+/* A key role in the architecture of vAmiga is played by two sorted ring
+ * buffers:
+ *
+ * Register change recorder:
+ *
+ *     This buffer keeps track of all upcoming register changes. It is used
+ *     to emulate the proper timing of all custom registers.
+ *
+ * Signal change recorder:
+ *
+ *     This buffer is used to emulate the display logic circuit. It keeps
+ *     track of various signal changes such as the changes on the BPHSTART line
+ *     that indicates a match of the horizontal counter with the DDF start
+ *     position. The buffer is used to set up the bitplane events stored
+ *     in the bplEvent table.
+ */
+
+//
+// Register change recorder
+//
 
 enum RegChangeID : i32
 {
@@ -35,8 +56,10 @@ enum RegChangeID : i32
     SET_BPLCON3,
     SET_DMACON,
     
-    SET_DIWSTRT,
-    SET_DIWSTOP,
+    SET_DIWSTRT_AGNUS,
+    SET_DIWSTRT_DENISE,
+    SET_DIWSTOP_AGNUS,
+    SET_DIWSTOP_DENISE,
     SET_DDFSTRT,
     SET_DDFSTOP,
     
@@ -115,12 +138,6 @@ enum RegChangeID : i32
     SET_DSKPTL
 };
 
-/* Register change recorder
- *
- * For certain registers, Agnus and Denise have to keep track about when a
- * value changes. This information is stored in a sorted ring buffers called
- * a register change recorder.
- */
 struct RegChange
 {
     u32 addr;
@@ -149,5 +166,48 @@ struct RegChangeRecorder : public util::SortedRingBuffer<RegChange, capacity>
     
     Cycle trigger() {
         return this->isEmpty() ? NEVER : this->keys[this->r];
+    }
+};
+
+
+//
+// Signal change recorder
+//
+
+struct SigRecorder : public util::SortedArray<u16, 256>
+{
+    bool modified = false;
+    
+    template <class W>
+    void operator<<(W& worker)
+    {
+        worker << this->modified << this->elements << this->w << this->keys;
+    }
+    
+    void insert(i64 key, u16 signal) {
+    
+        modified = true;
+        
+        for (isize i = 0; i < w; i++) {
+
+            if (keys[i] == key) {
+                elements[i] |= signal;
+                return;
+            }
+        }
+        
+        SortedArray::insert(key, signal);
+    }
+    
+    void invalidate(i64 key, u16 signal) {
+        
+        modified = true;
+        
+        for (isize i = 0; i < w; i++) {
+            
+            if ((elements[i] & signal) && keys[i] >= key) {
+                elements[i] &= ~signal;
+            }
+        }
     }
 };

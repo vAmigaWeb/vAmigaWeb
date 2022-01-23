@@ -9,30 +9,20 @@
 
 #pragma once
 
+// REMOVE ASAP
+#include "config.h"
+
 #include "AgnusTypes.h"
 #include "SubComponent.h"
 #include "Beam.h"
 #include "Blitter.h"
 #include "ChangeRecorder.h"
 #include "Copper.h"
-#include "DDF.h"
 #include "DmaDebugger.h"
 #include "Scheduler.h"
+#include "Sequencer.h"
 #include "Frame.h"
 #include "Memory.h"
-
-/* Hsync handler action flags
- *
- *       HSYNC_PREDICT_DDF : Forces the hsync handler to recompute the
- *                           display data fetch window.
- *  HSYNC_UPDATE_BPL_TABLE : Forces the hsync handler to update the bitplane
- *                           DMA event table.
- *  HSYNC_UPDATE_DAS_TABLE : Forces the hsync handler to update the disk,
- *                          audio, sprite DMA event table.
- */
-static constexpr usize HSYNC_PREDICT_DDF =      0b001;
-static constexpr usize HSYNC_UPDATE_BPL_TABLE = 0b010;
-static constexpr usize HSYNC_UPDATE_DAS_TABLE = 0b100;
 
 /* Bitplane event modifiers
  *
@@ -46,7 +36,7 @@ static constexpr usize DRAW_EVEN = 0b010;
 static constexpr usize DRAW_BOTH = 0b011;
 
 class Agnus : public SubComponent {
-        
+            
     // Current configuration
     AgnusConfig config = {};
 
@@ -64,28 +54,11 @@ class Agnus : public SubComponent {
 public:
 
     Scheduler scheduler = Scheduler(amiga);
+    Sequencer sequencer = Sequencer(amiga);
     Copper copper = Copper(amiga);
     Blitter blitter = Blitter(amiga);
     DmaDebugger dmaDebugger = DmaDebugger(amiga);
 
-
-    //
-    // Event tables
-    //
-    
-private:
-    
-    // Disk, audio, and sprites lookup table ([Bits 0 .. 5 of DMACON])
-    static EventID dasDMA[64][HPOS_CNT];
-
-    // Currently scheduled events
-    EventID bplEvent[HPOS_CNT];
-    EventID dasEvent[HPOS_CNT];
-
-    // Jump tables connecting the scheduled events
-    u8 nextBplEvent[HPOS_CNT];
-    u8 nextDasEvent[HPOS_CNT];
-    
 
     //
     // Execution control
@@ -93,12 +66,9 @@ private:
 
 public:
     
-    // Action flags controlling the HSYNC handler
-    usize hsyncActions;
-
-    // Pending register changes (used for emulating register delays)
+    // Pending register changes
     RegChangeRecorder<8> changeRecorder;
-
+    
     
     //
     // Counters
@@ -126,11 +96,14 @@ public:
     
     // A copy of BPLCON0 and BPLCON1 (Denise has its own copies)
     u16 bplcon0;
+    u16 bplcon0Initial;
     u16 bplcon1;
-    
+    u16 bplcon1Initial;
+
     // The DMA control register
     u16 dmacon;
-
+    u16 dmaconInitial;
+    
     // The disk DMA pointer
     u32 dskpt;
 
@@ -154,35 +127,12 @@ public:
     //
     // Derived values
     //
+        
+    // Shift values derives from BPLCON1
+    i8 scrollOdd;
+    i8 scrollEven;
     
-    /* Values of BPLCON0 and DMACON at the DDFSTRT trigger cycle. Both
-     * variables are set at the beginning of each rasterline and updated
-     * on-the-fly if BPLCON0 or DMACON changes before the trigger conditions
-     * has been reached.
-     */
-    u16 bplcon0AtDDFStrt;
-    u16 dmaconAtDDFStrt;
-    
-    /* This value is updated in the hsync handler with the lowest 6 bits of
-     * dmacon if the master enable bit is 1 or set to 0 if the master enable
-     * bit is 0. It is used as an offset into the DAS lookup tables.
-     */
-    u16 dmaDAS;
-
-    /* Horizontal shift values derived from BPLCON1. All four values are
-     * extracted in setBPLCON1() and utilized to emulate horizontal scrolling.
-     * They control at which DMA cycles the BPLDAT registers are transfered
-     * into the shift registers.
-     */
-    i8 scrollLoresOdd;
-    i8 scrollLoresEven;
-    i8 scrollHiresOdd;
-    i8 scrollHiresEven;
-
-    // Set in the hsync handler to remember the returned value of inBplDmaLine()
-    bool bplDmaLine;
-
-    
+        
     //
     // Data bus
     //
@@ -213,114 +163,11 @@ private:
 
 
     //
-    // Display Data Fetch (DDF)
-    //
-
-public:
-
-    // The display data fetch registers
-    u16 ddfstrt;
-    u16 ddfstop;
-
-    /* At the end of a rasterline, these variables conain the DMA cycles
-     * where the hpos counter matched ddfstrt or ddfstop, respectively. A
-     * value of -1 indicates that no matching event took place.
-     */
-    isize ddfstrtReached;
-    isize ddfstopReached;
-
-    /* At the end of a rasterline, this variable contains the DDF state.
-     */
-    DDFState ddfState;
-
-    /* This variable is used to emulate the OCS "scanline effect". If DDFSTRT
-     * is set to a value smaller than the left hardware stop at 0x18, early DMA
-     * access is enabled every other line. In this case, this variable stores
-     * the number of the next line where early DMA is possible.
-     */
-    isize ocsEarlyAccessLine;
-
-    // DDF flipflops
-    bool ddfVFlop;
-
-    // Display data fetch window in lores and hires mode
-    DDF<false> ddfLores;
-    DDF<true> ddfHires;
-    
-    
-    //
-    // Display Window (DIW)
-    //
-
-    /* The Amiga limits the visible screen area by an upper, a lower, a left,
-     * and a right border. The border encloses an area called the Display
-     * Window (DIW). The color of the pixels inside the display window depends
-     * on the bitplane data. The pixels of the border area are always drawn in
-     * the background color (which might change inside the border area).
-     * The size of the display window is controlled by two registers called
-     * DIWSTRT and DIWSTOP. They contain the vertical and horizontal positions
-     * at which the window starts and stops. The resolution of vertical start
-     * and stop is one scan line. The resolution of horizontal start and stop
-     * is one low-resolution pixel.
-     *
-     * I haven't found detailed information about the how the DIW logic is
-     * implemented in hardware inside Agnus. If you have such information,
-     * please let me know. For the time being, I base my implementation on the
-     * following assumptions:
-     *
-     * 1. Denise contains a single flipflop controlling the display window
-     *    horizontally. The flop is cleared inside the border area and set
-     *    inside the display area.
-     * 2. When hpos matches the position in DIWSTRT, the flipflop is set.
-     * 3. When hpos matches the position in DIWSTOP, the flipflop is reset.
-     * 4. The smallest valid value for DIWSTRT is $02. If it is smaller, it is
-     *    not recognised.
-     * 5. The largest valid value for DIWSTOP is $(1)C7. If it is larger, it is
-     *    not recognised.
-     */
-
-    // Register values as they have been written by pokeDIWSTRT/STOP()
-    u16 diwstrt;
-    u16 diwstop;
-
-    /* Extracted display window coordinates
-     *
-     * The coordinates are computed out of diwstrt and diwstop and set in
-     * pokeDIWSTRT/STOP(). The following horizontal values are possible:
-     *
-     *    diwHstrt : $02  ... $FF   or -1
-     *    diwHstop : $100 ... $1C7  or -1
-     *
-     * A -1 is assigned if DIWSTRT or DIWSTOP are written with values that
-     * result in coordinates outside the valid range.
-     */
-    isize diwHstrt;
-    isize diwHstop;
-    isize diwVstrt;
-    isize diwVstop;
-
-    /* Value of the DIW flipflops. Variable diwVFlop stores the value of the
-     * vertical DIW flipflop. The value is updated at the beginning of each
-     * rasterline and cannot change thereafter. Variable diwHFlop stores the
-     * value of the horizontal DIW flipflop as it was at the beginning of the
-     * rasterline. To find out the value of the horizontal flipflop inside or
-     * at the end of a rasterline, hFlopOn and hFlopOff need to be evaluated.
-     */
-    bool diwVFlop;
-    bool diwHFlop;
-
-    /* At the end of a rasterline, these variable conains the pixel coordinates
-     * where the hpos counter matched diwHstrt or diwHstop, respectively. A
-     * value of -1 indicates that no matching event took place.
-     */
-    isize diwHFlopOn;
-    isize diwHFlopOff;
-
-
-    //
     // Sprites
     //
 
+public:
+    
     /* The vertical trigger positions of all 8 sprites. Note that Agnus knows
      * nothing about the horizontal trigger positions (only Denise does).
      */
@@ -380,12 +227,6 @@ private:
 
         worker
         
-        << bplEvent
-        << dasEvent
-        << nextBplEvent
-        << nextDasEvent
-
-        << hsyncActions
         >> changeRecorder
 
         >> pos
@@ -393,8 +234,11 @@ private:
         >> frame
 
         << bplcon0
+        << bplcon0Initial
         << bplcon1
+        << bplcon1Initial
         << dmacon
+        << dmaconInitial
         << dskpt
         << audpt
         << audlc
@@ -402,15 +246,9 @@ private:
         << bpl1mod
         << bpl2mod
         << sprpt
-
-        << bplcon0AtDDFStrt
-        << dmaconAtDDFStrt
-        << dmaDAS
-        << scrollLoresOdd
-        << scrollLoresEven
-        << scrollHiresOdd
-        << scrollHiresEven
-        << bplDmaLine
+        // << dmaDAS
+        << scrollOdd
+        << scrollEven
         
         << busValue
         << busOwner
@@ -418,27 +256,6 @@ private:
         << audxDR
         << audxDSR
         << bls
-
-        << ddfstrt
-        << ddfstop
-        << ddfstrtReached
-        << ddfstopReached
-        << ddfState
-        << ocsEarlyAccessLine
-        << ddfVFlop
-        >> ddfLores
-        >> ddfHires
-
-        << diwstrt
-        << diwstop
-        << diwHstrt
-        << diwHstop
-        << diwVstrt
-        << diwVstop
-        << diwVFlop
-        << diwHFlop
-        << diwHFlopOn
-        << diwHFlopOff
 
         << sprVStrt
         << sprVStop
@@ -499,7 +316,7 @@ public:
     
 private:
     
-    void clearStats() { stats = { }; }
+    void clearStats();
     void updateStats();
     
 
@@ -542,10 +359,6 @@ public:
     bool inLastRasterline(isize posv) const { return posv == frame.lastLine(); }
     bool inLastRasterline() const { return inLastRasterline(pos.v); }
 
-    // Indicates if bitplane DMA is enabled in the current rasterline
-    bool inBplDmaLine(u16 dmacon, u16 bplcon0) const;
-    bool inBplDmaLine() const { return inBplDmaLine(dmacon, bplcon0); }
-
     // Returns the pixel position for the current horizontal position
     Pixel ppos(isize posh) const { return (posh * 4) + 2; }
     Pixel ppos() const { return ppos(pos.h); }
@@ -567,10 +380,6 @@ public:
      */
     Beam cycleToBeam(Cycle cycle) const;
 
-    // Advances a beam position by a given number of cycles (DEPRECATED)
-    // TODO: REMOVE AFTER V1.1 BETA TESTING
-    Beam addToBeam(Beam beam, Cycle cycles) const;
-
     
     //
     // Querying graphic modes
@@ -578,18 +387,8 @@ public:
     
 public:
 
-    /* Returns the Agnus view of the BPU bits. The value determines the number
-     * of enabled DMA channels. It is computed out of the three BPU bits stored
-     * in BPLCON0, but not identical with them. The value differs if the BPU
-     * bits reflect an invalid bit pattern. Compare with Denise::bpu() which
-     * returns the Denise view of the BPU bits.
-     */
-    static u8 bpu(u16 v);
-    u8 bpu() const { return bpu(bplcon0); }
-
     // Checks whether Hires or Lores mode is selected
     bool hires() { return GET_BIT(bplcon0, 15); }
-    bool lores() { return GET_BIT(bplcon0, 10); }
     
     // Returns the external synchronization bit from BPLCON0
     bool ersy() { return GET_BIT(bplcon0, 1); }
@@ -636,29 +435,8 @@ private:
 
     
     //
-    // Managing the data fetch window (AgnusDDF.cpp)
-    //
-    
-    // Sets up the likely DDF values for the next rasterline
-    void predictDDF();
-
-private:
-
-    void computeDDFWindow();
-    void computeDDFWindowOCS();
-    void computeDDFWindowECS();
-
-    
-    //
     // Controlling DMA (AgnusDma.cpp)
     //
-
-private:
-    
-    // Initializes the static lookup tables
-    // void initBplEventTableLores();
-    // void initBplEventTableHires();
-    void initDasEventTable();
 
 public:
     
@@ -681,55 +459,7 @@ public:
     bool sprdma() const { return sprdma(dmacon); }
     bool dskdma() const { return dskdma(dmacon); }
     
-private:
-    
-    void enableBplDmaOCS();
-    void disableBplDmaOCS();
-    void enableBplDmaECS();
-    void disableBplDmaECS();
-
-    
-    //
-    // Managing the bitplane time slot table (AgnusDma.cpp)
-    //
-    
-public:
-
-    // Removes all events from the BPL event table
-    void clearBplEvents();
-
-    // Renews all events in the BPL event table
-    void updateBplEvents(u16 dmacon, u16 bplcon0, isize first = 0);
-    void updateBplEvents(isize first = 0) { updateBplEvents(dmacon, bplcon0, first); }
-    
-private:
-
-    // Workhorse for updateBplEvents
-    template <bool hires> void updateBplEvents(isize channels, isize first);
-
-    // Updates the jump table for the bplEvent table
-    void updateBplJumpTable();
-
-    // Updates the drawing flags in the bplEvent table
-    void updateHiresDrawingFlags();
-    void updateLoresDrawingFlags();
-
-    
-    //
-    // Managing the disk, audio, sprite time slot table (AgnusDma.cpp)
-    //
-
-public:
-    
-    // Renews all events in the the DAS event table
-    void updateDasEvents(u16 dmacon);
-
-private:
-
-    // Updates the jump table for the dasEvent table
-    void updateDasJumpTable(i16 end = HPOS_MAX);
-    
-    
+        
     //
     // Performing DMA (AgnusDma.cpp)
     //
@@ -771,9 +501,18 @@ public:
 public:
 
     u16 peekDMACONR();
-    void pokeDMACON(u16 value);
+    template <Accessor s> void pokeDMACON(u16 value);
     void setDMACON(u16 oldValue, u16 newValue);
-    
+    void setBPLEN(bool value);
+    void setCOPEN(bool value);
+    void setBLTEN(bool value);
+    void setSPREN(bool value);
+    void setDSKEN(bool value);
+    void setAUD0EN(bool value);
+    void setAUD1EN(bool value);
+    void setAUD2EN(bool value);
+    void setAUD3EN(bool value);
+
     u16 peekVHPOSR();
     void pokeVHPOS(u16 value);
     void setVHPOS(u16 value);
@@ -782,23 +521,14 @@ public:
     void pokeVPOS(u16 value);
     void setVPOS(u16 value);
 
-    void pokeBPLCON0(u16 value);
+    template <Accessor s> void pokeBPLCON0(u16 value);
     void setBPLCON0(u16 oldValue, u16 newValue);
 
     void pokeBPLCON1(u16 value);
     void setBPLCON1(u16 oldValue, u16 newValue);
 
     template <Accessor s> void pokeDIWSTRT(u16 value);
-    void setDIWSTRT(u16 value);
-
     template <Accessor s> void pokeDIWSTOP(u16 value);
-    void setDIWSTOP(u16 value);
-
-    void pokeDDFSTRT(u16 value);
-    void setDDFSTRT(u16 old, u16 value);
-
-    void pokeDDFSTOP(u16 value);
-    void setDDFSTOP(u16 old, u16 value);
 
     void pokeBPL1MOD(u16 value);
     void setBPL1MOD(u16 value);

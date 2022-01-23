@@ -1,7 +1,8 @@
 target_sources(vAmigaCore PRIVATE
 
 Copper.cpp
-CopperRegisters.cpp
+CopperInfo.cpp
+CopperRegs.cpp
 CopperEvents.cpp
 CopperDebugger.cpp
 
