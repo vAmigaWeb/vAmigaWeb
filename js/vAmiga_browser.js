@@ -158,6 +158,13 @@ async function load_browser(datasource_name, command="feeds")
 
     var render_persistent_snapshot=function(app_title, item){
         var x_icon = '<svg width="1.8em" height="auto" viewBox="0 0 16 16" class="bi bi-x" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M11.854 4.146a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708-.708l7-7a.5.5 0 0 1 .708 0z"/><path fill-rule="evenodd" d="M4.146 4.146a.5.5 0 0 0 0 .708l7 7a.5.5 0 0 0 .708-.708l-7-7a.5.5 0 0 0-.708 0z"/></svg>';
+        var export_icon = `
+        <svg class="bi bi-box-arrow-in-down" width="1.6em" height="auto" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path fill-rule="evenodd" d="M4.646 8.146a.5.5 0 0 1 .708 0L8 10.793l2.646-2.647a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 0-.708z"/>
+          <path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-1 0v-9A.5.5 0 0 1 8 1z"/>
+          <path fill-rule="evenodd" d="M1.5 13.5A1.5 1.5 0 0 0 3 15h10a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 13 4h-1.5a.5.5 0 0 0 0 1H13a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5v-8A.5.5 0 0 1 3 5h1.5a.5.5 0 0 0 0-1H3a1.5 1.5 0 0 0-1.5 1.5v8z"/>
+        </svg>
+        `;
         var scaled_width= 15;
         var canvas_width = 384;
         var canvas_height= 272;
@@ -168,6 +175,10 @@ async function load_browser(datasource_name, command="feeds")
         if(collector.can_delete(app_title, item.id))
         {
             the_html += '<button id="delete_snap_'+item.id+'" type="button" style="position:absolute;top:0;right:0;padding:0;" class="btn btn-sm icon">'+x_icon+'</button>';
+        }
+        if(collector.can_export(app_title, item.id))
+        {
+            the_html += '<button id="export_snap_'+item.id+'" type="button" style="position:absolute;bottom:0;right:0;padding:0;" class="btn btn-sm icon">'+export_icon+'</button>';
         }
 
         if(collector.can_like(app_title, item))
@@ -218,11 +229,13 @@ async function load_browser(datasource_name, command="feeds")
         {
             var canvas_id= "canvas_snap_"+app_snaps[z].id;
             var delete_id= "delete_snap_"+app_snaps[z].id;
+            var export_id= "export_snap_"+app_snaps[z].id;
             var like_id= "like_snap_"+app_snaps[z].id;
             var canvas = document.getElementById(canvas_id);
             var delete_btn = document.getElementById(delete_id);
             var like_btn = document.getElementById(like_id);
-
+            var export_btn = document.getElementById(export_id);
+            
             if(delete_btn != null)
             {
                 delete_btn.onclick = function() {
@@ -230,6 +243,33 @@ async function load_browser(datasource_name, command="feeds")
                     //alert('delete id='+id);
                     delete_snapshot_per_id(id);
                     $("#card_snap_"+id).remove();
+                    hide_all_tooltips();
+                };
+            }
+            if(export_btn != null)
+            {
+                export_btn.onclick = function() {
+                    let id = this.id.match(/export_snap_(.*)/)[1];
+                    get_snapshot_per_id(id,
+                        function (snapshot) {
+                            let blob_data = new Blob([snapshot.data], {type: 'application/octet-binary'});
+                            const url = window.URL.createObjectURL(blob_data);
+                            const a = document.createElement('a');
+                            a.style.display = 'none';
+                            a.href = url;
+                    
+                            let app_name = snapshot.title;
+                            let extension_pos = app_name.indexOf(".");
+                            if(extension_pos >=0)
+                            {
+                                app_name = app_name.substring(0,extension_pos);
+                            }
+                            a.download = app_name+'_snap'+snapshot.id+'.vAmiga';
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                        }
+                    );
                     hide_all_tooltips();
                 };
             }
@@ -445,6 +485,9 @@ var collectors = {
             return; 
         },
         can_delete: function(app_title, the_id){
+            return app_title == 'auto_save' ? false: true;
+        },
+        can_export: function(app_title, the_id){
             return app_title == 'auto_save' ? false: true;
         },
         can_like: function(app_title, item){
@@ -1048,6 +1091,9 @@ var collectors = {
             return; 
         },
         can_delete: function(app_title, the_id){
+            return false;
+        },
+        can_export: function(app_title, the_id){
             return false;
         },
         can_like: function(app_title, item){
