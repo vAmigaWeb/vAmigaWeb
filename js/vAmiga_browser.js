@@ -1,4 +1,4 @@
-var vc64web_version ="1.0.9"; //minimum requirement for snapshot version to be compatible
+var vc64web_version ="1.0.10"; //minimum requirement for snapshot version to be compatible
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 
@@ -399,16 +399,14 @@ var collectors = {
             if(app_title == 'auto_save')
             {
                 var id = item.internal_id; 
-                var width=377;
-                var height=286;
-                this.copy_autosnapshot_to_canvas(auto_snaps[id], teaser_canvas, width, height);
+                this.copy_autosnapshot_to_canvas(auto_snaps[id], teaser_canvas);
             }
             else
             {
                 var src_data = item.data;
                 var version = src_data[6] +'.'+src_data[7]+'.'+src_data[8];
-                width=377;
-                height=286;
+                width=src_data[13]*256+ src_data[12];
+                height=src_data[17]*256+ src_data[16];;
                 var ctx = teaser_canvas.getContext("2d");
                 teaser_canvas.width = width;
                 teaser_canvas.height = height;
@@ -507,11 +505,11 @@ var collectors = {
             data.set(snapshot_data.subarray(0, data.length), 0);
             ctx.putImageData(imgData,0,0); 
         },
-        copy_autosnapshot_to_canvas: function(snapshot_data, canvas, width, height){ 
+        copy_autosnapshot_to_canvas: function(snapshot_data, canvas){ 
             var ctx = canvas.getContext("2d");
-            canvas.width = width;
-            canvas.height = height;
-            imgData=ctx.createImageData(width,height);
+            canvas.width = snapshot_data[13]*256+ snapshot_data[12];
+            canvas.height = snapshot_data[17]*256+ snapshot_data[16];
+            imgData=ctx.createImageData(canvas.width,canvas.height);
 
             var data = imgData.data;
 

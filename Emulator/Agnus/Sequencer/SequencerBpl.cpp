@@ -48,17 +48,19 @@ Sequencer::computeBplEventTable(const SigRecorder &sr)
 
     auto state = ddfInitial;
         
-    // Update the BMCTL bits with the current value
+    // Update the DMA and BMCTL bits
+    state.bmapen = agnus.bpldma(agnus.dmaconInitial);
     state.bmctl = agnus.bplcon0Initial >> 12;
+    computeFetchUnit(state.bmctl);
     
     // Evaluate the current state of the vertical DIW flipflop
     if (!state.bpv) { state.bprun = false; state.cnt = 0; }
     
     // Fill the event table
-    if (!sr.modified && (!state.bpv || !state.bmapen)) {
-        computeBplEventsFast <ecs> (sr, state);
-    } else {
+    if (sr.modified || (state.bpv && state.bmapen) || NO_SEQ_FASTPATH) {
         computeBplEventsSlow <ecs> (sr, state);
+    } else {
+        computeBplEventsFast <ecs> (sr, state);
     }
     
     // Add the EOL event (end of line)
@@ -67,7 +69,7 @@ Sequencer::computeBplEventTable(const SigRecorder &sr)
     // Update the jump table
     updateBplJumpTable();
 
-    // Rectify the currently scheduled event
+    // Rectify the scheduled event
     agnus.scheduleBplEventForCycle(agnus.pos.h);
     
     // Write back the new ddf state
@@ -168,6 +170,10 @@ Sequencer::computeBplEvents(isize strt, isize stop, DDFState &state)
         
         EventID id;
 
+        /*
+        if (agnus.pos.v == 128) trace(true, "%d: %d %d %d %d %d %d %d %d %d %d\n", j, state.bpv, state.bmapen, state.shw, state.rhw, state.bphstart, state.bphstop, state.bprun, state.lastFu, state.bmctl, state.cnt);
+         */
+        
         if (state.cnt == 0 && state.bprun) {
     
             if (state.lastFu) {
