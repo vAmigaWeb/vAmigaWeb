@@ -70,13 +70,13 @@ struct FloatStereo; typedef FloatStereo SampleType;
 
 // Uncomment to colorize a certain row or column
 // #define LINE_DEBUG (agnus.pos.v == 260 || agnus.pos.v == 300)
+// #define COLUMN_DEBUG 114
 
 //
 // Execution settings
 //
 
-static const int NO_SSE          = 0; // Don't use SSE extensions
-static const int NO_SEQ_FASTPATH = 1; // Disable sequencer speed optimizations
+static const int NO_SEQ_FASTPATH = 0; // Disable sequencer speed optimizations
 
 //
 // Debug settings
