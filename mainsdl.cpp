@@ -714,7 +714,7 @@ extern "C" char* wasm_pull_user_snapshot_file()
 
 //  printf("got snapshot %u.%u.%u\n", snapshot->getHeader()->major,snapshot->getHeader()->minor,snapshot->getHeader()->subminor );
 
-  sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu, \"width\": %lu, \"height\":%lu }",
+  sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu, \"width\": %u, \"height\":%u }",
   (unsigned long)snapshot->data, 
   snapshot->size,
   snapshot->getHeader()->screenshot.width,
