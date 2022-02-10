@@ -1841,21 +1841,24 @@ function InitWrappers() {
     });
 
 //----
-    webgl_switch = $('#webgl_switch');
-    var use_webgl=load_setting('use_webgl', false);
-    webgl_switch.prop('checked', use_webgl);
-    if(use_webgl)
-    {
-            wasm_create_renderer("webgl");
+    let set_renderer_choice = function (choice) {
+        $(`#button_renderer`).text('video renderer='+choice);
+        save_setting("renderer",choice);
     }
-    else
-    {
-            wasm_create_renderer("2d");
-    }
+    let current_renderer=load_setting("renderer", "software");
+    set_renderer_choice(current_renderer);
 
-    webgl_switch.change( function() {
-        save_setting('use_webgl', this.checked);
+    $(`#choose_renderer a`).click(function () 
+    {
+        let choice=$(this).text();
+        set_renderer_choice(choice);
+        wasm_create_renderer(choice);
+
+        $("#modal_settings").focus();
     });
+
+    wasm_create_renderer(current_renderer);
+
 //----
     warp_switch = $('#warp_switch');
     var use_warp=load_setting('use_warp', false);
@@ -1963,6 +1966,7 @@ function bind_config_choice(key, name, values, default_value){
     let set_choice = function (choice) {
         $(`#button_${key}`).text(name+'='+choice);
         save_setting(key,choice);
+        validate_hardware();
 
         let result=wasm_configure(key.substring(4),choice);
         if(result.length>0)
@@ -1982,6 +1986,7 @@ function bind_config_choice(key, name, values, default_value){
         $("#modal_settings").focus();
     });
 }
+
 
 bind_config_choice("OPT_BLITTER_ACCURACY", "blitter accuracy",['0','1','2'],'2');
 bind_config_choice("OPT_DRIVE_SPEED", "drive speed",['-1', '1', '2', '4', '8'],'1');
