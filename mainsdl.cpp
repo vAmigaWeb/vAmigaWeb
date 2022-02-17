@@ -21,7 +21,6 @@
 #include <emscripten.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengles2.h> 
-
 #include <emscripten/html5.h>
 
 
@@ -41,9 +40,13 @@ const GLchar *vertexSource =
   "precision mediump float;    \n"
   "attribute vec4 a_position;  \n"
   "attribute vec2 a_texcoord;  \n"
+  "attribute vec2 a_scale;  \n"
+  "attribute vec2 a_texsize;  \n"
   "varying vec2 v_texcoord;    \n"
+  "varying vec2 amiga_pos;    \n"
   "void main() {               \n"
-  "  gl_Position = a_position; \n"
+  "  amiga_pos = a_position.xy * vec2(724.0, 311.0-27.0); \n"
+  "  gl_Position = a_position * vec4(1.0,1.8,1.0,1.0); \n"
   "  v_texcoord = a_texcoord;  \n"
   "}                           \n";
 
@@ -59,15 +62,16 @@ const GLchar *mergeSource =
   "precision mediump float;                           \n"
   "uniform sampler2D u_long;                          \n"
   "uniform sampler2D u_short;                         \n"
+  "varying vec2 amiga_pos;                           \n"
   "varying vec2 v_texcoord;                           \n"
   "void main() {                                      \n"
-  "  float y = floor(gl_FragCoord.y);                 \n"
-  "  if (mod(y, 2.0) == 0.0) {                        \n"
+  "  if (mod(amiga_pos.y, 2.0) < 1.0) {                        \n"
   "    gl_FragColor = texture2D(u_short, v_texcoord); \n"
   "  } else {                                         \n"
   "    gl_FragColor = texture2D(u_long, v_texcoord);  \n"
   "  }                                                \n"
   "}                                                  \n";
+
 
 int clip_width  = 724;
 int clip_height = 568;
@@ -134,7 +138,9 @@ GLuint compileProgram(const GLchar *source) {
   return program;
 }
 
+
 void initGeometry(const GLuint program, float eat_x, float eat_y) {
+  //--- add a_position
   const GLfloat position[] = {
     -1.0f,  1.0f,
      1.0f,  1.0f,
@@ -150,10 +156,12 @@ void initGeometry(const GLuint program, float eat_x, float eat_y) {
   glEnableVertexAttribArray(posAttrib);
   glVertexAttribPointer(posAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
-  const float x1 = (168.0f+eat_x) / HPIXELS;
-  const float x2 = (892.0f-eat_x)/ HPIXELS;
-  const float y1 = (27.0f+eat_y) / VPIXELS;
-  const float y2 = (311.0f-eat_y) / VPIXELS;
+  //--- add a_texcoord
+  const float x1 = 168.0f / HPIXELS;
+  const float x2 = 892.0f / HPIXELS;
+  const float y1 = 27.0f  / VPIXELS;
+  const float y2 = 311.0f / VPIXELS;
+
 
   const GLfloat coords[] = {
     x1,y1, x2,y1, x1,y2, x2,y2
@@ -167,6 +175,29 @@ void initGeometry(const GLuint program, float eat_x, float eat_y) {
   GLint corAttrib = glGetAttribLocation(program, "a_texcoord");
   glEnableVertexAttribArray(corAttrib);
   glVertexAttribPointer(corAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+
+  //--- add a_scale
+  const GLfloat scale[] = {1.0f, 1.8f ,1.0,1.0,1.0,1.0,1.0,1.0};
+  GLuint scaleBuffer;
+  glGenBuffers(1, &scaleBuffer);
+  glBindBuffer(GL_ARRAY_BUFFER, scaleBuffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(scale), scale, GL_STATIC_DRAW);
+  GLint scaleAttrib = glGetAttribLocation(program, "a_scale");
+  glEnableVertexAttribArray(scaleAttrib);
+  glVertexAttribPointer(scaleAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+
+  //--- add a_texsize
+  const GLfloat texsize[] = {892.0f-168.0f, 311.0f-27.0f, 1.0,1.0,1.0,1.0,1.0,1.0};
+  GLuint texsizeBuffer;
+  glGenBuffers(1, &texsizeBuffer);
+  glBindBuffer(GL_ARRAY_BUFFER, texsizeBuffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(texsize), texsize, GL_STATIC_DRAW);
+  GLint texsizeAttrib = glGetAttribLocation(program, "a_texsize");
+  glEnableVertexAttribArray(texsizeAttrib);
+  glVertexAttribPointer(texsizeAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
 }
 
 GLuint initTexture(const GLuint *source) {
@@ -511,6 +542,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     } else {
       glActiveTexture(GL_TEXTURE0);
     }  
+
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stable.data + clip_offset);
 
     if (currLOF != prevLOF) {
@@ -534,7 +566,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   else
   {
 
-    Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getStableBuffer().data; //screenBuffer();
+    Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getStableBuffer().data;
 
   //  SDL_RenderClear(renderer);
     SDL_Rect SrcR;
@@ -1044,10 +1076,11 @@ extern "C" void wasm_set_borderless(float on)
 {
   if(render_method==RENDER_SHADER)
   {
+//    glViewport( -0.1*on, -0.4*on, clip_width-on*0.2, clip_height-on*0.8);
+//    glScalef(	1.0f, 1.5f, 1.0f);
 /*
-    glViewport( -0.1*on, -0.4*on, clip_width-on*0.2, clip_height-on*0.8);
-    initGeometry(basic, on*0.1f, on*0.4f);
-    initGeometry(merge, on*0.1f, on*0.4f);
+    initGeometry(basic, on*0.1f, 0*on*0.4f);
+    initGeometry(merge, on*0.1f, 0*on*0.4f);
 */
     return;
   }
