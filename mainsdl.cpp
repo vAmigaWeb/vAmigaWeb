@@ -40,13 +40,13 @@ const GLchar *vertexSource =
   "precision mediump float;    \n"
   "attribute vec4 a_position;  \n"
   "attribute vec2 a_texcoord;  \n"
-  "attribute vec2 a_scale;  \n"
-  "attribute vec2 a_texsize;  \n"
+  "uniform vec2 u_scale;       \n"
+//  "uniform vec2 u_texsize;     \n"
   "varying vec2 v_texcoord;    \n"
   "varying vec2 amiga_pos;    \n"
   "void main() {               \n"
   "  amiga_pos = a_position.xy * vec2(724.0, 311.0-27.0); \n"
-  "  gl_Position = a_position * vec4(1.0,1.8,1.0,1.0); \n"
+  "  gl_Position = a_position * vec4(u_scale.x,u_scale.y,1.0,1.0); \n"
   "  v_texcoord = a_texcoord;  \n"
   "}                           \n";
 
@@ -175,29 +175,6 @@ void initGeometry(const GLuint program, float eat_x, float eat_y) {
   GLint corAttrib = glGetAttribLocation(program, "a_texcoord");
   glEnableVertexAttribArray(corAttrib);
   glVertexAttribPointer(corAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
-
-
-  //--- add a_scale
-  const GLfloat scale[] = {1.0f, 1.8f ,1.0,1.0,1.0,1.0,1.0,1.0};
-  GLuint scaleBuffer;
-  glGenBuffers(1, &scaleBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, scaleBuffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(scale), scale, GL_STATIC_DRAW);
-  GLint scaleAttrib = glGetAttribLocation(program, "a_scale");
-  glEnableVertexAttribArray(scaleAttrib);
-  glVertexAttribPointer(scaleAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
-
-
-  //--- add a_texsize
-  const GLfloat texsize[] = {892.0f-168.0f, 311.0f-27.0f, 1.0,1.0,1.0,1.0,1.0,1.0};
-  GLuint texsizeBuffer;
-  glGenBuffers(1, &texsizeBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, texsizeBuffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(texsize), texsize, GL_STATIC_DRAW);
-  GLint texsizeAttrib = glGetAttribLocation(program, "a_texsize");
-  glEnableVertexAttribArray(texsizeAttrib);
-  glVertexAttribPointer(texsizeAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
-
 }
 
 GLuint initTexture(const GLuint *source) {
@@ -437,6 +414,8 @@ void draw_one_frame_into_SDL_noise(void *thisAmiga)
 
   return;
 }
+
+bool scaled_initialized=false;
 void draw_one_frame_into_SDL(void *thisAmiga) 
 {
 
@@ -531,6 +510,14 @@ void draw_one_frame_into_SDL(void *thisAmiga)
 
   if(render_method==RENDER_SHADER)
   {
+/*    if(scaled_initialized==false)
+    {
+      scaled_initialized=true;
+//      glUniform2f(glGetUniformLocation(merge, "u_scale"),1.0f, 1.8f);
+//      glUniform2f(glGetUniformLocation(basic, "u_scale"),1.0f, 1.8f);
+    }
+*/
+
     ScreenBuffer stable = amiga->denise.pixelEngine.getStableBuffer();
     prevLOF = currLOF;
     currLOF = stable.longFrame;
@@ -560,6 +547,8 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glUseProgram(basic);
       glBindTexture(GL_TEXTURE_2D, longf);
     } 
+
+
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     SDL_GL_SwapWindow(window);
   }
@@ -812,8 +801,15 @@ bool create_shader()
     glBindTexture(GL_TEXTURE_2D, longf);
     glUniform1i(glGetUniformLocation(merge, "u_long"), 0);
 
+    glUniform2f(glGetUniformLocation(merge, "u_scale"),1.0f, 1.8f);
+
     glUseProgram(basic);
     glUniform1i(glGetUniformLocation(basic, "u_long"), 0);
+
+    glUniform2f(glGetUniformLocation(basic, "u_scale"),1.0f, 1.8f);
+
+
+
     return true;
 }
 bool create_renderer_webgl()
