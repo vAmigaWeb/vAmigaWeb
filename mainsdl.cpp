@@ -79,7 +79,7 @@ const GLchar *mergeSource =
 
 int clip_width  = 724;
 int clip_height = 568;
-int clip_offset = HBLANK_MIN * 2 + HBLANK_MIN/2; 
+int clip_offset = 0; 
 int buffer_size = 4096;
 
 bool prevLOF = false;
@@ -519,6 +519,33 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       draw_one_frame(); // to gather joystick information for example 
   });
   
+
+
+  amiga->setInspectionTarget(INSPECTION_DENISE, 5);
+
+  auto deniseInfo = amiga->denise.getInfo();
+  float vstop = (float)deniseInfo.vstop;
+  float vstart = (float)deniseInfo.vstrt;
+  float hstop = (float)deniseInfo.hstop*2;
+  float hstart = (float)deniseInfo.hstrt*2;
+
+  if(vstart < 27.0f)
+    vstart=27.0f;
+  if(vstop > 311.0f || vstop < 27.0f)
+    vstop=311.0f;
+  if(hstart < 168.0f)
+    hstart=168.0f;    
+  if(hstop > 892.0f || hstop <168.0f)
+    hstop=892.0f;   
+
+  glUseProgram(basic);
+  set_texture_display_window(basic, hstart, hstop, vstart, vstop);
+
+  glUseProgram(merge);
+  set_texture_display_window(basic, hstart, hstop, vstart, vstop);
+
+  printf("%f, %f, %f, %f \n", hstart, hstop, vstart, vstop);
+
 
   if(render_method==RENDER_SHADER)
   {
