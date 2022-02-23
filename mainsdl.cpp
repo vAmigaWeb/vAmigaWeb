@@ -37,38 +37,42 @@ GLuint longf;
 GLuint shortf;
 
 const GLchar *vertexSource =
+  "#version 300 es      \n"
   "precision mediump float;    \n"
-  "attribute vec4 a_position;  \n"
-  "attribute vec2 a_texcoord;  \n"
-  "uniform vec2 u_scale;       \n"
-//  "uniform vec2 u_texsize;     \n"
-  "varying vec2 v_texcoord;    \n"
-  "varying vec2 amiga_pos;    \n"
+  "in vec4 a_position;  \n"
+  "in vec2 a_texcoord;  \n"
+  "uniform vec2 u_diw_size;  \n"
+  "out vec2 v_texcoord;    \n"
+  "out vec2 amiga_pos;    \n"
   "void main() {               \n"
-  "  amiga_pos = a_position.xy * vec2(724.0, 311.0-27.0); \n"
-  "  gl_Position = a_position * vec4(u_scale.x,u_scale.y,1.0,1.0); \n"
+  "  amiga_pos = a_position.xy * u_diw_size.xy; \n"
+  "  gl_Position = a_position; \n"
   "  v_texcoord = a_texcoord;  \n"
   "}                           \n";
 
 const GLchar *basicSource =
+  "#version 300 es      \n"
   "precision mediump float;                        \n"
   "uniform sampler2D u_long;                       \n"
-  "varying vec2 v_texcoord;                        \n"
+  "in vec2 v_texcoord;                        \n"
+  "out vec4 color;                                 \n"
   "void main() {                                   \n"
-  "  gl_FragColor = texture2D(u_long, v_texcoord); \n"
+  "  color = texture(u_long, v_texcoord); \n"
   "}                                               \n";
 
 const GLchar *mergeSource =
+  "#version 300 es      \n"
   "precision mediump float;                           \n"
   "uniform sampler2D u_long;                          \n"
   "uniform sampler2D u_short;                         \n"
-  "varying vec2 amiga_pos;                           \n"
-  "varying vec2 v_texcoord;                           \n"
+  "in vec2 amiga_pos;                           \n"
+  "in vec2 v_texcoord;                           \n"
+  "out vec4 color;                                 \n"
   "void main() {                                      \n"
   "  if (mod(amiga_pos.y, 2.0) < 1.0) {                        \n"
-  "    gl_FragColor = texture2D(u_short, v_texcoord); \n"
+  "    color = texture(u_short, v_texcoord); \n"
   "  } else {                                         \n"
-  "    gl_FragColor = texture2D(u_long, v_texcoord);  \n"
+  "    color = texture(u_long, v_texcoord);  \n"
   "  }                                                \n"
   "}                                                  \n";
 
@@ -138,6 +142,28 @@ GLuint compileProgram(const GLchar *source) {
   return program;
 }
 
+void set_texture_display_window(const GLuint program, float hstart, float hstop, float vstart, float vstop)
+{
+  const float x1 = hstart / HPIXELS;
+  const float x2 = hstop / HPIXELS;
+  const float y1 = vstart  / VPIXELS;
+  const float y2 = vstop / VPIXELS;
+
+  const GLfloat coords[] = {
+    x1,y1, x2,y1, x1,y2, x2,y2
+  };
+
+  GLuint corBuffer;
+  glGenBuffers(1, &corBuffer);
+  glBindBuffer(GL_ARRAY_BUFFER, corBuffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(coords), coords, GL_STATIC_DRAW);
+
+  GLint corAttrib = glGetAttribLocation(program, "a_texcoord");
+  glEnableVertexAttribArray(corAttrib);
+  glVertexAttribPointer(corAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+  glUniform2f(glGetUniformLocation(merge, "u_diw_size"), hstop-hstart, vstop-vstart);
+}
 
 void initGeometry(const GLuint program, float eat_x, float eat_y) {
   //--- add a_position
@@ -157,24 +183,12 @@ void initGeometry(const GLuint program, float eat_x, float eat_y) {
   glVertexAttribPointer(posAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
   //--- add a_texcoord
-  const float x1 = 168.0f / HPIXELS;
-  const float x2 = 892.0f / HPIXELS;
-  const float y1 = 27.0f  / VPIXELS;
-  const float y2 = 311.0f / VPIXELS;
 
-
-  const GLfloat coords[] = {
-    x1,y1, x2,y1, x1,y2, x2,y2
-  };
-
-  GLuint corBuffer;
-  glGenBuffers(1, &corBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, corBuffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(coords), coords, GL_STATIC_DRAW);
-
-  GLint corAttrib = glGetAttribLocation(program, "a_texcoord");
-  glEnableVertexAttribArray(corAttrib);
-  glVertexAttribPointer(corAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
+  const float x1 = 168.0f;
+  const float x2 = 892.0f;
+  const float y1 = 27.0f ;
+  const float y2 = 311.0f;
+  set_texture_display_window(program, x1,x2,y1,y2);
 }
 
 GLuint initTexture(const GLuint *source) {
@@ -414,8 +428,6 @@ void draw_one_frame_into_SDL_noise(void *thisAmiga)
 
   return;
 }
-
-bool scaled_initialized=false;
 void draw_one_frame_into_SDL(void *thisAmiga) 
 {
 
@@ -510,14 +522,6 @@ void draw_one_frame_into_SDL(void *thisAmiga)
 
   if(render_method==RENDER_SHADER)
   {
-/*    if(scaled_initialized==false)
-    {
-      scaled_initialized=true;
-//      glUniform2f(glGetUniformLocation(merge, "u_scale"),1.0f, 1.8f);
-//      glUniform2f(glGetUniformLocation(basic, "u_scale"),1.0f, 1.8f);
-    }
-*/
-
     ScreenBuffer stable = amiga->denise.pixelEngine.getStableBuffer();
     prevLOF = currLOF;
     currLOF = stable.longFrame;
@@ -547,8 +551,6 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glUseProgram(basic);
       glBindTexture(GL_TEXTURE_2D, longf);
     } 
-
-
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     SDL_GL_SwapWindow(window);
   }
@@ -800,15 +802,11 @@ bool create_shader()
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, longf);
     glUniform1i(glGetUniformLocation(merge, "u_long"), 0);
-
-    glUniform2f(glGetUniformLocation(merge, "u_scale"),1.0f, 1.8f);
+    glUniform2f(glGetUniformLocation(merge, "u_diw_size"), 724.0f, 284.0f);
 
     glUseProgram(basic);
     glUniform1i(glGetUniformLocation(basic, "u_long"), 0);
-
-    glUniform2f(glGetUniformLocation(basic, "u_scale"),1.0f, 1.8f);
-
-
+    glUniform2f(glGetUniformLocation(merge, "u_diw_size"), 724.0f, 284.0f);
 
     return true;
 }
