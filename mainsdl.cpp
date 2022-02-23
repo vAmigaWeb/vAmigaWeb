@@ -184,11 +184,7 @@ void initGeometry(const GLuint program, float eat_x, float eat_y) {
 
   //--- add a_texcoord
 
-  const float x1 = 168.0f;
-  const float x2 = 892.0f;
-  const float y1 = 27.0f ;
-  const float y2 = 311.0f;
-  set_texture_display_window(program, x1,x2,y1,y2);
+  set_texture_display_window(program, 168.0f,892.0f,27.0f,311.0f);
 }
 
 GLuint initTexture(const GLuint *source) {
@@ -519,34 +515,6 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       draw_one_frame(); // to gather joystick information for example 
   });
   
-
-
-  amiga->setInspectionTarget(INSPECTION_DENISE, 5);
-
-  auto deniseInfo = amiga->denise.getInfo();
-  float vstop = (float)deniseInfo.vstop;
-  float vstart = (float)deniseInfo.vstrt;
-  float hstop = (float)deniseInfo.hstop*2;
-  float hstart = (float)deniseInfo.hstrt*2;
-
-  if(vstart < 27.0f)
-    vstart=27.0f;
-  if(vstop > 311.0f || vstop < 27.0f)
-    vstop=311.0f;
-  if(hstart < 168.0f)
-    hstart=168.0f;    
-  if(hstop > 892.0f || hstop <168.0f)
-    hstop=892.0f;   
-
-  glUseProgram(basic);
-  set_texture_display_window(basic, hstart, hstop, vstart, vstop);
-
-  glUseProgram(merge);
-  set_texture_display_window(basic, hstart, hstop, vstart, vstop);
-
-  printf("%f, %f, %f, %f \n", hstart, hstop, vstart, vstop);
-
-
   if(render_method==RENDER_SHADER)
   {
     ScreenBuffer stable = amiga->denise.pixelEngine.getStableBuffer();
@@ -578,6 +546,35 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glUseProgram(basic);
       glBindTexture(GL_TEXTURE_2D, longf);
     } 
+
+
+
+
+  auto deniseInfo = amiga->denise.getInfo();
+  float vstop = (float)deniseInfo.vstop;
+  float vstart = (float)deniseInfo.vstrt;
+  float hstop = (float)deniseInfo.hstop*2;
+  float hstart = (float)deniseInfo.hstrt*2;
+
+  if(vstart < 27.0f)
+    vstart=27.0f;
+  if(vstop > 311.0f || vstop < 27.0f)
+    vstop=311.0f;
+  if(hstart < 168.0f)
+    hstart=168.0f;    
+  if(hstop > 892.0f || hstop <168.0f)
+    hstop=892.0f;   
+
+//  glUseProgram(basic);
+  set_texture_display_window(basic, hstart, hstop, vstart, vstop);
+
+//  glUseProgram(merge);
+  set_texture_display_window(merge, hstart, hstop, vstart, vstop);
+
+//  printf("%f, %f, %f, %f \n", hstart, hstop, vstart, vstop);
+
+
+
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     SDL_GL_SwapWindow(window);
   }
@@ -1097,12 +1094,18 @@ extern "C" void wasm_set_borderless(float on)
 {
   if(render_method==RENDER_SHADER)
   {
-//    glViewport( -0.1*on, -0.4*on, clip_width-on*0.2, clip_height-on*0.8);
-//    glScalef(	1.0f, 1.5f, 1.0f);
-/*
-    initGeometry(basic, on*0.1f, 0*on*0.4f);
-    initGeometry(merge, on*0.1f, 0*on*0.4f);
-*/
+    if(on==1.0f)
+    {
+      //adaptive
+      wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, 5);
+    }
+    else
+    {
+      set_texture_display_window(basic, 168.0f,892.0f,27.0f,311.0f);
+      set_texture_display_window(merge, 168.0f,892.0f,27.0f,311.0f);
+    }
+
+
     return;
   }
 
