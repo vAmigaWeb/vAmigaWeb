@@ -29,6 +29,10 @@
 #define RENDER_SHADER 2
 u8 render_method = RENDER_SOFTWARE;
 
+#define ADAPTIVE 0
+#define NARROW 1
+#define OVERSCAN 2
+u8 geometry  = ADAPTIVE;
 
 /********* shaders ***********/
 GLuint basic;
@@ -547,33 +551,30 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glBindTexture(GL_TEXTURE_2D, longf);
     } 
 
+    if(geometry== ADAPTIVE)
+    {
+  //    amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
+      auto deniseInfo = amiga->denise.getInfo();
+      float vstop = (float)deniseInfo.vstop;
+      float vstart = (float)deniseInfo.vstrt;
+      float hstop = (float)deniseInfo.hstop*2;
+      float hstart = (float)deniseInfo.hstrt*2;
 
+      if(vstart < 27.0f)
+        vstart=27.0f;
+      if(vstop > 311.0f || vstop < 27.0f)
+        vstop=311.0f;
+      if(hstart < 168.0f)
+        hstart=168.0f;    
+      if(hstop > 892.0f || hstop <168.0f)
+        hstop=892.0f;   
 
-
-  auto deniseInfo = amiga->denise.getInfo();
-  float vstop = (float)deniseInfo.vstop;
-  float vstart = (float)deniseInfo.vstrt;
-  float hstop = (float)deniseInfo.hstop*2;
-  float hstart = (float)deniseInfo.hstrt*2;
-
-  if(vstart < 27.0f)
-    vstart=27.0f;
-  if(vstop > 311.0f || vstop < 27.0f)
-    vstop=311.0f;
-  if(hstart < 168.0f)
-    hstart=168.0f;    
-  if(hstop > 892.0f || hstop <168.0f)
-    hstop=892.0f;   
-
-//  glUseProgram(basic);
-  set_texture_display_window(basic, hstart, hstop, vstart, vstop);
-
-//  glUseProgram(merge);
-  set_texture_display_window(merge, hstart, hstop, vstart, vstop);
-
-//  printf("%f, %f, %f, %f \n", hstart, hstop, vstart, vstop);
-
-
+    //  glUseProgram(basic);
+      set_texture_display_window(basic, hstart, hstop, vstart, vstop);
+    //  glUseProgram(merge);
+      set_texture_display_window(merge, hstart, hstop, vstart, vstop);
+    //  printf("%f, %f, %f, %f \n", hstart, hstop, vstart, vstop);
+    }
 
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     SDL_GL_SwapWindow(window);
@@ -583,12 +584,40 @@ void draw_one_frame_into_SDL(void *thisAmiga)
 
     Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getStableBuffer().data;
 
+
+
+
+
+//    amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
+    auto deniseInfo = amiga->denise.getInfo();
+    float vstop = (float)deniseInfo.vstop;
+    float vstart = (float)deniseInfo.vstrt;
+    float hstop = (float)deniseInfo.hstop*2;
+    float hstart = (float)deniseInfo.hstrt*2;
+
+    if(vstart < 27.0f)
+      vstart=27.0f;
+    if(vstop > 311.0f || vstop < 27.0f)
+      vstop=311.0f;
+    if(hstart < 168.0f)
+      hstart=168.0f;    
+    if(hstop > 892.0f || hstop <168.0f)
+      hstop=892.0f;   
+
+
+
   //  SDL_RenderClear(renderer);
     SDL_Rect SrcR;
-    SrcR.x = xOff;
+    SrcR.x = hstart;
+    SrcR.y = vstart;
+    SrcR.w = hstop-hstart;
+    SrcR.h = vstop-vstart;
+
+/*    SrcR.x = xOff;
     SrcR.y = yOff;
     SrcR.w = clipped_width;
     SrcR.h = clipped_height;
+*/
     SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*emu_width*SrcR.y) + SrcR.x*4, 4*emu_width);
 
     SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
@@ -1094,15 +1123,32 @@ extern "C" void wasm_set_borderless(float on)
 {
   if(render_method==RENDER_SHADER)
   {
-    if(on==1.0f)
+    if(on==0.0f)
     {
+      geometry=ADAPTIVE;
+      printf("before inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
       //adaptive
-      wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, 5);
+      wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
+
+      printf("after inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
+
     }
-    else
+    else if(on==1.0f)
     {
+
+      wrapper->amiga->removeInspectionTarget();
+
+      geometry=NARROW;
       set_texture_display_window(basic, 168.0f,892.0f,27.0f,311.0f);
       set_texture_display_window(merge, 168.0f,892.0f,27.0f,311.0f);
+    }
+    else if(on==2.0f)
+    {
+
+      wrapper->amiga->removeInspectionTarget();
+      geometry=OVERSCAN;
+      set_texture_display_window(basic, 168.0f,914.0f,27.0f,314.0f);
+      set_texture_display_window(merge, 168.0f,914.0f,27.0f,314.0f);
     }
 
 
