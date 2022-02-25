@@ -584,40 +584,42 @@ void draw_one_frame_into_SDL(void *thisAmiga)
 
     Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getStableBuffer().data;
 
-
-
-
-
-//    amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
-    auto deniseInfo = amiga->denise.getInfo();
-    float vstop = (float)deniseInfo.vstop;
-    float vstart = (float)deniseInfo.vstrt;
-    float hstop = (float)deniseInfo.hstop*2;
-    float hstart = (float)deniseInfo.hstrt*2;
-
-    if(vstart < 27.0f)
-      vstart=27.0f;
-    if(vstop > 311.0f || vstop < 27.0f)
-      vstop=311.0f;
-    if(hstart < 168.0f)
-      hstart=168.0f;    
-    if(hstop > 892.0f || hstop <168.0f)
-      hstop=892.0f;   
-
-
-
   //  SDL_RenderClear(renderer);
     SDL_Rect SrcR;
-    SrcR.x = hstart;
-    SrcR.y = vstart;
-    SrcR.w = hstop-hstart;
-    SrcR.h = vstop-vstart;
 
-/*    SrcR.x = xOff;
-    SrcR.y = yOff;
-    SrcR.w = clipped_width;
-    SrcR.h = clipped_height;
-*/
+    if(geometry== ADAPTIVE)
+    {
+//      amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
+      auto deniseInfo = amiga->denise.getInfo();
+      float vstop = (float)deniseInfo.vstop;
+      float vstart = (float)deniseInfo.vstrt;
+      float hstop = (float)deniseInfo.hstop*2;
+      float hstart = (float)deniseInfo.hstrt*2;
+
+      if(vstart < 27.0f)
+        vstart=27.0f;
+      if(vstop > 311.0f || vstop < 27.0f)
+        vstop=311.0f;
+      if(hstart < 168.0f)
+        hstart=168.0f;    
+      if(hstop > 892.0f || hstop <168.0f)
+        hstop=892.0f;   
+
+      SrcR.x = hstart;
+      SrcR.y = vstart;
+      SrcR.w = hstop-hstart;
+      SrcR.h = vstop-vstart;
+
+    }
+    else
+    {
+      SrcR.x = xOff;
+      SrcR.y = yOff;
+      SrcR.w = clipped_width;
+      SrcR.h = clipped_height;
+    }
+
+
     SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*emu_width*SrcR.y) + SrcR.x*4, 4*emu_width);
 
     SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
@@ -1129,7 +1131,7 @@ extern "C" void wasm_set_borderless(float on)
       printf("before inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
       //adaptive
       wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
-
+      clip_offset = 0;
       printf("after inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
 
     }
@@ -1141,6 +1143,7 @@ extern "C" void wasm_set_borderless(float on)
       geometry=NARROW;
       set_texture_display_window(basic, 168.0f,892.0f,27.0f,311.0f);
       set_texture_display_window(merge, 168.0f,892.0f,27.0f,311.0f);
+      clip_offset = HBLANK_MIN * 2 + HBLANK_MIN/2;
     }
     else if(on==2.0f)
     {
@@ -1149,11 +1152,15 @@ extern "C" void wasm_set_borderless(float on)
       geometry=OVERSCAN;
       set_texture_display_window(basic, 168.0f,914.0f,27.0f,314.0f);
       set_texture_display_window(merge, 168.0f,914.0f,27.0f,314.0f);
+      clip_offset = HBLANK_MIN * 2 + HBLANK_MIN/2;
     }
 
 
     return;
   }
+
+  if(on>0.0f)
+    on=1.0f;
 
   eat_border_width = 4 * on;
   xOff = 252 + eat_border_width ;

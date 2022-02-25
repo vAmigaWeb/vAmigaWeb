@@ -1852,7 +1852,7 @@ function InitWrappers() {
     {
         let choice=$(this).text();
         set_renderer_choice(choice);
-        wasm_create_renderer(choice);
+//        wasm_create_renderer(choice);
 
         $("#modal_settings").focus();
     });
@@ -1860,6 +1860,31 @@ function InitWrappers() {
     wasm_create_renderer(current_renderer);
 
 //----
+
+let set_display_choice = function (choice) {
+    $(`#button_display`).text('visible display area='+choice);
+    save_setting("display",choice);
+}
+let current_display=load_setting("display", "adaptive");
+set_display_choice(current_display);
+
+$(`#choose_display a`).click(function () 
+{
+    let choice_map={
+        adaptive: 0,
+        narrow: 1,
+        overscan:2
+    }
+    let choice=$(this).text();
+    set_display_choice(choice);
+    wasm_set_borderless(choice_map[choice]);
+    $("#modal_settings").focus();
+});
+
+//---
+
+
+
     warp_switch = $('#warp_switch');
     var use_warp=load_setting('use_warp', false);
     warp_switch.prop('checked', use_warp);
