@@ -1123,67 +1123,50 @@ extern "C" void wasm_set_warp(unsigned on)
 
 extern "C" void wasm_set_borderless(float on)
 {
-  if(render_method==RENDER_SHADER)
+  if(on==0.0f)
   {
-    if(on==0.0f)
-    {
-      geometry=ADAPTIVE;
-      printf("before inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
-      //adaptive
-      wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
-      clip_offset = 0;
-      printf("after inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
+    geometry=ADAPTIVE;
+//    printf("before inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
+    wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
+    clip_offset = 0;
+//    printf("after inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
+  }
+  else if(on==1.0f)
+  {
+    wrapper->amiga->removeInspectionTarget();
 
-    }
-    else if(on==1.0f)
-    {
+    geometry=NARROW;
+    xOff=168;
+    yOff=27;
+    clipped_width=892-xOff;
+    clipped_height=311-yOff;
+    clip_offset = 0;//HBLANK_MIN * 2 + HBLANK_MIN/2;
+  }
+  else if(on==2.0f)
+  {
+    wrapper->amiga->removeInspectionTarget();
 
-      wrapper->amiga->removeInspectionTarget();
+    geometry=OVERSCAN;
 
-      geometry=NARROW;
-      set_texture_display_window(basic, 168.0f,892.0f,27.0f,311.0f);
-      set_texture_display_window(merge, 168.0f,892.0f,27.0f,311.0f);
-      clip_offset = HBLANK_MIN * 2 + HBLANK_MIN/2;
-    }
-    else if(on==2.0f)
-    {
+    xOff=168;
+    yOff=27;
+    clipped_width=914-xOff;
+    clipped_height=313-yOff;
 
-      wrapper->amiga->removeInspectionTarget();
-      geometry=OVERSCAN;
-      set_texture_display_window(basic, 168.0f,914.0f,27.0f,314.0f);
-      set_texture_display_window(merge, 168.0f,914.0f,27.0f,314.0f);
-      clip_offset = HBLANK_MIN * 2 + HBLANK_MIN/2;
-    }
-
-
-    return;
+    clip_offset = 0; //HBLANK_MIN * 2 + HBLANK_MIN/2;
   }
 
-  if(on>0.0f)
-    on=1.0f;
-
-  eat_border_width = 4 * on;
-  xOff = 252 + eat_border_width ;
-  clipped_width  = HPIXELS - xOff -2*eat_border_width;
-
-  eat_border_height = 24 * on ;
-  yOff = 26 + eat_border_height;
-  clipped_height = VPIXELS -yOff  -2*eat_border_height- 2; 
-
-/*
-  printf("eat_border w=%d, eat_border h=%d\n", eat_border_width, eat_border_height);
-  printf("clipped w=%d, clipped h=%d\n", clipped_width, clipped_height);
-  printf("emu w=%d, emu h=%d\n", emu_width, emu_height);
-  printf("xOff w=%d, yOff h=%d\n", xOff, yOff);
-
-  printf("xoff+clipped+eatborder=%d == %d emuwidth\n",xOff+eat_border_width+clipped_width, emu_width);
-  printf("yoff+clipped+eatborder=%d == %d emuheight\n",yOff+eat_border_height+clipped_height, emu_height);
-*/
-
-
-  SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
-  SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
-  SDL_SetWindowSize(window, clipped_width, clipped_height);
+  if(render_method==RENDER_SHADER)
+  {
+    set_texture_display_window(basic, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
+    set_texture_display_window(merge, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
+  }
+  else
+  {
+    SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
+    SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
+    SDL_SetWindowSize(window, clipped_width, clipped_height);
+  }
 }
 
 std::unique_ptr<Disk> load_disk(const char* filename, Uint8 *blob, long len)
