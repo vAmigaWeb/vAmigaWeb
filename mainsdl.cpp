@@ -552,9 +552,15 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glBindTexture(GL_TEXTURE_2D, longf);
     } 
 
-    if(geometry== ADAPTIVE)
-    {
-  //    amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
+    if(geometry== ADAPTIVE && 
+        //check adaption every half second or so
+        (rendered_frame_count==1||rendered_frame_count % 25==0)
+      )
+    {  
+      if(amiga->getInspectionTarget() != INSPECTION_DENISE) 
+      {
+        amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
+      }
       auto deniseInfo = amiga->denise.getInfo();
       float vstop = (float)deniseInfo.vstop;
       float vstart = (float)deniseInfo.vstrt;
@@ -588,9 +594,17 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   //  SDL_RenderClear(renderer);
     SDL_Rect SrcR;
 
-    if(geometry== ADAPTIVE)
-    {
-//      amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
+    if(geometry== ADAPTIVE && 
+        //check adaption every half second or so
+        (rendered_frame_count==1||rendered_frame_count % 25 == 0)
+      )
+    {  
+      if(amiga->getInspectionTarget() != INSPECTION_DENISE) 
+      {
+        amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
+      }
+
+
       auto deniseInfo = amiga->denise.getInfo();
       float vstop = (float)deniseInfo.vstop;
       float vstart = (float)deniseInfo.vstrt;
@@ -606,19 +620,15 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       if(hstop > 892.0f || hstop <168.0f)
         hstop=892.0f;   
 
-      SrcR.x = hstart;
-      SrcR.y = vstart;
-      SrcR.w = hstop-hstart;
-      SrcR.h = vstop-vstart;
-
+      xOff = hstart;
+      yOff = vstart;
+      clipped_width = hstop-hstart;
+      clipped_height = vstop-vstart;
     }
-    else
-    {
-      SrcR.x = xOff;
-      SrcR.y = yOff;
-      SrcR.w = clipped_width;
-      SrcR.h = clipped_height;
-    }
+    SrcR.x = xOff;
+    SrcR.y = yOff;
+    SrcR.w = clipped_width;
+    SrcR.h = clipped_height;
 
     SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*emu_width*SrcR.y) + SrcR.x*4, 4*emu_width);
 
