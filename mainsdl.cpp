@@ -1136,11 +1136,11 @@ extern "C" void wasm_set_borderless(float on)
     wrapper->amiga->removeInspectionTarget();
 
     geometry=NARROW;
-    xOff=168;
+    xOff=258;
     yOff=27;
     clipped_width=892-xOff;
     clipped_height=311-yOff;
-    clip_offset = 0;//HBLANK_MIN * 2 + HBLANK_MIN/2;
+
   }
   else if(on==2.0f)
   {
@@ -1148,12 +1148,11 @@ extern "C" void wasm_set_borderless(float on)
 
     geometry=OVERSCAN;
 
-    xOff=168;
+    xOff=250;
     yOff=27;
     clipped_width=914-xOff;
     clipped_height=313-yOff;
 
-    clip_offset = 0; //HBLANK_MIN * 2 + HBLANK_MIN/2;
   }
 
   if(render_method==RENDER_SHADER)
