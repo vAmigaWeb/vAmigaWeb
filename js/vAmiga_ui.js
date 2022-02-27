@@ -1873,7 +1873,8 @@ $(`#choose_display a`).click(function ()
     let choice_map={
         adaptive: 0,
         narrow: 1,
-        overscan:2
+        wider:2,
+        overscan:3
     }
     let choice=$(this).text();
     set_display_choice(choice);

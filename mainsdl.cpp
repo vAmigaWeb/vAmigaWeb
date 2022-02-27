@@ -31,7 +31,8 @@ u8 render_method = RENDER_SOFTWARE;
 
 #define ADAPTIVE 0
 #define NARROW 1
-#define OVERSCAN 2
+#define WIDER 2
+#define OVERSCAN 3
 u8 geometry  = ADAPTIVE;
 
 /********* shaders ***********/
@@ -619,7 +620,6 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       SrcR.h = clipped_height;
     }
 
-
     SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*emu_width*SrcR.y) + SrcR.x*4, 4*emu_width);
 
     SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
@@ -1136,21 +1136,36 @@ extern "C" void wasm_set_borderless(float on)
     wrapper->amiga->removeInspectionTarget();
 
     geometry=NARROW;
-    xOff=258;
-    yOff=27;
-    clipped_width=892-xOff;
-    clipped_height=311-yOff;
+    xOff=252 + 4;
+    yOff=26 +24;
+    clipped_width=HPIXELS-xOff - 8;
+    clipped_height=311-yOff -2*24 -2;
 
+    //for shader rendering
+//    clip_offset = ;
   }
   else if(on==2.0f)
   {
     wrapper->amiga->removeInspectionTarget();
 
+    geometry=WIDER;
+    xOff=252;
+    yOff=26;
+    clipped_width=HPIXELS-xOff;
+    clipped_height=311-yOff;
+
+    //for shader rendering
+//    clip_offset = ;
+  }
+  else if(on==3.0f)
+  {
+    wrapper->amiga->removeInspectionTarget();
+
     geometry=OVERSCAN;
 
-    xOff=250;
-    yOff=27;
-    clipped_width=914-xOff;
+    xOff=208; //first pixel in dpaint iv,overscan=max 
+    yOff=26;
+    clipped_width=HPIXELS-xOff;
     clipped_height=313-yOff;
 
   }
