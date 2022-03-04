@@ -429,6 +429,16 @@ void draw_one_frame_into_SDL_noise(void *thisAmiga)
 
   return;
 }
+
+
+float vstart_min=26.0f;
+float vstop_max=VPIXELS;
+unsigned vstop_new_max_frame_count=0;
+float vstop_new_max=0;
+
+float hstart_min=200.0f;
+float hstop_max=HPIXELS;
+
 void draw_one_frame_into_SDL(void *thisAmiga) 
 {
 
@@ -552,14 +562,14 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glBindTexture(GL_TEXTURE_2D, longf);
     } 
 
-    if(geometry== ADAPTIVE && 
+    if(geometry== ADAPTIVE //&& 
         //check adaption every half second or so
-        (rendered_frame_count==1||rendered_frame_count % 25==0)
+//        (rendered_frame_count==1||rendered_frame_count % 12==0)
       )
     {  
       if(amiga->getInspectionTarget() != INSPECTION_DENISE) 
       {
-        amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
+        amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(250));
       }
       auto deniseInfo = amiga->denise.getInfo();
       float vstop = (float)deniseInfo.vstop;
@@ -569,18 +579,33 @@ void draw_one_frame_into_SDL(void *thisAmiga)
 
       if(vstart < 27.0f)
         vstart=27.0f;
-      if(vstop > 311.0f || vstop < 27.0f)
+      if(vstart < 100.0f)
+        vstart_min=vstart;
+
+      if(vstop > 311.0f)
         vstop=311.0f;
+      
+      //taking 8 probes for max
+      vstop_new_max_frame_count++;
+      if(vstop_new_max_frame_count>8)
+      {
+        printf(">vstop_max=%f",vstop_new_max);
+        vstop_max=vstop_new_max;
+        vstop_new_max=0;
+        vstop_new_max_frame_count=0;
+      }
+      vstop_new_max = vstop_new_max<vstop ? vstop:vstop_new_max;
+
       if(hstart < 168.0f)
         hstart=168.0f;    
       if(hstop > 892.0f || hstop <168.0f)
         hstop=892.0f;   
 
     //  glUseProgram(basic);
-      set_texture_display_window(basic, hstart, hstop, vstart, vstop);
+      set_texture_display_window(basic, hstart, hstop, vstart_min, vstop_max);
     //  glUseProgram(merge);
-      set_texture_display_window(merge, hstart, hstop, vstart, vstop);
-    //  printf("%f, %f, %f, %f \n", hstart, hstop, vstart, vstop);
+      set_texture_display_window(merge, hstart, hstop, vstart_min, vstop_max);
+//      printf("hstrt%f, hstop%f, vstrt%f, vstop%f \n", hstart, hstop, vstart_min, vstop_max);
     }
 
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
