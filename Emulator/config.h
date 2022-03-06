@@ -135,7 +135,7 @@ static const int BPL_DEBUG       = 0; // Bitplane DMA
 static const int DIW_DEBUG       = 0; // Display window
 static const int SPR_DEBUG       = 0; // Sprites
 static const int CLX_DEBUG       = 0; // Collision detection
-static const int BORDER_DEBUG    = 1; // Draw the border in debug colors
+static const int BORDER_DEBUG    = 0; // Draw the border in debug colors
 
 // Paula
 static const int INTREG_DEBUG    = 0; // Interrupt registers

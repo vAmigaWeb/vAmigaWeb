@@ -1871,10 +1871,10 @@ set_display_choice(current_display);
 $(`#choose_display a`).click(function () 
 {
     let choice_map={
-        adaptive: 0,
-        narrow: 1,
-        wider:2,
-        overscan:3
+        narrow: 0,
+        wider:1,
+        overscan:2,
+        adaptive:3
     }
     let choice=$(this).text();
     set_display_choice(choice);

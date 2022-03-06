@@ -29,10 +29,10 @@
 #define RENDER_SHADER 2
 u8 render_method = RENDER_SOFTWARE;
 
-#define ADAPTIVE 0
-#define NARROW 1
-#define WIDER 2
-#define OVERSCAN 3
+#define NARROW 0
+#define WIDER 1
+#define OVERSCAN 2
+#define ADAPTIVE 3
 u8 geometry  = ADAPTIVE;
 
 /********* shaders ***********/
@@ -157,7 +157,7 @@ void set_texture_display_window(const GLuint program, float hstart, float hstop,
   const GLfloat coords[] = {
     x1,y1, x2,y1, x1,y2, x2,y2
   };
-
+  printf("%f %f %f %f\n",x1,x2,y1,y2);
   GLuint corBuffer;
   glGenBuffers(1, &corBuffer);
   glBindBuffer(GL_ARRAY_BUFFER, corBuffer);
@@ -168,6 +168,9 @@ void set_texture_display_window(const GLuint program, float hstart, float hstop,
   glVertexAttribPointer(corAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
   glUniform2f(glGetUniformLocation(merge, "u_diw_size"), hstop-hstart, vstop-vstart);
+
+  printf("w=%f h=%f\n",hstop-hstart,vstop-vstart);
+
 }
 
 void initGeometry(const GLuint program, float eat_x, float eat_y) {
@@ -189,7 +192,7 @@ void initGeometry(const GLuint program, float eat_x, float eat_y) {
 
   //--- add a_texcoord
 
-  set_texture_display_window(program, 168.0f,892.0f,27.0f,311.0f);
+//  set_texture_display_window(program, 168.0f,892.0f,26.0f,312.0f);
 }
 
 GLuint initTexture(const GLuint *source) {
@@ -884,6 +887,7 @@ bool create_shader()
 
     if (basic == 0 || merge == 0)
       return false;
+
     glViewport(0, 0, clip_width, clip_height);
     initGeometry(basic, 0,0);
     initGeometry(merge, 0,0);
@@ -1167,7 +1171,8 @@ extern "C" void wasm_set_warp(unsigned on)
 
 extern "C" void wasm_set_borderless(float on)
 {
-  if(on==0.0f)
+//
+  if(on==ADAPTIVE)
   {
     geometry=ADAPTIVE;
 //    printf("before inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
@@ -1175,7 +1180,7 @@ extern "C" void wasm_set_borderless(float on)
     clip_offset = 0;
 //    printf("after inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
   }
-  else if(on==1.0f)
+  else if(on==NARROW)
   {
     wrapper->amiga->removeInspectionTarget();
 
@@ -1183,12 +1188,12 @@ extern "C" void wasm_set_borderless(float on)
     xOff=252 + 4;
     yOff=26 +24;
     clipped_width=HPIXELS-xOff - 8;
-    clipped_height=311-yOff -2*24 -2;
+    clipped_height=312-yOff -2*24 -2;
 
     //for shader rendering
 //    clip_offset = ;
   }
-  else if(on==2.0f)
+  else if(on==WIDER)
   {
     wrapper->amiga->removeInspectionTarget();
 
@@ -1196,27 +1201,29 @@ extern "C" void wasm_set_borderless(float on)
     xOff=252;
     yOff=26;
     clipped_width=HPIXELS-xOff;
-    clipped_height=311-yOff;
+    clipped_height=312-yOff;
 
     //for shader rendering
 //    clip_offset = ;
   }
-  else if(on==3.0f)
+  else if(on==OVERSCAN)
   {
     wrapper->amiga->removeInspectionTarget();
 
     geometry=OVERSCAN;
 
     xOff=208; //first pixel in dpaint iv,overscan=max 
-    yOff=26;
+    yOff=26; //must be even
     clipped_width=HPIXELS-xOff;
-    clipped_height=313-yOff;
+    clipped_height=312-yOff; //must be even
 
   }
 
   if(render_method==RENDER_SHADER)
   {
+    glUseProgram(basic); 
     set_texture_display_window(basic, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
+    glUseProgram(merge);
     set_texture_display_window(merge, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
   }
   else
