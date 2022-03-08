@@ -23,7 +23,6 @@
 #include <SDL2/SDL_opengles2.h> 
 #include <emscripten/html5.h>
 
-
 #define RENDER_SOFTWARE 0
 #define RENDER_GPU 1
 #define RENDER_SHADER 2
@@ -434,14 +433,10 @@ void draw_one_frame_into_SDL_noise(void *thisAmiga)
 }
 
 
-float vstart_min=26.0f;
-float vstop_max=VPIXELS;
-unsigned vstop_new_max_frame_count=0;
-float vstop_new_max=0;
-float vstart_new_min=27;
-
-float hstart_min=200.0f;
-float hstop_max=HPIXELS;
+u16 vstart_min=26;
+u16 vstop_max=VPIXELS;
+u16 hstart_min=200;
+u16 hstop_max=HPIXELS;
 
 void draw_one_frame_into_SDL(void *thisAmiga) 
 {
@@ -565,51 +560,16 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glUseProgram(basic);
       glBindTexture(GL_TEXTURE_2D, longf);
     } 
-
+/*
     if(geometry== ADAPTIVE)
-    { 
-      if(amiga->getInspectionTarget() != INSPECTION_DENISE) 
-      {
-        amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(250));
-      }
-      auto deniseInfo = amiga->denise.getInfo();
-      float vstop = (float)deniseInfo.vstop;
-      float vstart = (float)deniseInfo.vstrt;
-      float hstop = (float)deniseInfo.hstop*2;
-      float hstart = (float)deniseInfo.hstrt*2;
-      
-
-      if(vstart < 27.0f)
-        vstart=27.0f;
-      if(vstop > 311.0f)
-        vstop=311.0f;
-      
-      //taking 20 probes for max
-      vstop_new_max_frame_count++;
-      if(vstop_new_max_frame_count>20)
-      {
-        vstop_max=vstop_new_max;
-        vstop_new_max=0;
-        vstart_min = vstart_new_min;
-        vstart_new_min=VPIXELS;
-        vstop_new_max_frame_count=0;
-      }
-      vstop_new_max  = vstop_new_max < vstop ? vstop:vstop_new_max;
-      vstart_new_min = vstart < vstart_new_min ? vstart:vstart_new_min;
-
-      if(hstart < 168.0f)
-        hstart=168.0f;
-      if(hstop > 892.0f || hstop <168.0f)
-        hstop=892.0f;  
-
-        
+    {         
     //  glUseProgram(basic);
-      set_texture_display_window(basic, hstart, hstop, vstart_min, vstop_max);
+      set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
     //  glUseProgram(merge);
-      set_texture_display_window(merge, hstart, hstop, vstart_min, vstop_max);
+      set_texture_display_window(merge, hstart_min, hstop_max, vstart_min, vstop_max);
 //      printf("hstrt%f, hstop%f, vstrt%f, vstop%f \n", hstart, hstop, vstart_min, vstop_max);
     }
-
+*/
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     SDL_GL_SwapWindow(window);
   }
@@ -623,45 +583,12 @@ void draw_one_frame_into_SDL(void *thisAmiga)
 
     if(geometry== ADAPTIVE)
     {  
-      if(amiga->getInspectionTarget() != INSPECTION_DENISE) 
-      {
-        amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(250));
-      }
-
-      auto deniseInfo = amiga->denise.getInfo();
-      float vstop = (float)deniseInfo.vstop;
-      float vstart = (float)deniseInfo.vstrt;
-      float hstop = (float)deniseInfo.hstop*2;
-      float hstart = (float)deniseInfo.hstrt*2;
-
-      if(vstart < 27.0f)
-        vstart=27.0f;
-      if(vstop > 311.0f)
-        vstop=311.0f;
-      
-      //taking 20 probes for max
-      vstop_new_max_frame_count++;
-      if(vstop_new_max_frame_count>20)
-      {
-        vstop_max=vstop_new_max;
-        vstop_new_max=0;
-        vstart_min = vstart_new_min;
-        vstart_new_min=VPIXELS;
-        vstop_new_max_frame_count=0;
-      }
-      vstop_new_max  = vstop_new_max < vstop ? vstop:vstop_new_max;
-      vstart_new_min = vstart < vstart_new_min ? vstart:vstart_new_min;
-
-      if(hstart < 168.0f)
-        hstart=168.0f;
-      if(hstop > 892.0f || hstop <168.0f)
-        hstop=892.0f;  
-
-      xOff = hstart;
+      xOff = hstart_min;
       yOff = vstart_min;
-      clipped_width = hstop-hstart;
+      clipped_width = hstop_max-hstart_min;
       clipped_height = vstop_max-vstart_min;
     }
+
     SrcR.x = xOff;
     SrcR.y = yOff;
     SrcR.w = clipped_width;
@@ -737,7 +664,7 @@ bool paused_the_emscripten_main_loop=false;
 
 bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
-void theListener(const void * amiga, long type, long data){
+void theListener(const void * amiga, long type,  u32 data1, u32 data2){
   if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.frame.nr < warp_to_frame)
   {
     //skip automatic warp mode on disk load
@@ -760,13 +687,47 @@ void theListener(const void * amiga, long type, long data){
   }
   else
   {
-    printf("vAmiga message=%s, data=%ld\n", message_as_string, data);
-    send_message_to_js(message_as_string, data);
+    printf("vAmiga message=%s, data=%u\n", message_as_string, data1);
+    send_message_to_js(message_as_string, data1);
   }
   if(type == MSG_DISK_INSERT)
   {
 //    ((Amiga *)amiga)->drive8.dump();
   }
+  if(type == MSG_VIEWPORT)
+  {
+    printf("tracking MSG_VIEWPORT=%u, %u\n",data1, data2);
+    hstart_min= (data1 >>16) & 0xffff;
+    vstart_min= (data1 ) & 0xffff;
+    hstop_max= (data2 >>16) & 0xffff;
+    vstop_max= (data2 ) & 0xffff;
+    
+    hstart_min *=2;
+    hstop_max *=2;
+
+
+    if(vstart_min < 26) 
+      vstart_min = 26;
+
+    if(vstop_max > 312) 
+      vstop_max = 312;
+
+    printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
+
+    if(render_method==RENDER_SHADER)
+    {
+      if(geometry== ADAPTIVE)
+      {         
+        glUseProgram(basic);
+        set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
+        glUseProgram(merge);
+        set_texture_display_window(merge, hstart_min, hstop_max, vstart_min, vstop_max);
+      } 
+    }
+
+
+  }
+  
 
 }
 
@@ -828,7 +789,7 @@ class C64Wrapper {
 
     amiga->configure(OPT_CHIP_RAM, 512);
     amiga->configure(OPT_SLOW_RAM, 512);
-    amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS_PLCC);
+    amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS);
 
 
 //    c64->configure(OPT_DRV_AUTO_CONFIG,DRIVE8,1);
@@ -1176,13 +1137,17 @@ extern "C" void wasm_set_borderless(float on)
   {
     geometry=ADAPTIVE;
 //    printf("before inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
-    wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
+    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
+
+//    wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
     clip_offset = 0;
 //    printf("after inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
   }
   else if(on==NARROW)
   {
-    wrapper->amiga->removeInspectionTarget();
+  //  wrapper->amiga->removeInspectionTarget();
+    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+  
 
     geometry=NARROW;
     xOff=252 + 4;
@@ -1195,8 +1160,8 @@ extern "C" void wasm_set_borderless(float on)
   }
   else if(on==WIDER)
   {
-    wrapper->amiga->removeInspectionTarget();
-
+    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+  
     geometry=WIDER;
     xOff=252;
     yOff=26;
@@ -1208,8 +1173,8 @@ extern "C" void wasm_set_borderless(float on)
   }
   else if(on==OVERSCAN)
   {
-    wrapper->amiga->removeInspectionTarget();
-
+  wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+  
     geometry=OVERSCAN;
 
     xOff=208; //first pixel in dpaint iv,overscan=max 
@@ -1234,23 +1199,23 @@ extern "C" void wasm_set_borderless(float on)
   }
 }
 
-std::unique_ptr<Disk> load_disk(const char* filename, Uint8 *blob, long len)
+std::unique_ptr<FloppyDisk> load_disk(const char* filename, Uint8 *blob, long len)
 {
   try {
     if (DMSFile::isCompatible(filename)) {
       printf("%s - Loading DMS file\n", filename);
       DMSFile dms{blob, len};
-      return std::make_unique<Disk>(dms);
+      return std::make_unique<FloppyDisk>(dms);
     }
     if (ADFFile::isCompatible(filename)) {
       printf("%s - Loading ADF file\n", filename);
       ADFFile adf{blob, len};
-      return std::make_unique<Disk>(adf);
+      return std::make_unique<FloppyDisk>(adf);
     }
     if (EXEFile::isCompatible(filename)) {
       printf("%s - Loading EXE file\n", filename);
       EXEFile exe{blob, len};
-      return std::make_unique<Disk>(exe);
+      return std::make_unique<FloppyDisk>(exe);
     }
   } catch (const VAError& e) {
     printf("Error loading %s - %s\n", filename, e.what());

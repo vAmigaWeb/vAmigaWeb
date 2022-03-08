@@ -1,6 +1,9 @@
 target_sources(vAmigaCore PRIVATE
 
+DriveDescriptors.cpp
 Drive.cpp
-Disk.cpp
+FloppyDrive.cpp
+HardDrive.cpp
+FloppyDisk.cpp
 
 )

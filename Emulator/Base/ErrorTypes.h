@@ -31,6 +31,7 @@ enum_long(ERROR_CODE)
     ERROR_OUT_OF_MEMORY,
 
     // General
+    ERROR_DIR_NOT_FOUND,
     ERROR_FILE_NOT_FOUND,
     ERROR_FILE_TYPE_MISMATCH,
     ERROR_FILE_TYPE_UNSUPPORTED,
@@ -56,16 +57,28 @@ enum_long(ERROR_CODE)
     ERROR_DISK_WRONG_SECTOR_COUNT,
     ERROR_DISK_INVALID_SECTOR_NUMBER,
     
+    // Hard drives
+    ERROR_HDR_TOO_LARGE,
+    ERROR_HDR_UNSUPPORTED_CYL_COUNT,
+    ERROR_HDR_UNSUPPORTED_HEAD_COUNT,
+    ERROR_HDR_UNSUPPORTED_SEC_COUNT,
+    ERROR_HDR_UNSUPPORTED_BSIZE,
+    ERROR_HDR_UNMATCHED_GEOMETRY,
+    ERROR_HDR_UNPARTITIONED,
+    ERROR_HDR_CORRUPTED_PTABLE,
+    ERROR_HDR_UNSUPPORTED,
+
     // Snapshots
     ERROR_SNAP_TOO_OLD,
     ERROR_SNAP_TOO_NEW,
+    ERROR_SNAP_IS_BETA,
     ERROR_SNAP_CORRUPTED,
     
     // Media files
+    ERROR_DMS_CANT_CREATE,
     ERROR_EXT_FACTOR5,
     ERROR_EXT_INCOMPATIBLE,
     ERROR_EXT_CORRUPTED,
-    ERROR_DMS_CANT_CREATE,
     
     // Encrypted Roms
     ERROR_MISSING_ROM_KEY,
@@ -100,8 +113,10 @@ enum_long(ERROR_CODE)
     // File system
     ERROR_FS_UNKNOWN,
     ERROR_FS_UNSUPPORTED,
+    ERROR_FS_UNFORMATTED,
     ERROR_FS_WRONG_BSIZE,
     ERROR_FS_WRONG_CAPACITY,
+    ERROR_FS_WRONG_DOS_TYPE,
     ERROR_FS_HAS_CYCLES,
     ERROR_FS_CORRUPTED,
 
@@ -109,7 +124,7 @@ enum_long(ERROR_CODE)
     ERROR_FS_OUT_OF_SPACE,
     
     // File system (export errors)
-    ERROR_FS_DIRECTORY_NOT_EMPTY,
+    ERROR_FS_DIR_NOT_EMPTY,
     ERROR_FS_CANNOT_CREATE_DIR,
     ERROR_FS_CANNOT_CREATE_FILE,
 
@@ -161,6 +176,7 @@ struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
                 
             case ERROR_OUT_OF_MEMORY:               return "OUT_OF_MEMORY";
 
+            case ERROR_DIR_NOT_FOUND:               return "DIR_NOT_FOUND";
             case ERROR_FILE_NOT_FOUND:              return "FILE_NOT_FOUND";
             case ERROR_FILE_TYPE_MISMATCH:          return "FILE_TYPE_MISMATCH";
             case ERROR_FILE_TYPE_UNSUPPORTED:       return "FILE_TYPE_UNSUPPORTED";
@@ -183,14 +199,24 @@ struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
             case ERROR_DISK_WRONG_SECTOR_COUNT:     return "DISK_WRONG_SECTOR_COUNT";
             case ERROR_DISK_INVALID_SECTOR_NUMBER:  return "DISK_INVALID_SECTOR_NUMBER";
                 
+            case ERROR_HDR_TOO_LARGE:               return "HDR_TOO_LARGE";
+            case ERROR_HDR_UNSUPPORTED_CYL_COUNT:   return "HDR_UNSUPPORTED_CYL_COUNT";
+            case ERROR_HDR_UNSUPPORTED_HEAD_COUNT:  return "HDR_UNSUPPORTED_HEAD_COUNT";
+            case ERROR_HDR_UNSUPPORTED_SEC_COUNT:   return "HDR_UNSUPPORTED_SEC_COUNT";
+            case ERROR_HDR_UNSUPPORTED_BSIZE:       return "HDR_UNSUPPORTED_BSIZE";
+            case ERROR_HDR_UNMATCHED_GEOMETRY:      return "HDR_UNMATCHED_GEOMETRY";
+            case ERROR_HDR_UNPARTITIONED:           return "HDR_UNPARTITIONED";
+            case ERROR_HDR_CORRUPTED_PTABLE:        return "HDR_CORRUPTED_PTABLE";
+            case ERROR_HDR_UNSUPPORTED:             return "HDR_UNSUPPORTED";
+                
             case ERROR_SNAP_TOO_OLD:                return "SNAP_TOO_OLD";
             case ERROR_SNAP_TOO_NEW:                return "SNAP_TOO_NEW";
-                
+            case ERROR_SNAP_IS_BETA:                return "SNAP_IS_BETA";
+
+            case ERROR_DMS_CANT_CREATE:             return "DMS_CANT_CREATE";
             case ERROR_EXT_FACTOR5:                 return "EXT_UNSUPPORTED";
             case ERROR_EXT_INCOMPATIBLE:            return "EXT_INCOMPATIBLE";
             case ERROR_EXT_CORRUPTED:               return "EXT_CORRUPTED";
-                
-            case ERROR_DMS_CANT_CREATE:             return "DMS_CANT_CREATE";
                 
             case ERROR_MISSING_ROM_KEY:             return "MISSING_ROM_KEY";
             case ERROR_INVALID_ROM_KEY:             return "INVALID_ROM_KEY";
@@ -220,14 +246,16 @@ struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
 
             case ERROR_FS_UNKNOWN:                  return "FS_UNKNOWN";
             case ERROR_FS_UNSUPPORTED:              return "FS_UNSUPPORTED";
+            case ERROR_FS_UNFORMATTED:              return "FS_UNFORMATTED";
             case ERROR_FS_WRONG_BSIZE:              return "FS_WRONG_BSIZE";
             case ERROR_FS_WRONG_CAPACITY:           return "FS_WRONG_CAPACITY";
+            case ERROR_FS_WRONG_DOS_TYPE:           return "FS_WRONG_DOS_TYPE";
             case ERROR_FS_HAS_CYCLES:               return "FS_HAS_CYCLES";
             case ERROR_FS_CORRUPTED:                return "FS_CORRUPTED";
 
             case ERROR_FS_OUT_OF_SPACE:             return "FS_OUT_OF_SPACE";
                 
-            case ERROR_FS_DIRECTORY_NOT_EMPTY:      return "FS_DIRECTORY_NOT_EMPTY";
+            case ERROR_FS_DIR_NOT_EMPTY:            return "FS_DIR_NOT_EMPTY";
             case ERROR_FS_CANNOT_CREATE_DIR:        return "FS_CANNOT_CREATE_DIR";
             case ERROR_FS_CANNOT_CREATE_FILE:       return "FS_CANNOT_CREATE_FILE";
 

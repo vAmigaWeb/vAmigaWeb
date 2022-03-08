@@ -77,9 +77,6 @@ public:
     // Indicates if Copper is currently servicing an event (for debugging only)
     bool servicing = false;
     
-    // Temporary debug flag
-    bool verbose = false;
-
 
     //
     // Debugging
@@ -203,18 +200,28 @@ private:
      * false: The Copper does not wake up the current frame.
      *        Variable 'result' remains untouched.
      */
+    bool findMatchOld(Beam &result) const; // DEPRECATED
     bool findMatch(Beam &result) const;
 
     // Called by findMatch() to determine the horizontal trigger position
+    bool findHorizontalMatchOld(u32 &beam, u32 comp, u32 mask) const; // DEPRECATED
     bool findHorizontalMatch(u32 &beam, u32 comp, u32 mask) const;
 
     // Emulates the Copper writing a value into one of the custom registers
     void move(u32 addr, u16 value);
 
-    // Runs the comparator circuit
+    // Runs the comparator circuit (DEPRECATED)
+    /*
     bool comparator(Beam beam, u16 waitpos, u16 mask) const;
     bool comparator(Beam beam) const;
     bool comparator() const;
+    */
+    
+    // Runs the comparator circuit
+    bool runComparator() const;
+    bool runComparator(Beam beam) const;
+    bool runComparator(Beam beam, u16 waitpos, u16 mask) const;
+    bool runHorizontalComparator(Beam beam, u16 waitpos, u16 mask) const;
 
     // Emulates a WAIT command
     void scheduleWaitWakeup(bool bfd);
@@ -255,7 +262,10 @@ private:
     
     bool isWaitCmd() const;
     bool isWaitCmd(u32 addr) const;
-    
+
+    bool isSkipCmd() const;
+    bool isSkipCmd(u32 addr) const;
+
     u16 getRA() const;
     u16 getRA(u32 addr) const;
 

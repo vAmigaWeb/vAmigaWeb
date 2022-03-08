@@ -12,7 +12,7 @@
 #include "DiskControllerTypes.h"
 #include "SubComponent.h"
 #include "Reflection.h"
-#include "Disk.h"
+#include "FloppyDisk.h"
 
 class DiskController : public SubComponent
 {
@@ -180,7 +180,7 @@ public:
     isize getSelected() const { return selected; }
 
     // Returns the currently selected (nullptr if none is selected)
-    class Drive *getSelectedDrive();
+    class FloppyDrive *getSelectedDrive();
 
     // Indicates if the motor of the specified drive is switched on
     bool spinning(isize driveNr) const;
@@ -231,15 +231,6 @@ public:
     //
     // Handling disks
     //
-
-    // Ejects a disk from the specified drive
-    [[deprecated]] void ejectDisk(isize nr, Cycle delay = 0);
-
-    // Inserts a disk into the specified drive
-    [[deprecated]] void insertDisk(std::unique_ptr<Disk> disk, isize nr, Cycle delay = 0) throws;
-    [[deprecated]] void insertDisk(class DiskFile &file, isize nr, Cycle delay = 0) throws;
-    [[deprecated]] void insertDisk(const string &name, isize nr, Cycle delay = 0) throws;
-    [[deprecated]] void insertNew(isize nr, Cycle delay = 0) throws;
 
     // Write protects or unprotects a disk
     void setWriteProtection(isize nr, bool value);
@@ -340,11 +331,11 @@ public:
   
     // Performs DMA in standard mode
     void performDMA();
-    void performDMARead(Drive *drive, u32 count);
-    void performDMAWrite(Drive *drive, u32 count);
+    void performDMARead(FloppyDrive *drive, u32 count);
+    void performDMAWrite(FloppyDrive *drive, u32 count);
      
     // Performs DMA in turbo mode
-    void performTurboDMA(Drive *d);
-    void performTurboRead(Drive *drive);
-    void performTurboWrite(Drive *drive);
+    void performTurboDMA(FloppyDrive *d);
+    void performTurboRead(FloppyDrive *drive);
+    void performTurboWrite(FloppyDrive *drive);
 };

@@ -11,7 +11,7 @@
 #include "DiskController.h"
 #include "Agnus.h"
 #include "ADFFile.h"
-#include "Drive.h"
+#include "FloppyDrive.h"
 #include "IOUtils.h"
 #include "MsgQueue.h"
 #include "Paula.h"
@@ -131,7 +131,6 @@ DiskController::setConfigItem(Option option, long id, i64 value)
             
             // Inform the GUI
             msgQueue.put(value ? MSG_DRIVE_CONNECT : MSG_DRIVE_DISCONNECT, id);
-            msgQueue.put(MSG_CONFIG);
             return;
             
         default:
@@ -204,7 +203,7 @@ DiskController::_dump(dump::Category category, std::ostream& os) const
     }
 }
 
-Drive *
+FloppyDrive *
 DiskController::getSelectedDrive()
 {
     assert(selected < 4);
@@ -257,6 +256,7 @@ DiskController::setState(DriveState oldState, DriveState newState)
     }
 }
 
+/*
 void
 DiskController::ejectDisk(isize nr, Cycle delay)
 {
@@ -281,7 +281,7 @@ DiskController::insertDisk(std::unique_ptr<Disk> disk, isize nr, Cycle delay)
 }
 
 void
-DiskController::insertDisk(class DiskFile &file, isize nr, Cycle delay)
+DiskController::insertDisk(class FloppyFile &file, isize nr, Cycle delay)
 {
     assert(nr >= 0 && nr <= 3);
     
@@ -312,12 +312,13 @@ DiskController::insertNew(isize nr, Cycle delay)
     
     df[nr]->insertNew();
 }
+*/
 
 void
 DiskController::setWriteProtection(isize nr, bool value)
 {
     assert(nr >= 0 && nr <= 3);
-    df[nr]->setWriteProtection(value);
+    df[nr]->setProtectionFlag(value);
 }
 
 void
@@ -376,7 +377,7 @@ void
 DiskController::executeFifo()
 {
     // Only proceed if a drive is selected
-    Drive *drive = getSelectedDrive();
+    FloppyDrive *drive = getSelectedDrive();
     
     switch (state) {
             
@@ -437,7 +438,7 @@ DiskController::executeFifo()
 void
 DiskController::performDMA()
 {
-    Drive *drive = getSelectedDrive();
+    FloppyDrive *drive = getSelectedDrive();
     
     // Only proceed if there are remaining bytes to process
     if ((dsklen & 0x3FFF) == 0) return;
@@ -467,7 +468,7 @@ DiskController::performDMA()
 }
 
 void
-DiskController::performDMARead(Drive *drive, u32 remaining)
+DiskController::performDMARead(FloppyDrive *drive, u32 remaining)
 {
     // Only proceed if the FIFO contains enough data
     if (!fifoHasWord()) return;
@@ -510,7 +511,7 @@ DiskController::performDMARead(Drive *drive, u32 remaining)
 }
 
 void
-DiskController::performDMAWrite(Drive *drive, u32 remaining)
+DiskController::performDMAWrite(FloppyDrive *drive, u32 remaining)
 {
     // Only proceed if the FIFO has enough free space
     if (!fifoCanStoreWord()) return;
@@ -575,7 +576,7 @@ DiskController::performDMAWrite(Drive *drive, u32 remaining)
 }
 
 void
-DiskController::performTurboDMA(Drive *drive)
+DiskController::performTurboDMA(FloppyDrive *drive)
 {
     // Only proceed if there is anything to read or write
     if ((dsklen & 0x3FFF) == 0) return;
@@ -611,7 +612,7 @@ DiskController::performTurboDMA(Drive *drive)
 }
 
 void
-DiskController::performTurboRead(Drive *drive)
+DiskController::performTurboRead(FloppyDrive *drive)
 {
     for (isize i = 0; i < (dsklen & 0x3FFF); i++) {
         
@@ -632,7 +633,7 @@ DiskController::performTurboRead(Drive *drive)
     debug(DSK_CHECKSUM, "Turbo read %s: cyl: %ld side: %ld offset: %ld ",
           drive->getDescription(),
           drive->head.cylinder,
-          drive->head.side,
+          drive->head.head,
           drive->head.offset);
     
     debug(DSK_CHECKSUM, "checkcnt = %llu check1 = %x check2 = %x\n",
@@ -640,7 +641,7 @@ DiskController::performTurboRead(Drive *drive)
 }
 
 void
-DiskController::performTurboWrite(Drive *drive)
+DiskController::performTurboWrite(FloppyDrive *drive)
 {
     for (isize i = 0; i < (dsklen & 0x3FFF); i++) {
         

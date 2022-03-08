@@ -10,82 +10,59 @@
 #pragma once
 
 #include "FSTypes.h"
-#include "Disk.h"
-#include "AmigaObject.h"
+#include "FloppyDisk.h"
+#include "Error.h"
 #include "FSObjects.h"
 #include "FSBlock.h"
+#include "DriveDescriptors.h"
 
-/* To create a FSDevice, the layout parameters of the represendet device have
- * to be provided. This is done by passing a structure of type FSDeviceLayout
- * which contains physical properties such as the number of cylinders and heads
- * and logical parameters such as the number of sectors per track. In addition,
- * the structure contains one or more elements of type FSPartitionLayout. They
- * provide the information how the device is partitioned.
+/* To create a FileSystem, several layout parameters need to to be provided.
+ * This is done by passing a FileSystemDescriptor which contains the necessary
+ * information.
  *
- * FSDeviceDescriptors can be obtained in several ways. If a descriptor for
- * diskette is needed, it can be created by specifiying the form factor and
- * density of the disk. Furthermore, a suitabe device constructor can be
- * extracted directly from an ADF or HDF.
+ * A FileSystemDescriptor can be obtained in several ways. If a descriptor for
+ * a floppy disk is needed, it can be created by specifiying the form factor
+ * and density of the disk. In addition, a suitabe descriptors can be extracted
+ * directly from an ADF or HDF.
  */
+struct FileSystemDescriptor {
 
-struct FSDeviceDescriptor : AmigaObject {
+    // Capacity of the file system in blocks
+    isize numBlocks = 0;
     
-    // Physical device parameters
-    isize numCyls = 0;
-    isize numHeads = 0;
-        
-    // Logical device parameters
-    isize numSectors = 0;
-    i64 numBlocks = 0;
+    // Size of a block in bytes
+    isize bsize = 512;
+    
+    // Number of reserved blocks
     isize numReserved = 0;
-    isize bsize = 0;
-    
-    // Partition parameters
-    std::vector<struct FSPartitionDescriptor> partitions;
-    
-    
-    //
-    // Initializing
-    //
-    
-    FSDeviceDescriptor();
-    FSDeviceDescriptor(DiskDiameter type, DiskDensity density, FSVolumeType dos = FS_OFS);
-
-    const char *getDescription() const override { return "FSLayout"; }
-    void _dump(dump::Category category, std::ostream& os) const override;
-};
-
-struct FSPartitionDescriptor : AmigaObject {
-    
+        
     // File system type
     FSVolumeType dos = FS_NODOS;
-    
-    // Cylinder boundaries
-    isize lowCyl = 0;
-    isize highCyl = 0;
-        
+            
     // Location of the root block
     Block rootBlock = 0;
     
     // References to all bitmap blocks and bitmap extension blocks
     std::vector<Block> bmBlocks;
     std::vector<Block> bmExtBlocks;
-
     
-    //
     // Initializing
-    //
+    FileSystemDescriptor() { };
+    FileSystemDescriptor(isize numBlocks, FSVolumeType dos);
+    FileSystemDescriptor(const GeometryDescriptor &geometry, FSVolumeType dos);
+    FileSystemDescriptor(Diameter dia, Density den, FSVolumeType dos);
     
-    FSPartitionDescriptor(FSVolumeType dos, isize firstCyl, isize lastCyl, Block root);
-
-    const char *getDescription() const override { return "FSPartition"; }
-    void _dump(dump::Category category, std::ostream& os) const override;
-
+    void init(isize numBlocks, FSVolumeType dos);
+    void init(const GeometryDescriptor &geometry, FSVolumeType dos);
+    void init(Diameter type, Density density, FSVolumeType dos);
+        
+    // Computed values
+    isize numBytes() const { return numBlocks * bsize; }
     
-    //
-    // Querying partition properties
-    //
+    // Prints debug information
+    void dump() const;
+    void dump(std::ostream& os) const;
     
-    // Returns the number of cylinders in this partition
-    isize numCyls() { return highCyl - lowCyl + 1; }
+    // Throws an exception if the descriptor contains unsupported values
+    void checkCompatibility() const;
 };

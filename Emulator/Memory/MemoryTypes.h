@@ -30,6 +30,7 @@ enum_long(MEM_SOURCE)
     MEM_CUSTOM,
     MEM_CUSTOM_MIRROR,
     MEM_AUTOCONF,
+    MEM_ZOR,
     MEM_ROM,
     MEM_ROM_MIRROR,
     MEM_WOM,
@@ -61,6 +62,7 @@ struct MemorySourceEnum : util::Reflection<MemorySourceEnum, MemorySource>
             case MEM_CUSTOM:         return "CUSTOM";
             case MEM_CUSTOM_MIRROR:  return "CUSTOM_MIRROR";
             case MEM_AUTOCONF:       return "AUTOCONF";
+            case MEM_ZOR:            return "ZOR";
             case MEM_ROM:            return "ROM";
             case MEM_ROM_MIRROR:     return "ROM_MIRROR";
             case MEM_WOM:            return "WOM";
@@ -131,9 +133,9 @@ struct BankMapEnum : util::Reflection<BankMapEnum, BankMap>
 
 enum_long(RAM_INIT_PATTERN)
 {
-    RAM_INIT_RANDOMIZED,
     RAM_INIT_ALL_ZEROES,
-    RAM_INIT_ALL_ONES
+    RAM_INIT_ALL_ONES,
+    RAM_INIT_RANDOMIZED
 };
 typedef RAM_INIT_PATTERN RamInitPattern;
 
@@ -141,7 +143,7 @@ typedef RAM_INIT_PATTERN RamInitPattern;
 struct RamInitPatternEnum : util::Reflection<RamInitPatternEnum, RamInitPattern>
 {
     static long minVal() { return 0; }
-    static long maxVal() { return RAM_INIT_ALL_ONES; }
+    static long maxVal() { return RAM_INIT_RANDOMIZED; }
     static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
 
     static const char *prefix() { return "RAM_INIT"; }
@@ -149,9 +151,9 @@ struct RamInitPatternEnum : util::Reflection<RamInitPatternEnum, RamInitPattern>
     {
         switch (value) {
                 
+            case RAM_INIT_ALL_ZEROES:  return "ALL_ZEROES";
+            case RAM_INIT_ALL_ONES:    return "ALL_ONES";
             case RAM_INIT_RANDOMIZED:  return "RANDOMIZED";
-            case RAM_INIT_ALL_ZEROES:  return "ZEROES";
-            case RAM_INIT_ALL_ONES:    return "ONES";
         }
         return "???";
     }

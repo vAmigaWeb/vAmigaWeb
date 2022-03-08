@@ -10,24 +10,42 @@
 #pragma once
 
 #include "Types.h"
+#include <vector>
 
 class FFmpeg {
     
 public:
     
+    // A list of available FFmpeg executables (setup in init() )
+    static std::vector<string> paths;
+    
+    // Path to the selected FFmpeg executable
+    static string exec;
+        
 #ifdef _MSC_VER
 
 #else
-    
     FILE *handle = nullptr;
-
 #endif
 
-    // Path to the FFmpeg executable
-    static string ffmpegPath() { return "/usr/local/bin/ffmpeg"; }
+    //
+    // Locating FFmpeg
+    //
+    
+    // Sets up the 'path' vector
+    static void init();
 
+    // Getter and setter for the FFmpeg executable path
+    static const string getExecPath();
+    static void setExecPath(const string &path);
+    
     // Checks whether FFmeg is available
     static bool available();
+    
+    
+    //
+    // Running FFmpeg
+    //
     
     // Launches the FFmpeg instance
     bool launch(const string &args);

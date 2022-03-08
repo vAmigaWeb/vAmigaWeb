@@ -317,7 +317,7 @@ async function disk_loading_finished()
 
 function message_handler(msg, data)
 {
-    //console.log('js receives msg: '+msg);
+    //console.log(`js receives msg:${msg} data:${data}`);
     //UTF8ToString(cores_msg);
     if(msg == "MSG_READY_TO_RUN")
     {
@@ -2021,7 +2021,7 @@ bind_config_choice("OPT_DRIVE_SPEED", "drive speed",['-1', '1', '2', '4', '8'],'
 
 $('#hardware_settings').append(`<div class="mt-4">hardware settings</div><span style="font-size: smaller;">(shuts machine down on agnus model or memory change)</span>`);
 
-bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_DIP','OCS_PLCC','ECS_1MB','ECS_2MB'],'ECS_2MB');
+bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_OLD','OCS','ECS_1MB','ECS_2MB'],'ECS_2MB');
 bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'2048');
 bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0');
 bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048');

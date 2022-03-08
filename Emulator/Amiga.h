@@ -15,8 +15,9 @@
 #include "CIA.h"
 #include "CPU.h"
 #include "Denise.h"
-#include "Drive.h"
+#include "FloppyDrive.h"
 #include "GdbServer.h"
+#include "HardDrive.h"
 #include "Keyboard.h"
 #include "Memory.h"
 #include "MsgQueue.h"
@@ -72,16 +73,32 @@ public:
     ControlPort controlPort2 = ControlPort(*this, PORT_2);
     SerialPort serialPort = SerialPort(*this);
 
-    // Peripherals
+    // Floppy drives
+    FloppyDrive df0 = FloppyDrive(*this, 0);
+    FloppyDrive df1 = FloppyDrive(*this, 1);
+    FloppyDrive df2 = FloppyDrive(*this, 2);
+    FloppyDrive df3 = FloppyDrive(*this, 3);
+
+    // Hard drives
+    HardDrive hd0 = HardDrive(*this, 0);
+    HardDrive hd1 = HardDrive(*this, 1);
+    HardDrive hd2 = HardDrive(*this, 2);
+    HardDrive hd3 = HardDrive(*this, 3);
+
+    // Hard drive controllers
+    HdController hd0con = HdController(*this, hd0);
+    HdController hd1con = HdController(*this, hd1);
+    HdController hd2con = HdController(*this, hd2);
+    HdController hd3con = HdController(*this, hd3);
+
+    // Other Peripherals
     Keyboard keyboard = Keyboard(*this);
-    Drive df0 = Drive(*this, 0);
-    Drive df1 = Drive(*this, 1);
-    Drive df2 = Drive(*this, 2);
-    Drive df3 = Drive(*this, 3);
     
-    // Shortcuts to all four drives
-    Drive *df[4] = { &df0, &df1, &df2, &df3 };
-    
+    // Shortcuts
+    FloppyDrive *df[4] = { &df0, &df1, &df2, &df3 };
+    HardDrive *hd[4] = { &hd0, &hd1, &hd2, &hd3 };
+    HdController *hdcon[4] = { &hd0con, &hd1con, &hd2con, &hd3con };
+
     // Gateway to the GUI
     MsgQueue msgQueue = MsgQueue(*this);
 
@@ -115,6 +132,19 @@ private:
     
     class Snapshot *autoSnapshot = nullptr;
     class Snapshot *userSnapshot = nullptr;
+
+    
+    //
+    // Static methods
+    //
+    
+public:
+    
+    // Returns a version string for this release
+    static string version();
+
+    // Returns a build number string for this release
+    static string build();
 
     
     //
@@ -194,8 +224,8 @@ private:
     // Methods from Thread
     //
     
-    
 public:
+    
     void execute() override;
 
     
@@ -203,6 +233,7 @@ public:
     // Configuring
     //
     
+public:
         
     // Gets a single configuration item
     i64 getConfigItem(Option option) const;

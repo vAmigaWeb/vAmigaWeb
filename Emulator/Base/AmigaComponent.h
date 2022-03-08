@@ -13,7 +13,6 @@
 #include "AmigaObject.h"
 #include "Serialization.h"
 #include "Concurrency.h"
-
 #include <vector>
 
 /* The following macro can be utilized to prevent multiple threads to enter the
@@ -199,8 +198,8 @@ public:
      */
     virtual isize willLoadFromBuffer(const u8 *buf) throws { return 0; }
     virtual isize didLoadFromBuffer(const u8 *buf) throws { return 0; }
-    virtual isize willSaveToBuffer(u8 *buf) const {return 0; }
-    virtual isize didSaveToBuffer(u8 *buf) const { return 0; }
+    virtual isize willSaveToBuffer(u8 *buf) {return 0; }
+    virtual isize didSaveToBuffer(u8 *buf) { return 0; }
 };
 
 //

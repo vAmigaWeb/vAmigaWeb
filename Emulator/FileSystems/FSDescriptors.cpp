@@ -11,95 +11,155 @@
 #include "FSDescriptors.h"
 #include "IOUtils.h"
 
-FSDeviceDescriptor::FSDeviceDescriptor()
+FileSystemDescriptor::FileSystemDescriptor(isize numBlocks, FSVolumeType dos)
 {
-    
+    init(numBlocks, dos);
 }
 
-FSDeviceDescriptor::FSDeviceDescriptor(DiskDiameter type, DiskDensity density, FSVolumeType dos)
+FileSystemDescriptor::FileSystemDescriptor(Diameter dia, Density den, FSVolumeType dos)
 {
-    /* TODO: REPLACE BY init(...)
-     * Then, add init(isize numCyls, isize numSectors, FSVolumeType dos) and call it
-     */
-    if (type == INCH_525 && density == DISK_DD) {
-        numCyls = 40; numSectors = 11;
-
-    } else if (type == INCH_35 && density == DISK_DD) {
-        numCyls = 80; numSectors = 11;
-    
-    } else if (type == INCH_35 && density == DISK_HD) {
-        numCyls = 80; numSectors = 22;
-
-    } else {
-        fatalError;
-    }
-
-    numHeads    = 2;
-    numBlocks   = numCyls * numHeads * numSectors;
-    numReserved = 2;
-    bsize       = 512;
-    
-    // Determine the location of the root block and the bitmap block
-    Block root   = (Block)(numBlocks / 2);
-    Block bitmap = root + 1;
-
-    partitions.push_back(FSPartitionDescriptor(dos, 0, numCyls - 1, root));
-    partitions[0].bmBlocks.push_back(bitmap);
+    init(dia, den, dos);
 }
+
+FileSystemDescriptor::FileSystemDescriptor(const GeometryDescriptor &geometry, FSVolumeType dos)
+{
+    init(geometry, dos);
+}
+
 
 void
-FSDeviceDescriptor::_dump(dump::Category category, std::ostream& os) const
+FileSystemDescriptor::init(isize numBlocks, FSVolumeType dos)
 {
-    using namespace util;
-    
-    if (category & dump::State) {
-        
-        os << tab("Cylinders");
-        os << dec(numCyls) << std::endl;
-        os << tab("Heads");
-        os << dec(numHeads) << std::endl;
-        os << tab("Sectors");
-        os << dec(numSectors) << std::endl;
-        os << tab("Blocks");
-        os << dec(numBlocks) << std::endl;
-        os << tab("Reserved");
-        os << dec(numReserved) << std::endl;
-        os << tab("BSize");
-        os << dec(bsize) << std::endl;
-    
-        for (auto& p : partitions) { p.dump(category, os); }
-    }
-}
-
-FSPartitionDescriptor::FSPartitionDescriptor(FSVolumeType dos,
-                                             isize firstCyl, isize lastCyl,
-                                             Block root)
-{
+    // Copy parameters
+    this->numBlocks = numBlocks;
+    this->numReserved = 2;
     this->dos = dos;
-    this->lowCyl = firstCyl;
-    this->highCyl = lastCyl;
-    this->rootBlock = root;
 
-    assert(bmBlocks.size() == 0);
-    assert(bmExtBlocks.size() == 0);
+    // Determine the location of the root block
+    auto highKey = numBlocks - 1;
+    auto rootKey = (numReserved + highKey) / 2;
+    assert(rootKey == numBlocks / 2);
+    rootBlock = Block(rootKey);
+
+    // Determine the number of required bitmap blocks
+    isize bitsPerBlock = (bsize - 4) * 8;
+    isize neededBlocks = (numBlocks + bitsPerBlock - 1) / bitsPerBlock;
+    
+    // TODO: CREATE BITMAP EXTENSION BLOCKS IF THE NUMBER EXCEEDS 25
+    assert(neededBlocks <= 25);
+    
+    // Add all bitmap blocks
+    for (isize i = 0; i < neededBlocks; i++) {
+        bmBlocks.push_back(Block(rootKey + 1 + i));
+    }
 }
 
 void
-FSPartitionDescriptor::_dump(dump::Category category, std::ostream& os) const
+FileSystemDescriptor::init(const GeometryDescriptor &geometry, FSVolumeType dos)
+{
+    init(geometry.numBlocks(), dos);
+}
+
+void
+FileSystemDescriptor::init(Diameter dia, Density den, FSVolumeType dos)
+{
+    init(GeometryDescriptor(dia, den), dos);
+}
+
+
+void
+FileSystemDescriptor::dump() const
+{
+    dump(std::cout);
+}
+
+void
+FileSystemDescriptor::dump(std::ostream& os) const
 {
     using namespace util;
     
-    if (category & dump::State) {
-        
-        os << tab("Partition");
-        os << dec(lowCyl) << " - " << dec(highCyl) << std::endl;
-        os << tab("File system");
-        os << FSVolumeTypeEnum::key(dos) << std::endl;
-        os << tab("Root block");
-        os << dec(rootBlock) << std::endl;
-        os << tab("Bitmap blocks");
-        for (auto& it : bmBlocks) { os << dec(it) << " "; }
-        os << tab("Extension blocks");
-        for (auto& it : bmExtBlocks) { os << dec(it) << " "; }
+    os << tab("Blocks");
+    os << dec(numBlocks) << std::endl;
+    os << tab("BSize");
+    os << dec(bsize) << std::endl;
+    os << tab("Reserved");
+    os << dec(numReserved) << std::endl;
+    os << tab("DOS version");
+    os << FSVolumeTypeEnum::key(dos) << std::endl;
+    os << tab("Root block");
+    os << dec(rootBlock) << std::endl;
+    os << tab("Bitmap blocks");
+    for (auto& it : bmBlocks) { os << dec(it) << " "; }; os << std::endl;
+    os << tab("Extension blocks");
+    for (auto& it : bmExtBlocks) { os << dec(it) << " "; }; os << std::endl;
+}
+
+void
+FileSystemDescriptor::checkCompatibility() const
+{
+    if (numBytes() > MB(504) || FORCE_FS_WRONG_CAPACITY) {
+        throw VAError(ERROR_FS_WRONG_CAPACITY);
     }
+    if (bsize != 512 || FORCE_FS_WRONG_BSIZE) {
+        throw VAError(ERROR_FS_WRONG_BSIZE);
+    }
+    if (!FSVolumeTypeEnum::isValid(dos) || FORCE_FS_WRONG_DOS_TYPE) {
+        throw VAError(ERROR_FS_WRONG_DOS_TYPE);
+    }
+}
+
+GeometryDescriptor::GeometryDescriptor(isize c, isize h, isize s, isize b)
+{
+    cylinders = c;
+    heads = h;
+    sectors = s;
+    bsize = b;
+}
+
+GeometryDescriptor::GeometryDescriptor(isize size)
+{
+    // Create a default geometry for the provide size
+
+    bsize = 512;
+    sectors = 32;
+    heads = 1;
+    
+    auto tsize = bsize * sectors;
+    cylinders = (size / tsize) + (size % tsize ? 1 : 0);
+    
+    while (cylinders > 1024) {
+        
+        cylinders = (cylinders + 1) / 2;
+        heads = heads * 2;
+    }
+}
+
+GeometryDescriptor::GeometryDescriptor(Diameter type, Density density)
+{
+    if (type == INCH_525 && density == DENSITY_DD) {
+        
+        cylinders = 40;
+        heads = 2;
+        sectors = 11;
+        bsize = 512;
+        return;
+    }
+    if (type == INCH_35 && density == DENSITY_DD) {
+        
+        cylinders = 80;
+        heads = 2;
+        sectors = 11;
+        bsize = 512;
+        return;
+    }
+    if (type == INCH_35 && density == DENSITY_HD) {
+        
+        cylinders = 80;
+        heads = 2;
+        sectors = 22;
+        bsize = 512;
+        return;
+    }
+    
+    fatalError;
 }

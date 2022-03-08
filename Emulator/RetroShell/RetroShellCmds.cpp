@@ -501,6 +501,12 @@ RetroShell::exec <Token::denise, Token::set, Token::revision> (Arguments &argv, 
 }
 
 template <> void
+RetroShell::exec <Token::denise, Token::set, Token::tracking> (Arguments &argv, long param)
+{
+    amiga.configure(OPT_VIEWPORT_TRACKING, util::parseBool(argv.front()));
+}
+
+template <> void
 RetroShell::exec <Token::denise, Token::set, Token::clxsprspr> (Arguments &argv, long param)
 {
     amiga.configure(OPT_CLX_SPR_SPR, util::parseBool(argv.front()));
@@ -828,6 +834,12 @@ RetroShell::exec <Token::keyboard, Token::inspect> (Arguments& argv, long param)
     dump(amiga.keyboard, dump::State);
 }
 
+template <> void
+RetroShell::exec <Token::keyboard, Token::press> (Arguments& argv, long param)
+{
+    keyboard.autoType((KeyCode)param);
+}
+
 
 //
 // Mouse
@@ -1029,7 +1041,7 @@ RetroShell::exec <Token::dfn, Token::insert> (Arguments& argv, long param)
 template <> void
 RetroShell::exec <Token::dfn, Token::set, Token::model> (Arguments& argv, long param)
 {
-    long num = util::parseEnum <DriveTypeEnum> (argv.front());
+    long num = util::parseEnum <FloppyDriveTypeEnum> (argv.front());
     
     if (param >= 0 && param <= 3) {
         amiga.configure(OPT_DRIVE_TYPE, param, num);
@@ -1074,18 +1086,6 @@ RetroShell::exec <Token::dfn, Token::set, Token::searchpath> (Arguments& argv, l
 }
 
 template <> void
-RetroShell::exec <Token::dfn, Token::set, Token::defaultbb> (Arguments& argv, long param)
-{
-    long num = util::parseEnum <BootBlockIdEnum> (argv.front());
-    
-    if (param >= 0 && param <= 3) {
-        amiga.configure(OPT_DEFAULT_BOOTBLOCK, param, num);
-    } else {
-        amiga.configure(OPT_DEFAULT_BOOTBLOCK, num);
-    }
-}
-
-template <> void
 RetroShell::exec <Token::dfn, Token::set, Token::swapdelay> (Arguments& argv, long param)
 {
     long num = util::parseNum(argv.front());
@@ -1098,26 +1098,114 @@ RetroShell::exec <Token::dfn, Token::set, Token::swapdelay> (Arguments& argv, lo
 }
 
 template <> void
-RetroShell::exec <Token::dfn, Token::set, Token::defaultfs> (Arguments& argv, long param)
-{
-    long num = util::parseEnum <FSVolumeTypeEnum> (argv.front());
-    
-    if (param >= 0 && param <= 3) {
-        amiga.configure(OPT_DEFAULT_FILESYSTEM, param, num);
-    } else {
-        amiga.configure(OPT_DEFAULT_FILESYSTEM, num);
-    }
-}
-
-template <> void
 RetroShell::exec <Token::dfn, Token::inspect> (Arguments& argv, long param)
 {
     dump(*amiga.df[param], dump::State);
 }
 
 //
+// Hd0, Hd1, Hd2, Hd3
+//
+
+template <> void
+RetroShell::exec <Token::hdn, Token::config> (Arguments& argv, long param)
+{
+    dump(*amiga.hd[param], dump::Config);
+}
+
+template <> void
+RetroShell::exec <Token::hdn, Token::set, Token::pan> (Arguments& argv, long param)
+{
+    long num = util::parseNum(argv.front());
+    
+    if (param >= 0 && param <= 3) {
+        amiga.configure(OPT_HDR_PAN, param, num);
+    } else {
+        amiga.configure(OPT_HDR_PAN, num);
+    }
+}
+
+template <> void
+RetroShell::exec <Token::hdn, Token::audiate, Token::step> (Arguments& argv, long param)
+{
+    long num = util::parseNum(argv.front());
+    
+    if (param >= 0 && param <= 3) {
+        amiga.configure(OPT_HDR_STEP_VOLUME, param, num);
+    } else {
+        amiga.configure(OPT_HDR_STEP_VOLUME, num);
+    }
+}
+
+template <> void
+RetroShell::exec <Token::hdn, Token::inspect, Token::drive> (Arguments& argv, long param)
+{
+    dump(*amiga.hd[param], dump::Drive);
+}
+
+template <> void
+RetroShell::exec <Token::hdn, Token::inspect, Token::volumes> (Arguments& argv, long param)
+{
+    dump(*amiga.hd[param], dump::Volumes);
+}
+
+template <> void
+RetroShell::exec <Token::hdn, Token::inspect, Token::partition> (Arguments& argv, long param)
+{
+    dump(*amiga.hd[param], dump::Partitions);
+}
+
+template <> void
+RetroShell::exec <Token::hdn, Token::inspect, Token::state> (Arguments& argv, long param)
+{
+    dump(*amiga.hd[param], dump::State);
+}
+
+template <> void
+RetroShell::exec <Token::hdn, Token::geometry> (Arguments& argv, long param)
+{
+    auto c = util::parseNum(argv[0]);
+    auto h = util::parseNum(argv[1]);
+    auto s = util::parseNum(argv[2]);
+
+    amiga.hd[param]->changeGeometry(c, h, s);
+}
+
+//
+// Zorro boards
+//
+
+template <> void
+RetroShell::exec <Token::zorro, Token::list> (Arguments& argv, long param)
+{
+    dump(zorro, dump::State);
+}
+
+template <> void
+RetroShell::exec <Token::zorro, Token::inspect> (Arguments& argv, long param)
+{
+    auto value = util::parseNum(argv.front());
+    
+    if (auto board = zorro.getBoard(value); board != nullptr) {
+
+        dump(*board, dump::Properties);
+        *this << "\n";
+        dump(*board, dump::State);
+    }
+}
+
+//
 // OSDebugger
 //
+
+template <> void
+RetroShell::exec <Token::os, Token::info> (Arguments& argv, long param)
+{
+    std::stringstream ss;
+    osDebugger.dumpInfo(ss);
+
+    *this << ss;
+}
 
 template <> void
 RetroShell::exec <Token::os, Token::execbase> (Arguments& argv, long param)

@@ -23,7 +23,9 @@ class Copper;
 class Denise;
 class DiskController;
 class DmaDebugger;
-class Drive;
+class FloppyDrive;
+class HardDrive;
+class HdController;
 class GdbServer;
 class Joystick;
 class Keyboard;
@@ -61,10 +63,18 @@ protected:
     Denise &denise;
     DiskController &diskController;
     DmaDebugger &dmaDebugger;
-    Drive &df0;
-    Drive &df1;
-    Drive &df2;
-    Drive &df3;
+    FloppyDrive &df0;
+    FloppyDrive &df1;
+    FloppyDrive &df2;
+    FloppyDrive &df3;
+    HardDrive &hd0;
+    HardDrive &hd1;
+    HardDrive &hd2;
+    HardDrive &hd3;
+    HdController &hd0con;
+    HdController &hd1con;
+    HdController &hd2con;
+    HdController &hd3con;
     Keyboard &keyboard;
     Memory &mem;
     MsgQueue &msgQueue;
@@ -79,7 +89,7 @@ protected:
     UART &uart;
     ZorroManager &zorro;
 
-    Drive *df[4] = { &df0, &df1, &df2, &df3 };
+    FloppyDrive *df[4] = { &df0, &df1, &df2, &df3 };
 
 public:
 

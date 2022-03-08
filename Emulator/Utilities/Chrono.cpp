@@ -114,6 +114,7 @@ Time::sleepUntil()
 
 #endif
 
+
 //
 // All platforms
 //
@@ -248,6 +249,17 @@ Clock::restart()
     paused = false;
     
     return result;
+}
+
+StopWatch::StopWatch(const string &description) : description(description)
+{
+    clock.restart();
+}
+
+StopWatch::~StopWatch()
+{
+    auto elapsed = clock.stop();
+    fprintf(stderr, "%s: %f sec\n", description.c_str(), elapsed.asSeconds());
 }
 
 }

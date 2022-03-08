@@ -11,7 +11,7 @@
 
 #include "ADFFile.h"
 
-class DMSFile : public DiskFile {
+class DMSFile : public FloppyFile {
         
 public:
 
@@ -49,17 +49,23 @@ public:
     //
     // Methods from DiskFile
     //
+
+    isize numCyls() const override { return adf->numCyls(); }
+    isize numHeads() const override { return adf->numHeads(); }
+    isize numSectors() const override { return adf->numSectors(); }
+
+    
+    //
+    // Methods from FloppyFile
+    //
     
     FSVolumeType getDos() const override { return adf->getDos(); }
     void setDos(FSVolumeType dos) override { adf->setDos(dos); }
-    DiskDiameter getDiskDiameter() const override { return adf->getDiskDiameter(); }
-    DiskDensity getDiskDensity() const override { return adf->getDiskDensity(); }
-    isize numSides() const override { return adf->numSides(); }
-    isize numCyls() const override { return adf->numCyls(); }
-    isize numSectors() const override { return adf->numSectors(); }
+    Diameter getDiameter() const override { return adf->getDiameter(); }
+    Density getDensity() const override { return adf->getDensity(); }
     BootBlockType bootBlockType() const override { return adf->bootBlockType(); }
     const char *bootBlockName() const override { return adf->bootBlockName(); }
     void readSector(u8 *target, isize s) const override { return adf->readSector(target, s); }
     void readSector(u8 *target, isize t, isize s) const override { return adf->readSector(target, t, s); }
-    void encodeDisk(class Disk &disk) const throws override { return adf->encodeDisk(disk); }
+    void encodeDisk(class FloppyDisk &disk) const throws override { return adf->encodeDisk(disk); }
 };

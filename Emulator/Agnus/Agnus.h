@@ -9,9 +9,6 @@
 
 #pragma once
 
-// REMOVE ASAP
-#include "config.h"
-
 #include "AgnusTypes.h"
 #include "SubComponent.h"
 #include "Beam.h"
@@ -296,7 +293,7 @@ public:
     isize chipRamLimit();
         
     // Returns the line in which the VERTB interrupt is triggered
-    isize vStrobeLine() { return config.revision == AGNUS_OCS_DIP ? 1 : 0; }
+    isize vStrobeLine() { return config.revision == AGNUS_OCS_OLD ? 1 : 0; }
     
     // Returns a bitmask indicating the used bits in DDFSTRT / DDFSTOP
     u16 ddfMask() { return isOCS() ? 0xFC : 0xFE; }
@@ -388,10 +385,12 @@ public:
 public:
 
     // Checks whether Hires or Lores mode is selected
-    bool hires() { return GET_BIT(bplcon0, 15); }
+    static bool hires(u16 value) { return GET_BIT(value, 15); }
+    bool hires() { return hires(bplcon0); }
     
     // Returns the external synchronization bit from BPLCON0
-    bool ersy() { return GET_BIT(bplcon0, 1); }
+    static bool ersy(u16 value) { return GET_BIT(value, 1); }
+    bool ersy() { return ersy(bplcon0); }
 
 
     //

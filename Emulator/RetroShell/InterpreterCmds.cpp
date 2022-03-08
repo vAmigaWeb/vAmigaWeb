@@ -406,7 +406,11 @@ Interpreter::registerInstructions()
     root.add({"denise", "set", "revision"},
              "key", "Selects the emulated chip model",
              &RetroShell::exec <Token::denise, Token::set, Token::revision>, 1);
-    
+
+    root.add({"denise", "set", "tracking"},
+             "key", "Enables or disables viewport tracking",
+             &RetroShell::exec <Token::denise, Token::set, Token::tracking>, 1);
+
     root.add({"denise", "set", "clxsprspr"},
              "key", "Enables or disables sprite-sprite collision detection",
              &RetroShell::exec <Token::denise, Token::set, Token::clxsprspr>, 1);
@@ -730,6 +734,10 @@ Interpreter::registerInstructions()
              "command", "Displays the internal state",
              &RetroShell::exec <Token::keyboard, Token::inspect>, 0);
 
+    root.add({"keyboard", "press"},
+             "command", "Sends a keycode to the keyboard",
+             &RetroShell::exec <Token::keyboard, Token::press>, 1);
+
     
     //
     // Mouse
@@ -902,15 +910,7 @@ Interpreter::registerInstructions()
         root.add({df, "set", "searchpath"},
                  "key", "Sets the search path for media files",
                  &RetroShell::exec <Token::dfn, Token::set, Token::searchpath>, 1, i);
-        
-        root.add({df, "set", "defaultfs"},
-                 "key", "Determines the default file system type for blank disks",
-                 &RetroShell::exec <Token::dfn, Token::set, Token::defaultfs>, 1, i);
-        
-        root.add({df, "set", "defaultbb"},
-                 "key", "Determines the default boot block type for blank disks",
-                 &RetroShell::exec <Token::dfn, Token::set, Token::defaultbb>, 1, i);
-        
+                
         root.add({df, "set", "swapdelay"},
                  "key", "Sets the disk change delay",
                  &RetroShell::exec <Token::dfn, Token::set, Token::swapdelay>, 1, i);
@@ -931,17 +931,112 @@ Interpreter::registerInstructions()
                  &RetroShell::exec <Token::dfn, Token::audiate, Token::eject>, 1, i);
         
         root.add({df, "audiate", "step"},
-                 "command", "Makes disk ejections audible",
+                 "command", "Makes head steps audible",
                  &RetroShell::exec <Token::dfn, Token::audiate, Token::step>, 1, i);
         
         root.add({df, "audiate", "poll"},
                  "command", "Makes polling clicks audible",
                  &RetroShell::exec <Token::dfn, Token::audiate, Token::poll>, 1, i);
+    }
+    
+    for (isize i = 0; i < 4; i++) {
+
+        string df = "df" + std::to_string(i);
         
         root.add({df, "inspect"},
-                 "command", "Displays the internal state",
+                 "command", "Displays the component state",
                  &RetroShell::exec <Token::dfn, Token::inspect>, 0);
     }
+
+    //
+    // Hd0, Hd1, Hd2, Hd3
+    //
+    
+    root.add({"hd0"},
+             "component", "Hard drive 0");
+
+    root.add({"hd1"},
+             "component", "Hard drive 1");
+
+    root.add({"hd2"},
+             "component", "Hard drive 2");
+
+    root.add({"hd3"},
+             "component", "Hard drive 3");
+
+    root.add({"hdn"},
+             "component", "All connected hard drives");
+
+    for (isize i = 0; i < 4; i++) {
+        
+        string hd = "hd" + std::to_string(i);
+
+        root.add({hd, "config"},
+                 "command", "Displays the current configuration",
+                 &RetroShell::exec <Token::hdn, Token::config>, 0, i);
+    }
+    
+    for (isize i = 0; i < 5; i++) {
+
+        string hd = i < 4 ? "hd" + std::to_string(i) : "hdn";
+                
+        root.add({hd, "set"},
+                 "command", "Configures the component");
+        
+        root.add({hd, "set", "pan"},
+                 "key", "Sets the pan for drive sounds",
+                 &RetroShell::exec <Token::hdn, Token::set, Token::pan>, 1, i);
+        
+        root.add({hd, "audiate"},
+                 "command", "Sets the volume of drive sounds");
+                
+        root.add({hd, "audiate", "step"},
+                 "command", "Makes head steps audible",
+                 &RetroShell::exec <Token::hdn, Token::audiate, Token::step>, 1, i);
+    }
+    
+    for (isize i = 0; i < 4; i++) {
+            
+        string hd = "hd" + std::to_string(i);
+        
+        root.add({hd, "inspect"},
+                 "command", "Displays the component state");
+
+        root.add({hd, "inspect", "drive"},
+                 "command", "Displays hard drive parameters",
+                 &RetroShell::exec <Token::hdn, Token::inspect, Token::drive>, 0, i);
+
+        root.add({hd, "inspect", "volumes"},
+                 "command", "Displays summarized volume information",
+                 &RetroShell::exec <Token::hdn, Token::inspect, Token::volumes>, 0, i);
+
+        root.add({hd, "inspect", "partitions"},
+                 "command", "Displays information about all partitions",
+                 &RetroShell::exec <Token::hdn, Token::inspect, Token::partition>, 0, i);
+
+        root.add({hd, "inspect", "state"},
+                 "command", "Displays the internal state",
+                 &RetroShell::exec <Token::hdn, Token::inspect, Token::state>, 0, i);
+
+        root.add({hd, "geometry"},
+                 "command", "Changes the disk geometry",
+                 &RetroShell::exec <Token::hdn, Token::geometry>, 3, i);
+    }
+    
+    //
+    // Zorro boards
+    //
+    
+    root.add({"zorro"},
+             "component", "Expansion boards");
+
+    root.add({"zorro", "list"},
+             "command", "Lists all connected boards",
+             &RetroShell::exec <Token::zorro, Token::list>, 0);
+
+    root.add({"zorro", "inspect"},
+             "command", "Inspects a specific Zorro board",
+             &RetroShell::exec <Token::zorro, Token::inspect>, 1);
 
     //
     // OS Debugger
@@ -949,6 +1044,10 @@ Interpreter::registerInstructions()
 
     root.add({"os"},
              "component", "AmigaOS debugger");
+
+    root.add({"os", "info"},
+             "command", "Displays basic system information",
+             &RetroShell::exec <Token::os, Token::info>, 0);
 
     root.add({"os", "execbase"},
              "command", "Displays information about the ExecBase struct",
