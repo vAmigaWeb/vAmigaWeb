@@ -926,7 +926,7 @@ extern "C" void wasm_create_renderer(char* name)
 { 
   render_method=RENDER_SOFTWARE;
   printf("try to create %s renderer\n", name);
-  if(0==strcmp("shader", name))
+  if(0==strcmp("gpu shader", name))
   {
     if(create_shader())
     {
