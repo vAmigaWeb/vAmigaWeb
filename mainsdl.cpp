@@ -1132,33 +1132,28 @@ extern "C" void wasm_set_warp(unsigned on)
 
 extern "C" void wasm_set_borderless(float on)
 {
+}
+
+extern "C" void wasm_set_display(const char *name)
+{
+  printf("wasm_set_display('%s')\n",name);
 //
-  if(on==ADAPTIVE)
+  if( strcmp(name,"adaptive") == 0)
   {
     geometry=ADAPTIVE;
-//    printf("before inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
-
-//    wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(500));
     clip_offset = 0;
-//    printf("after inspectiontarget %ld \n",wrapper->amiga->getInspectionTarget());
   }
-  else if(on==NARROW)
+  else if( strcmp(name,"narrow") == 0)
   {
-  //  wrapper->amiga->removeInspectionTarget();
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
-  
-
     geometry=NARROW;
     xOff=252 + 4;
     yOff=26 +24;
     clipped_width=HPIXELS-xOff - 8;
     clipped_height=312-yOff -2*24 -2;
-
-    //for shader rendering
-//    clip_offset = ;
   }
-  else if(on==WIDER)
+  else if( strcmp(name,"wider") == 0)
   {
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
   
@@ -1167,13 +1162,10 @@ extern "C" void wasm_set_borderless(float on)
     yOff=26;
     clipped_width=HPIXELS-xOff;
     clipped_height=312-yOff;
-
-    //for shader rendering
-//    clip_offset = ;
   }
-  else if(on==OVERSCAN)
+  else if( strcmp(name,"overscan") == 0)
   {
-  wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
   
     geometry=OVERSCAN;
 
@@ -1181,7 +1173,6 @@ extern "C" void wasm_set_borderless(float on)
     yOff=26; //must be even
     clipped_width=HPIXELS-xOff;
     clipped_height=312-yOff; //must be even
-
   }
 
   if(render_method==RENDER_SHADER)
