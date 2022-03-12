@@ -28,11 +28,12 @@
 #define RENDER_SHADER 2
 u8 render_method = RENDER_SOFTWARE;
 
-#define NARROW 0
-#define WIDER 1
-#define OVERSCAN 2
-#define ADAPTIVE 3
-u8 geometry  = ADAPTIVE;
+#define DISPLAY_NARROW   0
+#define DISPLAY_STANDARD 1
+#define DISPLAY_WIDER    2
+#define DISPLAY_OVERSCAN 3
+#define DISPLAY_ADAPTIVE 4
+u8 geometry  = DISPLAY_ADAPTIVE;
 
 /********* shaders ***********/
 GLuint basic;
@@ -560,16 +561,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glUseProgram(basic);
       glBindTexture(GL_TEXTURE_2D, longf);
     } 
-/*
-    if(geometry== ADAPTIVE)
-    {         
-    //  glUseProgram(basic);
-      set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
-    //  glUseProgram(merge);
-      set_texture_display_window(merge, hstart_min, hstop_max, vstart_min, vstop_max);
-//      printf("hstrt%f, hstop%f, vstrt%f, vstop%f \n", hstart, hstop, vstart_min, vstop_max);
-    }
-*/
+
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     SDL_GL_SwapWindow(window);
   }
@@ -581,7 +573,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   //  SDL_RenderClear(renderer);
     SDL_Rect SrcR;
 
-    if(geometry== ADAPTIVE)
+    if(geometry== DISPLAY_ADAPTIVE)
     {  
       xOff = hstart_min;
       yOff = vstart_min;
@@ -716,7 +708,7 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
 
     if(render_method==RENDER_SHADER)
     {
-      if(geometry== ADAPTIVE)
+      if(geometry== DISPLAY_ADAPTIVE)
       {         
         glUseProgram(basic);
         set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
@@ -1140,34 +1132,44 @@ extern "C" void wasm_set_display(const char *name)
 //
   if( strcmp(name,"adaptive") == 0)
   {
-    geometry=ADAPTIVE;
+    geometry=DISPLAY_ADAPTIVE;
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
     clip_offset = 0;
   }
   else if( strcmp(name,"narrow") == 0)
   {
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
-    geometry=NARROW;
+    geometry=DISPLAY_NARROW;
     xOff=252 + 4;
     yOff=26 +24;
     clipped_width=HPIXELS-xOff - 8;
     clipped_height=312-yOff -2*24 -2;
   }
+  else if( strcmp(name,"standard") == 0)
+  {
+    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+  
+    geometry=DISPLAY_STANDARD;
+    xOff=252;
+    yOff=26 + 4;
+    clipped_width=HPIXELS-xOff;
+    clipped_height=312-yOff -2*4 ;
+  }
   else if( strcmp(name,"wider") == 0)
   {
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
   
-    geometry=WIDER;
-    xOff=252;
-    yOff=26;
+    geometry=DISPLAY_WIDER;
+    xOff=224;
+    yOff=26 + 2;
     clipped_width=HPIXELS-xOff;
-    clipped_height=312-yOff;
+    clipped_height=312-yOff -2*2;
   }
   else if( strcmp(name,"overscan") == 0)
   {
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
   
-    geometry=OVERSCAN;
+    geometry=DISPLAY_OVERSCAN;
 
     xOff=208; //first pixel in dpaint iv,overscan=max 
     yOff=26; //must be even

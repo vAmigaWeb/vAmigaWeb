@@ -147,17 +147,6 @@ function get_parameter_link()
                     {
                         call_param_openROMS=true;
                     }
-                    else if(token.match(/2ndSID=.*/i))
-                    {
-                        var sid_addr=token.replace(/2ndSID=/i,"");
-                        //for example #2ndSID=d420#http...
-                        call_param_2ndSID = "enabled at $"+sid_addr; 
-                    }
-                    else if(token.match(/SID=.*/i))
-                    {
-                        var sid_addr=token.replace(/SID=/i,"");
-                        call_param_SID = sid_addr; 
-                    }
                     else if(token.match(/touch=true/i))
                     {
                         call_param_touch=true;
@@ -1868,7 +1857,7 @@ set_display_choice = function (choice) {
     $(`#button_display`).text('visible display area='+choice);
     wasm_set_display(choice);
 }
-let current_display=load_setting("display", "adaptive");
+let current_display=load_setting("display", "standard");
 set_display_choice(current_display);
 
 $(`#choose_display a`).click(function () 
