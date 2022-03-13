@@ -9,9 +9,9 @@
 
 #include "config.h"
 #include "EXTFile.h"
-#include "Disk.h"
-#include "Drive.h"
-#include "FSDevice.h"
+#include "FloppyDisk.h"
+#include "FloppyDrive.h"
+#include "MutableFileSystem.h"
 #include "IOUtils.h"
 
 const std::vector<string> EXTFile::extAdfHeaders =
@@ -19,11 +19,6 @@ const std::vector<string> EXTFile::extAdfHeaders =
     "UAE--ADF",
     "UAE-1ADF"
 };
-
-EXTFile::~EXTFile()
-{
-    if (adf) delete adf;
-}
 
 bool
 EXTFile::isCompatible(const string &path)
@@ -42,27 +37,46 @@ EXTFile::isCompatible(std::istream &stream)
 }
 
 void
-EXTFile::init(Disk &disk)
+EXTFile::init(FloppyDisk &disk)
 {
     auto numTracks = disk.numTracks();
     
-    size = 12;              // File header
-    size += 12 * numTracks; // Track headers
+    auto length = 0;
+
+    length += 12;               // File header
+    length += 12 * numTracks;   // Track headers
     
     for (isize i = 0; i < numTracks; i++) {
-        size += disk.length.track[i];
+        length += disk.length.track[i];
     }
     
-    data = new u8[size]();
-        
+    data.init(length);
     decodeDisk(disk);
 }
 
 void
-EXTFile::init(Drive &drive)
+EXTFile::init(FloppyDrive &drive)
 {
     if (drive.disk == nullptr) throw VAError(ERROR_DISK_MISSING);
     init(*drive.disk);
+}
+
+isize
+EXTFile::numCyls() const
+{
+   return (storedTracks() + 1) / 2;
+}
+
+isize
+EXTFile::numHeads() const
+{
+    return 2;
+}
+
+isize
+EXTFile::numSectors() const
+{
+    return adf ? adf.numSectors() : 0;
 }
 
 void
@@ -70,7 +84,7 @@ EXTFile::finalizeRead()
 {
     isize numTracks = storedTracks();
     
-    if (std::strcmp((char *)data, "UAE-1ADF") != 0) {
+    if (std::strcmp((char *)data.ptr, "UAE-1ADF") != 0) {
         
         warn("UAE-1ADF files are not supported\n");
         throw VAError(ERROR_EXT_FACTOR5);
@@ -82,7 +96,7 @@ EXTFile::finalizeRead()
         throw VAError(ERROR_EXT_CORRUPTED);
     }
 
-    if (size < proposedHeaderSize() || size != proposedFileSize()) {
+    if (data.size < proposedHeaderSize() || data.size != proposedFileSize()) {
         
         warn("File size mismatch\n");
         throw VAError(ERROR_EXT_CORRUPTED);
@@ -115,10 +129,10 @@ EXTFile::finalizeRead()
     try {
                 
         // Convert the extended ADF to a disk
-        auto disk = Disk(*this);
+        auto disk = FloppyDisk(*this);
 
         // Convert the disk to a standard ADF
-        adf = new ADFFile(disk);
+        adf.init(disk);
         
     } catch (...) { }    
 }
@@ -126,17 +140,17 @@ EXTFile::finalizeRead()
 FSVolumeType
 EXTFile::getDos() const
 {
-    return adf ? adf->getDos() : FS_NODOS;
+    return adf ? adf.getDos() : FS_NODOS;
 }
 
-DiskDiameter
-EXTFile::getDiskDiameter() const
+Diameter
+EXTFile::getDiameter() const
 {
     return INCH_35;
 }
 
-DiskDensity
-EXTFile::getDiskDensity() const
+Density
+EXTFile::getDensity() const
 {
     isize bitsInLargestTrack = 0;
     
@@ -144,38 +158,13 @@ EXTFile::getDiskDensity() const
         bitsInLargestTrack = std::max(bitsInLargestTrack, usedBitsForTrack(i));
     }
     
-    return bitsInLargestTrack < 16000 * 8 ? DISK_DD : DISK_HD;
-}
-
-isize
-EXTFile::numSides() const
-{
-    return 2;
-}
-
-isize
-EXTFile::numCyls() const
-{
-   return (storedTracks() + 1) / 2;
-}
-
-isize
-EXTFile::numTracks() const
-{
-    return storedTracks();
-}
-
-isize
-EXTFile::numSectors() const
-{
-    return adf ? adf->numSectors() : 0;
+    return bitsInLargestTrack < 16000 * 8 ? DENSITY_DD : DENSITY_HD;
 }
 
 void
-EXTFile::encodeDisk(class Disk &disk) const
+EXTFile::encodeDisk(class FloppyDisk &disk) const
 {
-    assert(size);
-    assert(data);
+    assert(!data.empty());
     
     isize tracks = storedTracks();
     debug(MFM_DEBUG, "Encoding Amiga disk with %ld tracks\n", tracks);
@@ -188,7 +177,7 @@ EXTFile::encodeDisk(class Disk &disk) const
 }
 
 void
-EXTFile::encodeTrack(class Disk &disk, Track t) const
+EXTFile::encodeTrack(class FloppyDisk &disk, Track t) const
 {
     auto numTracks = storedTracks();
     
@@ -205,12 +194,11 @@ EXTFile::encodeTrack(class Disk &disk, Track t) const
 }
 
 void
-EXTFile::decodeDisk(Disk &disk)
+EXTFile::decodeDisk(FloppyDisk &disk)
 {
-    assert(size);
-    assert(data);
+    assert(!data.empty());
     
-    u8 *p = data;
+    u8 *p = data.ptr;
     auto numTracks = disk.numTracks();
     
     // Magic bytes
@@ -264,13 +252,13 @@ EXTFile::decodeDisk(Disk &disk)
         }
     }
     
-    debug(ADF_DEBUG, "Wrote %td bytes\n", p - data);
+    debug(ADF_DEBUG, "Wrote %td bytes\n", p - data.ptr);
 }
 
 isize
 EXTFile::storedTracks() const
 {
-    assert(data);
+    assert(!data.empty());
 
     return HI_LO(data[10], data[11]);
 }
@@ -278,34 +266,34 @@ EXTFile::storedTracks() const
 isize
 EXTFile::typeOfTrack(isize nr) const
 {
-    assert(data);
+    assert(!data.empty());
     
-    u8 *p = data + 12 + 12 * nr + 2;
+    u8 *p = data.ptr + 12 + 12 * nr + 2;
     return HI_LO(p[0], p[1]);
 }
 
 isize
 EXTFile::availableBytesForTrack(isize nr) const
 {
-    assert(data);
+    assert(!data.empty());
     
-    u8 *p = data + 12 + 12 * nr + 4;
+    u8 *p = data.ptr + 12 + 12 * nr + 4;
     return HI_HI_LO_LO(p[0], p[1], p[2], p[3]);
 }
 
 isize
 EXTFile::usedBitsForTrack(isize nr) const
 {
-    assert(data);
+    assert(!data.empty());
     
-    u8 *p = data + 12 + 12 * nr + 8;
+    u8 *p = data.ptr + 12 + 12 * nr + 8;
     return HI_HI_LO_LO(p[0], p[1], p[2], p[3]);
 }
 
 isize
 EXTFile::proposedHeaderSize() const
 {
-    assert(data);
+    assert(!data.empty());
     
     return 12 + 12 * storedTracks();
 }
@@ -313,7 +301,7 @@ EXTFile::proposedHeaderSize() const
 isize
 EXTFile::proposedFileSize() const
 {
-    assert(data);
+    assert(!data.empty());
 
     isize result = proposedHeaderSize();
     
@@ -327,9 +315,9 @@ EXTFile::proposedFileSize() const
 u8 *
 EXTFile::trackData(isize nr) const
 {
-    assert(data);
+    assert(!data.empty());
     
-    u8 *p = data + proposedHeaderSize();
+    u8 *p = data.ptr + proposedHeaderSize();
     
     for (isize i = 0; i < nr; i++) {
         p += availableBytesForTrack(i);

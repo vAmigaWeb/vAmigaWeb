@@ -11,7 +11,7 @@
 #include "DiskController.h"
 #include "Agnus.h"
 #include "Checksum.h"
-#include "Drive.h"
+#include "FloppyDrive.h"
 #include "MsgQueue.h"
 #include "Paula.h"
 
@@ -37,9 +37,9 @@ void
 DiskController::setDSKLEN(u16 oldValue, u16 newValue)
 {
     trace(DSKREG_DEBUG, "setDSKLEN(%x) [%ld,%ld,%ld]\n",
-          newValue, df0.head.cylinder, df0.head.side, df0.head.offset);
+          newValue, df0.head.cylinder, df0.head.head, df0.head.offset);
 
-    Drive *drive = getSelectedDrive();
+    FloppyDrive *drive = getSelectedDrive();
 
     dsklen = newValue;
 
@@ -47,8 +47,8 @@ DiskController::setDSKLEN(u16 oldValue, u16 newValue)
     if constexpr (DSK_CHECKSUM) {
         
         checkcnt = 0;
-        check1 = util::fnv_1a_init32();
-        check2 = util::fnv_1a_init32();
+        check1 = util::fnvInit32();
+        check2 = util::fnvInit32();
     }
     
     // Disable DMA if bit 15 (DMAEN) is zero

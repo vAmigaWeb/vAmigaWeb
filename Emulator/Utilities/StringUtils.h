@@ -15,6 +15,15 @@
 namespace util {
 
 //
+// Creating
+//
+
+// Creates a string from a buffer
+string createStr(const u8 *buf, isize maxLen);
+string createAscii(const u8 *buf, isize len, char fill = '.');
+
+
+//
 // Converting
 //
 
@@ -51,5 +60,16 @@ string rtrim(const string &s, const string &characters);
 
 std::vector<string> split(const string &s, char delimiter);
 string concat(std::vector<string> &s, string delimiter);
+
+
+//
+// Pretty printing
+//
+
+// Returns a textual description for a byte count
+string byteCountAsString(isize bytes);
+
+// Returns a textual description for a fill level
+string fillLevelAsString(double percentage);
 
 }

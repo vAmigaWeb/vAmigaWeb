@@ -28,6 +28,7 @@ enum_long(MSG_TYPE)
     MSG_STEP,
     MSG_RESET,
     MSG_HALT,
+    MSG_ABORT,
     MSG_WARP_ON,
     MSG_WARP_OFF,
     MSG_DEBUG_ON,
@@ -52,6 +53,9 @@ enum_long(MSG_TYPE)
     MSG_WATCHPOINT_REACHED,
     MSG_CPU_HALT,
 
+    // Denise
+    MSG_VIEWPORT,
+    
     // Memory
     MSG_MEM_LAYOUT,
         
@@ -74,6 +78,14 @@ enum_long(MSG_TYPE)
     MSG_DISK_PROTECT,
     MSG_DISK_UNPROTECT,
 
+    // Hard drives
+    MSG_HDR_CONNECT,
+    MSG_HDR_DISCONNECT,
+    MSG_HDR_STEP,
+    MSG_HDR_READ,
+    MSG_HDR_WRITE,
+    MSG_HDR_IDLE,
+    
     // Keyboard
     MSG_CTRL_AMIGA_AMIGA,
     
@@ -128,6 +140,7 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
             case MSG_STEP:                  return "STEP";
             case MSG_RESET:                 return "RESET";
             case MSG_HALT:                  return "HALT";
+            case MSG_ABORT:                 return "ABORT";
             case MSG_WARP_ON:               return "WARP_ON";
             case MSG_WARP_OFF:              return "WARP_OFF";
             case MSG_DEBUG_ON:              return "DEBUG_ON";
@@ -150,7 +163,9 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
             case MSG_WATCHPOINT_REACHED:    return "WATCHPOINT_REACHED";
             case MSG_CPU_HALT:              return "CPU_HALT";
 
-            case MSG_MEM_LAYOUT:            return "LAYOUT";
+            case MSG_VIEWPORT:              return "VIEWPORT";
+                
+            case MSG_MEM_LAYOUT:            return "MEM_LAYOUT";
                     
             case MSG_DRIVE_CONNECT:         return "DRIVE_CONNECT";
             case MSG_DRIVE_DISCONNECT:      return "DRIVE_DISCONNECT";
@@ -170,6 +185,13 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
             case MSG_DISK_PROTECT:          return "DISK_PROTECT";
             case MSG_DISK_UNPROTECT:        return "DISK_UNPROTECT";
 
+            case MSG_HDR_CONNECT:           return "HDR_CONNECT";
+            case MSG_HDR_DISCONNECT:        return "HDR_DISCONNECT";
+            case MSG_HDR_STEP:              return "HDR_STEP";
+            case MSG_HDR_READ:              return "HDR_READ";
+            case MSG_HDR_WRITE:             return "HDR_WRITE";
+            case MSG_HDR_IDLE:              return "HDR_IDLE";
+                
             case MSG_CTRL_AMIGA_AMIGA:      return "CTRL_AMIGA_AMIGA";
 
             case MSG_SHAKING:               return "SHAKING";
@@ -205,7 +227,8 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
 typedef struct
 {
     MsgType type;
-    long data;
+    u32 data1;
+    u32 data2;
 }
 Message;
 
@@ -214,4 +237,4 @@ Message;
 // Signatures
 //
 
-typedef void Callback(const void *, long, long);
+typedef void Callback(const void *, long, u32, u32);

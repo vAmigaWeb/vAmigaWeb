@@ -10,6 +10,7 @@
 #pragma once
 
 #include "Types.h"
+#include "Checksum.h"
 #include <bit>
 
 namespace util {
@@ -24,6 +25,10 @@ namespace util {
 #define SWAP32  __builtin_bswap32
 #define SWAP64  __builtin_bswap64
 #endif
+
+//
+// Byte order
+//
 
 // Returns the big endian representation of an integer value
 template<typename T> T bigEndian(T x);
@@ -58,8 +63,19 @@ inline uint64_t bigEndian(uint64_t x)
     }
 }
 
+//
+// Memory content
+//
+
 // Checks if a certain memory area is all zero
 bool isZero(const u8 *ptr, usize size);
+
+// Replaces the first occurence of a byte or character sequence by another one
+void replace(u8 *p, isize size, const u8 *sequence, const u8 *substitute);
+void replace(char *p, isize size, const char *sequence, const char *substitute);
+
+// Extracts all readable ASCII characters from a buffer
+void readAscii(const u8 *buf, isize len, char *result, char fill = '.');
 
 // Prints a hex dump of a buffer to the console
 void hexdump(u8 *p, isize size, isize cols, isize pad);

@@ -10,9 +10,9 @@
 #pragma once
 
 #include "KeyboardTypes.h"
+#include "AgnusTypes.h"
 #include "SubComponent.h"
 #include "RingBuffer.h"
-#include "SchedulerTypes.h"
 
 class Keyboard : public SubComponent {
 
@@ -113,6 +113,8 @@ public:
     void pressKey(KeyCode keycode);
     void releaseKey(KeyCode keycode);
     void releaseAllKeys();
+
+    void autoType(KeyCode keycode, Cycle duration = MSEC(100), Cycle delay = 0);
     
 private:
     

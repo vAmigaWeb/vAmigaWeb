@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "DiskTypes.h"
+#include "FloppyDiskTypes.h"
 #include "AmigaComponent.h"
 
 /* MFM encoded disk data of a standard 3.5" DD disk:
@@ -47,9 +47,9 @@
  *    - a disk usually occupies 84 * 2 * 12.664 =  2.127.552 MFM bytes
  */
 
-class Disk : public AmigaObject {
+class FloppyDisk : public AmigaObject {
     
-    friend class Drive;
+    friend class FloppyDrive;
     friend class ADFFile;
     friend class EXTFile;
     friend class IMGFile;
@@ -57,10 +57,10 @@ class Disk : public AmigaObject {
 public:
     
     // The form factor of this disk
-    DiskDiameter diameter;
+    Diameter diameter;
     
     // The density of this disk
-    DiskDensity density;
+    Density density;
         
 private:
     
@@ -94,18 +94,18 @@ private:
     
 public:
     
-    Disk() = default;
-    Disk(DiskDiameter dia, DiskDensity den) throws { init(dia, den); }
-    Disk(const class DiskFile &file) throws { init(file); }
-    Disk(util::SerReader &reader, DiskDiameter dia, DiskDensity den) throws {
+    FloppyDisk() = default;
+    FloppyDisk(Diameter dia, Density den) throws { init(dia, den); }
+    FloppyDisk(const class FloppyFile &file) throws { init(file); }
+    FloppyDisk(util::SerReader &reader, Diameter dia, Density den) throws {
         init(reader, dia, den); }
-    ~Disk();
+    ~FloppyDisk();
 
 private:
     
-    void init(DiskDiameter dia, DiskDensity den) throws;
-    void init(const class DiskFile &file) throws;
-    void init(util::SerReader &reader, DiskDiameter dia, DiskDensity den) throws;
+    void init(Diameter dia, Density den) throws;
+    void init(const class FloppyFile &file) throws;
+    void init(util::SerReader &reader, Diameter dia, Density den) throws;
 
     
     //
@@ -144,11 +144,11 @@ private:
 
 public:
 
-    DiskDiameter getDiameter() const { return diameter; }
-    DiskDensity getDensity() const { return density; }
+    Diameter getDiameter() const { return diameter; }
+    Density getDensity() const { return density; }
 
     isize numCyls() const { return diameter == INCH_525 ? 42 : 84; }
-    isize numSides() const { return 2; }
+    isize numHeads() const { return 2; }
     isize numTracks() const { return diameter == INCH_525 ? 84 : 168; }
 
     bool isWriteProtected() const { return writeProtected; }
@@ -165,12 +165,12 @@ public:
     //
     
     // Reads a byte from disk
-    u8 readByte(Track track, isize offset) const;
-    u8 readByte(Cylinder cylinder, Side side, isize offset) const;
+    u8 readByte(Track t, isize offset) const;
+    u8 readByte(Cylinder c, Head h, isize offset) const;
 
     // Writes a byte to disk
-    void writeByte(u8 value, Track track, isize offset);
-    void writeByte(u8 value, Cylinder cylinder, Side side, isize offset);
+    void writeByte(u8 value, Track t, isize offset);
+    void writeByte(u8 value, Cylinder c, Head h, isize offset);
         
     
     //
@@ -195,7 +195,7 @@ public:
 public:
     
     // Encodes a disk
-    void encodeDisk(const class DiskFile &file);
+    void encodeDisk(const class FloppyFile &file);
     
     
     //
@@ -214,5 +214,9 @@ public:
     static u8 addClockBits(u8 value, u8 previous);
 
     // Repeats the MFM data inside the track buffer to ease decoding
-    void repeatTracks(); 
+    void repeatTracks();
+    
+    // Returns a textual representation of all bits of a track
+    string readTrackBits(Track t) const;
+    string readTrackBits(Cylinder c, Head h) const;
 };

@@ -10,7 +10,8 @@
 #pragma once
 
 #include "Macros.h"
-#include "Checksum.h"
+#include "Buffer.h"
+#include <vector>
 
 namespace util {
 
@@ -52,7 +53,15 @@ inline double readDouble(const u8 *& buf)
     for (isize i = 0; i < 8; i++) ((u8 *)&result)[i] = read8(buf);
     return result;
 }
- 
+
+inline string readString(const u8 *& buf)
+{
+    u8 len = read8(buf);
+    string result = string((const char *)buf, len);
+    buf += len;
+    return result;
+}
+
 inline void write8(u8 *& buf, u8 value)
 {
     W8BE(buf, value);
@@ -82,6 +91,14 @@ inline void writeDouble(u8 *& buf, double value)
     for (isize i = 0; i < 8; i++) write8(buf, ((u8 *)&value)[i]);
 }
 
+inline void writeString(u8 *& buf, string value)
+{
+    auto len = value.length();
+    assert(len < 256);
+    write8(buf, u8(len));
+    value.copy((char *)buf, len);
+    buf += len;
+}
 
 //
 // Counter (determines the state size)
@@ -122,6 +139,37 @@ public:
     COUNTD(const float)
     COUNTD(const double)
        
+    auto& operator<<(Allocator &a)
+    {
+        count += 8 + a.size;
+        return *this;
+    }
+
+    /*
+    auto& operator<<(Buffer &b)
+    {
+        *this << b.allocator;
+        return *this;
+    }
+    */
+    
+    auto& operator<<(string &v)
+    {
+        auto len = v.length();
+        assert(len < 256);
+        count += 1 + isize(len);
+        return *this;
+    }
+
+    template <class T>
+    auto& operator>>(std::vector <T> &v)
+    {
+        auto len = v.size();
+        for(usize i = 0; i < len; i++) *this >> v[i];
+        count += 8;
+        return *this;
+    }
+
     template <class T, isize N>
     SerCounter& operator<<(T (&v)[N])
     {
@@ -130,7 +178,7 @@ public:
         }
         return *this;
     }
-    
+        
     template <class T>
     SerCounter& operator>>(T &v)
     {
@@ -156,7 +204,7 @@ public:
 #define CHECK(type) \
 auto& operator<<(type& v) \
 { \
-hash += util::fnv_1a_it64(hash, (u64)v); \
+hash = util::fnvIt64(hash, (u64)v); \
 return *this; \
 }
 
@@ -166,7 +214,7 @@ public:
 
     u64 hash;
 
-    SerChecker() { hash = fnv_1a_init64(); }
+    SerChecker() { hash = fnvInit64(); }
 
     CHECK(const bool)
     CHECK(const char)
@@ -183,6 +231,39 @@ public:
     CHECK(const float)
     CHECK(const double)
        
+    auto& operator<<(Allocator &a)
+    {
+        hash = util::fnvIt64(hash, a.fnv64());
+        return *this;
+    }
+    
+    /*
+    auto& operator<<(Buffer &b)
+    {
+        *this << b.allocator;
+        return *this;
+    }
+    */
+    
+    auto& operator<<(string &v)
+    {
+        auto len = v.length();
+        for (usize i = 0; i < len; i++) {
+            hash = util::fnvIt64(hash, v[i]);
+        }
+        return *this;
+    }
+    
+    template <class T>
+    auto& operator>>(std::vector <T> &v)
+    {
+        isize len = isize(v.size());
+        for (isize i = 0; i < len; i++) {
+            *this >> v[i];
+        }
+        return *this;
+    }
+
     template <class T, isize N>
     SerChecker& operator<<(T (&v)[N])
     {
@@ -250,7 +331,44 @@ public:
     DESERIALIZE64(unsigned long long)
     DESERIALIZED(float)
     DESERIALIZED(double)
-        
+
+    auto& operator<<(Allocator &a)
+    {
+        i64 len;
+        *this << len;
+        a.init(ptr, isize(len));
+        ptr += len;
+        return *this;
+    }
+
+    /*
+    auto& operator<<(Buffer &b)
+    {
+        *this << b.allocator;
+        return *this;
+    }
+    */
+    
+    auto& operator<<(string &v)
+    {
+        v = readString(ptr);
+        return *this;
+    }
+
+    template <class T>
+    auto& operator>>(std::vector <T> &v)
+    {
+        i64 len;
+        *this << len;
+        v.clear();
+        v.reserve(len);
+        for (isize i = 0; i < len; i++) {
+            v.push_back(T());
+            *this >> v.back();
+        }
+        return *this;
+    }
+    
     template <class T, isize N>
     SerReader& operator<<(T (&v)[N])
     {
@@ -324,7 +442,40 @@ public:
     SERIALIZE64(const unsigned long long)
     SERIALIZED(const float)
     SERIALIZED(const double)
-        
+
+    auto& operator<<(Allocator &a)
+    {
+        *this << i64(a.size);
+        a.copy(ptr);
+        ptr += a.size;
+        return *this;
+    }
+
+    /*
+    auto& operator<<(Buffer &b)
+    {
+        *this << b.allocator;
+        return *this;
+    }
+    */
+    
+    auto& operator<<(const string &v)
+    {
+        writeString(ptr, v);
+        return *this;
+    }
+    
+    template <class T>
+    auto& operator>>(std::vector <T> &v)
+    {
+        auto len = v.size();
+        *this << i64(len);
+        for (usize i = 0; i < len; i++) {
+            *this >> v[i];
+        }
+        return *this;
+    }
+    
     template <class T, isize N>
     SerWriter& operator<<(T (&v)[N])
     {
@@ -393,6 +544,26 @@ public:
     RESET(float)
     RESET(double)
 
+    auto& operator<<(Allocator &a)
+    {
+        a.clear();
+        return *this;
+    }
+
+    /*
+    auto& operator<<(Buffer &b)
+    {
+        *this << b.allocator;
+        return *this;
+    }
+    */
+    
+    auto& operator<<(string &v)
+    {
+        v = "";
+        return *this;
+    }
+    
     template <class T, isize N>
     SerResetter& operator<<(T (&v)[N])
     {

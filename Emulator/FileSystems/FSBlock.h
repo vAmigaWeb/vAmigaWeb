@@ -12,14 +12,15 @@
 #include "AmigaObject.h"
 #include "FSTypes.h"
 #include "FSObjects.h"
+#include "Buffer.h"
 #include "IOUtils.h"
 #include "BootBlockImage.h"
 #include <vector>
 
 struct FSBlock : AmigaObject {
         
-    // The partition this block belongs to
-    struct FSPartition &partition;
+    // The device this block belongs to
+    class FileSystem &device;
 
     // The type of this block
     FSBlockType type = FS_UNKNOWN_BLOCK;
@@ -30,18 +31,17 @@ struct FSBlock : AmigaObject {
     // Outcome of the latest integrity check (0 = OK, n = n-th corrupted block)
     isize corrupted = 0;
         
-    // The actual block data
-    u8 *data = nullptr;
+    // Block data
+    util::Buffer data;
 
     
     //
     // Constructing
     //
     
-    FSBlock(FSPartition &p, Block nr, FSBlockType t);
-    ~FSBlock();
+    FSBlock(FileSystem &ref, Block nr, FSBlockType t);
 
-    static FSBlock *make(FSPartition &p, Block nr, FSBlockType type) throws;
+    static FSBlock *make(FileSystem &ref, Block nr, FSBlockType type) throws;
 
     
     //
@@ -294,7 +294,7 @@ public:
     void setDataBytesInBlock(u32 val);
 
     // Adds data bytes to this block
-    isize addData(const u8 *buffer, isize size);
+    // isize addData(const u8 *buffer, isize size);
     
     
     //
@@ -335,43 +335,43 @@ if (value > (u32)exp) \
 if (!FSVolumeTypeEnum::isValid((isize)value)) return ERROR_FS_EXPECTED_DOS_REVISION; }
 
 #define EXPECT_REF { \
-if (!partition.dev.block(value)) return ERROR_FS_EXPECTED_REF; }
+if (!device.block(value)) return ERROR_FS_EXPECTED_REF; }
 
 #define EXPECT_SELFREF { \
 if (value != nr) return ERROR_FS_EXPECTED_SELFREF; }
 
 #define EXPECT_FILEHEADER_REF { \
-if (ErrorCode e = partition.dev.checkBlockType(value, FS_FILEHEADER_BLOCK); e != ERROR_OK) return e; }
+if (ErrorCode e = device.checkBlockType(value, FS_FILEHEADER_BLOCK); e != ERROR_OK) return e; }
 
 #define EXPECT_HASH_REF { \
-if (ErrorCode e = partition.dev.checkBlockType(value, FS_FILEHEADER_BLOCK, FS_USERDIR_BLOCK); e != ERROR_OK) return e; }
+if (ErrorCode e = device.checkBlockType(value, FS_FILEHEADER_BLOCK, FS_USERDIR_BLOCK); e != ERROR_OK) return e; }
 
 #define EXPECT_OPTIONAL_HASH_REF { \
 if (value) { EXPECT_HASH_REF } }
 
 #define EXPECT_PARENT_DIR_REF { \
-if (ErrorCode e = partition.dev.checkBlockType(value, FS_ROOT_BLOCK, FS_USERDIR_BLOCK); e != ERROR_OK) return e; }
+if (ErrorCode e = device.checkBlockType(value, FS_ROOT_BLOCK, FS_USERDIR_BLOCK); e != ERROR_OK) return e; }
 
 #define EXPECT_FILELIST_REF { \
-if (ErrorCode e = partition.dev.checkBlockType(value, FS_FILELIST_BLOCK); e != ERROR_OK) return e; }
+if (ErrorCode e = device.checkBlockType(value, FS_FILELIST_BLOCK); e != ERROR_OK) return e; }
 
 #define EXPECT_OPTIONAL_FILELIST_REF { \
 if (value) { EXPECT_FILELIST_REF } }
 
 #define EXPECT_BITMAP_REF { \
-if (ErrorCode e = partition.dev.checkBlockType(value, FS_BITMAP_BLOCK); e != ERROR_OK) return e; }
+if (ErrorCode e = device.checkBlockType(value, FS_BITMAP_BLOCK); e != ERROR_OK) return e; }
 
 #define EXPECT_OPTIONAL_BITMAP_REF { \
 if (value) { EXPECT_BITMAP_REF } }
 
 #define EXPECT_BITMAP_EXT_REF { \
-if (ErrorCode e = partition.dev.checkBlockType(value, FS_BITMAP_EXT_BLOCK); e != ERROR_OK) return e; }
+if (ErrorCode e = device.checkBlockType(value, FS_BITMAP_EXT_BLOCK); e != ERROR_OK) return e; }
 
 #define EXPECT_OPTIONAL_BITMAP_EXT_REF { \
 if (value) { EXPECT_BITMAP_EXT_REF } }
 
 #define EXPECT_DATABLOCK_REF { \
-if (ErrorCode e = partition.dev.checkBlockType(value, FS_DATA_BLOCK_OFS, FS_DATA_BLOCK_FFS); e != ERROR_OK) return e; }
+if (ErrorCode e = device.checkBlockType(value, FS_DATA_BLOCK_OFS, FS_DATA_BLOCK_FFS); e != ERROR_OK) return e; }
 
 #define EXPECT_OPTIONAL_DATABLOCK_REF { \
 if (value) { EXPECT_DATABLOCK_REF } }

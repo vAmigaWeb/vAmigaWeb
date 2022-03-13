@@ -14,18 +14,19 @@
 //
 
 // Version number
-#define VER_MAJOR 1
-#define VER_MINOR 1
+#define VER_MAJOR 2
+#define VER_MINOR 0
 #define VER_SUBMINOR 0
+#define VER_BETA 1
 
 // Snapshot version number
-#define SNP_MAJOR 1
+#define SNP_MAJOR 2
 #define SNP_MINOR 0
-#define SNP_SUBMINOR 10 
+#define SNP_SUBMINOR 0
+#define SNP_BETA 1
 
 // Uncomment this setting in a release build
 #define RELEASEBUILD
-
 
 //
 // Build settings
@@ -50,7 +51,7 @@ struct FloatStereo; typedef FloatStereo SampleType;
 #define OVERRIDES { }
 /*
  { \
- { OPT_AGNUS_REVISION,   AGNUS_OCS_PLCC }, \
+ { OPT_AGNUS_REVISION,   AGNUS_OCS      }, \
  { OPT_BLITTER_ACCURACY, 0              }, \
  { OPT_CHIP_RAM,         512            }, \
  { OPT_SLOW_RAM,         512            }, \
@@ -59,24 +60,40 @@ struct FloatStereo; typedef FloatStereo SampleType;
  { OPT_DRIVE_SPEED,      -1             }  }
 */
 
-// Uncomment to launch the emulator with a pre-saved snapshot
-// #define INITIAL_SNAPSHOT "/tmp/snap.vamiga"
-
-// Uncomment to lauch the emulator with a disk in df0
-// #define DF0_DISK "/Users/hoff/Desktop/Testing/DCD-BBS.adf"
-
-// Uncomment to set a breakpoint on startup
-// #define INITIAL_BREAKPOINT 0xFC1354
-
 // Uncomment to colorize a certain row or column
 // #define LINE_DEBUG (agnus.pos.v == 260 || agnus.pos.v == 300)
 // #define COLUMN_DEBUG 114
+
+
+//
+// Launch settings
+//
+
+// Add pathes to ADF files to launch the emulator with preset floppy disks
+#define INITIAL_DF0 ""
+#define INITIAL_DF1 ""
+#define INITIAL_DF2 ""
+#define INITIAL_DF3 ""
+
+// Add pathes to HDF files to launch the emulator with preset hard drives
+#define INITIAL_HD0 "" // /tmp/rdb2.hdf"
+#define INITIAL_HD1 ""
+#define INITIAL_HD2 ""
+#define INITIAL_HD3 ""
+
+// Add a path to a snapshot file to launch the emulator in a preset state
+#define INITIAL_SNAPSHOT ""
+
+// Add addresses to launch the emulator with preset breakpoints
+#define INITIAL_BREAKPOINTS { }
+
 
 //
 // Execution settings
 //
 
 static const int NO_SEQ_FASTPATH = 0; // Disable sequencer speed optimizations
+static const int LEGACY_COPPER   = 0; // Enable deprecated Copper code
 
 //
 // Debug settings
@@ -102,7 +119,6 @@ static const int OCSREG_DEBUG    = 0; // General OCS register debugging
 static const int ECSREG_DEBUG    = 0; // Special ECS register debugging
 static const int INVREG_DEBUG    = 0; // Invalid register accesses
 static const int MEM_DEBUG       = 0; // Memory
-static const int FAS_DEBUG       = 0; // Fast RAM
 
 // Agnus
 static const int DMA_DEBUG       = 0; // DMA registers
@@ -148,13 +164,16 @@ static const int CIASER_DEBUG    = 0; // CIA serial register
 static const int CIA_DEBUG       = 0; // CIA execution
 static const int TOD_DEBUG       = 0; // TODs (CIA 24-bit counters)
 
-// Drive
+// Floppy Drives
 static const int ALIGN_HEAD      = 0; // Make head movement deterministic
 static const int DSK_CHECKSUM    = 0; // Compute disk checksums
 static const int DSKREG_DEBUG    = 0; // Disk controller registers
 static const int DSK_DEBUG       = 0; // Disk controller execution
 static const int MFM_DEBUG       = 0; // Disk encoder / decoder
 static const int FS_DEBUG        = 0; // File System Classes (OFS / FFS)
+
+// Hard Drives
+static const int HDR_ACCEPT_ALL  = 0; // Disables hard drive layout checks
 
 // Audio
 static const int AUDREG_DEBUG    = 0; // Audio registers
@@ -171,6 +190,11 @@ static const int SER_DEBUG       = 0; // Serial interface
 static const int POT_DEBUG       = 0; // Potentiometer inputs
 static const int HOLD_MOUSE_L    = 0; // Hold down the left mouse button
 static const int HOLD_MOUSE_R    = 0; // Hold down the right mouse button
+
+// Expansion boards
+static const int ZOR_DEBUG       = 0; // Zorro space, autoconfig
+static const int FAS_DEBUG       = 0; // FastRam
+static const int HDR_DEBUG       = 0; // HardDrive
 
 // Media types
 static const int ADF_DEBUG       = 0; // ADF and extended ADF files
@@ -192,26 +216,46 @@ static const int GDB_DEBUG       = 0; // GDB server
 // Forced error conditions
 //
 
-static const int FORCE_ROM_MISSING         = 0;
-static const int FORCE_CHIP_RAM_MISSING    = 0;
-static const int FORCE_AROS_NO_EXTROM      = 0;
-static const int FORCE_AROS_RAM_LIMIT      = 0;
-static const int FORCE_CHIP_RAM_LIMIT      = 0;
-static const int FORCE_SNAP_TOO_OLD        = 0;
-static const int FORCE_SNAP_TOO_NEW        = 0;
-static const int FORCE_SNAP_CORRUPTED      = 0;
-static const int FORCE_DISK_INVALID_LAYOUT = 0;
-static const int FORCE_DMS_CANT_CREATE     = 0;
-static const int FORCE_RECORDING_ERROR     = 0;
+static const int FORCE_ROM_MISSING              = 0;
+static const int FORCE_CHIP_RAM_MISSING         = 0;
+static const int FORCE_AROS_NO_EXTROM           = 0;
+static const int FORCE_AROS_RAM_LIMIT           = 0;
+static const int FORCE_CHIP_RAM_LIMIT           = 0;
+static const int FORCE_SNAP_TOO_OLD             = 0;
+static const int FORCE_SNAP_TOO_NEW             = 0;
+static const int FORCE_SNAP_IS_BETA             = 0;
+static const int FORCE_SNAP_CORRUPTED           = 0;
+static const int FORCE_DISK_INVALID_LAYOUT      = 0;
+static const int FORCE_DISK_MODIFIED            = 0;
+static const int FORCE_HDR_TOO_LARGE            = 0;
+static const int FORCE_HDR_UNSUPPORTED_C        = 0;
+static const int FORCE_HDR_UNSUPPORTED_H        = 0;
+static const int FORCE_HDR_UNSUPPORTED_S        = 0;
+static const int FORCE_HDR_UNSUPPORTED_B        = 0;
+static const int FORCE_HDR_MODIFIED             = 0;
+static const int FORCE_FS_WRONG_BSIZE           = 0;
+static const int FORCE_FS_WRONG_CAPACITY        = 0;
+static const int FORCE_FS_WRONG_DOS_TYPE        = 0;
+static const int FORCE_DMS_CANT_CREATE          = 0;
+static const int FORCE_RECORDING_ERROR          = 0;
+static const int FORCE_NO_FFMPEG                = 0;
 
 
 #ifdef RELEASEBUILD
 #ifndef NDEBUG
 #define NDEBUG
 #endif
-static const int releaseBuild = 1;
+static const bool releaseBuild = 1;
+static const bool debugBuild = 0;
 #else
-static const int releaseBuild = 0;
+static const bool releaseBuild = 0;
+static const bool debugBuild = 1;
+#endif
+
+#if VER_BETA == 0
+static const bool betaRelease = 0;
+#else
+static const bool betaRelease = 1;
 #endif
 
 #include <cassert>

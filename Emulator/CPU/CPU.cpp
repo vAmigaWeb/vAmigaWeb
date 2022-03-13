@@ -194,6 +194,14 @@ Moira::watchpointReached(u32 addr)
     amiga.setFlag(RL::WATCHPOINT_REACHED);
 }
 
+void
+Moira::execDebug(const char *cmd)
+{
+    if (agnus.pos.v == 76 || agnus.pos.v == 77) {
+        trace(true, "%s\n", cmd);
+    }
+}
+
 }
 
 //
@@ -288,7 +296,7 @@ CPU::_inspect() const
 void
 CPU::_inspect(u32 dasmStart) const
 {
-    synchronized {
+    {   SYNCHRONIZED
         
         info.pc0 = getPC0() & 0xFFFFFF;
         

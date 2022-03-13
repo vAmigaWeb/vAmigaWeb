@@ -14,14 +14,34 @@
 #include <algorithm>
 
 // Perform some consistency checks
-static_assert(sizeof(i8) == 1,  "i8 size mismatch");
+static_assert(sizeof(i8)  == 1, "i8  size mismatch");
 static_assert(sizeof(i16) == 2, "i16 size mismatch");
 static_assert(sizeof(i32) == 4, "i32 size mismatch");
 static_assert(sizeof(i64) == 8, "i64 size mismatch");
-static_assert(sizeof(u8) == 1,  "u8 size mismatch");
+static_assert(sizeof(u8)  == 1, "u8  size mismatch");
 static_assert(sizeof(u16) == 2, "u16 size mismatch");
 static_assert(sizeof(u32) == 4, "u32 size mismatch");
 static_assert(sizeof(u64) == 8, "u64 size mismatch");
+
+string
+Amiga::version()
+{
+    string result;
+    
+    result = std::to_string(VER_MAJOR) + "." + std::to_string(VER_MINOR);
+    if constexpr (VER_SUBMINOR > 0) result += "." + std::to_string(VER_SUBMINOR);
+    if constexpr (VER_BETA > 0) result += 'b' + std::to_string(VER_BETA);
+
+    return result;
+}
+
+string
+Amiga::build()
+{
+    string db = debugBuild ? " [DEBUG BUILD]" : "";
+    
+    return version() + db + " (" + __DATE__ + " " + __TIME__ + ")";
+}
 
 Amiga::Amiga()
 {
@@ -53,6 +73,15 @@ Amiga::Amiga()
         &df1,
         &df2,
         &df3,
+        &hd0,
+        &hd1,
+        &hd2,
+        &hd3,
+        &hd0con,
+        &hd1con,
+        &hd2con,
+        &hd3con,
+        &ramExpansion,
         &ciaA,
         &ciaB,
         &mem,
@@ -76,7 +105,7 @@ Amiga::Amiga()
         msg("       ControlPort : %zu bytes\n", sizeof(ControlPort));
         msg("               CPU : %zu bytes\n", sizeof(CPU));
         msg("            Denise : %zu bytes\n", sizeof(Denise));
-        msg("             Drive : %zu bytes\n", sizeof(Drive));
+        msg("             Drive : %zu bytes\n", sizeof(FloppyDrive));
         msg("          Keyboard : %zu bytes\n", sizeof(Keyboard));
         msg("            Memory : %zu bytes\n", sizeof(Memory));
         msg("moira::Breakpoints : %zu bytes\n", sizeof(moira::Breakpoints));
@@ -99,6 +128,7 @@ Amiga::Amiga()
 Amiga::~Amiga()
 {
     debug(RUN_DEBUG, "Destroying Amiga\n");
+    if (thread.joinable()) { halt(); }
 }
 
 void
@@ -167,6 +197,7 @@ Amiga::getConfigItem(Option option) const
             return agnus.getConfigItem(option);
             
         case OPT_DENISE_REVISION:
+        case OPT_VIEWPORT_TRACKING:
         case OPT_HIDDEN_BITPLANES:
         case OPT_HIDDEN_SPRITES:
         case OPT_HIDDEN_LAYERS:
@@ -277,10 +308,15 @@ Amiga::getConfigItem(Option option, long id) const
         case OPT_POLL_VOLUME:
         case OPT_INSERT_VOLUME:
         case OPT_EJECT_VOLUME:
-        case OPT_DEFAULT_FILESYSTEM:
-        case OPT_DEFAULT_BOOTBLOCK:
             
             return df[id]->getConfigItem(option);
+            
+        case OPT_HDR_TYPE:
+        case OPT_HDR_CONNECT:
+        case OPT_HDR_PAN:
+        case OPT_HDR_STEP_VOLUME:
+            
+            return hd[id]->getConfigItem(option);
             
         case OPT_PULLUP_RESISTORS:
         case OPT_MOUSE_VELOCITY:
@@ -326,6 +362,8 @@ Amiga::configure(Option option, i64 value)
         OPT_POLL_VOLUME,
         OPT_INSERT_VOLUME,
         OPT_EJECT_VOLUME,
+        OPT_HDR_PAN,
+        OPT_HDR_STEP_VOLUME,
         OPT_AUDVOLL,
         OPT_AUDVOLR,
         OPT_AUDPAN,
@@ -344,6 +382,7 @@ Amiga::configure(Option option, i64 value)
             break;
             
         case OPT_DENISE_REVISION:
+        case OPT_VIEWPORT_TRACKING:
         case OPT_HIDDEN_BITPLANES:
         case OPT_HIDDEN_SPRITES:
         case OPT_HIDDEN_LAYERS:
@@ -404,8 +443,6 @@ Amiga::configure(Option option, i64 value)
         case OPT_POLL_VOLUME:
         case OPT_INSERT_VOLUME:
         case OPT_EJECT_VOLUME:
-        case OPT_DEFAULT_FILESYSTEM:
-        case OPT_DEFAULT_BOOTBLOCK:
             
             df[0]->setConfigItem(option, value);
             df[1]->setConfigItem(option, value);
@@ -413,6 +450,17 @@ Amiga::configure(Option option, i64 value)
             df[3]->setConfigItem(option, value);
             break;
             
+        case OPT_HDR_TYPE:
+        case OPT_HDR_CONNECT:
+        case OPT_HDR_PAN:
+        case OPT_HDR_STEP_VOLUME:
+            
+            hd[0]->setConfigItem(option, value);
+            hd[1]->setConfigItem(option, value);
+            hd[2]->setConfigItem(option, value);
+            hd[3]->setConfigItem(option, value);
+            break;
+     
         case OPT_SAMPLING_METHOD:
         case OPT_FILTER_TYPE:
         case OPT_FILTER_ALWAYS_ON:
@@ -509,6 +557,8 @@ Amiga::configure(Option option, long id, i64 value)
         OPT_POLL_VOLUME,
         OPT_INSERT_VOLUME,
         OPT_EJECT_VOLUME,
+        OPT_HDR_PAN,
+        OPT_HDR_STEP_VOLUME,
         OPT_AUDVOLL,
         OPT_AUDVOLR,
         OPT_AUDPAN,
@@ -546,10 +596,16 @@ Amiga::configure(Option option, long id, i64 value)
         case OPT_POLL_VOLUME:
         case OPT_INSERT_VOLUME:
         case OPT_EJECT_VOLUME:
-        case OPT_DEFAULT_FILESYSTEM:
-        case OPT_DEFAULT_BOOTBLOCK:
             
             df[id]->setConfigItem(option, value);
+            break;
+
+        case OPT_HDR_TYPE:
+        case OPT_HDR_CONNECT:
+        case OPT_HDR_PAN:
+        case OPT_HDR_STEP_VOLUME:
+            
+            hd[id]->setConfigItem(option, value);
             break;
 
         case OPT_PULLUP_RESISTORS:
@@ -592,12 +648,19 @@ Amiga::configure(ConfigScheme scheme)
     {   SUSPENDED
         
         switch(scheme) {
+
+            case CONFIG_A1000_OCS_1MB:
                 
+                configure(OPT_CHIP_RAM, 512);
+                configure(OPT_SLOW_RAM, 512);
+                configure(OPT_AGNUS_REVISION, AGNUS_OCS_OLD);
+                break;
+
             case CONFIG_A500_OCS_1MB:
                 
                 configure(OPT_CHIP_RAM, 512);
                 configure(OPT_SLOW_RAM, 512);
-                configure(OPT_AGNUS_REVISION, AGNUS_OCS_PLCC);
+                configure(OPT_AGNUS_REVISION, AGNUS_OCS);
                 break;
                 
             case CONFIG_A500_ECS_1MB:
@@ -640,7 +703,7 @@ Amiga::overrideOption(Option option, i64 value)
 InspectionTarget
 Amiga::getInspectionTarget() const
 {
-    switch(agnus.scheduler.id[SLOT_INS]) {
+    switch(agnus.id[SLOT_INS]) {
             
         case EVENT_NONE:  return INSPECTION_NONE;
         case INS_AMIGA:   return INSPECTION_AMIGA;
@@ -667,7 +730,7 @@ Amiga::setInspectionTarget(InspectionTarget target, Cycle trigger)
         
         switch(target) {
                 
-            case INSPECTION_NONE:    agnus.scheduler.cancel<SLOT_INS>(); return;
+            case INSPECTION_NONE:    agnus.cancel<SLOT_INS>(); return;
                 
             case INSPECTION_AMIGA:   id = INS_AMIGA; break;
             case INSPECTION_CPU:     id = INS_CPU; break;
@@ -691,7 +754,7 @@ Amiga::setInspectionTarget(InspectionTarget target, Cycle trigger)
 void
 Amiga::_inspect() const
 {
-    synchronized {
+    {   SYNCHRONIZED
         
         info.cpuClock = cpu.getMasterClock();
         info.dmaClock = agnus.clock;
@@ -741,29 +804,19 @@ Amiga::_powerOn()
     // Perform a reset
     hardReset();
 
-#ifdef INITIAL_SNAPSHOT
-    Snapshot snapshot(INITIAL_SNAPSHOT);
-    loadSnapshot(snapshot);
-#endif
-    
-#ifdef DF0_DISK
-    ADFFile df0file(DF0_DISK);
-    df0.ejectDisk();
-    df0.insertDisk(std::make_unique<Disk>(df0file));
-    df0.setWriteProtection(false);
-#endif
-    
-#ifdef DF1_DISK
-    ADFFile df1file(DF1_DISK);
-    df1.ejectDisk();
-    df1.insertDisk(std::make_unique<Disk>(df1file));
-    df1.setWriteProtection(false);
-#endif
-    
-#ifdef INITIAL_BREAKPOINT
-    debugMode = true;
-    cpu.debugger.breakpoints.addAt(INITIAL_BREAKPOINT);
-#endif
+    // Start from a snapshot if requested
+    if (string(INITIAL_SNAPSHOT) != "") {
+
+        Snapshot snapshot(INITIAL_SNAPSHOT);
+        loadSnapshot(snapshot);
+    }
+            
+    // Set initial breakpoints
+    for (auto &bp : std::vector <u32> (INITIAL_BREAKPOINTS)) {
+        
+        cpu.debugger.breakpoints.addAt(bp);
+        debugMode = true;
+    }
     
     // Update the recorded debug information
     inspect();
@@ -875,14 +928,12 @@ Amiga::execute()
             // Are we requested to take a snapshot?
             if (flags & RL::AUTO_SNAPSHOT) {
                 clearFlag(RL::AUTO_SNAPSHOT);
-                autoSnapshot = new Snapshot(*this);
-                msgQueue.put(MSG_AUTO_SNAPSHOT_TAKEN);
+                takeAutoSnapshot();
             }
             
             if (flags & RL::USER_SNAPSHOT) {
                 clearFlag(RL::USER_SNAPSHOT);
-                userSnapshot = new Snapshot(*this);
-                msgQueue.put(MSG_USER_SNAPSHOT_TAKEN);
+                takeUserSnapshot();
             }
 
             // Are we requested to update the debugger info structs?
@@ -903,7 +954,7 @@ Amiga::execute()
             if (flags & RL::BREAKPOINT_REACHED) {
                 clearFlag(RL::BREAKPOINT_REACHED);
                 inspect();
-                msgQueue.put(MSG_BREAKPOINT_REACHED, (long)cpu.debugger.breakpointPC);
+                msgQueue.put(MSG_BREAKPOINT_REACHED, isize(cpu.debugger.breakpointPC));
                 newState = EXEC_PAUSED;
                 break;
             }
@@ -912,7 +963,7 @@ Amiga::execute()
             if (flags & RL::WATCHPOINT_REACHED) {
                 clearFlag(RL::WATCHPOINT_REACHED);
                 inspect();
-                msgQueue.put(MSG_WATCHPOINT_REACHED, (long)cpu.debugger.watchpointPC);
+                msgQueue.put(MSG_WATCHPOINT_REACHED, isize(cpu.debugger.watchpointPC));
                 newState = EXEC_PAUSED;
                 break;
             }
@@ -947,13 +998,13 @@ Amiga::execute()
 void
 Amiga::setFlag(u32 flag)
 {
-    synchronized { flags |= flag; }
+    SYNCHRONIZED flags |= flag;
 }
 
 void
 Amiga::clearFlag(u32 flag)
 {
-    synchronized { flags &= ~flag; }
+    SYNCHRONIZED flags &= ~flag;
 }
 
 void
@@ -992,8 +1043,7 @@ Amiga::requestAutoSnapshot()
     if (!isRunning()) {
 
         // Take snapshot immediately
-        autoSnapshot = new Snapshot(*this);
-        msgQueue.put(MSG_AUTO_SNAPSHOT_TAKEN);
+        takeAutoSnapshot();
         
     } else {
 
@@ -1008,8 +1058,7 @@ Amiga::requestUserSnapshot()
     if (!isRunning()) {
         
         // Take snapshot immediately
-        userSnapshot = new Snapshot(*this);
-        msgQueue.put(MSG_USER_SNAPSHOT_TAKEN);
+        takeUserSnapshot();
         
     } else {
         
@@ -1044,6 +1093,9 @@ Amiga::loadSnapshot(const Snapshot &snapshot)
     if (snapshot.isTooNew() || FORCE_SNAP_TOO_NEW) {
         throw VAError(ERROR_SNAP_TOO_NEW);
     }
+    if (snapshot.isBeta() || FORCE_SNAP_IS_BETA) {
+        if constexpr (!betaRelease) throw VAError(ERROR_SNAP_IS_BETA);
+    }
 
     {   SUSPENDED
         
@@ -1070,4 +1122,30 @@ Amiga::loadSnapshot(const Snapshot &snapshot)
     
     // Inform the GUI
     msgQueue.put(MSG_SNAPSHOT_RESTORED);
+}
+
+void
+Amiga::takeAutoSnapshot()
+{
+    if (autoSnapshot) {
+
+        warn("Old auto-snapshot still present. Ignoring request.\n");
+        return;
+    }
+    
+    autoSnapshot = new Snapshot(*this);
+    msgQueue.put(MSG_AUTO_SNAPSHOT_TAKEN);
+}
+
+void
+Amiga::takeUserSnapshot()
+{
+    if (userSnapshot) {
+
+        warn("Old user-snapshot still present. Ignoring request.\n");
+        return;
+    }
+    
+    userSnapshot = new Snapshot(*this);
+    msgQueue.put(MSG_USER_SNAPSHOT_TAKEN);
 }

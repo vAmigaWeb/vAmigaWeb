@@ -47,21 +47,36 @@
 namespace dump {
 enum Category : usize {
     
-    BankMap   = 0b0000000001,
-    Checksums = 0b0000000010,
-    Config    = 0b0000000100,
-    Dma       = 0b0000001000,
-    List1     = 0b0000010000,
-    List2     = 0b0000100000,
-    Registers = 0b0001000000,
-    Segments  = 0b0010000000,
-    State     = 0b0100000000,
-    Signals   = 0b1000000000
+    BankMap     = (1 << 0),
+    Blocks      = (1 << 1),
+    Bus         = (1 << 2),
+    Checksums   = (1 << 3),
+    Config      = (1 << 4),
+    Dma         = (1 << 5),
+    Drive       = (1 << 6),
+    Events      = (1 << 7),
+    FileSystem  = (1 << 8),
+    Geometry    = (1 << 9),
+    List1       = (1 << 10),
+    List2       = (1 << 11),
+    Parameters  = (1 << 12),
+    Partitions  = (1 << 13),
+    Properties  = (1 << 14),
+    Registers   = (1 << 15),
+    Segments    = (1 << 16),
+    Signals     = (1 << 17),
+    State       = (1 << 18),
+    Summary     = (1 << 19),
+    Volumes     = (1 << 20)
 };
 }
 
 class AmigaObject {
 
+protected:
+    
+    static bool verbose;
+    
     //
     // Initializing
     //
@@ -102,8 +117,10 @@ public:
  * messages are prefixed by a more detailed string description produced by the
  * prefix() function.
  *
- * Debug, plain, and trace messages are accompanied by an optional 'verbose'
- * parameter. If 0 is passed in, no output will be generated.
+ * Debug, plain, and trace messages are accompanied by an optional 'enable'
+ * parameter. If 0 is passed in, no output will be generated. In addition,
+ * variable 'verbose' is checked which is set to true by default. By setting
+ * this variable to false, debug output can be silenced temporarily.
  *
  * Sidenote: In previous releases the printing macros were implemented in form
  * of variadic functions. Although this might seem to be superior at first
@@ -123,23 +140,23 @@ fprintf(stderr, "Warning: " format, ##__VA_ARGS__);
 
 #ifndef NDEBUG
 
-#define debug(verbose, format, ...) \
-if constexpr (verbose) { \
-fprintf(stderr, "%s:%d " format, getDescription(), __LINE__, ##__VA_ARGS__); }
+#define debug(enable, format, ...) \
+if constexpr (enable) { if (verbose) { \
+fprintf(stderr, "%s:%d " format, getDescription(), __LINE__, ##__VA_ARGS__); }}
 
-#define plain(verbose, format, ...) \
-if constexpr (verbose) { \
-fprintf(stderr, format, ##__VA_ARGS__); }
+#define plain(enable, format, ...) \
+if constexpr (enable) { if (verbose) { \
+fprintf(stderr, format, ##__VA_ARGS__); }}
 
-#define trace(verbose, format, ...) \
-if constexpr (verbose) { \
+#define trace(enable, format, ...) \
+if constexpr (enable) { if (verbose) { \
 prefix(); \
-fprintf(stderr, "%s:%d " format, getDescription(), __LINE__, ##__VA_ARGS__); }
+fprintf(stderr, "%s:%d " format, getDescription(), __LINE__, ##__VA_ARGS__); }}
 
 #else
 
-#define debug(verbose, format, ...)
-#define plain(verbose, format, ...)
-#define trace(verbose, format, ...)
+#define debug(enable, format, ...)
+#define plain(enable, format, ...)
+#define trace(enable, format, ...)
 
 #endif

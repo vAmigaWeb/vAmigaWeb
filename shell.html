@@ -364,13 +364,33 @@
             </div>
             <div class="custom-control custom-switch mt-1" >
               <input type="checkbox" class="custom-control-input" id="pixel_art_switch"/>
-              <label class="custom-control-label" for="pixel_art_switch"  data-toggle="tooltip" data-placement="right" title="on safari webgl must be deactivated for pixel art">pixel art</label>
+              <label class="custom-control-label" for="pixel_art_switch"  data-toggle="tooltip" data-placement="right" title="on safari software rendering must be activated for pixel art">pixel art</label>
             </div>
-            <div class="custom-control custom-switch mt-1">
-              <input type="checkbox" class="custom-control-input" id="webgl_switch" />
-              <label class="custom-control-label" for="webgl_switch">on next start use accelerated WebGL</label>
+            <div class="dropdown mr-1 mt-2">
+              <span style="font-size: small">use shader rendering for full resolution in interlace modes</span>
+              <br>
+              <button id="button_renderer" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              video renderer
+              </button>
+              <div id="choose_renderer" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                  <a class="dropdown-item" href="#">software</a>
+                  <a class="dropdown-item" href="#">gpu shader</a>
+              </div> <span style="font-size: small">(a change will become effective on next start)</span>
             </div>
-            <div class="custom-control custom-switch mt-1">
+            <div class="dropdown mr-1 mt-2">
+              <button id="button_display" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              visible display area
+              </button>
+              <div id="choose_display" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                  <a class="dropdown-item" href="#">narrow</a>
+                  <a class="dropdown-item" href="#">standard</a>
+                  <a class="dropdown-item" href="#">wider</a>
+                  <a class="dropdown-item" href="#">overscan</a>
+                  <a class="dropdown-item" href="#">adaptive</a>
+              </div>
+              <span style="font-size: smaller">(choose adaptive for automatic viewport tracking)</span>
+            </div>
+            <div class="custom-control custom-switch mt-3">
               <input type="checkbox" class="custom-control-input" id="warp_switch" />
               <label class="custom-control-label" for="warp_switch">warp during disk load</label>
             </div>

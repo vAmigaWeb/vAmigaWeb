@@ -11,6 +11,46 @@
 #include "FFmpeg.h"
 #include "IOUtils.h"
 
+std::vector<string> FFmpeg::paths;
+string FFmpeg::exec;
+    
+void
+FFmpeg::init()
+{
+    auto add = [&](const string &path) {
+        if (util::getSizeOfFile(path) > 0 && !FORCE_NO_FFMPEG) {
+            paths.push_back(path);
+        }
+    };
+        
+    add("/usr/bin/ffmpeg");
+    add("/usr/local/bin/ffmpeg");
+    add("/opt/bin/ffmpeg");
+    add("/opt/homebrew/bin/ffmpeg");
+
+    // Use the first entry as the default executable
+    if (!paths.empty()) exec = paths[0];
+}
+
+const string
+FFmpeg::getExecPath()
+{
+    return exec;
+}
+
+void
+FFmpeg::setExecPath(const string &path)
+{
+    // If an empty string is passed, assign the first default location
+    if (path == "" && !paths.empty()) {
+
+        exec = paths[0];
+        return;
+    }
+     
+    exec = path;
+}
+
 bool
 FFmpeg::available()
 {
@@ -20,8 +60,8 @@ FFmpeg::available()
     
 #else
     
-    return util::getSizeOfFile(ffmpegPath()) > 0;
-    
+    return util::getSizeOfFile(exec) > 0;
+
 #endif
 }
 
@@ -34,7 +74,7 @@ FFmpeg::launch(const string &args)
     
 #else
     
-    auto cmd = ffmpegPath() + " " + args;
+    auto cmd = getExecPath() + " " + args;
     handle = popen(cmd.c_str(), "w");
     return handle != nullptr;
     

@@ -22,22 +22,6 @@
 #include "RTC.h"
 #include "ZorroManager.h"
 
-Memory::~Memory()
-{
-    dealloc();
-}
-
-void
-Memory::dealloc()
-{
-    if (rom) { delete[] rom; rom = nullptr; }
-    if (wom) { delete[] wom; wom = nullptr; }
-    if (ext) { delete[] ext; ext = nullptr; }
-    if (chip) { delete[] chip; chip = nullptr; }
-    if (slow) { delete[] slow; slow = nullptr; }
-    if (fast) { delete[] fast; fast = nullptr; }
-}
-
 void
 Memory::_dump(dump::Category category, std::ostream& os) const
 {
@@ -80,17 +64,17 @@ Memory::_dump(dump::Category category, std::ostream& os) const
     if (category & dump::Checksums) {
 
         os << util::tab("Rom checksum");
-        os << util::hex(util::fnv_1a_32(rom, config.romSize)) << std::endl;
+        os << util::hex(util::fnv32(rom, config.romSize)) << std::endl;
         os << util::tab("Wom checksum");
-        os << util::hex(util::fnv_1a_32(wom, config.womSize)) << std::endl;
+        os << util::hex(util::fnv32(wom, config.womSize)) << std::endl;
         os << util::tab("Extended Rom checksum");
-        os << util::hex(util::fnv_1a_32(ext, config.extSize)) << std::endl;
+        os << util::hex(util::fnv32(ext, config.extSize)) << std::endl;
         os << util::tab("Chip Ram checksum");
-        os << util::hex(util::fnv_1a_32(chip, config.chipSize)) << std::endl;
+        os << util::hex(util::fnv32(chip, config.chipSize)) << std::endl;
         os << util::tab("Slow Ram checksum");
-        os << util::hex(util::fnv_1a_32(slow, config.slowSize)) << std::endl;
+        os << util::hex(util::fnv32(slow, config.slowSize)) << std::endl;
         os << util::tab("Fast Ram checksum");
-        os << util::hex(util::fnv_1a_32(fast, config.fastSize)) << std::endl;
+        os << util::hex(util::fnv32(fast, config.fastSize)) << std::endl;
     }
     
     if (category & dump::BankMap) {
@@ -391,7 +375,7 @@ Memory::didLoadFromBuffer(const u8 *buffer)
 }
 
 isize
-Memory::didSaveToBuffer(u8 *buffer) const
+Memory::didSaveToBuffer(u8 *buffer)
 {
     util::SerWriter writer(buffer);
 
@@ -478,69 +462,61 @@ Memory::updateStats()
 }
 
 void
-Memory::alloc(i32 bytes, u8 *&ptr, i32 &size, u32 &mask, bool update)
-{
-    // Check invariants
-    assert((ptr == nullptr) == (size == 0));
-    assert((ptr == nullptr) == (mask == 0));
-    assert((ptr == nullptr) || (mask == (u32)size - 1));
-
-    // Only proceed if memory layout will change
-    if (bytes == size) return;
-    
-    // Delete previous allocation
-    if (ptr) { delete[] ptr; ptr = nullptr; size = 0; mask = 0; }
-    
-    // Allocate memory
-    if (bytes) {
-                
-        ptr = new u8[bytes];
-        size = (u32)bytes;
-        mask = size - 1;
-        
-        if ((uintptr_t)ptr & 1) {
-            fatal("Memory at %p (%d bytes) is not aligned\n", (void *)ptr, bytes);
-        }
-    }
-    
-    // Update the memory source tables if requested
-    if (update) updateMemSrcTables();
-}
-
-void
 Memory::allocChip(i32 bytes, bool update)
 {
-    alloc(bytes, chip, config.chipSize, chipMask, update);
+    config.chipSize = bytes;
+    alloc(chipAllocator, bytes, chipMask, update);
 }
 
 void
 Memory::allocSlow(i32 bytes, bool update)
 {
-    alloc(bytes, slow, config.slowSize, slowMask, update);
+    config.slowSize = bytes;
+    alloc(slowAllocator, bytes, slowMask, update);
 }
 
 void
 Memory::allocFast(i32 bytes, bool update)
 {
-    alloc(bytes, fast, config.fastSize, fastMask, update);
+    config.fastSize = bytes;
+    alloc(fastAllocator, bytes, fastMask, update);
 }
             
 void
 Memory::allocRom(i32 bytes, bool update)
 {
-    alloc(bytes, rom, config.romSize, romMask, update);
+    config.romSize = bytes;
+    alloc(romAllocator, bytes, romMask, update);
 }
 
 void
 Memory::allocWom(i32 bytes, bool update)
 {
-    alloc(bytes, wom, config.womSize, womMask, update);
+    config.womSize = bytes;
+    alloc(womAllocator, bytes, womMask, update);
 }
 
 void
 Memory::allocExt(i32 bytes, bool update)
 {
-    alloc(bytes, ext, config.extSize, extMask, update);
+    config.extSize = bytes;
+    alloc(extAllocator, bytes, extMask, update);
+}
+
+void
+Memory::alloc(util::Allocator &allocator, isize bytes, u32 &mask, bool update)
+{
+    // Only proceed if memory layout will change
+    if (bytes == allocator.size) return;
+
+    // Allocate memory
+    allocator.init(bytes);
+    
+    // Set the memory mask
+    mask = bytes ? u32(bytes - 1) : 0;
+
+    // Update the memory source tables if requested
+    if (update) updateMemSrcTables();
 }
 
 void
@@ -678,7 +654,7 @@ Memory::loadRom(RomFile &file)
     file.decrypt();
 
     // Allocate memory
-    allocRom((i32)file.size);
+    allocRom((i32)file.data.size);
 
     // Load Rom
     file.flash(rom);
@@ -708,7 +684,7 @@ void
 Memory::loadExt(ExtendedRomFile &file)
 {
     // Allocate memory
-    allocExt((i32)file.size);
+    allocExt((i32)file.data.size);
     
     // Load Rom
     file.flash(ext);
@@ -787,7 +763,6 @@ Memory::updateCpuMemSrcTable()
 
     isize chipRamPages = config.chipSize / 0x10000;
     isize slowRamPages = config.slowSize / 0x10000;
-    isize fastRamPages = config.fastSize / 0x10000;
     
     bool ovl = ciaa.getPA() & 1;
     bool old = config.bankMap == BANK_MAP_A1000 || config.bankMap == BANK_MAP_A2000A;
@@ -807,11 +782,6 @@ Memory::updateCpuMemSrcTable()
         }
     }
         
-    // Fast Ram
-    for (isize i = 0x20; i < 0x20 + fastRamPages; i++) {
-        cpuMemSrc[i] = MEM_FAST;
-    }
-    
     // CIAs
     for (isize i = 0xA0; i <= 0xBE; i++) {
         cpuMemSrc[i] = MEM_CIA_MIRROR;
@@ -882,6 +852,9 @@ Memory::updateCpuMemSrcTable()
             cpuMemSrc[i] = cpuMemSrc[0xF8 + i];
     }
 
+    // Expansion boards
+    zorro.updateMemSrcTables();
+    
     msgQueue.put(MSG_MEM_LAYOUT);
 }
 
@@ -1184,9 +1157,8 @@ Memory::peek8 <ACCESSOR_CPU, MEM_AUTOCONF> (u32 addr)
             return (u8)dataBus;
         }
     }
-    
-    dataBus = (u16)(zorro.peekFastRamDevice(addr) << 4);
-    trace(FAS_DEBUG, "peek8<AUTOCONF>(%x) = %x\n", addr, dataBus);
+        
+    dataBus = (u16)(zorro.peekACF(addr));
     return (u8)dataBus;
 }
 
@@ -1194,25 +1166,41 @@ template<> u16
 Memory::peek16 <ACCESSOR_CPU, MEM_AUTOCONF> (u32 addr)
 {
     ASSERT_AUTO_ADDR(addr);
+        
+    auto hi = zorro.peekACF(addr);
+    auto lo = zorro.peekACF(addr + 1);
     
-    // agnus.executeUntilBusIsFree();
-    
-    auto hi = zorro.peekFastRamDevice(addr) << 4;
-    auto lo = zorro.peekFastRamDevice(addr + 1) << 4;
-    
-    dataBus = HI_LO(hi,lo);
-    trace(FAS_DEBUG, "peek16<AUTOCONF>(%x) = %x\n", addr, dataBus);
-
+    dataBus = HI_LO(hi,lo);    
     return dataBus;
 }
 
 template<> u16
 Memory::spypeek16 <ACCESSOR_CPU, MEM_AUTOCONF> (u32 addr) const
 {
-    auto hi = zorro.spypeekFastRamDevice(addr) << 4;
-    auto lo = zorro.spypeekFastRamDevice(addr + 1) << 4;
+    auto hi = zorro.spypeekACF(addr);
+    auto lo = zorro.spypeekACF(addr + 1);
     
     return HI_LO(hi,lo);
+}
+
+template<> u8
+Memory::peek8 <ACCESSOR_CPU, MEM_ZOR> (u32 addr)
+{
+    dataBus = u16(zorro.peek8(addr));
+    return u8(dataBus);
+}
+
+template<> u16
+Memory::peek16 <ACCESSOR_CPU, MEM_ZOR> (u32 addr)
+{
+    dataBus = u16(zorro.peek16(addr));
+    return dataBus;
+}
+
+template<> u16
+Memory::spypeek16 <ACCESSOR_CPU, MEM_ZOR> (u32 addr) const
+{
+    return zorro.spypeek16(addr);
 }
 
 template<> u8
@@ -1304,6 +1292,7 @@ Memory::peek8 <ACCESSOR_CPU> (u32 addr)
         case MEM_CUSTOM:        return peek8 <ACCESSOR_CPU, MEM_CUSTOM>   (addr);
         case MEM_CUSTOM_MIRROR: return peek8 <ACCESSOR_CPU, MEM_CUSTOM>   (addr);
         case MEM_AUTOCONF:      return peek8 <ACCESSOR_CPU, MEM_AUTOCONF> (addr);
+        case MEM_ZOR:           return peek8 <ACCESSOR_CPU, MEM_ZOR>      (addr);
         case MEM_ROM:           return peek8 <ACCESSOR_CPU, MEM_ROM>      (addr);
         case MEM_ROM_MIRROR:    return peek8 <ACCESSOR_CPU, MEM_ROM>      (addr);
         case MEM_WOM:           return peek8 <ACCESSOR_CPU, MEM_WOM>      (addr);
@@ -1333,6 +1322,7 @@ Memory::peek16 <ACCESSOR_CPU> (u32 addr)
         case MEM_CUSTOM:        return peek16 <ACCESSOR_CPU, MEM_CUSTOM>   (addr);
         case MEM_CUSTOM_MIRROR: return peek16 <ACCESSOR_CPU, MEM_CUSTOM>   (addr);
         case MEM_AUTOCONF:      return peek16 <ACCESSOR_CPU, MEM_AUTOCONF> (addr);
+        case MEM_ZOR:           return peek16 <ACCESSOR_CPU, MEM_ZOR>      (addr);
         case MEM_ROM:           return peek16 <ACCESSOR_CPU, MEM_ROM>      (addr);
         case MEM_ROM_MIRROR:    return peek16 <ACCESSOR_CPU, MEM_ROM>      (addr);
         case MEM_WOM:           return peek16 <ACCESSOR_CPU, MEM_WOM>      (addr);
@@ -1362,6 +1352,7 @@ Memory::spypeek16 <ACCESSOR_CPU> (u32 addr) const
         case MEM_CUSTOM:        return spypeek16 <ACCESSOR_CPU, MEM_CUSTOM>   (addr);
         case MEM_CUSTOM_MIRROR: return spypeek16 <ACCESSOR_CPU, MEM_CUSTOM>   (addr);
         case MEM_AUTOCONF:      return spypeek16 <ACCESSOR_CPU, MEM_AUTOCONF> (addr);
+        case MEM_ZOR:           return spypeek16 <ACCESSOR_CPU, MEM_ZOR>      (addr);
         case MEM_ROM:           return spypeek16 <ACCESSOR_CPU, MEM_ROM>      (addr);
         case MEM_ROM_MIRROR:    return spypeek16 <ACCESSOR_CPU, MEM_ROM>      (addr);
         case MEM_WOM:           return spypeek16 <ACCESSOR_CPU, MEM_WOM>      (addr);
@@ -1386,6 +1377,16 @@ Memory::spypeek32 <ACCESSOR_CPU> (u32 addr) const
     auto lo = spypeek16 <ACCESSOR_CPU> (addr + 2);
     
     return HI_W_LO_W(hi, lo);
+}
+
+template <> void
+Memory::spypeek <ACCESSOR_CPU> (u32 addr, isize len, u8 *buf) const
+{
+    assert(buf);
+    
+    for (isize i = 0; i < len; i++) {
+        buf[i] = spypeek8 <ACCESSOR_CPU> (u32(addr + i));
+    }
 }
 
 
@@ -1643,11 +1644,9 @@ template <> void
 Memory::poke8 <ACCESSOR_CPU, MEM_AUTOCONF> (u32 addr, u8 value)
 {
     ASSERT_AUTO_ADDR(addr);
-    
-    // agnus.executeUntilBusIsFree();
-    
+        
     dataBus = value;
-    zorro.pokeFastRamDevice(addr, value);
+    zorro.pokeACF(addr, value);
 }
 
 template <> void
@@ -1655,11 +1654,23 @@ Memory::poke16 <ACCESSOR_CPU, MEM_AUTOCONF> (u32 addr, u16 value)
 {
     ASSERT_AUTO_ADDR(addr);
     
-    // agnus.executeUntilBusIsFree();
-
     dataBus = value;
-    zorro.pokeFastRamDevice(addr, HI_BYTE(value));
-    zorro.pokeFastRamDevice(addr + 1, LO_BYTE(value));
+    zorro.pokeACF(addr, HI_BYTE(value));
+    zorro.pokeACF(addr + 1, LO_BYTE(value));
+}
+
+template <> void
+Memory::poke8 <ACCESSOR_CPU, MEM_ZOR> (u32 addr, u8 value)
+{
+    dataBus = value;
+    zorro.poke8(addr, value);
+}
+
+template <> void
+Memory::poke16 <ACCESSOR_CPU, MEM_ZOR> (u32 addr, u16 value)
+{
+    dataBus = value;
+    zorro.poke16(addr, value);
 }
 
 template <> void
@@ -1732,6 +1743,7 @@ Memory::poke8 <ACCESSOR_CPU> (u32 addr, u8 value)
         case MEM_CUSTOM:        poke8 <ACCESSOR_CPU, MEM_CUSTOM>   (addr, value); return;
         case MEM_CUSTOM_MIRROR: poke8 <ACCESSOR_CPU, MEM_CUSTOM>   (addr, value); return;
         case MEM_AUTOCONF:      poke8 <ACCESSOR_CPU, MEM_AUTOCONF> (addr, value); return;
+        case MEM_ZOR:           poke8 <ACCESSOR_CPU, MEM_ZOR>      (addr, value); return;
         case MEM_ROM:           poke8 <ACCESSOR_CPU, MEM_ROM>      (addr, value); return;
         case MEM_ROM_MIRROR:    poke8 <ACCESSOR_CPU, MEM_ROM>      (addr, value); return;
         case MEM_WOM:           poke8 <ACCESSOR_CPU, MEM_WOM>      (addr, value); return;
@@ -1761,6 +1773,7 @@ Memory::poke16 <ACCESSOR_CPU> (u32 addr, u16 value)
         case MEM_CUSTOM:        poke16 <ACCESSOR_CPU, MEM_CUSTOM>   (addr, value); return;
         case MEM_CUSTOM_MIRROR: poke16 <ACCESSOR_CPU, MEM_CUSTOM>   (addr, value); return;
         case MEM_AUTOCONF:      poke16 <ACCESSOR_CPU, MEM_AUTOCONF> (addr, value); return;
+        case MEM_ZOR:           poke16 <ACCESSOR_CPU, MEM_ZOR>      (addr, value); return;
         case MEM_ROM:           poke16 <ACCESSOR_CPU, MEM_ROM>      (addr, value); return;
         case MEM_ROM_MIRROR:    poke16 <ACCESSOR_CPU, MEM_ROM>      (addr, value); return;
         case MEM_WOM:           poke16 <ACCESSOR_CPU, MEM_WOM>      (addr, value); return;
@@ -2539,6 +2552,96 @@ Memory::pokeCustom16(u32 addr, u16 value)
     } else {
         trace(INVREG_DEBUG,
               "pokeCustom16(%X [%s]): NON-OCS\n", addr, regName(addr));
+    }
+}
+
+template <> void
+Memory::patch <MEM_CHIP> (u32 addr, u8 value)
+{
+    ASSERT_CHIP_ADDR(addr);
+    WRITE_CHIP_8(addr, value);
+}
+
+template <> void
+Memory::patch <MEM_SLOW> (u32 addr, u8 value)
+{
+    ASSERT_SLOW_ADDR(addr);
+    WRITE_SLOW_8(addr, value);
+}
+
+template <> void
+Memory::patch <MEM_FAST> (u32 addr, u8 value)
+{
+    ASSERT_FAST_ADDR(addr);
+    WRITE_FAST_8(addr, value);
+}
+
+template <> void
+Memory::patch <MEM_ROM> (u32 addr, u8 value)
+{
+    ASSERT_ROM_ADDR(addr);
+    WRITE_ROM_8(addr, value);
+}
+
+template <> void
+Memory::patch <MEM_WOM> (u32 addr, u8 value)
+{
+    ASSERT_WOM_ADDR(addr);
+    WRITE_WOM_8(addr, value);
+}
+
+template <> void
+Memory::patch <MEM_EXT> (u32 addr, u8 value)
+{
+    ASSERT_EXT_ADDR(addr);
+    WRITE_EXT_8(addr, value);
+}
+
+void
+Memory::patch(u32 addr, u8 value)
+{
+    switch (cpuMemSrc[(addr & 0xFFFFFF) >> 16]) {
+            
+        case MEM_CHIP:          patch <MEM_CHIP>     (addr, value); return;
+        case MEM_CHIP_MIRROR:   patch <MEM_CHIP>     (addr, value); return;
+        case MEM_SLOW:          patch <MEM_SLOW>     (addr, value); return;
+        case MEM_SLOW_MIRROR:   patch <MEM_SLOW>     (addr, value); return;
+        case MEM_FAST:          patch <MEM_FAST>     (addr, value); return;
+        case MEM_ROM:           patch <MEM_ROM>      (addr, value); return;
+        case MEM_ROM_MIRROR:    patch <MEM_ROM>      (addr, value); return;
+        case MEM_WOM:           patch <MEM_WOM>      (addr, value); return;
+        case MEM_EXT:           patch <MEM_EXT>      (addr, value); return;
+            
+        default:
+            fatalError;
+    }
+}
+
+void
+Memory::patch(u32 addr, u16 value)
+{
+    assert(IS_EVEN(addr));
+    
+    patch(addr,     (u8)HI_BYTE(value));
+    patch(addr + 1, (u8)LO_BYTE(value));
+}
+
+void
+Memory::patch(u32 addr, u32 value)
+{
+    assert(IS_EVEN(addr));
+    
+    patch(addr,     (u16)HI_WORD(value));
+    patch(addr + 2, (u16)LO_WORD(value));
+}
+
+void
+Memory::patch(u32 addr, u8 *buf, isize len)
+{
+    assert(buf);
+    
+    for (isize i = 0; i < len; i++) {
+        patch(u32(addr + i), buf[i]);
     }
 }
 

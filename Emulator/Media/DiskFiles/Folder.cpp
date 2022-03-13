@@ -9,7 +9,7 @@
 
 #include "config.h"
 #include "Folder.h"
-#include "FSDevice.h"
+#include "MutableFileSystem.h"
 #include "IOUtils.h"
 
 bool
@@ -27,13 +27,13 @@ Folder::init(const string &path)
     if (!isCompatiblePath(path)) throw VAError(ERROR_FILE_TYPE_MISMATCH);
 
     // Create a file system and import the directory
-    FSDevice volume(FS_OFS, path.c_str());
+    MutableFileSystem volume(FS_OFS, path.c_str());
     
     // Make the volume bootable
     volume.makeBootable(BB_AMIGADOS_13);
     
     // Check the file system for errors
-    volume.info();
+    volume.dump(dump::Summary);
     volume.printDirectory(true);
 
     // Check the file system for consistency

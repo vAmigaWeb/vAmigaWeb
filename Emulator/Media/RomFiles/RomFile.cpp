@@ -10,6 +10,7 @@
 #include "config.h"
 #include "RomFile.h"
 #include "IOUtils.h"
+#include "MemUtils.h"
 
 //
 // Boot Roms
@@ -565,18 +566,17 @@ RomFile::isRomFile(const string &path)
 bool
 RomFile::isEncrypted()
 {
-    return util::matchingBufferHeader(data, encrRomHeaders[0], sizeof(encrRomHeaders[0]));
+    return util::matchingBufferHeader(data.ptr, encrRomHeaders[0], sizeof(encrRomHeaders[0]));
 }
 
 void
 RomFile::decrypt()
 {
     const isize headerSize = 11;
-    u8 *encryptedData = nullptr;
-    u8 *decryptedData = nullptr;
-    u8 *romKeyData = nullptr;
-    isize romKeySize = 0;
 
+    util::Buffer romKey;
+    util::Buffer decrypted;
+    
     // Only proceed if the file is encrypted
     if (!isEncrypted()) return;
 
@@ -584,27 +584,20 @@ RomFile::decrypt()
     romKeyPath = util::extractPath(path) + "rom.key";
 
     // Load the rom.key file
-    if (!util::loadFile(romKeyPath, &romKeyData, &romKeySize)) {
-        throw VAError(ERROR_MISSING_ROM_KEY);
-    }
-
-    // Create a buffer for the decrypted data
-    encryptedData = data + headerSize;
-    decryptedData = new u8[size - headerSize];
-
+    romKey.init(romKeyPath);
+    if (romKey.empty()) throw VAError(ERROR_MISSING_ROM_KEY);
+    
     // Decrypt
-    for (isize i = 0; i < size - headerSize; i++) {
-        decryptedData[i] = encryptedData[i] ^ romKeyData[i % romKeySize];
+    decrypted.init(data.size - headerSize);
+    for (isize i = 0, j = headerSize; j < data.size; i++, j++) {
+        decrypted[i] = data[j] ^ romKey[i % romKey.size];
     }
-    delete [] romKeyData;
-
+    
     // Replace the old data by the decrypted data
-    delete [] data;
-    data = decryptedData;
-    size -= headerSize;
-
+    data.init(decrypted);
+    
     // Check if we've got a valid ROM
-    if (!isRomBuffer(data, size)) {
+    if (!isRomBuffer(data.ptr, data.size)) {
         throw VAError(ERROR_INVALID_ROM_KEY);
     }
 }

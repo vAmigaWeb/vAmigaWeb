@@ -95,6 +95,12 @@ RetroShell::tab(isize pos)
 }
 
 void
+RetroShell::setStream(std::ostream &os)
+{
+    storage.ostream = &os;
+}
+
+void
 RetroShell::needsDisplay()
 {
     msgQueue.put(MSG_UPDATE_CONSOLE);
@@ -419,11 +425,10 @@ void
 RetroShell::help(const string &command)
 {
     interpreter.help(command);
-    *this << prompt;
 }
 
 void
-RetroShell::dump(AmigaComponent &component, dump::Category category)
+RetroShell::dump(AmigaObject &component, dump::Category category)
 {
     std::stringstream ss; string line;
     

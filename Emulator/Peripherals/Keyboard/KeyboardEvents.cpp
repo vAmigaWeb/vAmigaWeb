@@ -15,7 +15,7 @@
 void
 Keyboard::serviceKeyboardEvent(EventID id)
 {
-    u64 nr = scheduler.data[SLOT_KBD];
+    u64 nr = agnus.data[SLOT_KBD];
 
     switch(id) {
             
@@ -100,9 +100,25 @@ Keyboard::serviceKeyboardEvent(EventID id)
 void
 Keyboard::serviceKeyEvent()
 {
-    auto id = scheduler.id[SLOT_KEY];
-    auto data = scheduler.data[SLOT_KEY];
-    
-    printf("serviceKeyEvent(%d,%lld)\n", id, data);
-    printf("To be implemented\n");
+    auto id = agnus.id[SLOT_KEY];
+    auto code = (KeyCode)(agnus.data[SLOT_KEY]);
+    auto duration = (Cycle)(agnus.data[SLOT_KEY] >> 8);
+
+    switch(id) {
+            
+        case KEY_PRESS:
+            
+            pressKey(code);
+            agnus.scheduleRel <SLOT_KEY> (duration, KEY_RELEASE, code);
+            break;
+            
+        case KEY_RELEASE:
+            
+            releaseKey(code);
+            agnus.cancel <SLOT_KEY> ();
+            break;
+            
+        default:
+            fatalError;
+    }
 }

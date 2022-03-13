@@ -9,6 +9,7 @@
 
 #include "config.h"
 #include "Error.h"
+#include "Constants.h"
 
 VAError::VAError(ErrorCode code, const string &s)
 {
@@ -42,6 +43,10 @@ VAError::VAError(ErrorCode code, const string &s)
             
         case ERROR_OPT_LOCKED:
             description = "This option is locked because the Amiga is powered on.";
+            break;
+
+        case ERROR_DIR_NOT_FOUND:
+            description = "Folder \"" + s + "\" not found.";
             break;
 
         case ERROR_FILE_NOT_FOUND:
@@ -117,6 +122,58 @@ VAError::VAError(ErrorCode code, const string &s)
             description = "Unable to decode the MFM bit stream (invalid sector number).";
             break;
 
+        case ERROR_HDR_TOO_LARGE:
+            description = "vAmiga supports hard drives with a maximum capacity of ";
+            description += "504 MB.";
+            break;
+
+        case ERROR_HDR_UNSUPPORTED_CYL_COUNT:
+            description = "The geometry of this drive is not supported. ";
+            description += "vAmiga supports hard drives with ";
+            description += "at least " + std::to_string(HDR_C_MIN) + " and ";
+            description += "at most " + std::to_string(HDR_C_MAX) + " cylinders. ";
+            description += "This drive has " + s + " cylinders.";
+            break;
+            
+        case ERROR_HDR_UNSUPPORTED_HEAD_COUNT:
+            description = "The geometry of this drive is not supported. ";
+            description += "vAmiga supports hard drives with ";
+            description += "at least " + std::to_string(HDR_H_MIN) + " and ";
+            description += "at most " + std::to_string(HDR_H_MAX) + " heads. ";
+            description += "The drive has " + s + " heads.";
+            break;
+
+        case ERROR_HDR_UNSUPPORTED_SEC_COUNT:
+            description = "The geometry of this drive is not supported. ";
+            description += "vAmiga only supports hard drives with ";
+            description += "at least " + std::to_string(HDR_S_MIN) + " and ";
+            description += "at most " + std::to_string(HDR_S_MAX) + " sectors. ";
+            description += "The drive stores " + s + " sectors per track.";
+            break;
+
+        case ERROR_HDR_UNSUPPORTED_BSIZE:
+            description = "The geometry of this drive is not supported. ";
+            description += "vAmiga only supports hard drives with a ";
+            description += "block size of 512 bytes. ";
+            description += "The drive stores " + s + " bytes per block.";
+            break;
+            
+        case ERROR_HDR_UNMATCHED_GEOMETRY:
+            description = "The drive geometry doesn't match the hard drive capacity.";
+            break;
+
+        case ERROR_HDR_UNPARTITIONED:
+            description = "The hard drive has no partitions.";
+            break;
+
+        case ERROR_HDR_CORRUPTED_PTABLE:
+            description = "Can't parse the partition table.";
+            break;
+            
+        case ERROR_HDR_UNSUPPORTED:
+            description = "The hard drive is encoded in an unknown or unsupported format.";
+            break;
+
         case ERROR_SNAP_TOO_OLD:
             description = "The snapshot was created with an older version of vAmiga";
             description += " and is incompatible with this release.";
@@ -127,9 +184,18 @@ VAError::VAError(ErrorCode code, const string &s)
             description += " and is incompatible with this release.";
             break;
 
+        case ERROR_SNAP_IS_BETA:
+            description = "The snapshot was created with a beta version of vAmiga";
+            description += " and is incompatible with this release.";
+            break;
+
         case ERROR_SNAP_CORRUPTED:
             description = "The snapshot data is corrupted and has put the";
             description += " emulator into an inconsistent state.";
+            break;
+
+        case ERROR_DMS_CANT_CREATE:
+            description = "Failed to extract the DMS archive.";
             break;
 
         case ERROR_EXT_FACTOR5:
@@ -148,10 +214,6 @@ VAError::VAError(ErrorCode code, const string &s)
             description = "The disk encoder failed to extract the disk due to ";
             description += " corrupted or inconsistend file data.";
             break;
-
-        case ERROR_DMS_CANT_CREATE:
-            description = "Failed to extract the DMS archive.";
-            break;
             
         case ERROR_MISSING_ROM_KEY:
             description = "No \"rom.key\" file found.";
@@ -168,9 +230,17 @@ VAError::VAError(ErrorCode code, const string &s)
         case ERROR_FS_UNSUPPORTED:
             description = "Unsupported file system.";
             break;
-            
+
+        case ERROR_FS_UNFORMATTED:
+            description = "Unformatted device.";
+            break;
+
         case ERROR_FS_WRONG_BSIZE:
             description = "Invalid block size.";
+            break;
+
+        case ERROR_FS_WRONG_DOS_TYPE:
+            description = "Wrong DOS type.";
             break;
 
         case ERROR_FS_WRONG_CAPACITY:
@@ -185,7 +255,7 @@ VAError::VAError(ErrorCode code, const string &s)
             description = "Corrupted file system.";
             break;
 
-        case ERROR_FS_DIRECTORY_NOT_EMPTY:
+        case ERROR_FS_DIR_NOT_EMPTY:
             description = "Directory is not empty.";
             break;
 

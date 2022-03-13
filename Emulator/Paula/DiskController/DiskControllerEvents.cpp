@@ -10,7 +10,7 @@
 #include "config.h"
 #include "DiskController.h"
 #include "Agnus.h"
-#include "Drive.h"
+#include "FloppyDrive.h"
 #include <cmath>
 
 void
@@ -29,9 +29,9 @@ DiskController::scheduleFirstDiskEvent()
     dskEventDelay = 0.0;
     
     if (turboMode()) {
-        scheduler.cancel<SLOT_DSK>();
+        agnus.cancel<SLOT_DSK>();
     } else {
-        scheduler.scheduleImm<SLOT_DSK>(DSK_ROTATE);
+        agnus.scheduleImm<SLOT_DSK>(DSK_ROTATE);
     }
 }
 
@@ -48,7 +48,7 @@ DiskController::scheduleNextDiskEvent()
     dskEventDelay -= rounded;
     
     if (turboMode()) {
-        scheduler.cancel<SLOT_DSK>();
+        agnus.cancel<SLOT_DSK>();
     } else {
         agnus.scheduleRel<SLOT_DSK>(DMA_CYCLES(rounded), DSK_ROTATE);
     }

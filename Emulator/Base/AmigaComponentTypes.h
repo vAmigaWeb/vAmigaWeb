@@ -24,6 +24,7 @@ enum_long(OPT)
     
     // Denise
     OPT_DENISE_REVISION,
+    OPT_VIEWPORT_TRACKING,
     
     // Pixel engine
     OPT_PALETTE,
@@ -60,7 +61,7 @@ enum_long(OPT)
     OPT_LOCK_DSKSYNC,
     OPT_AUTO_DSKSYNC,
 
-    // Drives
+    // Floppy Drives
     OPT_DRIVE_TYPE,
     OPT_EMULATE_MECHANICS,
     OPT_START_DELAY,
@@ -72,8 +73,12 @@ enum_long(OPT)
     OPT_POLL_VOLUME,
     OPT_INSERT_VOLUME,
     OPT_EJECT_VOLUME,
-    OPT_DEFAULT_FILESYSTEM,
-    OPT_DEFAULT_BOOTBLOCK,
+    
+    // Hard Drives
+    OPT_HDR_TYPE,
+    OPT_HDR_CONNECT,
+    OPT_HDR_PAN,
+    OPT_HDR_STEP_VOLUME,
     
     // Ports
     OPT_SERIAL_DEVICE,
@@ -141,6 +146,7 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
             case OPT_SLOW_RAM_MIRROR:       return "SLOW_RAM_MIRROR";
                 
             case OPT_DENISE_REVISION:       return "DENISE_REVISION";
+            case OPT_VIEWPORT_TRACKING:     return "VIEWPORT_TRACKING";
                 
             case OPT_PALETTE:               return "PALETTE";
             case OPT_BRIGHTNESS:            return "BRIGHTNESS";
@@ -182,9 +188,12 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
             case OPT_POLL_VOLUME:           return "POLL_VOLUME";
             case OPT_INSERT_VOLUME:         return "INSERT_VOLUME";
             case OPT_EJECT_VOLUME:          return "EJECT_VOLUME";
-            case OPT_DEFAULT_FILESYSTEM:    return "DEFAULT_FILESYSTEM";
-            case OPT_DEFAULT_BOOTBLOCK:     return "DEFAULT_BOOTBLOCK";
                 
+            case OPT_HDR_TYPE:              return "HDR_TYPE";
+            case OPT_HDR_CONNECT:           return "HDR_CONNECT";
+            case OPT_HDR_PAN:               return "HDR_PAN";
+            case OPT_HDR_STEP_VOLUME:       return "HDR_STEP_VOLUME";
+
             case OPT_SERIAL_DEVICE:         return "SERIAL_DEVICE";
 
             case OPT_HIDDEN_BITPLANES:      return "HIDDEN_BITPLANES";

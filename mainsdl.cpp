@@ -20,7 +20,201 @@
 
 #include <emscripten.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_opengles2.h> 
 #include <emscripten/html5.h>
+
+#define RENDER_SOFTWARE 0
+#define RENDER_GPU 1
+#define RENDER_SHADER 2
+u8 render_method = RENDER_SOFTWARE;
+
+#define DISPLAY_NARROW   0
+#define DISPLAY_STANDARD 1
+#define DISPLAY_WIDER    2
+#define DISPLAY_OVERSCAN 3
+#define DISPLAY_ADAPTIVE 4
+u8 geometry  = DISPLAY_ADAPTIVE;
+
+/********* shaders ***********/
+GLuint basic;
+GLuint merge;
+GLuint longf;
+GLuint shortf;
+
+const GLchar *vertexSource =
+  "#version 300 es      \n"
+  "precision mediump float;    \n"
+  "in vec4 a_position;  \n"
+  "in vec2 a_texcoord;  \n"
+  "uniform vec2 u_diw_size;  \n"
+  "out vec2 v_texcoord;    \n"
+  "out vec2 amiga_pos;    \n"
+  "void main() {               \n"
+  "  amiga_pos = a_position.xy * u_diw_size.xy; \n"
+  "  gl_Position = a_position; \n"
+  "  v_texcoord = a_texcoord;  \n"
+  "}                           \n";
+
+const GLchar *basicSource =
+  "#version 300 es      \n"
+  "precision mediump float;                        \n"
+  "uniform sampler2D u_long;                       \n"
+  "in vec2 v_texcoord;                        \n"
+  "out vec4 color;                                 \n"
+  "void main() {                                   \n"
+  "  color = texture(u_long, v_texcoord); \n"
+  "}                                               \n";
+
+const GLchar *mergeSource =
+  "#version 300 es      \n"
+  "precision mediump float;                           \n"
+  "uniform sampler2D u_long;                          \n"
+  "uniform sampler2D u_short;                         \n"
+  "in vec2 amiga_pos;                           \n"
+  "in vec2 v_texcoord;                           \n"
+  "out vec4 color;                                 \n"
+  "void main() {                                      \n"
+  "  if (mod(amiga_pos.y, 2.0) < 1.0) {                        \n"
+  "    color = texture(u_short, v_texcoord); \n"
+  "  } else {                                         \n"
+  "    color = texture(u_long, v_texcoord);  \n"
+  "  }                                                \n"
+  "}                                                  \n";
+
+
+int clip_width  = 724;
+int clip_height = 568;
+int clip_offset = 0; 
+int buffer_size = 4096;
+
+bool prevLOF = false;
+bool currLOF = false;
+
+
+GLuint compileShader(const GLenum type, const GLchar *source) {
+  GLint result;
+  GLint length;
+
+  GLuint shader = glCreateShader(type);
+  glShaderSource(shader, 1, &source, NULL);
+  glCompileShader(shader);
+
+  glGetShaderiv(shader, GL_COMPILE_STATUS, &result);
+  glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
+
+  if (result != GL_TRUE) {
+    std::vector<char> error(length + 1);
+    glGetShaderInfoLog(shader, length, NULL, &error[0]);
+    printf("Failed to compile shader: %s\n", &error[0]);
+
+    glDeleteShader(shader);
+    return 0;
+  }
+
+  return shader;
+}
+
+GLuint compileProgram(const GLchar *source) {
+  GLint result;
+  GLint length;
+
+  GLuint vertex = compileShader(GL_VERTEX_SHADER, vertexSource);
+  GLuint fragment = compileShader(GL_FRAGMENT_SHADER, source);
+
+  if (vertex == 0 || fragment == 0) {
+    return 0;
+  }
+
+  GLuint program = glCreateProgram();
+  glAttachShader(program, vertex);
+  glAttachShader(program, fragment);
+  glLinkProgram(program);
+
+  glGetProgramiv(program, GL_LINK_STATUS, &result);
+  glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
+
+  if (result != GL_TRUE) {
+    std::vector<char> error(length + 1);
+    glGetProgramInfoLog(program, length, NULL, &error[0]);
+    printf("Failed to compile program: %s\n", &error[0]);
+
+    glDeleteProgram(program);
+    return 0;
+  }
+
+  glDeleteShader(vertex);
+  glDeleteShader(fragment);
+  return program;
+}
+
+void set_texture_display_window(const GLuint program, float hstart, float hstop, float vstart, float vstop)
+{
+  const float x1 = hstart / HPIXELS;
+  const float x2 = hstop / HPIXELS;
+  const float y1 = vstart  / VPIXELS;
+  const float y2 = vstop / VPIXELS;
+
+  const GLfloat coords[] = {
+    x1,y1, x2,y1, x1,y2, x2,y2
+  };
+  printf("%f %f %f %f\n",x1,x2,y1,y2);
+  GLuint corBuffer;
+  glGenBuffers(1, &corBuffer);
+  glBindBuffer(GL_ARRAY_BUFFER, corBuffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(coords), coords, GL_STATIC_DRAW);
+
+  GLint corAttrib = glGetAttribLocation(program, "a_texcoord");
+  glEnableVertexAttribArray(corAttrib);
+  glVertexAttribPointer(corAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+  glUniform2f(glGetUniformLocation(merge, "u_diw_size"), hstop-hstart, vstop-vstart);
+
+  printf("w=%f h=%f\n",hstop-hstart,vstop-vstart);
+
+}
+
+void initGeometry(const GLuint program, float eat_x, float eat_y) {
+  //--- add a_position
+  const GLfloat position[] = {
+    -1.0f,  1.0f,
+     1.0f,  1.0f,
+    -1.0f, -1.0f,
+     1.0f, -1.0f
+  };
+  GLuint posBuffer;
+  glGenBuffers(1, &posBuffer);
+  glBindBuffer(GL_ARRAY_BUFFER, posBuffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(position), position, GL_STATIC_DRAW);
+
+  GLint posAttrib = glGetAttribLocation(program, "a_position");
+  glEnableVertexAttribArray(posAttrib);
+  glVertexAttribPointer(posAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+  //--- add a_texcoord
+
+//  set_texture_display_window(program, 168.0f,892.0f,26.0f,312.0f);
+}
+
+GLuint initTexture(const GLuint *source) {
+  GLuint texture = 0;
+  glGenTextures(1, &texture);
+  glBindTexture(GL_TEXTURE_2D, texture);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, HPIXELS, VPIXELS, 0, GL_RGBA, GL_UNSIGNED_BYTE, source);
+
+  return texture;
+}
+
+/********************************************************/
+
+
+
+
+
 
 /* SDL2 start*/
 SDL_Window * window = NULL;
@@ -104,8 +298,6 @@ void PrintEvent(const SDL_Event * event)
     }
 }
 
-int emu_width  = HPIXELS; //TEX_WIDTH; //NTSC_PIXELS; //428
-int emu_height = VPIXELS; //PAL_RASTERLINES; //284
 int eat_border_width = 0;
 int eat_border_height = 0;
 int xOff = 12 + eat_border_width;
@@ -128,8 +320,8 @@ EM_BOOL emscripten_window_resized_callback(int eventType, const void *reserved, 
     SDL_Rect SrcR;
     SrcR.x = 0;
     SrcR.y = 0;
-    SrcR.w = emu_width;
-    SrcR.h = emu_height;
+    SrcR.w = HPIXELS;
+    SrcR.h = VPIXELS;
     SDL_RenderSetViewport(renderer, &SrcR);
     */
 	return true;
@@ -171,7 +363,7 @@ int eventFilter(void* thisC64, SDL_Event* event) {
         }
         else if(event->window.event==SDL_WINDOWEVENT_RESIZED)
         {//this event comes after SDL_WINDOWEVENT_SIZE_CHANGED
-              //SDL_SetWindowSize(window, emu_width, emu_height);   
+              //SDL_SetWindowSize(window, HPIXELS, VPIXELS);   
               //SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
               //window_surface = SDL_GetWindowSurface(window);
         }
@@ -221,16 +413,13 @@ void draw_one_frame_into_SDL_noise(void *thisAmiga)
 
   Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getNoise(); //screenBuffer();
  
-//  int surface_width = window_surface->w;
-//  int surface_height = window_surface->h;
-
 //  SDL_RenderClear(renderer);
   SDL_Rect SrcR;
   SrcR.x = xOff;
   SrcR.y = yOff;
   SrcR.w = clipped_width;
   SrcR.h = clipped_height;
-  SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*emu_width*SrcR.y) + SrcR.x*4, 4*emu_width);
+  SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*HPIXELS*SrcR.y) + SrcR.x*4, 4*HPIXELS);
 
   SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
 
@@ -238,6 +427,13 @@ void draw_one_frame_into_SDL_noise(void *thisAmiga)
 
   return;
 }
+
+
+u16 vstart_min=26;
+u16 vstop_max=VPIXELS;
+u16 hstart_min=200;
+u16 hstop_max=HPIXELS;
+
 void draw_one_frame_into_SDL(void *thisAmiga) 
 {
 
@@ -308,14 +504,20 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     }
   }
 
-  while(total_executed_frame_count < targetFrameCount) {
+  int skipped=-1;  // -1, 0, 1 , 2 
+  while(skipped % 2 == 1 //when skip then skip twice because of interlace detection
+        || 
+        total_executed_frame_count < targetFrameCount) {
     executed_frame_count++;
     total_executed_frame_count++;
-
     amiga->execute();
+    skipped++;
   }
 
   rendered_frame_count++;  
+  
+  if(skipped==-1)
+    return;   //in case no execute was called 
 
   EM_ASM({
  //     if (typeof draw_one_frame === 'undefined')
@@ -323,30 +525,60 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       draw_one_frame(); // to gather joystick information for example 
   });
   
-  Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getStableBuffer().data; //screenBuffer();
-
-//  Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getNoise(); //screenBuffer();
-/*  for(unsigned int i=0;i<32;i++)
+  if(render_method==RENDER_SHADER)
   {
-    printf("%u,", texture[i]);
+    ScreenBuffer stable = amiga->denise.pixelEngine.getStableBuffer();
+    prevLOF = currLOF;
+    currLOF = stable.longFrame;
+
+    if (currLOF) {
+      glActiveTexture(GL_TEXTURE0);
+    } else if (prevLOF) {
+      glActiveTexture(GL_TEXTURE1);
+    } else {
+      glActiveTexture(GL_TEXTURE0);
+    }  
+
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stable.data + clip_offset);
+
+    if (currLOF != prevLOF) {
+      // Case 1: Interlace drawing
+      glUseProgram(merge);
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, longf);
+
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, shortf);
+    } 
+    else 
+    {
+      // Case 2: Non-interlace drawing (two long frames in a row)
+      glUseProgram(basic);
+      glBindTexture(GL_TEXTURE_2D, longf);
+    } 
+
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    SDL_GL_SwapWindow(window);
   }
-  printf("\n");
-*/
-//  int surface_width = window_surface->w;
-//  int surface_height = window_surface->h;
+  else
+  {
 
-//  SDL_RenderClear(renderer);
-  SDL_Rect SrcR;
-  SrcR.x = xOff;
-  SrcR.y = yOff;
-  SrcR.w = clipped_width;
-  SrcR.h = clipped_height;
-  SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*emu_width*SrcR.y) + SrcR.x*4, 4*emu_width);
+    Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getStableBuffer().data;
 
-  SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
+  //  SDL_RenderClear(renderer);
+    SDL_Rect SrcR;
 
-  SDL_RenderPresent(renderer);
+    SrcR.x = xOff;
+    SrcR.y = yOff;
+    SrcR.w = clipped_width;
+    SrcR.h = clipped_height;
 
+    SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*HPIXELS*SrcR.y) + SrcR.x*4, 4*HPIXELS);
+
+    SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
+
+    SDL_RenderPresent(renderer);
+  }
 }
 
 
@@ -370,96 +602,18 @@ void MyAudioCallback(void*  thisAmiga,
     sum_samples += sample_size;
 }
 
-extern "C" void wasm_create_renderer(char* name)
-{ 
-  printf("try to create %s renderer\n", name);
-  window = SDL_CreateWindow("",
-   SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        clipped_width, clipped_height,
-        SDL_WINDOW_RESIZABLE);
 
-  if(0==strcmp("webgl", name))
-  {
-    renderer = SDL_CreateRenderer(window,
-          -1, 
-          SDL_RENDERER_PRESENTVSYNC|SDL_RENDERER_ACCELERATED);
-    if(renderer == NULL)
-    {
-      printf("can not get hardware accelerated renderer going with software renderer instead...\n");
-    }
-    else
-    {
-      printf("got hardware accelerated renderer ...\n");
-    }
-  }
-  if(renderer == NULL)
-  {
-      renderer = SDL_CreateRenderer(window,
-          -1, 
-          SDL_RENDERER_SOFTWARE
-          );
 
-    if(renderer == NULL)
-    {
-      printf("can not get software renderer ...\n");
-      return;
-    }
-    else
-    {
-      printf("got software renderer ...\n");
-    }
-  }
-
-    // Since we are going to display a low resolution buffer,
-    // it is best to limit the window size so that it cannot
-    // be smaller than our internal buffer size.
-  SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
-  SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
-  SDL_RenderSetIntegerScale(renderer, SDL_TRUE);
-
-  screen_texture = SDL_CreateTexture(renderer,
-        /*SDL_PIXELFORMAT_ARGB32*/ SDL_PIXELFORMAT_ABGR8888 
-        , SDL_TEXTUREACCESS_STREAMING,
-        emu_width, emu_height);
-
-  window_surface = SDL_GetWindowSurface(window);
-}
 
 void initSDL(void *thisAmiga)
 {
-//    Amiga *amiga = (Amiga *)thisAmiga;
     if(SDL_Init(SDL_INIT_VIDEO)==-1)
     {
         printf("Could not initialize SDL:%s\n", SDL_GetError());
-    } 
-/*
-    SDL_AudioSpec want, have;
-    SDL_AudioDeviceID device_id;
-
-    SDL_memset(&want, 0, sizeof(want)); // or SDL_zero(want)
-    want.freq = 44100;  //44100; // 22050;
-    want.format = AUDIO_F32;
-    want.channels = 2;
-    //sample buffer 512 in original vc64, vc64web=512 under macOs ok, but iOS needs 2048;
-    want.samples = 2048;
-    want.callback = MyAudioCallback;
-    want.userdata = thisAmiga;   //will be passed to the callback
-    device_id = SDL_OpenAudioDevice(NULL, 0, &want, &have, SDL_AUDIO_ALLOW_FORMAT_CHANGE);
-    if(device_id == 0)
-    {
-        printf("Failed to open audio: %s\n", SDL_GetError());
     }
-*/
-//    printf("set paula.muxer to freq= %d\n", have.freq);
-//    amiga->paula.muxer.setSampleRate(have.freq);
-  //  sample_size=have.samples;
-//    printf("paula.muxer.getSampleRate()==%f\n", amiga->paula.muxer.getSampleRate());
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
  
-
-//    SDL_PauseAudioDevice(device_id, 0); //unpause the audio device
-    
-    //listen to mouse, finger and keys
-//    SDL_SetEventFilter(eventFilter, thisAmiga);
 }
 
 
@@ -489,7 +643,7 @@ bool paused_the_emscripten_main_loop=false;
 
 bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
-void theListener(const void * amiga, long type, long data){
+void theListener(const void * amiga, long type,  u32 data1, u32 data2){
   if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.frame.nr < warp_to_frame)
   {
     //skip automatic warp mode on disk load
@@ -512,46 +666,87 @@ void theListener(const void * amiga, long type, long data){
   }
   else
   {
-    printf("vAmiga message=%s, data=%ld\n", message_as_string, data);
-    send_message_to_js(message_as_string, data);
+    printf("vAmiga message=%s, data=%u\n", message_as_string, data1);
+    send_message_to_js(message_as_string, data1);
   }
   if(type == MSG_DISK_INSERT)
   {
 //    ((Amiga *)amiga)->drive8.dump();
   }
+  if(type == MSG_VIEWPORT)
+  {
+    printf("tracking MSG_VIEWPORT=%u, %u\n",data1, data2);
+    hstart_min= (data1 >>16) & 0xffff;
+    vstart_min= (data1 ) & 0xffff;
+    hstop_max= (data2 >>16) & 0xffff;
+    vstop_max= (data2 ) & 0xffff;
+    
+    hstart_min *=2;
+    hstop_max *=2;
+
+    hstart_min=hstart_min<208 ? 208:hstart_min;
+
+    if(vstart_min < 26) 
+      vstart_min = 26;
+
+    if(vstop_max > 312) 
+      vstop_max = 312;
+
+    printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
+
+    if(render_method==RENDER_SHADER)
+    {
+      if(geometry== DISPLAY_ADAPTIVE)
+      {         
+        glUseProgram(basic);
+        set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
+        glUseProgram(merge);
+        set_texture_display_window(merge, hstart_min, hstop_max, vstart_min, vstop_max);
+      } 
+    }
+    else
+    {  
+      if(geometry== DISPLAY_ADAPTIVE)
+      {         
+        xOff = hstart_min;
+        yOff = vstart_min;
+        clipped_width = hstop_max-hstart_min;
+        clipped_height = vstop_max-vstart_min;
+
+        SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
+        SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
+        SDL_SetWindowSize(window, clipped_width, clipped_height);
+      }
+    }
+
+
+  }
+  
 
 }
 
 
 
-class C64Wrapper {
+class vAmigaWrapper {
   public:
     Amiga *amiga;
 
-  C64Wrapper()
+  vAmigaWrapper()
   {
     printf("constructing vAmiga ...\n");
-
     this->amiga = new Amiga();
 
     printf("adding a listener to vAmiga message queue...\n");
 
     amiga->msgQueue.setListener(this->amiga, &theListener);
   }
-  ~C64Wrapper()
+  ~vAmigaWrapper()
   {
         printf("closing wrapper");
   }
 
   void run()
   {
-/*    printf("wrapper calls 4x c64->loadRom(...) method\n");
-    c64->loadRom(ROM_KERNAL ,"roms/kernal.901227-03.bin");
-    c64->loadRom(ROM_BASIC, "roms/basic.901226-01.bin");
-    c64->loadRom(ROM_CHAR, "roms/characters.901225-01.bin");
-    c64->loadRom(ROM_VC1541, "roms/1541-II.251968-03.bin");
-*/
-
     try { amiga->isReady(); } catch(...) { 
       printf("***** put missing rom message\n");
        // amiga->msgQueue.put(ROM_MISSING); 
@@ -581,7 +776,7 @@ class C64Wrapper {
 
     amiga->configure(OPT_CHIP_RAM, 512);
     amiga->configure(OPT_SLOW_RAM, 512);
-    amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS_PLCC);
+    amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS);
 
 
 //    c64->configure(OPT_DRV_AUTO_CONFIG,DRIVE8,1);
@@ -616,13 +811,150 @@ class C64Wrapper {
   }
 };
 
-C64Wrapper *wrapper = NULL;
+vAmigaWrapper *wrapper = NULL;
 extern "C" int main(int argc, char** argv) {
-  wrapper= new C64Wrapper();
+  wrapper= new vAmigaWrapper();
   initSDL(wrapper->amiga);
   wrapper->run();
   return 0;
 }
+
+
+bool create_shader()
+{
+    printf("try to create shader renderer\n");
+
+    window = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, clip_width, clip_height, SDL_WINDOW_OPENGL);
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_CreateContext(window);
+    SDL_GL_SetSwapInterval(0);
+
+    basic = compileProgram(basicSource);
+    merge = compileProgram(mergeSource);
+
+    if (basic == 0 || merge == 0)
+      return false;
+
+    glViewport(0, 0, clip_width, clip_height);
+    initGeometry(basic, 0,0);
+    initGeometry(merge, 0,0);
+
+    ScreenBuffer stable = wrapper->amiga->denise.pixelEngine.getStableBuffer();
+
+    longf  = initTexture(stable.data + clip_offset);
+    shortf = initTexture(stable.data + clip_offset);
+
+    glUseProgram(merge);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, shortf);
+    glUniform1i(glGetUniformLocation(merge, "u_short"), 1);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, longf);
+    glUniform1i(glGetUniformLocation(merge, "u_long"), 0);
+    glUniform2f(glGetUniformLocation(merge, "u_diw_size"), 724.0f, 284.0f);
+
+    glUseProgram(basic);
+    glUniform1i(glGetUniformLocation(basic, "u_long"), 0);
+    glUniform2f(glGetUniformLocation(merge, "u_diw_size"), 724.0f, 284.0f);
+
+    return true;
+}
+bool create_renderer_webgl()
+{
+    printf("try to create web_gl renderer\n");
+      //mach den anderen webgl renderer 
+    window = SDL_CreateWindow("",
+    SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+    clipped_width, clipped_height,
+    SDL_WINDOW_RESIZABLE);
+
+    renderer = SDL_CreateRenderer(window,
+          -1, 
+          SDL_RENDERER_PRESENTVSYNC|SDL_RENDERER_ACCELERATED);
+
+    return renderer != NULL; 
+}
+bool create_renderer_software()
+{
+    printf("create software renderer\n");
+    if(window == NULL)
+      window = SDL_CreateWindow("",
+      SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+      clipped_width, clipped_height,
+      SDL_WINDOW_RESIZABLE);
+
+    renderer = SDL_CreateRenderer(window,
+          -1, 
+          SDL_RENDERER_SOFTWARE
+          );
+    return renderer != NULL; 
+}
+void create_texture()
+{
+      // Since we are going to display a low resolution buffer,
+    // it is best to limit the window size so that it cannot
+    // be smaller than our internal buffer size.
+  SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
+  SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
+  SDL_RenderSetIntegerScale(renderer, SDL_TRUE);
+
+  screen_texture = SDL_CreateTexture(renderer,
+        /*SDL_PIXELFORMAT_ARGB32*/ SDL_PIXELFORMAT_ABGR8888 
+        , SDL_TEXTUREACCESS_STREAMING,
+        HPIXELS, VPIXELS);
+
+  window_surface = SDL_GetWindowSurface(window);
+}
+
+
+extern "C" void wasm_create_renderer(char* name)
+{ 
+  render_method=RENDER_SOFTWARE;
+  printf("try to create %s renderer\n", name);
+  if(0==strcmp("gpu shader", name))
+  {
+    if(create_shader())
+    {
+      render_method=RENDER_SHADER;
+    }
+    else
+    {
+      if(create_renderer_webgl())
+      {
+        render_method=RENDER_GPU;
+      }
+      else
+      {
+        create_renderer_software();
+      }
+      create_texture();
+    }
+
+  }
+  else if(0==strcmp("gpu", name))
+  {
+    if(create_renderer_webgl())
+    {
+      printf("got hardware accelerated renderer ...\n");
+      render_method=RENDER_GPU;
+    }
+    else
+    {
+      printf("can not get hardware accelerated renderer going with software renderer instead...\n");
+      create_renderer_software();
+    }
+    create_texture();
+  } else
+  {
+      create_renderer_software();
+      create_texture();
+  }
+
+}
+
+
 
 /* emulation of macos mach_absolute_time() function. */
 uint64_t mach_absolute_time()
@@ -683,8 +1015,8 @@ extern "C" char* wasm_export_disk()
 
   ADFFile *adf = new ADFFile(wrapper->amiga->df0);
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",
-  (unsigned long)adf->data, 
-  adf->size
+  (unsigned long)adf->data.ptr, 
+  adf->data.size
   );
   printf("return => %s\n",wasm_pull_user_snapshot_file_json_result);
 
@@ -715,8 +1047,8 @@ extern "C" char* wasm_pull_user_snapshot_file()
 //  printf("got snapshot %u.%u.%u\n", snapshot->getHeader()->major,snapshot->getHeader()->minor,snapshot->getHeader()->subminor );
 
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu, \"width\": %u, \"height\":%u }",
-  (unsigned long)snapshot->data, 
-  snapshot->size,
+  (unsigned long)snapshot->data.ptr, 
+  snapshot->data.size,
   snapshot->getHeader()->screenshot.width,
   snapshot->getHeader()->screenshot.height
   );
@@ -787,45 +1119,91 @@ extern "C" void wasm_set_warp(unsigned on)
 
 extern "C" void wasm_set_borderless(float on)
 {
-  eat_border_width = 4 * on;
-  xOff = 252 + eat_border_width ;
-  clipped_width  = HPIXELS - xOff -2*eat_border_width;
-
-  eat_border_height = 24 * on ;
-  yOff = 26 + eat_border_height;
-  clipped_height = VPIXELS -yOff  -2*eat_border_height- 2; 
-
-/*
-  printf("eat_border w=%d, eat_border h=%d\n", eat_border_width, eat_border_height);
-  printf("clipped w=%d, clipped h=%d\n", clipped_width, clipped_height);
-  printf("emu w=%d, emu h=%d\n", emu_width, emu_height);
-  printf("xOff w=%d, yOff h=%d\n", xOff, yOff);
-
-  printf("xoff+clipped+eatborder=%d == %d emuwidth\n",xOff+eat_border_width+clipped_width, emu_width);
-  printf("yoff+clipped+eatborder=%d == %d emuheight\n",yOff+eat_border_height+clipped_height, emu_height);
-*/
-  SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
-  SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
-  SDL_SetWindowSize(window, clipped_width, clipped_height);
 }
 
-std::unique_ptr<Disk> load_disk(const char* filename, Uint8 *blob, long len)
+extern "C" void wasm_set_display(const char *name)
+{
+  printf("wasm_set_display('%s')\n",name);
+//
+  if( strcmp(name,"adaptive") == 0)
+  {
+    geometry=DISPLAY_ADAPTIVE;
+    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
+    clip_offset = 0;
+  }
+  else if( strcmp(name,"narrow") == 0)
+  {
+    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+    geometry=DISPLAY_NARROW;
+    xOff=252 + 4;
+    yOff=26 +24;
+    clipped_width=HPIXELS-xOff - 8;
+    clipped_height=312-yOff -2*24 -2;
+  }
+  else if( strcmp(name,"standard") == 0)
+  {
+    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+  
+    geometry=DISPLAY_STANDARD;
+    xOff=252;
+    yOff=26 + 4;
+    clipped_width=HPIXELS-xOff;
+    clipped_height=312-yOff -2*4 ;
+  }
+  else if( strcmp(name,"wider") == 0)
+  {
+    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+  
+    geometry=DISPLAY_WIDER;
+    xOff=224;
+    yOff=26 + 2;
+    clipped_width=HPIXELS-xOff;
+    clipped_height=312-yOff -2*2;
+  }
+  else if( strcmp(name,"overscan") == 0)
+  {
+    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+  
+    geometry=DISPLAY_OVERSCAN;
+
+    xOff=208; //first pixel in dpaint iv,overscan=max 
+    yOff=26; //must be even
+    clipped_width=HPIXELS-xOff;
+    clipped_height=312-yOff; //must be even
+  }
+
+  if(render_method==RENDER_SHADER)
+  {
+    glUseProgram(basic); 
+    set_texture_display_window(basic, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
+    glUseProgram(merge);
+    set_texture_display_window(merge, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
+  }
+  else
+  {
+    SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
+    SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
+    SDL_SetWindowSize(window, clipped_width, clipped_height);
+  }
+}
+
+std::unique_ptr<FloppyDisk> load_disk(const char* filename, Uint8 *blob, long len)
 {
   try {
     if (DMSFile::isCompatible(filename)) {
       printf("%s - Loading DMS file\n", filename);
       DMSFile dms{blob, len};
-      return std::make_unique<Disk>(dms);
+      return std::make_unique<FloppyDisk>(dms);
     }
     if (ADFFile::isCompatible(filename)) {
       printf("%s - Loading ADF file\n", filename);
       ADFFile adf{blob, len};
-      return std::make_unique<Disk>(adf);
+      return std::make_unique<FloppyDisk>(adf);
     }
     if (EXEFile::isCompatible(filename)) {
       printf("%s - Loading EXE file\n", filename);
       EXEFile exe{blob, len};
-      return std::make_unique<Disk>(exe);
+      return std::make_unique<FloppyDisk>(exe);
     }
   } catch (const VAError& e) {
     printf("Error loading %s - %s\n", filename, e.what());

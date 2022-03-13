@@ -13,7 +13,7 @@ let call_param_SID=null;
 let call_param_mouse=null;
 let call_param_warpto=null;
 let call_param_url=null;
-
+let call_param_display=null;
 
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
 
@@ -72,8 +72,6 @@ function get_parameter_link()
         call_param_openROMS=call_obj.AROS === undefined ? null : call_obj.AROS;
         call_param_dialog_on_missing_roms = call_obj.dialog_on_missing_roms === undefined ? null : call_obj.dialog_on_missing_roms;
         call_param_dialog_on_disk = call_obj.dialog_on_disk === undefined ? null : call_obj.dialog_on_disk;
-        call_param_2ndSID = call_obj._2ndSID === undefined ? null : "enabled at $"+call_obj._2ndSID;
-        call_param_SID = call_obj.SID === undefined ? null : call_obj.SID;
         call_param_navbar = call_obj.navbar === undefined ? null : call_obj.navbar==false ? "hidden": null;
         call_param_wide=call_obj.wide === undefined ? null : call_obj.wide;
         call_param_border=call_obj.border === undefined ? null : call_obj.border;
@@ -81,6 +79,7 @@ function get_parameter_link()
         call_param_dark=call_obj.dark === undefined ? null : call_obj.dark;
         call_param_warpto=call_obj.warpto === undefined ? null : call_obj.warpto;
         call_param_mouse=call_obj.mouse === undefined ? null : call_obj.mouse;
+        call_param_display=call_obj.display === undefined ? null : call_obj.display;
 
         if(call_obj.touch)
         {
@@ -148,17 +147,6 @@ function get_parameter_link()
                     {
                         call_param_openROMS=true;
                     }
-                    else if(token.match(/2ndSID=.*/i))
-                    {
-                        var sid_addr=token.replace(/2ndSID=/i,"");
-                        //for example #2ndSID=d420#http...
-                        call_param_2ndSID = "enabled at $"+sid_addr; 
-                    }
-                    else if(token.match(/SID=.*/i))
-                    {
-                        var sid_addr=token.replace(/SID=/i,"");
-                        call_param_SID = sid_addr; 
-                    }
                     else if(token.match(/touch=true/i))
                     {
                         call_param_touch=true;
@@ -214,6 +202,10 @@ function get_parameter_link()
                     {
                         call_param_mouse=token.match(/.*(true|false)/i)[1].toLowerCase() == 'true';
                     }            
+                    else if(token.match(/display=.*/i))
+                    {
+                        call_param_display=token.replace(/display=/i,""); 
+                    }
                 }
             }
         }
@@ -317,7 +309,7 @@ async function disk_loading_finished()
 
 function message_handler(msg, data)
 {
-    //console.log('js receives msg: '+msg);
+    //console.log(`js receives msg:${msg} data:${data}`);
     //UTF8ToString(cores_msg);
     if(msg == "MSG_READY_TO_RUN")
     {
@@ -343,6 +335,10 @@ function message_handler(msg, data)
                     use_borderless = 1-call_param_border;
                     wasm_set_borderless(use_borderless);
                     borderless_switch.prop('checked', use_borderless);
+                }
+                if(call_param_display != null)
+                {
+                    set_display_choice(call_param_display);
                 }
             }catch(e){}},
         0);
@@ -1314,15 +1310,9 @@ function InitWrappers() {
     wasm_set_borderless = Module.cwrap('wasm_set_borderless', 'undefined', ['number']);
     wasm_press_play = Module.cwrap('wasm_press_play', 'undefined');
     wasm_sprite_info = Module.cwrap('wasm_sprite_info', 'string');
-    wasm_set_sid_model = Module.cwrap('wasm_set_sid_model', 'undefined', ['number']);
 
     wasm_cut_layers = Module.cwrap('wasm_cut_layers', 'undefined', ['number']);
-
     wasm_rom_info = Module.cwrap('wasm_rom_info', 'string');
-
-    wasm_set_2nd_sid = Module.cwrap('wasm_set_2nd_sid', 'undefined', ['number']);
-
-    wasm_set_sid_engine = Module.cwrap('wasm_set_sid_engine', 'undefined', ['string']);
 
     wasm_get_cpu_cycles = Module.cwrap('wasm_get_cpu_cycles', 'number');
     wasm_set_color_palette = Module.cwrap('wasm_set_color_palette', 'undefined', ['string']);
@@ -1342,6 +1332,8 @@ function InitWrappers() {
     wasm_set_sample_rate = Module.cwrap('wasm_set_sample_rate', 'undefined', ['number']);
     wasm_mouse = Module.cwrap('wasm_mouse', 'undefined', ['number','number','number']);
     wasm_mouse_button = Module.cwrap('wasm_mouse_button', 'undefined', ['number','number','number']);
+    wasm_set_display = Module.cwrap('wasm_set_display', 'undefined',['string']);
+
 
     connect_audio_processor = async () => {
         if(audioContext.state === 'suspended') {
@@ -1841,22 +1833,45 @@ function InitWrappers() {
     });
 
 //----
-    webgl_switch = $('#webgl_switch');
-    var use_webgl=load_setting('use_webgl', false);
-    webgl_switch.prop('checked', use_webgl);
-    if(use_webgl)
-    {
-            wasm_create_renderer("webgl");
+    let set_renderer_choice = function (choice) {
+        $(`#button_renderer`).text('video renderer='+choice);
+        save_setting("renderer",choice);
     }
-    else
-    {
-            wasm_create_renderer("2d");
-    }
+    let current_renderer=load_setting("renderer", "software");
+    set_renderer_choice(current_renderer);
 
-    webgl_switch.change( function() {
-        save_setting('use_webgl', this.checked);
+    $(`#choose_renderer a`).click(function () 
+    {
+        let choice=$(this).text();
+        set_renderer_choice(choice);
+//        wasm_create_renderer(choice);
+
+        $("#modal_settings").focus();
     });
+
+    wasm_create_renderer(current_renderer);
+
 //----
+
+set_display_choice = function (choice) {
+    $(`#button_display`).text('visible display area='+choice);
+    wasm_set_display(choice);
+}
+let current_display=load_setting("display", "standard");
+set_display_choice(current_display);
+
+$(`#choose_display a`).click(function () 
+{
+    let choice=$(this).text();
+    set_display_choice(choice);
+    save_setting("display",choice);
+    $("#modal_settings").focus();
+});
+
+//---
+
+
+
     warp_switch = $('#warp_switch');
     var use_warp=load_setting('use_warp', false);
     warp_switch.prop('checked', use_warp);
@@ -1963,6 +1978,7 @@ function bind_config_choice(key, name, values, default_value){
     let set_choice = function (choice) {
         $(`#button_${key}`).text(name+'='+choice);
         save_setting(key,choice);
+        validate_hardware();
 
         let result=wasm_configure(key.substring(4),choice);
         if(result.length>0)
@@ -1983,6 +1999,7 @@ function bind_config_choice(key, name, values, default_value){
     });
 }
 
+
 bind_config_choice("OPT_BLITTER_ACCURACY", "blitter accuracy",['0','1','2'],'2');
 bind_config_choice("OPT_DRIVE_SPEED", "drive speed",['-1', '1', '2', '4', '8'],'1');
 
@@ -1990,7 +2007,7 @@ bind_config_choice("OPT_DRIVE_SPEED", "drive speed",['-1', '1', '2', '4', '8'],'
 
 $('#hardware_settings').append(`<div class="mt-4">hardware settings</div><span style="font-size: smaller;">(shuts machine down on agnus model or memory change)</span>`);
 
-bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_DIP','OCS_PLCC','ECS_1MB','ECS_2MB'],'ECS_2MB');
+bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_OLD','OCS','ECS_1MB','ECS_2MB'],'ECS_2MB');
 bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'2048');
 bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0');
 bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048');
@@ -2386,54 +2403,6 @@ $('.layer').change( function(event) {
     }
     delete_cache();
 */    
-
-    set_sid_model = function (sid_model) {
-        $("#button_sid_model").text("sid model "+sid_model);
-        wasm_set_sid_model(parseInt(sid_model));
-    }
-    set_sid_model(load_setting('sid_model', '8580'));
-
-    $('#choose_sid_model a').click(function () 
-    {
-        var sid_model=$(this).text();
-        set_sid_model(sid_model);
-        save_setting('sid_model',sid_model)
-        $("#modal_settings").focus();
-    });
-
-    set_2nd_sid = function (sid_addr) {
-        $("#button_2nd_sid").text("2nd sid "+sid_addr);
-        if(sid_addr == "disabled")
-        {
-            wasm_set_2nd_sid(0);
-        }
-        else
-        {
-            wasm_set_2nd_sid(parseInt(sid_addr.replace("enabled at $",""),16));
-        }
-    }
-    $('#choose_2nd_sid_addr a').click(function () 
-    {
-        var sid_addr=$(this).text();
-        set_2nd_sid(sid_addr);
-        $("#modal_settings").focus();
-    });
-
-
-    set_sid_engine(load_setting('sid_engine', 'ReSID - Fast'));
-    function set_sid_engine(sid_engine) {
-        $("#button_sid_engine").text(sid_engine);
-        wasm_set_sid_engine(sid_engine);
-    }
-    $('#choose_sid_engine a').click(function () 
-    {
-        var sid_engine=$(this).text();
-        set_sid_engine(sid_engine);
-        save_setting('sid_engine',sid_engine);
-        $("#modal_settings").focus();
-    });
-
-
 
     set_color_palette(load_setting('color_palette', 'color'));
     function set_color_palette(color_palette) {

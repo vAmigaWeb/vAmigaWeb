@@ -998,7 +998,7 @@ Blitter::beginSlowCopyBlit()
         BusOwner owner = agnus.busOwner[agnus.pos.h];
         agnus.setBLS(false);
         
-        while (scheduler.hasEvent<SLOT_BLT>()) {
+        while (agnus.hasEvent<SLOT_BLT>()) {
             agnus.busOwner[agnus.pos.h] = BUS_NONE;
             serviceEvent();
         }
@@ -1055,7 +1055,7 @@ Blitter::beginSlowLineBlit()
         BusOwner owner = agnus.busOwner[agnus.pos.h];
         agnus.setBLS(false);
         
-        while (scheduler.hasEvent<SLOT_BLT>()) {
+        while (agnus.hasEvent<SLOT_BLT>()) {
             agnus.busOwner[agnus.pos.h] = BUS_NONE;
             serviceEvent();
         }
@@ -1107,8 +1107,8 @@ Blitter::exec()
             }
 
             if constexpr (BLT_CHECKSUM) {
-                check1 = util::fnv_1a_it32(check1, dhold);
-                check2 = util::fnv_1a_it32(check2, bltdpt);
+                check1 = util::fnvIt32(check1, dhold);
+                check2 = util::fnvIt32(check2, bltdpt);
             }
             trace(BLT_DEBUG, "    D = %X -> %X\n", dhold, bltdpt);
             
@@ -1370,8 +1370,8 @@ Blitter::execLine()
             }
 
             if constexpr (BLT_CHECKSUM) {
-                check1 = util::fnv_1a_it32(check1, dhold);
-                check2 = util::fnv_1a_it32(check2, bltdpt);
+                check1 = util::fnvIt32(check1, dhold);
+                check2 = util::fnvIt32(check2, bltdpt);
             }
         }
     }

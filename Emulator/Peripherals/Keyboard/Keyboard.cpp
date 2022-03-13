@@ -156,9 +156,15 @@ Keyboard::releaseAllKeys()
 }
 
 void
+Keyboard::autoType(KeyCode keycode, Cycle duration, Cycle delay)
+{
+    agnus.scheduleRel<SLOT_KEY>(delay, KEY_PRESS, keycode);
+}
+
+void
 Keyboard::wakeUp()
 {
-    if (!scheduler.hasEvent<SLOT_KBD>()) {
+    if (!agnus.hasEvent<SLOT_KBD>()) {
         
         trace(KBD_DEBUG, "Wake up\n");
         state = KB_SEND;
@@ -266,7 +272,7 @@ Keyboard::execute()
             if (!queue.isEmpty()) {
                 sendKeyCode(queue.read());
             } else {
-                scheduler.cancel<SLOT_KBD>();
+                agnus.cancel<SLOT_KBD>();
             }
             break;
             
@@ -298,7 +304,7 @@ Keyboard::sendKeyCode(u8 code)
     if (config.accurate) {
         
         // Start with the transmission of the first shift register bit
-        scheduler.scheduleImm<SLOT_KBD>(KBD_DAT, 0);
+        agnus.scheduleImm<SLOT_KBD>(KBD_DAT, 0);
         
     } else {
 
@@ -321,7 +327,7 @@ Keyboard::sendSyncPulse()
     
     if (config.accurate) {
         
-        scheduler.scheduleImm<SLOT_KBD>(KBD_SYNC_DAT0);
+        agnus.scheduleImm<SLOT_KBD>(KBD_SYNC_DAT0);
         
     } else {
         

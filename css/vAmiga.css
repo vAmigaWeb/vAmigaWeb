@@ -333,6 +333,19 @@ button[id^="detail_run"] {
 }
 
 
+[data-theme="dark"] .dropdown-menu.show {
+    background-color: #444444;
+}
+
+[data-theme="dark"] .dropdown-item {
+    color: var(--light);
+}
+
+.dropdown-item:focus, 
+.dropdown-item:hover {
+    background-color: var(--blue);
+    color: var(--light);
+}
 
 
 .keycap_shift {

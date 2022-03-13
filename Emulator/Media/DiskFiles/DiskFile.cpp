@@ -9,31 +9,6 @@
 
 #include "config.h"
 #include "DiskFile.h"
-#include "ADFFile.h"
-#include "IMGFile.h"
-#include "DMSFile.h"
-#include "EXEFile.h"
-#include "Folder.h"
-
-DiskFile *
-DiskFile::make(const string &path)
-{
-    std::ifstream stream(path, std::ifstream::binary);
-    if (!stream.is_open()) throw VAError(ERROR_FILE_NOT_FOUND, path);
-    
-    switch (type(path)) {
-            
-        case FILETYPE_ADF:  return new ADFFile(path, stream);
-        case FILETYPE_IMG:  return new IMGFile(path, stream);
-        case FILETYPE_DMS:  return new DMSFile(path, stream);
-        case FILETYPE_EXE:  return new EXEFile(path, stream);
-        case FILETYPE_DIR:  return new Folder(path);
-
-        default:
-            break;
-    }
-    throw VAError(ERROR_FILE_TYPE_MISMATCH);
-}
 
 u8
 DiskFile::readByte(isize t, isize s, isize offset) const
@@ -61,28 +36,74 @@ DiskFile::readSector(u8 *dst, isize s) const
     isize offset = s * sectorSize;
 
     assert(dst != nullptr);
-    assert(offset + sectorSize <= size);
+    assert(offset + sectorSize <= data.size);
 
     for (isize i = 0; i < sectorSize; i++) {
         dst[i] = data[offset + i];
     }
 }
 
-void
-DiskFile::readSectorHex(char *dst, isize t, isize s, isize count) const
+string
+DiskFile::describeGeometry()
 {
-    readSectorHex(dst, t * numSectors() + s, count);
+    return
+    std::to_string(numCyls()) + " - " +
+    std::to_string(numHeads()) + " - " +
+    std::to_string(numSectors());
 }
 
-void
-DiskFile::readSectorHex(char *dst, isize s, isize count) const
+string
+DiskFile::describeCapacity()
 {
-    isize sectorSize = 512;
-    isize offset = s * sectorSize;
+    return util::byteCountAsString(numBytes());
+}
 
-    assert(dst != nullptr);
-
-    for (isize i = 0; i < count; i++) {
-        snprintf(dst + 3*i, 4, "%02X ", data[offset + i]);
+string
+DiskFile::hexdump(isize b, isize offset, isize len) const
+{
+    string result;
+    auto p = data.ptr + b * bsize();
+    
+    for (isize i = 0; i < len; i++) {
+        result += (i == 0 ? "" : " ") + util::hexstr<2>(p[i]);
     }
+
+    return result;
+}
+
+string
+DiskFile::hexdump(isize t, isize s, isize offset, isize len) const
+{
+    return hexdump(t * numSectors() + s, offset, len);
+}
+
+string
+DiskFile::hexdump(isize c, isize h, isize s, isize offset, isize len) const
+{
+    return hexdump(c * numHeads() + h, s, offset, len);
+}
+
+string
+DiskFile::asciidump(isize b, isize offset, isize len) const
+{
+    string result;
+    auto p = data.ptr + b * bsize() + offset;
+
+    for (isize i = 0; i < len; i++) {
+        result += isprint(int(p[i])) ? char(p[i]) : '.';
+    }
+    
+    return result;
+}
+
+string
+DiskFile::asciidump(isize t, isize s, isize offset, isize len) const
+{
+    return asciidump(t * numSectors() + s, offset, len);
+}
+
+string
+DiskFile::asciidump(isize c, isize h, isize s, isize offset, isize len) const
+{
+    return asciidump(c * numHeads() + h, s, offset, len);
 }

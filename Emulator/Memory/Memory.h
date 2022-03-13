@@ -14,8 +14,7 @@
 #include "RomFileTypes.h"
 #include "MemUtils.h"
 
-// DEPRECATED. TODO: GET VALUE FROM ZORRO CARD MANANGER
-const u32 FAST_RAM_STRT = 0x200000;
+#define FAST_RAM_STRT ramExpansion.getBaseAddr()
 
 // Verifies address ranges
 #define ASSERT_CHIP_ADDR(x) \
@@ -44,62 +43,66 @@ assert((x) >= 0xE80000 && (x) <= 0xE8FFFF);
 //
 
 // Reads a value in big-endian format
-#define R8BE_ALIGNED(a)  (*(u8 *)(a))
-#define R16BE_ALIGNED(a) (util::bigEndian(*(u16 *)(a)))
-#define R32BE_ALIGNED(a) (util::bigEndian(*(u32 *)(a)))
+#define R8BE_ALIGNED(a)     (*(u8 *)(a))
+#define R16BE_ALIGNED(a)    (util::bigEndian(*(u16 *)(a)))
+#define R32BE_ALIGNED(a)    (util::bigEndian(*(u32 *)(a)))
 
 // Reads a value from Chip RAM in big endian format
-#define READ_CHIP_8(x)  R8BE_ALIGNED (chip + ((x) & chipMask))
-#define READ_CHIP_16(x) R16BE_ALIGNED(chip + ((x) & chipMask))
+#define READ_CHIP_8(x)      R8BE_ALIGNED (chip + ((x) & chipMask))
+#define READ_CHIP_16(x)     R16BE_ALIGNED(chip + ((x) & chipMask))
 
 // Reads a value from Fast RAM in big endian format
-#define READ_FAST_8(x)  R8BE_ALIGNED (fast + ((x) - FAST_RAM_STRT))
-#define READ_FAST_16(x) R16BE_ALIGNED(fast + ((x) - FAST_RAM_STRT))
+#define READ_FAST_8(x)      R8BE_ALIGNED (fast + ((x) - FAST_RAM_STRT))
+#define READ_FAST_16(x)     R16BE_ALIGNED(fast + ((x) - FAST_RAM_STRT))
 
 // Reads a value from Slow RAM in big endian format
-#define READ_SLOW_8(x)  R8BE_ALIGNED (slow + ((x) & slowMask))
-#define READ_SLOW_16(x) R16BE_ALIGNED(slow + ((x) & slowMask))
+#define READ_SLOW_8(x)      R8BE_ALIGNED (slow + ((x) & slowMask))
+#define READ_SLOW_16(x)     R16BE_ALIGNED(slow + ((x) & slowMask))
 
 // Reads a value from Boot ROM or Kickstart ROM in big endian format
-#define READ_ROM_8(x)  R8BE_ALIGNED (rom + ((x) & romMask))
-#define READ_ROM_16(x) R16BE_ALIGNED(rom + ((x) & romMask))
+#define READ_ROM_8(x)       R8BE_ALIGNED (rom + ((x) & romMask))
+#define READ_ROM_16(x)      R16BE_ALIGNED(rom + ((x) & romMask))
 
 // Reads a value from Kickstart WOM in big endian format
-#define READ_WOM_8(x)  R8BE_ALIGNED (wom + ((x) & womMask))
-#define READ_WOM_16(x) R16BE_ALIGNED(wom + ((x) & womMask))
+#define READ_WOM_8(x)       R8BE_ALIGNED (wom + ((x) & womMask))
+#define READ_WOM_16(x)      R16BE_ALIGNED(wom + ((x) & womMask))
 
 // Reads a value from Extended ROM in big endian format
-#define READ_EXT_8(x)  R8BE_ALIGNED (ext + ((x) & extMask))
-#define READ_EXT_16(x) R16BE_ALIGNED(ext + ((x) & extMask))
+#define READ_EXT_8(x)       R8BE_ALIGNED (ext + ((x) & extMask))
+#define READ_EXT_16(x)      R16BE_ALIGNED(ext + ((x) & extMask))
 
 //
 // Writing
 //
 
 // Writes a value in big-endian format
-#define W8BE_ALIGNED(a,v)  { *(u8 *)(a) = (u8)(v); }
-#define W16BE_ALIGNED(a,v) { *(u16 *)(a) = util::bigEndian((u16)v); }
-#define W32BE_ALIGNED(a,v) { *(u32 *)(a) = util::bigEndian((u32)v); }
+#define W8BE_ALIGNED(a,v)   { *(u8 *)(a) = (u8)(v); }
+#define W16BE_ALIGNED(a,v)  { *(u16 *)(a) = util::bigEndian((u16)v); }
+#define W32BE_ALIGNED(a,v)  { *(u32 *)(a) = util::bigEndian((u32)v); }
 
 // Writes a value into Chip RAM in big endian format
-#define WRITE_CHIP_8(x,y)  W8BE_ALIGNED (chip + ((x) & chipMask), (y))
-#define WRITE_CHIP_16(x,y) W16BE_ALIGNED(chip + ((x) & chipMask), (y))
+#define WRITE_CHIP_8(x,y)   W8BE_ALIGNED (chip + ((x) & chipMask), (y))
+#define WRITE_CHIP_16(x,y)  W16BE_ALIGNED(chip + ((x) & chipMask), (y))
 
 // Writes a value into Fast RAM in big endian format
-#define WRITE_FAST_8(x,y)  W8BE_ALIGNED (fast + ((x) - FAST_RAM_STRT), (y))
-#define WRITE_FAST_16(x,y) W16BE_ALIGNED(fast + ((x) - FAST_RAM_STRT), (y))
+#define WRITE_FAST_8(x,y)   W8BE_ALIGNED (fast + ((x) - FAST_RAM_STRT), (y))
+#define WRITE_FAST_16(x,y)  W16BE_ALIGNED(fast + ((x) - FAST_RAM_STRT), (y))
 
 // Writes a value into Slow RAM in big endian format
-#define WRITE_SLOW_8(x,y)  W8BE_ALIGNED (slow + ((x) & slowMask), (y))
-#define WRITE_SLOW_16(x,y) W16BE_ALIGNED(slow + ((x) & slowMask), (y))
+#define WRITE_SLOW_8(x,y)   W8BE_ALIGNED (slow + ((x) & slowMask), (y))
+#define WRITE_SLOW_16(x,y)  W16BE_ALIGNED(slow + ((x) & slowMask), (y))
+
+// Writes a value into Boot ROM or Kickstart ROM in big endian format
+#define WRITE_ROM_8(x,y)    W8BE_ALIGNED (rom + ((x) & romMask), (y))
+#define WRITE_ROM_16(x,y)   W16BE_ALIGNED(rom + ((x) & romMask), (y))
 
 // Writes a value into Kickstart WOM in big endian format
-#define WRITE_WOM_8(x,y)  W8BE_ALIGNED (wom + ((x) & womMask), (y))
-#define WRITE_WOM_16(x,y) W16BE_ALIGNED(wom + ((x) & womMask), (y))
+#define WRITE_WOM_8(x,y)    W8BE_ALIGNED (wom + ((x) & womMask), (y))
+#define WRITE_WOM_16(x,y)   W16BE_ALIGNED(wom + ((x) & womMask), (y))
 
 // Writes a value into Extended ROM in big endian format
-#define WRITE_EXT_8(x,y)  W8BE_ALIGNED (ext + ((x) & extMask), (y))
-#define WRITE_EXT_16(x,y) W16BE_ALIGNED(ext + ((x) & extMask), (y))
+#define WRITE_EXT_8(x,y)    W8BE_ALIGNED (ext + ((x) & extMask), (y))
+#define WRITE_EXT_16(x,y)   W16BE_ALIGNED(ext + ((x) & extMask), (y))
 
 
 class Memory : public SubComponent {
@@ -155,12 +158,19 @@ public:
      *    pointer != nullptr <=> mask == config.size - 1
      *
      */
-    u8 *rom = nullptr;
-    u8 *wom = nullptr;
-    u8 *ext = nullptr;
-    u8 *chip = nullptr;
-    u8 *slow = nullptr;
-    u8 *fast = nullptr;
+    u8 *rom;
+    u8 *wom;
+    u8 *ext;
+    u8 *chip;
+    u8 *slow;
+    u8 *fast;
+
+    util::Allocator romAllocator = util::Allocator(rom);
+    util::Allocator womAllocator = util::Allocator(wom);
+    util::Allocator extAllocator = util::Allocator(ext);
+    util::Allocator chipAllocator = util::Allocator(chip);
+    util::Allocator slowAllocator = util::Allocator(slow);
+    util::Allocator fastAllocator = util::Allocator(fast);
 
     u32 romMask = 0;
     u32 womMask = 0;
@@ -198,10 +208,8 @@ public:
 public:
     
     using SubComponent::SubComponent;
-    ~Memory();
-    void dealloc();
+ 
 
-    
     //
     // Methods from AmigaObject
     //
@@ -229,7 +237,7 @@ private:
         << config.bankMap
         << config.ramInitPattern
         << config.unmappingType
-        << config.extStart;
+        << config.extStart;        
     }
 
     template <class T>
@@ -248,7 +256,7 @@ private:
     isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
     isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
     isize didLoadFromBuffer(const u8 *buffer) override;
-    isize didSaveToBuffer(u8 *buffer) const override;
+    isize didSaveToBuffer(u8 *buffer) override;
 
     
     //
@@ -290,10 +298,6 @@ private:
     // Allocating memory
     //
     
-private:
-    
-    void alloc(i32 bytes, u8 *&ptr, i32 &size, u32 &mask, bool update);
-
 public:
 
     void allocChip(i32 bytes, bool update = true);
@@ -311,6 +315,10 @@ public:
     void deleteRom() { allocRom(0); }
     void deleteWom() { allocWom(0); }
     void deleteExt() { allocExt(0); }
+
+private:
+    
+    void alloc(util::Allocator &allocator, isize bytes, u32 &mask, bool update);
 
 
     //
@@ -431,6 +439,7 @@ public:
     template <Accessor acc> u8 spypeek8(u32 addr) const;
     template <Accessor acc> u16 spypeek16(u32 addr) const;
     template <Accessor acc> u32 spypeek32(u32 addr) const;
+    template <Accessor acc> void spypeek(u32 addr, isize len, u8 *buf) const;
 
     template <Accessor acc, MemorySource src> void poke8(u32 addr, u8 value);
     template <Accessor acc, MemorySource src> void poke16(u32 addr, u16 value);
@@ -474,6 +483,18 @@ public:
  
     template <Accessor s> void pokeCustom16(u32 addr, u16 value);
     
+    
+    //
+    // Patching Ram or Rom
+    //
+    
+    // Modifies Ram or Rom without causing side effects
+    template <MemorySource src> void patch(u32 addr, u8 value);
+    void patch(u32 addr, u8 value);
+    void patch(u32 addr, u16 value);
+    void patch(u32 addr, u32 value);
+    void patch(u32 addr, u8 *buf, isize len);
+
     
     //
     // Debugging

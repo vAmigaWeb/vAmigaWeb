@@ -41,8 +41,8 @@ private:
      */
     ScreenBuffer emuTexture[2];
 
-    // Pointer to the "working buffer"
-    ScreenBuffer *frameBuffer = &emuTexture[0];
+    // Pointer to the texture data in the working buffer
+    u32 *frameBuffer = emuTexture[0].data;
 
     // Mutex for synchronizing access to the stable buffer
     util::Mutex bufferMutex;
@@ -207,7 +207,7 @@ private:
 public:
 
     // Returns the stable frame buffer
-    ScreenBuffer getStableBuffer();
+    const ScreenBuffer &getStableBuffer();
 
     // Locks or unlocks the stable buffer
     void lockStableBuffer() { bufferMutex.lock(); }

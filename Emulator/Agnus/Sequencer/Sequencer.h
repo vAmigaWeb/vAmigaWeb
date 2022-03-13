@@ -13,7 +13,6 @@
 #include "Constants.h"
 #include "ChangeRecorder.h"
 #include "SubComponent.h"
-#include "Scheduler.h"
 #include "MemoryTypes.h"
 
 /* A central element in the emulation of the Amiga is the accurate modeling of
@@ -332,7 +331,7 @@ public:
     void initDasEvents();
 
     // Renews all events in the the DAS event table
-    void updateDasEvents(u16 dmacon);
+    void updateDasEvents(u16 dmacon, isize pos = 0);
 
 private:
 

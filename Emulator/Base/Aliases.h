@@ -23,11 +23,11 @@ typedef i64 DMACycle;         // DMA cycle units
 // Pixels
 typedef isize Pixel;
 
-// Floppy disks
-typedef isize Side;
+// Block devices
 typedef isize Cylinder;
-typedef isize Track;
+typedef isize Head;
 typedef isize Sector;
+typedef isize Track;
 
 // Keyboard
 typedef u8 KeyCode;
@@ -68,6 +68,7 @@ typedef u32 Block;
 // Converts kilo and mega bytes to bytes
 #define KB(x) ((x) << 10)
 #define MB(x) ((x) << 20)
+#define GB(x) ((x) << 30)
 
 // Converts kilo and mega Hertz to Hertz
 #define KHz(x) ((x) * 1000)

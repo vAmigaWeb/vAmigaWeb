@@ -7,6 +7,7 @@
 // See https://www.gnu.org for license information
 // -----------------------------------------------------------------------------
 
+#include "config.h"
 #include "IOUtils.h"
 #include <assert.h>
 #include <vector>
@@ -86,6 +87,15 @@ bool
 isAbsolutePath(const string &path)
 {
     return !path.empty() && path.front() == '/';
+}
+
+string makeAbsolutePath(const string &path)
+{
+    if (isAbsolutePath(path)) {
+        return path;
+    } else {
+        return appendPath(std::filesystem::current_path().string(), path);
+    }
 }
 
 bool
@@ -217,27 +227,6 @@ matchingBufferHeader(const u8 *buffer, const u8 *header, isize len, isize offset
     }
 
     return true;
-}
-
-bool loadFile(const string &path, u8 **bufptr, isize *size)
-{
-    assert(bufptr); assert(size);
-
-    std::ifstream stream(path, std::ifstream::binary);
-    if (!stream.is_open()) return false;
-    
-    usize len = streamLength(stream);
-    u8 *buf = new u8[len];
-    stream.read((char *)buf, len);
-    
-    *bufptr = buf;
-    *size = len;
-    return true;
-}
-
-bool loadFile(const string &path, const string &name, u8 **bufptr, isize *size)
-{
-    return loadFile(path + "/" + name, bufptr, size);
 }
 
 isize

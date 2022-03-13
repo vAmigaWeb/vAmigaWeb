@@ -13,19 +13,14 @@
 #include "AmigaObject.h"
 #include "Serialization.h"
 #include "Concurrency.h"
-
 #include <vector>
 
 /* The following macro can be utilized to prevent multiple threads to enter the
  * same code block. It mimics the behaviour of the well known Java construct
  * 'synchronized(this) { }'. To secure a code-block, use the following syntax:
- * { SYNCHRONIZED <commands }
+ * { SYNCHRONIZED <commands> }
  */
 #define SYNCHRONIZED util::AutoMutex _am(mutex);
-
-// Old-styple sychronized macro (DEPRECATED)
-#define synchronized \
-for (util::AutoMutex _am(mutex); _am.active; _am.active = false)
 
 struct NoCopy
 {
@@ -43,6 +38,9 @@ class AmigaComponent : public AmigaObject, NoCopy, NoAssign {
         
 protected:
     
+    // Set to false to silence all debug messages for this component
+    bool verbose = true;
+
     // Sub components
     std::vector<AmigaComponent *> subComponents;
                     
@@ -199,8 +197,8 @@ public:
      */
     virtual isize willLoadFromBuffer(const u8 *buf) throws { return 0; }
     virtual isize didLoadFromBuffer(const u8 *buf) throws { return 0; }
-    virtual isize willSaveToBuffer(u8 *buf) const {return 0; }
-    virtual isize didSaveToBuffer(u8 *buf) const { return 0; }
+    virtual isize willSaveToBuffer(u8 *buf) {return 0; }
+    virtual isize didSaveToBuffer(u8 *buf) { return 0; }
 };
 
 //

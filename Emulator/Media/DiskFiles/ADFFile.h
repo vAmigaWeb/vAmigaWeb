@@ -9,10 +9,11 @@
 
 #pragma once
 
-#include "DiskFile.h"
-#include "FSDevice.h"
+#include "FloppyFile.h"
 
-class ADFFile : public DiskFile {
+class MutableFileSystem;
+
+class ADFFile : public FloppyFile {
 
 public:
 
@@ -29,7 +30,7 @@ public:
 private:
     
     // Returns the size of an ADF file of a given disk type in bytes
-    static isize fileSize(DiskDiameter diameter, DiskDensity density) throws;
+    static isize fileSize(Diameter diameter, Density density) throws;
 
     
     //
@@ -38,20 +39,22 @@ private:
     
 public:
     
-    ADFFile() { };
-    ADFFile(const string &path) throws { AmigaFile::init(path); }
-    ADFFile(const string &path, std::istream &stream) throws { AmigaFile::init(path, stream); }
-    ADFFile(const u8 *buf, isize len) throws { AmigaFile::init(buf, len); }
-    ADFFile(FILE *file) throws { AmigaFile::init(file); }
-    ADFFile(DiskDiameter dia, DiskDensity den) throws { init(dia, den); }
-    ADFFile(class Disk &disk) throws { init(disk); }
-    ADFFile(class Drive &drive) throws { init(drive); }
-    ADFFile(FSDevice &volume) throws { init(volume); }
+    using AmigaFile::init;
     
-    void init(DiskDiameter dia, DiskDensity den) throws;
-    void init(Disk &disk) throws;
-    void init(Drive &drive) throws;
-    void init(FSDevice &volume) throws;
+    ADFFile() { }
+    ADFFile(const string &path) throws { init(path); }
+    ADFFile(const string &path, std::istream &stream) throws { init(path, stream); }
+    ADFFile(const u8 *buf, isize len) throws { init(buf, len); }
+    ADFFile(FILE *file) throws { init(file); }
+    ADFFile(Diameter dia, Density den) throws { init(dia, den); }
+    ADFFile(class FloppyDisk &disk) throws { init(disk); }
+    ADFFile(class FloppyDrive &drive) throws { init(drive); }
+    ADFFile(MutableFileSystem &volume) throws { init(volume); }
+    
+    void init(Diameter dia, Density den) throws;
+    void init(FloppyDisk &disk) throws;
+    void init(FloppyDrive &drive) throws;
+    void init(MutableFileSystem &volume) throws;
 
     
     //
@@ -77,30 +80,35 @@ public:
     //
     // Methods from DiskFile
     //
+
+    isize numCyls() const override;
+    isize numHeads() const override;
+    isize numSectors() const override;
+
+    
+    //
+    // Methods from FloppyFile
+    //
     
 public:
     
     FSVolumeType getDos() const override; 
     void setDos(FSVolumeType dos) override;
-    DiskDiameter getDiskDiameter() const override;
-    DiskDensity getDiskDensity() const override;
-    isize numSides() const override;
-    isize numCyls() const override;
-    isize numSectors() const override;
+    Diameter getDiameter() const override;
+    Density getDensity() const override;
     BootBlockType bootBlockType() const override;
     const char *bootBlockName() const override;
-    
     void killVirus() override;
 
-    void encodeDisk(class Disk &disk) const throws override;
-    void decodeDisk(class Disk &disk) throws override;
+    void encodeDisk(class FloppyDisk &disk) const throws override;
+    void decodeDisk(class FloppyDisk &disk) throws override;
 
 private:
     
-    void encodeTrack(class Disk &disk, Track t) const throws;
-    void encodeSector(class Disk &disk, Track t, Sector s) const throws;
+    void encodeTrack(class FloppyDisk &disk, Track t) const throws;
+    void encodeSector(class FloppyDisk &disk, Track t, Sector s) const throws;
 
-    void decodeTrack(class Disk &disk, Track t) throws;
+    void decodeTrack(class FloppyDisk &disk, Track t) throws;
     void decodeSector(u8 *dst, u8 *src) throws;
 
     
@@ -109,10 +117,10 @@ private:
     //
     
 public:
-
-    // Returns the layout of this disk in form of a device descriptor
-    struct FSDeviceDescriptor layout();
     
+    // Returns a file system descriptor for this volume
+    struct FileSystemDescriptor getFileSystemDescriptor() const;
+ 
     
     //
     // Formatting
@@ -120,7 +128,7 @@ public:
  
 public:
     
-    void formatDisk(FSVolumeType fs, BootBlockId id) throws;
+    void formatDisk(FSVolumeType fs, BootBlockId id, string name) throws;
 
     
     //
