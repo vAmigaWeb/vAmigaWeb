@@ -216,10 +216,12 @@ MutableFileSystem::allocateBlockAbove(Block nr)
 {
     assert(isBlockNumber(nr));
     
-    for (i64 i = (i64)nr + 1; i < numBlocks(); i++) {
+    for (isize i = nr + 1; i < numBlocks(); i++) {
+        
         if (blocks[i]->type == FS_EMPTY_BLOCK) {
-            markAsAllocated((Block)i);
-            return (Block)i;
+            
+            markAsAllocated(Block(i));
+            return (Block(i));
         }
     }
     return 0;
@@ -231,9 +233,11 @@ MutableFileSystem::allocateBlockBelow(Block nr)
     assert(isBlockNumber(nr));
 
     for (i64 i = (i64)nr - 1; i >= 0; i--) {
+        
         if (blocks[i]->type == FS_EMPTY_BLOCK) {
-            markAsAllocated((Block)i);
-            return (Block)i;
+            
+            markAsAllocated(Block(i));
+            return (Block(i));
         }
     }
     return 0;
@@ -350,8 +354,8 @@ MutableFileSystem::killVirus()
         blocks[0]->writeBootBlock(id, 0);
         blocks[1]->writeBootBlock(id, 1);
     } else {
-        std::memset(blocks[0]->data + 4, 0, bsize - 4);
-        std::memset(blocks[1]->data, 0, bsize);
+        std::memset(blocks[0]->data.ptr + 4, 0, bsize - 4);
+        std::memset(blocks[1]->data.ptr, 0, bsize);
     }
 }
 
@@ -493,7 +497,7 @@ MutableFileSystem::addData(FSBlock &block, const u8 *buffer, isize size)
         {
             isize count = std::min(bsize - 24, size);
 
-            std::memcpy(block.data + 24, buffer, count);
+            std::memcpy(block.data.ptr + 24, buffer, count);
             block.setDataBytesInBlock((u32)count);
             
             return count;
@@ -502,7 +506,7 @@ MutableFileSystem::addData(FSBlock &block, const u8 *buffer, isize size)
         {
             isize count = std::min(bsize, size);
             
-            std::memcpy(block.data, buffer, count);
+            std::memcpy(block.data.ptr, buffer, count);
             
             return count;
         }
@@ -593,12 +597,8 @@ MutableFileSystem::importDirectory(const fs::directory_entry &dir, bool recursiv
         if (entry.is_regular_file()) {
             
             // Add file
-            u8 *buffer; isize size;
-            if (util::loadFile(string(path), &buffer, &size)) {
-                
-                createFile(name, buffer, size);
-                delete [] (buffer);
-            }
+            util::Buffer buffer(path);
+            if (buffer) createFile(name, buffer.ptr, buffer.size);
         }
     }
 }

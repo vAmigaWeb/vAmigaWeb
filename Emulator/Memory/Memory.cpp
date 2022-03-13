@@ -22,22 +22,6 @@
 #include "RTC.h"
 #include "ZorroManager.h"
 
-Memory::~Memory()
-{
-    dealloc();
-}
-
-void
-Memory::dealloc()
-{
-    if (rom) { delete[] rom; rom = nullptr; }
-    if (wom) { delete[] wom; wom = nullptr; }
-    if (ext) { delete[] ext; ext = nullptr; }
-    if (chip) { delete[] chip; chip = nullptr; }
-    if (slow) { delete[] slow; slow = nullptr; }
-    if (fast) { delete[] fast; fast = nullptr; }
-}
-
 void
 Memory::_dump(dump::Category category, std::ostream& os) const
 {
@@ -80,17 +64,17 @@ Memory::_dump(dump::Category category, std::ostream& os) const
     if (category & dump::Checksums) {
 
         os << util::tab("Rom checksum");
-        os << util::hex(util::fnv_1a_32(rom, config.romSize)) << std::endl;
+        os << util::hex(util::fnv32(rom, config.romSize)) << std::endl;
         os << util::tab("Wom checksum");
-        os << util::hex(util::fnv_1a_32(wom, config.womSize)) << std::endl;
+        os << util::hex(util::fnv32(wom, config.womSize)) << std::endl;
         os << util::tab("Extended Rom checksum");
-        os << util::hex(util::fnv_1a_32(ext, config.extSize)) << std::endl;
+        os << util::hex(util::fnv32(ext, config.extSize)) << std::endl;
         os << util::tab("Chip Ram checksum");
-        os << util::hex(util::fnv_1a_32(chip, config.chipSize)) << std::endl;
+        os << util::hex(util::fnv32(chip, config.chipSize)) << std::endl;
         os << util::tab("Slow Ram checksum");
-        os << util::hex(util::fnv_1a_32(slow, config.slowSize)) << std::endl;
+        os << util::hex(util::fnv32(slow, config.slowSize)) << std::endl;
         os << util::tab("Fast Ram checksum");
-        os << util::hex(util::fnv_1a_32(fast, config.fastSize)) << std::endl;
+        os << util::hex(util::fnv32(fast, config.fastSize)) << std::endl;
     }
     
     if (category & dump::BankMap) {
@@ -478,69 +462,61 @@ Memory::updateStats()
 }
 
 void
-Memory::alloc(i32 bytes, u8 *&ptr, i32 &size, u32 &mask, bool update)
-{
-    // Check invariants
-    assert((ptr == nullptr) == (size == 0));
-    assert((ptr == nullptr) == (mask == 0));
-    assert((ptr == nullptr) || (mask == (u32)size - 1));
-
-    // Only proceed if memory layout will change
-    if (bytes == size) return;
-    
-    // Delete previous allocation
-    if (ptr) { delete[] ptr; ptr = nullptr; size = 0; mask = 0; }
-    
-    // Allocate memory
-    if (bytes) {
-                
-        ptr = new u8[bytes];
-        size = (u32)bytes;
-        mask = size - 1;
-        
-        if ((uintptr_t)ptr & 1) {
-            fatal("Memory at %p (%d bytes) is not aligned\n", (void *)ptr, bytes);
-        }
-    }
-    
-    // Update the memory source tables if requested
-    if (update) updateMemSrcTables();
-}
-
-void
 Memory::allocChip(i32 bytes, bool update)
 {
-    alloc(bytes, chip, config.chipSize, chipMask, update);
+    config.chipSize = bytes;
+    alloc(chipAllocator, bytes, chipMask, update);
 }
 
 void
 Memory::allocSlow(i32 bytes, bool update)
 {
-    alloc(bytes, slow, config.slowSize, slowMask, update);
+    config.slowSize = bytes;
+    alloc(slowAllocator, bytes, slowMask, update);
 }
 
 void
 Memory::allocFast(i32 bytes, bool update)
 {
-    alloc(bytes, fast, config.fastSize, fastMask, update);
+    config.fastSize = bytes;
+    alloc(fastAllocator, bytes, fastMask, update);
 }
             
 void
 Memory::allocRom(i32 bytes, bool update)
 {
-    alloc(bytes, rom, config.romSize, romMask, update);
+    config.romSize = bytes;
+    alloc(romAllocator, bytes, romMask, update);
 }
 
 void
 Memory::allocWom(i32 bytes, bool update)
 {
-    alloc(bytes, wom, config.womSize, womMask, update);
+    config.womSize = bytes;
+    alloc(womAllocator, bytes, womMask, update);
 }
 
 void
 Memory::allocExt(i32 bytes, bool update)
 {
-    alloc(bytes, ext, config.extSize, extMask, update);
+    config.extSize = bytes;
+    alloc(extAllocator, bytes, extMask, update);
+}
+
+void
+Memory::alloc(util::Allocator &allocator, isize bytes, u32 &mask, bool update)
+{
+    // Only proceed if memory layout will change
+    if (bytes == allocator.size) return;
+
+    // Allocate memory
+    allocator.init(bytes);
+    
+    // Set the memory mask
+    mask = bytes ? u32(bytes - 1) : 0;
+
+    // Update the memory source tables if requested
+    if (update) updateMemSrcTables();
 }
 
 void
@@ -678,7 +654,7 @@ Memory::loadRom(RomFile &file)
     file.decrypt();
 
     // Allocate memory
-    allocRom((i32)file.size);
+    allocRom((i32)file.data.size);
 
     // Load Rom
     file.flash(rom);
@@ -708,7 +684,7 @@ void
 Memory::loadExt(ExtendedRomFile &file)
 {
     // Allocate memory
-    allocExt((i32)file.size);
+    allocExt((i32)file.data.size);
     
     // Load Rom
     file.flash(ext);

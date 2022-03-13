@@ -1020,8 +1020,8 @@ extern "C" char* wasm_export_disk()
 
   ADFFile *adf = new ADFFile(wrapper->amiga->df0);
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",
-  (unsigned long)adf->data, 
-  adf->size
+  (unsigned long)adf->data.ptr, 
+  adf->data.size
   );
   printf("return => %s\n",wasm_pull_user_snapshot_file_json_result);
 
@@ -1052,8 +1052,8 @@ extern "C" char* wasm_pull_user_snapshot_file()
 //  printf("got snapshot %u.%u.%u\n", snapshot->getHeader()->major,snapshot->getHeader()->minor,snapshot->getHeader()->subminor );
 
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu, \"width\": %u, \"height\":%u }",
-  (unsigned long)snapshot->data, 
-  snapshot->size,
+  (unsigned long)snapshot->data.ptr, 
+  snapshot->data.size,
   snapshot->getHeader()->screenshot.width,
   snapshot->getHeader()->screenshot.height
   );

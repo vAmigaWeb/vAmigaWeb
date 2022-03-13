@@ -10,6 +10,7 @@
 #pragma once
 
 #include "Types.h"
+#include "Checksum.h"
 #include <bit>
 
 namespace util {
@@ -24,6 +25,10 @@ namespace util {
 #define SWAP32  __builtin_bswap32
 #define SWAP64  __builtin_bswap64
 #endif
+
+//
+// Byte order
+//
 
 // Returns the big endian representation of an integer value
 template<typename T> T bigEndian(T x);
@@ -57,6 +62,10 @@ inline uint64_t bigEndian(uint64_t x)
         return SWAP64(x);
     }
 }
+
+//
+// Memory content
+//
 
 // Checks if a certain memory area is all zero
 bool isZero(const u8 *ptr, usize size);

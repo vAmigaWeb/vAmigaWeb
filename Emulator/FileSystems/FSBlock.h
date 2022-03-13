@@ -12,6 +12,7 @@
 #include "AmigaObject.h"
 #include "FSTypes.h"
 #include "FSObjects.h"
+#include "Buffer.h"
 #include "IOUtils.h"
 #include "BootBlockImage.h"
 #include <vector>
@@ -30,8 +31,8 @@ struct FSBlock : AmigaObject {
     // Outcome of the latest integrity check (0 = OK, n = n-th corrupted block)
     isize corrupted = 0;
         
-    // The actual block data
-    u8 *data = nullptr;
+    // Block data
+    util::Buffer data;
 
     
     //
@@ -39,7 +40,6 @@ struct FSBlock : AmigaObject {
     //
     
     FSBlock(FileSystem &ref, Block nr, FSBlockType t);
-    ~FSBlock();
 
     static FSBlock *make(FileSystem &ref, Block nr, FSBlockType type) throws;
 

@@ -40,7 +40,8 @@ HDFFile::finalizeRead()
     for (auto &p :  ptable) {
         
         p.checkCompatibility();
-        if (isize(p.highCyl) > geometry.cylinders) {
+        
+        if (isize(p.highCyl) >= geometry.cylinders) {
             throw(ERROR_HDR_CORRUPTED_PTABLE);
         }
     }
@@ -53,9 +54,6 @@ HDFFile::init(const string &path)
     if (isOversized(util::getSizeOfFile(path))) throw VAError(ERROR_HDR_TOO_LARGE);
     
     AmigaFile::init(path);
-
-    // TODO: Check if geometry can be derived
-    // TODO: Check if this disk contains an RDB which is not supported yet
 }
 
 void
@@ -65,18 +63,14 @@ HDFFile::init(const u8 *buf, isize len)
     if (isOversized(len)) throw VAError(ERROR_HDR_TOO_LARGE);
 
     AmigaFile::init(buf, len);
-
-    // TODO: Check if geometry can be derived
-    // TODO: Check if this disk contains an RDB which is not supported yet
 }
 
 void
 HDFFile::init(const HardDrive &drive)
 {
-    // TODO: THIS FUNCTION IS A PERFORMANCE KILLER FOR LARGE BUFFERS
-    {   MEASURE_TIME("AmigaFile::init(const u8 *buf, isize len)")
+    {   MEASURE_TIME("AmigaFile::readFromBuffer(drive.data)")
         
-        AmigaFile::init(drive.data, drive.geometry.numBytes());
+        AmigaFile::readFromBuffer(drive.data);
     }
     
     // Overwrite the predicted geometry from the precise one
@@ -117,7 +111,7 @@ HDFFile::getGeometryDescriptor() const
     } else {
         
         // Guess the drive geometry based on the file size
-        auto geometries = GeometryDescriptor::driveGeometries(size);
+        auto geometries = GeometryDescriptor::driveGeometries(data.size);
         if (geometries.size()) {
             result = geometries.front();
         }
@@ -198,7 +192,7 @@ HDFFile::getFileSystemDescriptor(isize nr) const
 
     // Determine block bounds
     auto first = part.lowCyl * h * s;
-    auto dptr = data + first * 512;
+    auto dptr = data.ptr + first * 512;
 
     // Set the number of reserved blocks
     result.numReserved = 2;
@@ -249,9 +243,9 @@ bool
 HDFFile::hasRDB() const
 {
     // The rigid disk block must be among the first 16 blocks
-    if (size >= 16 * 512) {
+    if (data.size >= 16 * 512) {
         for (isize i = 0; i < 16; i++) {
-            if (strcmp((const char *)data + i * 512, "RDSK") == 0) return true;
+            if (strcmp((const char *)data.ptr + i * 512, "RDSK") == 0) return true;
         }
     }
     return false;
@@ -280,13 +274,13 @@ HDFFile::partitionOffset(isize nr) const
 u8 *
 HDFFile::partitionData(isize nr) const
 {
-    return data + partitionOffset(nr);
+    return data.ptr + partitionOffset(nr);
 }
 
 u8 *
 HDFFile::seekBlock(isize nr) const
 {
-    return nr >= 0 && 512 * (nr + 1) <= size ? data + (512 * nr) : nullptr;
+    return nr >= 0 && 512 * (nr + 1) <= data.size ? data.ptr + (512 * nr) : nullptr;
 }
 
 u8 *

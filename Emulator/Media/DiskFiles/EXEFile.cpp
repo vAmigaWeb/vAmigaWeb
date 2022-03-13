@@ -34,8 +34,8 @@ EXEFile::isCompatible(std::istream &stream)
 void
 EXEFile::finalizeRead()
 {
-    // Check if this file requires an HD disk
-    bool hd = size > 853000;
+    // Check if this file requires a high-density disk
+    bool hd = data.size > 853000;
         
     // Create a new file system
     MutableFileSystem volume(INCH_35, hd ? DENSITY_HD : DENSITY_DD, FS_OFS);
@@ -45,7 +45,7 @@ EXEFile::finalizeRead()
     volume.makeBootable(BB_AMIGADOS_13);
     
     // Add the executable
-    FSBlock *file = volume.createFile("file", data, size);
+    FSBlock *file = volume.createFile("file", data.ptr, data.size);
     if (!file) throw VAError(ERROR_FS_OUT_OF_SPACE);
     
     // Add a script directory
@@ -76,5 +76,5 @@ EXEFile::finalizeRead()
     }
         
     // Convert the volume into an ADF
-    adf = new ADFFile(volume);
+    adf.init(volume);
 }

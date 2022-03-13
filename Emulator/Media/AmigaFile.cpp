@@ -52,7 +52,13 @@ AmigaFile::init(const u8 *buf, isize len)
     stream.write((const char *)buf, len);
     init(stream);
 }
-    
+
+void
+AmigaFile::init(const util::Buffer &buffer)
+{
+    init(buffer.ptr, buffer.size);
+}
+
 void
 AmigaFile::init(FILE *file)
 {
@@ -64,7 +70,7 @@ AmigaFile::init(FILE *file)
     
 AmigaFile::~AmigaFile()
 {
-    if (data) delete[] data;
+    // if (data) delete[] data;
 }
 
 
@@ -73,13 +79,13 @@ void
 AmigaFile::flash(u8 *buf, isize offset, isize len) const
 {
     assert(buf);
-    std::memcpy(buf + offset, data, len);
+    std::memcpy(buf + offset, data.ptr, len);
 }
 
 void
 AmigaFile::flash(u8 *buf, isize offset) const
 {
-    flash (buf, offset, size);
+    flash (buf, offset, data.size);
 }
 
 void
@@ -128,7 +134,7 @@ AmigaFile::type(const string &path)
 string
 AmigaFile::sizeAsString()
 {
-    return util::byteCountAsString(size);
+    return util::byteCountAsString(data.size);
 }
 
 isize
@@ -141,15 +147,14 @@ AmigaFile::readFromStream(std::istream &stream)
     stream.seekg(0, std::ios::beg);
 
     // Allocate memory
-    assert(data == nullptr);
-    data = new u8[fsize]();
-    size = (isize)fsize;
-
+    data.init(isize(fsize));
+    data.clear();
+    
     // Read from stream
-    stream.read((char *)data, size);
+    stream.read((char *)data.ptr, data.size);
     finalizeRead();
 
-    return size;
+    return data.size;
 }
 
 isize
@@ -164,7 +169,7 @@ AmigaFile::readFromFile(const string &path)
     this->path = string(path);
 
     isize result = readFromStream(stream);
-    assert(result == size);
+    assert(result == data.size);
     
     return result;
 }
@@ -175,27 +180,31 @@ AmigaFile::readFromBuffer(const u8 *buf, isize len)
     assert(buf);
 
     // Allocate memory
-    size = len;
-    assert(data == nullptr);
-    data = new u8[size];
+    data.init(len);
 
     // Copy data
-    std::memcpy(data, buf, size);
+    std::memcpy(data.ptr, buf, data.size);
     finalizeRead();
     
-    return size;
+    return data.size;
+}
+
+isize
+AmigaFile::readFromBuffer(const util::Buffer &buffer)
+{
+    return readFromBuffer(buffer.ptr, buffer.size);
 }
 
 isize
 AmigaFile::writeToStream(std::ostream &stream, isize offset, isize len)
 {
-    assert(offset >= 0 && offset < size);
-    assert(len >= 0 && offset + len <= size);
+    assert(offset >= 0 && offset < data.size);
+    assert(len >= 0 && offset + len <= data.size);
 
-    stream.write((char *)data + offset, len);
+    stream.write((char *)data.ptr + offset, len);
     finalizeWrite();
     
-    return size;
+    return data.size;
 }
 
 isize
@@ -208,7 +217,7 @@ AmigaFile::writeToFile(const string &path, isize offset, isize len)
     }
     
     isize result = writeToStream(stream, offset, len);
-    assert(result == size);
+    assert(result == data.size);
     
     return result;
 }
@@ -217,29 +226,42 @@ isize
 AmigaFile::writeToBuffer(u8 *buf, isize offset, isize len)
 {
     assert(buf);
-    assert(offset >= 0 && offset < size);
-    assert(len >= 0 && offset + len <= size);
+    assert(offset >= 0 && offset < data.size);
+    assert(len >= 0 && offset + len <= data.size);
 
-    std::memcpy(buf, (char *)data + offset, len);
+    std::memcpy(buf, (char *)data.ptr + offset, len);
     finalizeWrite();
 
-    return size;
+    return data.size;
+}
+
+isize
+AmigaFile::writeToBuffer(util::Buffer &buffer, isize offset, isize len)
+{
+    buffer.init(len);
+    return writeToBuffer(buffer.ptr, offset, len);
 }
 
 isize
 AmigaFile::writeToStream(std::ostream &stream)
 {
-    return writeToStream(stream, 0, size);
+    return writeToStream(stream, 0, data.size);
 }
 
 isize
 AmigaFile::writeToFile(const string &path)
 {
-    return writeToFile(path, 0, size);
+    return writeToFile(path, 0, data.size);
 }
 
 isize
 AmigaFile::writeToBuffer(u8 *buf)
 {
-    return writeToBuffer(buf, 0, size);
+    return writeToBuffer(buf, 0, data.size);
+}
+
+isize
+AmigaFile::writeToBuffer(util::Buffer &buffer)
+{
+    return writeToBuffer(buffer, 0, data.size);
 }

@@ -16,9 +16,6 @@
 
 Blitter::Blitter(Amiga& ref) : SubComponent(ref)
 {
-    // Allocate memory if accessed memory cells should be tracked
-    if constexpr (BLT_GUARD) memguard = new u8[KB(512)]();
-
     // Initialize the fill pattern tables    
     for (isize carryIn = 0; carryIn < 2; carryIn++) {
         
@@ -42,11 +39,6 @@ Blitter::Blitter(Amiga& ref) : SubComponent(ref)
     }
 }
 
-Blitter::~Blitter()
-{
-    if (memguard) delete [] memguard;
-}
-
 void
 Blitter::_initialize()
 {
@@ -62,6 +54,16 @@ Blitter::_reset(bool hard)
     if (hard) {
         copycount = 0;
         linecount = 0;
+    }
+}
+
+void
+Blitter::_run()
+{
+    if constexpr (BLT_GUARD) {
+
+        memguard.resize(mem.getConfig().chipSize);
+        memguard.clear();
     }
 }
 
@@ -501,14 +503,14 @@ Blitter::beginBlit()
 {
     auto level = config.accuracy;
 
-    if constexpr (BLT_GUARD) std::memset((void *)memguard, 0, KB(512));
-    
+    if constexpr (BLT_GUARD) memguard.clear();
+
     if (bltconLINE()) {
 
         if constexpr (BLT_CHECKSUM) {
             
             linecount++;
-            check1 = check2 = util::fnv_1a_init32();
+            check1 = check2 = util::fnvInit32();
             msg("Line %ld (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x\n",
                 linecount, bltsizeH, bltsizeV,
                 bltconUSEA(), bltconUSEB(), bltconUSEC(), bltconUSED(),
@@ -527,7 +529,7 @@ Blitter::beginBlit()
         if constexpr (BLT_CHECKSUM) {
             
             copycount++;
-            check1 = check2 = util::fnv_1a_init32();
+            check1 = check2 = util::fnvInit32();
             msg("Blit %ld (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x %s%s\n",
                 copycount,
                 bltsizeH, bltsizeV,
@@ -607,10 +609,10 @@ Blitter::endBlit()
     
     running = false;
     
-    if constexpr (BLT_GUARD) std::memset((void *)memguard, 0, KB(512));
+    if constexpr (BLT_GUARD) memguard.clear();
     
     // Clear the Blitter slot
-    scheduler.cancel<SLOT_BLT>();
+    agnus.cancel<SLOT_BLT>();
     
     // Dump checksums if requested
     debug(BLT_CHECKSUM,

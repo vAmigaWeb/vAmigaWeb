@@ -16,7 +16,6 @@
 #include "ChangeRecorder.h"
 #include "Copper.h"
 #include "DmaDebugger.h"
-#include "Scheduler.h"
 #include "Sequencer.h"
 #include "Frame.h"
 #include "Memory.h"
@@ -39,6 +38,8 @@ class Agnus : public SubComponent {
 
     // Result of the latest inspection
     mutable AgnusInfo info = {};
+    mutable EventInfo eventInfo = {};
+    mutable EventSlotInfo slotInfo[SLOT_COUNT];
 
     // Current workload
     AgnusStats stats = {};
@@ -50,7 +51,6 @@ class Agnus : public SubComponent {
     
 public:
 
-    Scheduler scheduler = Scheduler(amiga);
     Sequencer sequencer = Sequencer(amiga);
     Copper copper = Copper(amiga);
     Blitter blitter = Blitter(amiga);
@@ -58,10 +58,22 @@ public:
 
 
     //
-    // Execution control
+    // Event scheduler
     //
 
 public:
+    
+    // Trigger cycle
+    Cycle trigger[SLOT_COUNT] = { };
+
+    // The event identifier
+    EventID id[SLOT_COUNT] = { };
+
+    // An optional data value
+    i64 data[SLOT_COUNT] = { };
+    
+    // Next trigger cycle
+    Cycle nextTrigger = NEVER;
     
     // Pending register changes
     RegChangeRecorder<8> changeRecorder;
@@ -174,7 +186,7 @@ public:
     // The current DMA states of all 8 sprites
     SprDMAState sprDmaState[8];
 
-
+    
     //
     // Initializing
     //
@@ -183,6 +195,13 @@ public:
     
     Agnus(Amiga& ref);
     
+    
+    //
+    // Class methods
+    //
+    
+    static const char *eventName(EventSlot slot, EventID id);
+
     
     //
     // Methods from AmigaObject
@@ -225,6 +244,10 @@ private:
 
         worker
         
+        << trigger
+        << id
+        << data
+        << nextTrigger
         >> changeRecorder
 
         >> pos
@@ -309,10 +332,13 @@ public:
 public:
     
     AgnusInfo getInfo() const { return AmigaComponent::getInfo(info); }
+    EventInfo getEventInfo() const { return AmigaComponent::getInfo(eventInfo); }
+    EventSlotInfo getSlotInfo(isize nr) const; 
     const AgnusStats &getStats() { return stats; }
     
 private:
     
+    void inspectSlot(EventSlot nr) const;
     void clearStats();
     void updateStats();
     
@@ -416,6 +442,9 @@ public:
     void recordRegisterChange(Cycle delay, u32 addr, u16 value, Accessor acc = 0);
 
 private:
+
+    // Processes all events up to a given master cycle
+    void executeUntil(Cycle cycle);
 
     // Executes the first sprite DMA cycle
     template <isize nr> void executeFirstSpriteCycle();
@@ -574,41 +603,129 @@ private:
 
 
     //
-    // Scheduling events (AgnusEvents.cpp)
+    // Checking events
     //
     
 public:
     
+    // Returns true iff the specified slot contains any event
+    template<EventSlot s> bool hasEvent() const { return this->id[s] != (EventID)0; }
+    
+    // Returns true iff the specified slot contains a specific event
+    template<EventSlot s> bool hasEvent(EventID id) const { return this->id[s] == id; }
+    
+    // Returns true iff the specified slot contains a pending event
+    template<EventSlot s> bool isPending() const { return this->trigger[s] != NEVER; }
+    
+    // Returns true iff the specified slot contains a due event
+    template<EventSlot s> bool isDue(Cycle cycle) const { return cycle >= this->trigger[s]; }
+    
+    
+    //
+    // Scheduling events
+    //
+    
+public:
+    
+    template<EventSlot s> void scheduleAbs(Cycle cycle, EventID id)
+    {
+        this->trigger[s] = cycle;
+        this->id[s] = id;
+        
+        if (cycle < nextTrigger) nextTrigger = cycle;
+        
+        if constexpr (isTertiarySlot(s)) {
+            if (cycle < trigger[SLOT_TER]) trigger[SLOT_TER] = cycle;
+            if (cycle < trigger[SLOT_SEC]) trigger[SLOT_SEC] = cycle;
+        }
+        if constexpr (isSecondarySlot(s)) {
+            if (cycle < trigger[SLOT_SEC]) trigger[SLOT_SEC] = cycle;
+        }
+    }
+    
+    template<EventSlot s> void scheduleAbs(Cycle cycle, EventID id, i64 data)
+    {
+        scheduleAbs<s>(cycle, id);
+        this->data[s] = data;
+    }
+    
+    template<EventSlot s> void scheduleImm(EventID id)
+    {
+        scheduleAbs<s>(0, id);
+    }
+    
+    template<EventSlot s> void scheduleImm(EventID id, i64 data)
+    {
+        scheduleAbs<s>(0, id);
+        this->data[s] = data;
+    }
+        
+    template<EventSlot s> void scheduleInc(Cycle cycle, EventID id)
+    {
+        scheduleAbs<s>(trigger[s] + cycle, id);
+    }
+    
+    template<EventSlot s> void scheduleInc(Cycle cycle, EventID id, i64 data)
+    {
+        scheduleAbs<s>(trigger[s] + cycle, id);
+        this->data[s] = data;
+    }
+        
+    template<EventSlot s> void rescheduleAbs(Cycle cycle)
+    {
+        trigger[s] = cycle;
+        if (cycle < nextTrigger) nextTrigger = cycle;
+        
+        if constexpr (isTertiarySlot(s)) {
+            if (cycle < trigger[SLOT_TER]) trigger[SLOT_TER] = cycle;
+        }
+        if constexpr (isSecondarySlot(s)) {
+            if (cycle < trigger[SLOT_SEC]) trigger[SLOT_SEC] = cycle;
+        }
+    }
+    
+    template<EventSlot s> void rescheduleInc(Cycle cycle)
+    {
+        rescheduleAbs<s>(trigger[s] + cycle);
+    }
+                
     template<EventSlot s> void scheduleRel(Cycle cycle, EventID id) {
-        scheduler.scheduleAbs<s>(clock + cycle, id);
+        scheduleAbs<s>(clock + cycle, id);
     }
     
     template<EventSlot s> void scheduleRel(Cycle cycle, EventID id, i64 data) {
-        scheduler.scheduleAbs<s>(clock + cycle, id, data);
+        scheduleAbs<s>(clock + cycle, id, data);
     }
     
     template<EventSlot s> void schedulePos(Beam pos, EventID id, i64 data) {
-        scheduler.scheduleAbs<s>(beamToCycle(pos), id, data);
+        scheduleAbs<s>(beamToCycle(pos), id, data);
     }
 
     template<EventSlot s> void schedulePos(isize vpos, isize hpos, EventID id) {
-        scheduler.scheduleAbs<s>(beamToCycle( Beam { vpos, hpos } ), id);
+        scheduleAbs<s>(beamToCycle( Beam { vpos, hpos } ), id);
     }
 
     template<EventSlot s> void schedulePos(isize vpos, isize hpos, EventID id, i64 data) {
-        scheduler.scheduleAbs<s>(beamToCycle( Beam { vpos, hpos } ), id, data);
+        scheduleAbs<s>(beamToCycle( Beam { vpos, hpos } ), id, data);
     }
     
     template<EventSlot s> void rescheduleRel(Cycle cycle) {
-        scheduler.rescheduleAbs<s>(clock + cycle);
+        rescheduleAbs<s>(clock + cycle);
     }
 
     template<EventSlot s> void reschedulePos(Beam pos) {
-        scheduler.rescheduleAbs<s>(beamToCycle(pos));
+        rescheduleAbs<s>(beamToCycle(pos));
     }
 
     template<EventSlot s> void reschedulePos(i16 vpos, i16 hpos) {
-        scheduler.rescheduleAbs<s>(beamToCycle( Beam { vpos, hpos } ));
+        rescheduleAbs<s>(beamToCycle( Beam { vpos, hpos } ));
+    }
+
+    template<EventSlot s> void cancel()
+    {
+        id[s] = (EventID)0;
+        data[s] = 0;
+        trigger[s] = NEVER;
     }
 
     

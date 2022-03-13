@@ -35,9 +35,8 @@ IMGFile::init(Diameter dia, Density den)
     // We only support 3.5"DD disks at the moment
     if (dia == INCH_35 && den == DENSITY_DD) {
 
-        size = 9 * 160 * 512;
-        data = new u8[size]();
-
+        data.init(9 * 160 * 512);
+ 
     } else {
 
         throw VAError(ERROR_DISK_INVALID_LAYOUT);
@@ -121,7 +120,7 @@ IMGFile::encodeTrack(FloppyDisk &disk, Track t) const
     
     // Compute a checksum for debugging
     debug(IMG_DEBUG, "Track %ld checksum = %x\n",
-          t, util::fnv_1a_32(disk.data.track[t], disk.length.track[t]));
+          t, util::fnv32(disk.data.track[t], disk.length.track[t]));
 }
 
 void
@@ -220,7 +219,7 @@ IMGFile::decodeTrack(FloppyDisk &disk, Track t)
         
     long numSectors = 9;
     u8 *src = disk.data.track[t];
-    u8 *dst = data + t * numSectors * 512;
+    u8 *dst = data.ptr + t * numSectors * 512;
     
     debug(IMG_DEBUG, "Decoding DOS track %ld\n", t);
 

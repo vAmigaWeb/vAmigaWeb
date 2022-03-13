@@ -14,8 +14,7 @@
 #include "RomFileTypes.h"
 #include "MemUtils.h"
 
-// DEPRECATED. TODO: GET VALUE FROM ZORRO CARD MANANGER
-const u32 FAST_RAM_STRT = 0x200000;
+#define FAST_RAM_STRT ramExpansion.getBaseAddr()
 
 // Verifies address ranges
 #define ASSERT_CHIP_ADDR(x) \
@@ -159,12 +158,19 @@ public:
      *    pointer != nullptr <=> mask == config.size - 1
      *
      */
-    u8 *rom = nullptr;
-    u8 *wom = nullptr;
-    u8 *ext = nullptr;
-    u8 *chip = nullptr;
-    u8 *slow = nullptr;
-    u8 *fast = nullptr;
+    u8 *rom;
+    u8 *wom;
+    u8 *ext;
+    u8 *chip;
+    u8 *slow;
+    u8 *fast;
+
+    util::Allocator romAllocator = util::Allocator(rom);
+    util::Allocator womAllocator = util::Allocator(wom);
+    util::Allocator extAllocator = util::Allocator(ext);
+    util::Allocator chipAllocator = util::Allocator(chip);
+    util::Allocator slowAllocator = util::Allocator(slow);
+    util::Allocator fastAllocator = util::Allocator(fast);
 
     u32 romMask = 0;
     u32 womMask = 0;
@@ -202,10 +208,8 @@ public:
 public:
     
     using SubComponent::SubComponent;
-    ~Memory();
-    void dealloc();
+ 
 
-    
     //
     // Methods from AmigaObject
     //
@@ -233,7 +237,7 @@ private:
         << config.bankMap
         << config.ramInitPattern
         << config.unmappingType
-        << config.extStart;
+        << config.extStart;        
     }
 
     template <class T>
@@ -294,10 +298,6 @@ private:
     // Allocating memory
     //
     
-private:
-    
-    void alloc(i32 bytes, u8 *&ptr, i32 &size, u32 &mask, bool update);
-
 public:
 
     void allocChip(i32 bytes, bool update = true);
@@ -315,6 +315,10 @@ public:
     void deleteRom() { allocRom(0); }
     void deleteWom() { allocWom(0); }
     void deleteExt() { allocExt(0); }
+
+private:
+    
+    void alloc(util::Allocator &allocator, isize bytes, u32 &mask, bool update);
 
 
     //

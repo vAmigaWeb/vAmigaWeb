@@ -10,6 +10,7 @@
 #include "config.h"
 #include "MemUtils.h"
 #include "string.h"
+#include "IOUtils.h"
 
 namespace util {
 

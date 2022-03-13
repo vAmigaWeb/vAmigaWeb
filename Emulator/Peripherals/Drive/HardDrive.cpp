@@ -39,23 +39,9 @@ HardDrive::HardDrive(Amiga& ref, isize nr) : Drive(ref, nr)
 }
 
 void
-HardDrive::alloc(isize size)
-{
-    dealloc();
-    if (size) data = new u8[size];
-}
-
-void
-HardDrive::dealloc()
-{
-    if (data) delete [] data;
-    data = nullptr;
-}
-
-void
 HardDrive::init()
 {
-    dealloc();
+    data.dealloc();
 
     diskVendor = "VAMIGA";
     diskProduct = "VDRIVE";
@@ -83,7 +69,7 @@ HardDrive::init(const GeometryDescriptor &geometry)
     ptable.push_back(PartitionDescriptor(geometry));
         
     // Create the new drive
-    data = new u8[geometry.numBytes()];
+    data.resize(geometry.numBytes());
 }
 
 void
@@ -101,7 +87,7 @@ HardDrive::init(const MutableFileSystem &fs)
     init(geometry);
     
     // Copy over all blocks
-    fs.exportVolume(data, geometry.numBytes());
+    fs.exportVolume(data.ptr, geometry.numBytes());
 }
 
 void
@@ -127,21 +113,21 @@ HardDrive::init(const HDFFile &hdf)
     ptable = hdf.getPartitionDescriptors();
 
     // Check the drive geometry against the file size
-    auto numBytes = hdf.size;
+    auto numBytes = hdf.data.size;
     
-    if (geometry.numBytes() < numBytes) {
+    if (data.size < numBytes) {
         
         debug(XFILES, "HDF is too large. Ignoring excess bytes.\n");
-        numBytes = geometry.numBytes();
+        numBytes = data.size;
     }
-    if (geometry.numBytes() > hdf.size) {
+    if (data.size > hdf.data.size) {
         
         debug(XFILES, "HDF is too small. Padding with zeroes.");
-        std::memset(data + hdf.size, 0, geometry.numBytes() - hdf.size);
+        data.clear(0, hdf.data.size);
     }
     
     // Copy over all blocks
-    hdf.flash(data, 0, numBytes);
+    hdf.flash(data.ptr, 0, numBytes);
 }
 
 const char *
@@ -361,60 +347,6 @@ HardDrive::_dump(dump::Category category, std::ostream& os) const
     }
 }
 
-isize
-HardDrive::_size()
-{
-    util::SerCounter counter;
-
-    // Determine size information
-    auto dataSize = geometry.numBytes() + 8;
-
-    applyToPersistentItems(counter);
-    applyToResetItems(counter);
-    
-    counter.count += dataSize;
-    return counter.count;
-}
-
-isize
-HardDrive::didLoadFromBuffer(const u8 *buffer)
-{
-    util::SerReader reader(buffer);
-    isize dataSize;
-
-    // Load size information
-    reader << dataSize;
-
-    // Allocate memory
-    if (dataSize > MB(504)) throw VAError(ERROR_SNAP_CORRUPTED);
-    alloc(isize(dataSize));
-
-    // Load data
-    // debug(true, "data = %p size = %ld\n", (void *)data, dataSize);
-    // debug(true, "numBytes = %ld\n", desc.geometry.numBytes());
-    assert(dataSize == geometry.numBytes());
-    reader.copy(data, dataSize);
-
-    return (isize)(reader.ptr - buffer);
-}
-
-isize
-HardDrive::didSaveToBuffer(u8 *buffer)
-{
-    util::SerWriter writer(buffer);
-
-    // Determine size information
-    isize dataSize = geometry.numBytes();
-
-    // Save size information
-    writer << dataSize;
- 
-    // Write data
-    writer.copy(data, dataSize);
-
-    return (isize)(writer.ptr - buffer);
-}
-
 bool
 HardDrive::isConnected() const
 {
@@ -424,13 +356,13 @@ HardDrive::isConnected() const
 u64
 HardDrive::fnv() const
 {
-    return hasDisk() ? util::fnv_1a_64(data, geometry.numBytes()) : 0;
+    return hasDisk() ? util::fnv64(data.ptr, geometry.numBytes()) : 0;
 }
 
 bool
 HardDrive::hasDisk() const
 {
-    return data != nullptr;
+    return data.ptr != nullptr;
 }
 
 bool
@@ -477,7 +409,7 @@ HardDrive::format(FSVolumeType fsType, string name)
     }
     
     // Only proceed if a disk is present
-    if (!data) return;
+    if (!data.ptr) return;
 
     if (fsType != FS_NODOS) {
         
@@ -491,7 +423,7 @@ HardDrive::format(FSVolumeType fsType, string name)
         fs.setName(name);
                 
         // Copy all blocks over
-        fs.exportVolume(data, geometry.numBytes());
+        fs.exportVolume(data.ptr, geometry.numBytes());
     }
 }
 
@@ -533,7 +465,7 @@ HardDrive::read(isize offset, isize length, u32 addr)
         moveHead(offset / geometry.bsize);
 
         // Perform the read operation
-        mem.patch(addr, data + offset, length);
+        mem.patch(addr, data.ptr + offset, length);
                 
         // Inform the GUI
         msgQueue.put(MSG_HDR_READ);
@@ -562,7 +494,7 @@ HardDrive::write(isize offset, isize length, u32 addr)
 
         // Perform the write operation
         if (!writeProtected) {
-            mem.spypeek <ACCESSOR_CPU> (addr, length, data + offset);
+            mem.spypeek <ACCESSOR_CPU> (addr, length, data.ptr + offset);
         }
         
         // Inform the GUI
@@ -578,7 +510,7 @@ HardDrive::write(isize offset, isize length, u32 addr)
 i8
 HardDrive::verify(isize offset, isize length, u32 addr)
 {
-    assert(data);
+    assert(data.ptr);
 
     if (length % 512) {
         
@@ -650,7 +582,7 @@ HardDrive::scheduleIdleEvent()
 template <EventSlot s> void
 HardDrive::serviceHdrEvent()
 {
-    scheduler.cancel <s> ();
+    agnus.cancel <s> ();
     state = HDR_STATE_IDLE;
     msgQueue.put(MSG_HDR_IDLE, nr);
 }

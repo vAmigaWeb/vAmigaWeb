@@ -81,6 +81,7 @@ Amiga::Amiga()
         &hd1con,
         &hd2con,
         &hd3con,
+        &ramExpansion,
         &ciaA,
         &ciaB,
         &mem,
@@ -127,6 +128,7 @@ Amiga::Amiga()
 Amiga::~Amiga()
 {
     debug(RUN_DEBUG, "Destroying Amiga\n");
+    if (thread.joinable()) { halt(); }
 }
 
 void
@@ -701,7 +703,7 @@ Amiga::overrideOption(Option option, i64 value)
 InspectionTarget
 Amiga::getInspectionTarget() const
 {
-    switch(agnus.scheduler.id[SLOT_INS]) {
+    switch(agnus.id[SLOT_INS]) {
             
         case EVENT_NONE:  return INSPECTION_NONE;
         case INS_AMIGA:   return INSPECTION_AMIGA;
@@ -728,7 +730,7 @@ Amiga::setInspectionTarget(InspectionTarget target, Cycle trigger)
         
         switch(target) {
                 
-            case INSPECTION_NONE:    agnus.scheduler.cancel<SLOT_INS>(); return;
+            case INSPECTION_NONE:    agnus.cancel<SLOT_INS>(); return;
                 
             case INSPECTION_AMIGA:   id = INS_AMIGA; break;
             case INSPECTION_CPU:     id = INS_CPU; break;
@@ -752,7 +754,7 @@ Amiga::setInspectionTarget(InspectionTarget target, Cycle trigger)
 void
 Amiga::_inspect() const
 {
-    synchronized {
+    {   SYNCHRONIZED
         
         info.cpuClock = cpu.getMasterClock();
         info.dmaClock = agnus.clock;
@@ -926,14 +928,12 @@ Amiga::execute()
             // Are we requested to take a snapshot?
             if (flags & RL::AUTO_SNAPSHOT) {
                 clearFlag(RL::AUTO_SNAPSHOT);
-                autoSnapshot = new Snapshot(*this);
-                msgQueue.put(MSG_AUTO_SNAPSHOT_TAKEN);
+                takeAutoSnapshot();
             }
             
             if (flags & RL::USER_SNAPSHOT) {
                 clearFlag(RL::USER_SNAPSHOT);
-                userSnapshot = new Snapshot(*this);
-                msgQueue.put(MSG_USER_SNAPSHOT_TAKEN);
+                takeUserSnapshot();
             }
 
             // Are we requested to update the debugger info structs?
@@ -998,13 +998,13 @@ Amiga::execute()
 void
 Amiga::setFlag(u32 flag)
 {
-    synchronized { flags |= flag; }
+    SYNCHRONIZED flags |= flag;
 }
 
 void
 Amiga::clearFlag(u32 flag)
 {
-    synchronized { flags &= ~flag; }
+    SYNCHRONIZED flags &= ~flag;
 }
 
 void
@@ -1043,8 +1043,7 @@ Amiga::requestAutoSnapshot()
     if (!isRunning()) {
 
         // Take snapshot immediately
-        autoSnapshot = new Snapshot(*this);
-        msgQueue.put(MSG_AUTO_SNAPSHOT_TAKEN);
+        takeAutoSnapshot();
         
     } else {
 
@@ -1059,8 +1058,7 @@ Amiga::requestUserSnapshot()
     if (!isRunning()) {
         
         // Take snapshot immediately
-        userSnapshot = new Snapshot(*this);
-        msgQueue.put(MSG_USER_SNAPSHOT_TAKEN);
+        takeUserSnapshot();
         
     } else {
         
@@ -1124,4 +1122,30 @@ Amiga::loadSnapshot(const Snapshot &snapshot)
     
     // Inform the GUI
     msgQueue.put(MSG_SNAPSHOT_RESTORED);
+}
+
+void
+Amiga::takeAutoSnapshot()
+{
+    if (autoSnapshot) {
+
+        warn("Old auto-snapshot still present. Ignoring request.\n");
+        return;
+    }
+    
+    autoSnapshot = new Snapshot(*this);
+    msgQueue.put(MSG_AUTO_SNAPSHOT_TAKEN);
+}
+
+void
+Amiga::takeUserSnapshot()
+{
+    if (userSnapshot) {
+
+        warn("Old user-snapshot still present. Ignoring request.\n");
+        return;
+    }
+    
+    userSnapshot = new Snapshot(*this);
+    msgQueue.put(MSG_USER_SNAPSHOT_TAKEN);
 }

@@ -14,7 +14,7 @@
 void
 Copper::serviceEvent()
 {
-    serviceEvent(scheduler.id[SLOT_COP]);
+    serviceEvent(agnus.id[SLOT_COP]);
 }
 
 void
@@ -70,7 +70,7 @@ Copper::serviceEvent(EventID id)
             
             // Check if the Blitter is busy, keep on waiting
             if (agnus.blitter.isActive()) {
-                scheduler.scheduleAbs<SLOT_COP>(NEVER, COP_WAIT_BLIT);
+                agnus.scheduleAbs<SLOT_COP>(NEVER, COP_WAIT_BLIT);
                 break;
             }
             
@@ -109,7 +109,7 @@ Copper::serviceEvent(EventID id)
 
             if (COP_CHECKSUM) {
                 checkcnt++;
-                checksum = util::fnv_1a_it32(checksum, cop1ins);
+                checksum = util::fnvIt32(checksum, cop1ins);
             }
 
             // Fork execution depending on the instruction type
@@ -127,13 +127,13 @@ Copper::serviceEvent(EventID id)
             cop2ins = agnus.doCopperDmaRead(coppc);
             advancePC();
 
-            if (COP_CHECKSUM) checksum = util::fnv_1a_it32(checksum, cop2ins);
+            if (COP_CHECKSUM) checksum = util::fnvIt32(checksum, cop2ins);
 
             // Extract register number from the first instruction word
             reg = (cop1ins & 0x1FE);
 
             // Stop the Copper if address is illegal
-            if (isIllegalAddress(reg)) { scheduler.cancel<SLOT_COP>(); break; }
+            if (isIllegalAddress(reg)) { agnus.cancel<SLOT_COP>(); break; }
 
             // Continue with fetching the new command
             schedule(COP_FETCH);
@@ -145,11 +145,11 @@ Copper::serviceEvent(EventID id)
             switch (reg) {
                 case 0x88:
                     schedule(COP_JMP1);
-                    scheduler.data[SLOT_COP] = 1;
+                    agnus.data[SLOT_COP] = 1;
                     break;
                 case 0x8A:
                     schedule(COP_JMP1);
-                    scheduler.data[SLOT_COP] = 2;
+                    agnus.data[SLOT_COP] = 2;
                     break;
                 default:
                     move(reg, cop2ins);
@@ -167,7 +167,7 @@ Copper::serviceEvent(EventID id)
             cop2ins = agnus.doCopperDmaRead(coppc);
             advancePC();
 
-            if (COP_CHECKSUM) checksum = util::fnv_1a_it32(checksum, cop2ins);
+            if (COP_CHECKSUM) checksum = util::fnvIt32(checksum, cop2ins);
 
             // Fork execution depending on the instruction type
             schedule(isWaitCmd() ? COP_WAIT1 : COP_SKIP1);
@@ -193,7 +193,7 @@ Copper::serviceEvent(EventID id)
             
             // Check if we need to wait for the Blitter
             if (!getBFD() && agnus.blitter.isActive()) {
-                scheduler.scheduleAbs<SLOT_COP>(NEVER, COP_WAIT_BLIT);
+                agnus.scheduleAbs<SLOT_COP>(NEVER, COP_WAIT_BLIT);
                 break;
             }
             
@@ -259,7 +259,7 @@ Copper::serviceEvent(EventID id)
             // Wait for the next possible DMA cycle
             if (!agnus.busIsFree<BUS_COPPER>()) { reschedule(); break; }
 
-            switchToCopperList((isize)scheduler.data[SLOT_COP]);
+            switchToCopperList((isize)agnus.data[SLOT_COP]);
             schedule(COP_FETCH);
             break;
 

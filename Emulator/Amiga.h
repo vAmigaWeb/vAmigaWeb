@@ -85,11 +85,12 @@ public:
     HardDrive hd2 = HardDrive(*this, 2);
     HardDrive hd3 = HardDrive(*this, 3);
 
-    // Hard drive controllers
+    // Zorro boards
     HdController hd0con = HdController(*this, hd0);
     HdController hd1con = HdController(*this, hd1);
     HdController hd2con = HdController(*this, hd2);
     HdController hd3con = HdController(*this, hd3);
+    RamExpansion ramExpansion = RamExpansion(*this);
 
     // Other Peripherals
     Keyboard keyboard = Keyboard(*this);
@@ -318,7 +319,7 @@ public:
      */
     void requestAutoSnapshot();
     void requestUserSnapshot();
-     
+         
     /* Returns the most recent snapshot or nullptr if none was taken. If a
      * snapshot was taken, the function hands over the ownership to the caller
      * and deletes the internal pointer.
@@ -328,4 +329,10 @@ public:
 
     // Loads the current state from a snapshot file
     void loadSnapshot(const Snapshot &snapshot) throws;
+    
+private:
+    
+    // Takes a snapshot of a certain kind
+    void takeAutoSnapshot();
+    void takeUserSnapshot();
 };

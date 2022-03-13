@@ -28,6 +28,7 @@ enum_long(MSG_TYPE)
     MSG_STEP,
     MSG_RESET,
     MSG_HALT,
+    MSG_ABORT,
     MSG_WARP_ON,
     MSG_WARP_OFF,
     MSG_DEBUG_ON,
@@ -139,6 +140,7 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
             case MSG_STEP:                  return "STEP";
             case MSG_RESET:                 return "RESET";
             case MSG_HALT:                  return "HALT";
+            case MSG_ABORT:                 return "ABORT";
             case MSG_WARP_ON:               return "WARP_ON";
             case MSG_WARP_OFF:              return "WARP_OFF";
             case MSG_DEBUG_ON:              return "DEBUG_ON";
@@ -163,7 +165,7 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
 
             case MSG_VIEWPORT:              return "VIEWPORT";
                 
-            case MSG_MEM_LAYOUT:            return "LAYOUT";
+            case MSG_MEM_LAYOUT:            return "MEM_LAYOUT";
                     
             case MSG_DRIVE_CONNECT:         return "DRIVE_CONNECT";
             case MSG_DRIVE_DISCONNECT:      return "DRIVE_DISCONNECT";
