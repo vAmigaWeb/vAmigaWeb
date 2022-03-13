@@ -9,6 +9,8 @@ set(CMAKE_CXX_EXTENSIONS False)
 
 add_executable(vAmiga mainsdl.cpp)
 
+
+target_compile_options(vAmiga PRIVATE -s USE_SDL=2)
 target_compile_options(vAmiga PRIVATE -Wall -Werror)
 target_compile_options(vAmiga PRIVATE -Wno-unused-parameter)
 target_compile_options(vAmiga PRIVATE -O3)
