@@ -298,8 +298,6 @@ void PrintEvent(const SDL_Event * event)
     }
 }
 
-int emu_width  = HPIXELS; //TEX_WIDTH; //NTSC_PIXELS; //428
-int emu_height = VPIXELS; //PAL_RASTERLINES; //284
 int eat_border_width = 0;
 int eat_border_height = 0;
 int xOff = 12 + eat_border_width;
@@ -322,8 +320,8 @@ EM_BOOL emscripten_window_resized_callback(int eventType, const void *reserved, 
     SDL_Rect SrcR;
     SrcR.x = 0;
     SrcR.y = 0;
-    SrcR.w = emu_width;
-    SrcR.h = emu_height;
+    SrcR.w = HPIXELS;
+    SrcR.h = VPIXELS;
     SDL_RenderSetViewport(renderer, &SrcR);
     */
 	return true;
@@ -365,7 +363,7 @@ int eventFilter(void* thisC64, SDL_Event* event) {
         }
         else if(event->window.event==SDL_WINDOWEVENT_RESIZED)
         {//this event comes after SDL_WINDOWEVENT_SIZE_CHANGED
-              //SDL_SetWindowSize(window, emu_width, emu_height);   
+              //SDL_SetWindowSize(window, HPIXELS, VPIXELS);   
               //SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
               //window_surface = SDL_GetWindowSurface(window);
         }
@@ -415,16 +413,13 @@ void draw_one_frame_into_SDL_noise(void *thisAmiga)
 
   Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getNoise(); //screenBuffer();
  
-//  int surface_width = window_surface->w;
-//  int surface_height = window_surface->h;
-
 //  SDL_RenderClear(renderer);
   SDL_Rect SrcR;
   SrcR.x = xOff;
   SrcR.y = yOff;
   SrcR.w = clipped_width;
   SrcR.h = clipped_height;
-  SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*emu_width*SrcR.y) + SrcR.x*4, 4*emu_width);
+  SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*HPIXELS*SrcR.y) + SrcR.x*4, 4*HPIXELS);
 
   SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
 
@@ -573,20 +568,12 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   //  SDL_RenderClear(renderer);
     SDL_Rect SrcR;
 
-    if(geometry== DISPLAY_ADAPTIVE)
-    {  
-      xOff = hstart_min;
-      yOff = vstart_min;
-      clipped_width = hstop_max-hstart_min;
-      clipped_height = vstop_max-vstart_min;
-    }
-
     SrcR.x = xOff;
     SrcR.y = yOff;
     SrcR.w = clipped_width;
     SrcR.h = clipped_height;
 
-    SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*emu_width*SrcR.y) + SrcR.x*4, 4*emu_width);
+    SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*HPIXELS*SrcR.y) + SrcR.x*4, 4*HPIXELS);
 
     SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
 
@@ -697,6 +684,7 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
     hstart_min *=2;
     hstop_max *=2;
 
+    hstart_min=hstart_min<208 ? 208:hstart_min;
 
     if(vstart_min < 26) 
       vstart_min = 26;
@@ -716,6 +704,20 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
         set_texture_display_window(merge, hstart_min, hstop_max, vstart_min, vstop_max);
       } 
     }
+    else
+    {  
+      if(geometry== DISPLAY_ADAPTIVE)
+      {         
+        xOff = hstart_min;
+        yOff = vstart_min;
+        clipped_width = hstop_max-hstart_min;
+        clipped_height = vstop_max-vstart_min;
+
+        SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
+        SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
+        SDL_SetWindowSize(window, clipped_width, clipped_height);
+      }
+    }
 
 
   }
@@ -725,11 +727,11 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
 
 
 
-class C64Wrapper {
+class vAmigaWrapper {
   public:
     Amiga *amiga;
 
-  C64Wrapper()
+  vAmigaWrapper()
   {
     printf("constructing vAmiga ...\n");
     this->amiga = new Amiga();
@@ -738,20 +740,13 @@ class C64Wrapper {
 
     amiga->msgQueue.setListener(this->amiga, &theListener);
   }
-  ~C64Wrapper()
+  ~vAmigaWrapper()
   {
         printf("closing wrapper");
   }
 
   void run()
   {
-/*    printf("wrapper calls 4x c64->loadRom(...) method\n");
-    c64->loadRom(ROM_KERNAL ,"roms/kernal.901227-03.bin");
-    c64->loadRom(ROM_BASIC, "roms/basic.901226-01.bin");
-    c64->loadRom(ROM_CHAR, "roms/characters.901225-01.bin");
-    c64->loadRom(ROM_VC1541, "roms/1541-II.251968-03.bin");
-*/
-
     try { amiga->isReady(); } catch(...) { 
       printf("***** put missing rom message\n");
        // amiga->msgQueue.put(ROM_MISSING); 
@@ -816,9 +811,9 @@ class C64Wrapper {
   }
 };
 
-C64Wrapper *wrapper = NULL;
+vAmigaWrapper *wrapper = NULL;
 extern "C" int main(int argc, char** argv) {
-  wrapper= new C64Wrapper();
+  wrapper= new vAmigaWrapper();
   initSDL(wrapper->amiga);
   wrapper->run();
   return 0;
@@ -908,7 +903,7 @@ void create_texture()
   screen_texture = SDL_CreateTexture(renderer,
         /*SDL_PIXELFORMAT_ARGB32*/ SDL_PIXELFORMAT_ABGR8888 
         , SDL_TEXTUREACCESS_STREAMING,
-        emu_width, emu_height);
+        HPIXELS, VPIXELS);
 
   window_surface = SDL_GetWindowSurface(window);
 }
