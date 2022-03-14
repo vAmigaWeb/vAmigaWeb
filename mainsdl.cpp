@@ -909,7 +909,7 @@ void create_texture()
 }
 
 
-extern "C" void wasm_create_renderer(char* name)
+extern "C" bool wasm_create_renderer(char* name)
 { 
   render_method=RENDER_SOFTWARE;
   printf("try to create %s renderer\n", name);
@@ -918,22 +918,10 @@ extern "C" void wasm_create_renderer(char* name)
     if(create_shader())
     {
       render_method=RENDER_SHADER;
+      return true;
     }
-    else
-    {
-      if(create_renderer_webgl())
-      {
-        render_method=RENDER_GPU;
-      }
-      else
-      {
-        create_renderer_software();
-      }
-      create_texture();
-    }
-
   }
-  else if(0==strcmp("gpu", name))
+/*  else if(0==strcmp("gpu", name))
   {
     if(create_renderer_webgl())
     {
@@ -946,12 +934,15 @@ extern "C" void wasm_create_renderer(char* name)
       create_renderer_software();
     }
     create_texture();
-  } else
+  }
+*/ 
+  else
   {
       create_renderer_software();
       create_texture();
+      return true;
   }
-
+  return false;
 }
 
 
@@ -1146,9 +1137,9 @@ extern "C" void wasm_set_display(const char *name)
   
     geometry=DISPLAY_STANDARD;
     xOff=252;
-    yOff=26 + 4;
+    yOff=26 + 6;
     clipped_width=HPIXELS-xOff;
-    clipped_height=312-yOff -2*4 ;
+    clipped_height=312-yOff -2*4  ;
   }
   else if( strcmp(name,"wider") == 0)
   {

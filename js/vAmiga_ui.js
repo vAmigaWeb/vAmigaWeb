@@ -1305,7 +1305,7 @@ function InitWrappers() {
     wasm_pull_user_snapshot_file = Module.cwrap('wasm_pull_user_snapshot_file', 'string');
     wasm_delete_user_snapshot = Module.cwrap('wasm_delete_user_snapshot', 'undefined');
 
-    wasm_create_renderer = Module.cwrap('wasm_create_renderer', 'undefined', ['string']);
+    wasm_create_renderer = Module.cwrap('wasm_create_renderer', 'number', ['string']);
     wasm_set_warp = Module.cwrap('wasm_set_warp', 'undefined', ['number']);
     wasm_set_borderless = Module.cwrap('wasm_set_borderless', 'undefined', ['number']);
     wasm_press_play = Module.cwrap('wasm_press_play', 'undefined');
@@ -1844,12 +1844,20 @@ function InitWrappers() {
     {
         let choice=$(this).text();
         set_renderer_choice(choice);
-//        wasm_create_renderer(choice);
-
         $("#modal_settings").focus();
     });
 
-    wasm_create_renderer(current_renderer);
+    let got_renderer=false;
+    try{ 
+        got_renderer=wasm_create_renderer(current_renderer); 
+    } catch {}
+    if(!got_renderer && current_renderer!='software')
+    {
+        alert('MESSAGE: gpu shader can not be created on your system configuration... switching back to software renderer...');
+        wasm_create_renderer('software');
+        set_renderer_choice('software')
+    }
+
 
 //----
 
