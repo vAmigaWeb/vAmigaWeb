@@ -1108,10 +1108,6 @@ extern "C" void wasm_set_warp(unsigned on)
 }
 
 
-extern "C" void wasm_set_borderless(float on)
-{
-}
-
 extern "C" void wasm_set_display(const char *name)
 {
   printf("wasm_set_display('%s')\n",name);
@@ -1401,13 +1397,6 @@ extern "C" void wasm_run()
 }
 
 
-extern "C" void wasm_press_play()
-{
-/*  printf("wasm_press_play\n");
-  wrapper->amiga->datasette.pressPlay();
-*/
-}
-
 extern "C" void wasm_mouse(int port, int x, int y)
 {
   //printf("wasm_mouse port%d x=%d, y=%d\n", port, x, y);
@@ -1437,7 +1426,7 @@ extern "C" void wasm_mouse_button(int port, int button_id, int pressed)
 
 extern "C" void wasm_joystick(char* port_plus_event)
 {
-    printf("wasm_joystick event=%s\n", port_plus_event);
+//    printf("wasm_joystick event=%s\n", port_plus_event);
   /*
   from javascript
     // port, o == oben, r == rechts, ..., f == feuer
