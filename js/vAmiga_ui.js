@@ -330,12 +330,6 @@ function message_handler(msg, data)
                     scaleVMCanvas();
                     wide_screen_switch.prop('checked', use_wide_screen);
                 }
-                if(call_param_border != null)
-                {
-                    use_borderless = 1-call_param_border;
-                    wasm_set_borderless(use_borderless);
-                    borderless_switch.prop('checked', use_borderless);
-                }
                 if(call_param_display != null)
                 {
                     set_display_choice(call_param_display);
@@ -1307,7 +1301,6 @@ function InitWrappers() {
 
     wasm_create_renderer = Module.cwrap('wasm_create_renderer', 'number', ['string']);
     wasm_set_warp = Module.cwrap('wasm_set_warp', 'undefined', ['number']);
-    wasm_set_borderless = Module.cwrap('wasm_set_borderless', 'undefined', ['number']);
     wasm_press_play = Module.cwrap('wasm_press_play', 'undefined');
     wasm_sprite_info = Module.cwrap('wasm_sprite_info', 'string');
 
@@ -1909,16 +1902,6 @@ $(`#choose_display a`).click(function ()
         save_setting('pixel_art', this.checked);
         set_pixel_art(this.checked);
     });
-//--------
-
-borderless_switch = $('#borderless_switch');
-var use_borderless=load_setting('borderless', false);
-borderless_switch.prop('checked', use_borderless);
-wasm_set_borderless(use_borderless);
-borderless_switch.change( function() {
-    wasm_set_borderless(this.checked);
-    save_setting('borderless', this.checked);
-});
 
 //------
 function bind_config(key, default_value){
