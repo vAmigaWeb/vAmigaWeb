@@ -1504,25 +1504,43 @@ RELEASE_FIRE
 char buffer[50];
 extern "C" char* wasm_sprite_info()
 {
-/*   sprintf(buffer, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", 
-     wrapper->amiga->vic.reg.current.sprX[0],
-     wrapper->amiga->vic.reg.current.sprY[0],
-     wrapper->amiga->vic.reg.current.sprX[1],
-     wrapper->amiga->vic.reg.current.sprY[1],
-     wrapper->amiga->vic.reg.current.sprX[2],
-     wrapper->amiga->vic.reg.current.sprY[2],
-     wrapper->amiga->vic.reg.current.sprX[3],
-     wrapper->amiga->vic.reg.current.sprY[3],
-     wrapper->amiga->vic.reg.current.sprX[4],
-     wrapper->amiga->vic.reg.current.sprY[4],
-     wrapper->amiga->vic.reg.current.sprX[5],
-     wrapper->amiga->vic.reg.current.sprY[5],
-     wrapper->amiga->vic.reg.current.sprX[6],
-     wrapper->amiga->vic.reg.current.sprY[6],
-     wrapper->amiga->vic.reg.current.sprX[7],
-     wrapper->amiga->vic.reg.current.sprY[7]
+  if(!wrapper->amiga->inDebugMode())
+  {
+    wrapper->amiga->debugOn();
+  }
+//   wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(250));
+//   wrapper->amiga->denise.debugger.recordSprite(0);
+
+   Denise *denise = &(wrapper->amiga->denise);
+   auto spriteinfo0 = denise->debugger.getSpriteInfo(0);
+   auto spriteinfo1 = denise->debugger.getSpriteInfo(1);
+   auto spriteinfo2 = denise->debugger.getSpriteInfo(2);
+   auto spriteinfo3 = denise->debugger.getSpriteInfo(3);
+   auto spriteinfo4 = denise->debugger.getSpriteInfo(4);
+   auto spriteinfo5 = denise->debugger.getSpriteInfo(5);
+   auto spriteinfo6 = denise->debugger.getSpriteInfo(6);
+   auto spriteinfo7 = denise->debugger.getSpriteInfo(7);
+
+
+   sprintf(buffer, "%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu", 
+     spriteinfo0.hstrt*2,
+     spriteinfo0.vstrt, 
+     spriteinfo1.hstrt*2,
+     spriteinfo1.vstrt, 
+     spriteinfo2.hstrt*2,
+     spriteinfo2.vstrt, 
+     spriteinfo3.hstrt*2,
+     spriteinfo3.vstrt, 
+     spriteinfo4.hstrt*2,
+     spriteinfo4.vstrt, 
+     spriteinfo5.hstrt*2,
+     spriteinfo5.vstrt, 
+     spriteinfo6.hstrt*2,
+     spriteinfo6.vstrt, 
+     spriteinfo7.hstrt*2,
+     spriteinfo7.vstrt
      );  
-*/
+
    return buffer;
 }
 
