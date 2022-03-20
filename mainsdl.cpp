@@ -1670,7 +1670,7 @@ extern "C" void wasm_set_sid_engine(char* engine)
 
 extern "C" void wasm_set_color_palette(char* palette)
 {
-/*
+
   if( strcmp(palette,"color") == 0)
   {
     wrapper->amiga->configure(OPT_PALETTE, PALETTE_COLOR);
@@ -1695,7 +1695,7 @@ extern "C" void wasm_set_color_palette(char* palette)
   { 
     wrapper->amiga->configure(OPT_PALETTE, PALETTE_SEPIA); 
   }
-*/
+
 }
 
 
