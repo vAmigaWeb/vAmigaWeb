@@ -390,7 +390,20 @@
               </div>
               <span style="font-size: smaller">(choose auto to dynamically adapt Amigas current viewport size)</span>
             </div>
-            <div class="custom-control custom-switch mt-1">
+            <div class="dropdown mr-1 mt-2">
+              <button id="button_color_palette" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                color
+              </button>
+              <div id="choose_color_palette" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                <a class="dropdown-item" href="#">color</a>
+                <a class="dropdown-item" href="#">black white</a>
+                <a class="dropdown-item" href="#">paper white</a>
+                <a class="dropdown-item" href="#">green</a>
+                <a class="dropdown-item" href="#">amber</a>
+                <a class="dropdown-item" href="#">sepia</a>
+              </div>
+            </div>
+            <div class="custom-control custom-switch mt-2">
               <input type="checkbox" class="custom-control-input" id="wide_screen_switch" />
               <label class="custom-control-label" for="wide_screen_switch">cinematic wide screen</label>
             </div>
@@ -407,74 +420,39 @@
               <label class="custom-control-label" for="lock_action_button_switch" data-toggle="tooltip" data-placement="top" title="only when locked no gestures detection is done and therefore events like touchstart/end mousedown/up are processed correctly.">lock action buttons (prevent dragging and long press)</label>
             </div>
 
-            <div class="container row justify-content-start mt-2" style="display:none">
-              <div class="dropdown mr-1 mt-1">
-                <button id="button_sid_model" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                  sid model 6581
-                </button>
-                <div id="choose_sid_model" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
-                  <a class="dropdown-item" href="#">6581</a>
-                  <a class="dropdown-item" href="#">8580</a>
-                </div>
-              </div>
-              <div class="dropdown mr-1 mt-1">
-                <button id="button_2nd_sid" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                  2nd sid disabled
-                </button>
-                <div id="choose_2nd_sid_addr" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
-                  <a class="dropdown-item" href="#">disabled</a>
-                  <a class="dropdown-item" href="#">enabled at $d420</a>
-                  <a class="dropdown-item" href="#">enabled at $d440</a>
-                  <a class="dropdown-item" href="#">enabled at $d460</a>
-                  <a class="dropdown-item" href="#">enabled at $d500</a>
-                </div>
-              </div>
-              <div class="dropdown mr-1 mt-1">
-                <button id="button_sid_engine" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                  ReSID fast
-                </button>
-                <div id="choose_sid_engine" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
-                  <!--a class="dropdown-item" href="#">FastSID</a-->
-                  <a class="dropdown-item" href="#">ReSID fast</a>
-                  <a class="dropdown-item" href="#">ReSID interpolate</a>
-                  <a class="dropdown-item" href="#">ReSID resample</a>
-                </div>
-              </div>
-            </div>
-
             <label class="mt-4">cut out sprite layers (stencil)</label>
             <div style="display:flex;flex-direction:row;flex-wrap:wrap">
               <div class="custom-control-lg custom-control custom-checkbox">
                 <input id="sprite0" class="custom-control-input layer" type="checkbox" value="">
-                <label for="sprite0" class="custom-control-label text-muted" style="width:20px">1</label>
+                <label for="sprite0" class="custom-control-label text-muted" style="width:20px">0</label>
               </div>
               <div class="custom-control-lg custom-control custom-checkbox">
                 <input id="sprite1" class="custom-control-input layer" type="checkbox" value="">
-                <label for="sprite1" class="custom-control-label text-muted" style="width:20px">2</label>
+                <label for="sprite1" class="custom-control-label text-muted" style="width:20px">1</label>
               </div>
               <div class="custom-control-lg custom-control custom-checkbox">
                 <input id="sprite2" class="custom-control-input layer" type="checkbox" value="">
-                <label for="sprite2" class="custom-control-label text-muted" style="width:20px">3</label>
+                <label for="sprite2" class="custom-control-label text-muted" style="width:20px">2</label>
               </div>
               <div class="custom-control-lg custom-control custom-checkbox">
                 <input id="sprite3" class="custom-control-input layer" type="checkbox" value="">
-                <label for="sprite3" class="custom-control-label text-muted" style="width:20px">4</label>
+                <label for="sprite3" class="custom-control-label text-muted" style="width:20px">3</label>
               </div>
               <div class="custom-control-lg custom-control custom-checkbox">
                 <input id="sprite4" class="custom-control-input layer" type="checkbox" value="">
-                <label for="sprite4" class="custom-control-label text-muted" style="width:20px">5</label>
+                <label for="sprite4" class="custom-control-label text-muted" style="width:20px">4</label>
               </div>
               <div class="custom-control-lg custom-control custom-checkbox">
                 <input id="sprite5" class="custom-control-input layer" type="checkbox" value="">
-                <label for="sprite5" class="custom-control-label text-muted" style="width:20px">6</label>
+                <label for="sprite5" class="custom-control-label text-muted" style="width:20px">5</label>
               </div>
               <div class="custom-control-lg custom-control custom-checkbox">
                 <input id="sprite6" class="custom-control-input layer" type="checkbox" value="">
-                <label for="sprite6" class="custom-control-label text-muted" style="width:20px">7</label>
+                <label for="sprite6" class="custom-control-label text-muted" style="width:20px">6</label>
               </div>
               <div class="custom-control-lg custom-control custom-checkbox">
                 <input id="sprite7" class="custom-control-input layer" type="checkbox" value="">
-                <label for="sprite7" class="custom-control-label text-muted" style="width:20px">8</label>
+                <label for="sprite7" class="custom-control-label text-muted" style="width:20px">7</label>
               </div>
             </div>
 
@@ -490,22 +468,6 @@
               </div>
             </div>
  
-
-<div style="display:none">
-            <div class="dropdown mr-1 mt-4">
-              <button id="button_color_palette" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                color
-              </button>
-              <div id="choose_color_palette" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
-                <a class="dropdown-item" href="#">color</a>
-                <a class="dropdown-item" href="#">black white</a>
-                <a class="dropdown-item" href="#">paper white</a>
-                <a class="dropdown-item" href="#">green</a>
-                <a class="dropdown-item" href="#">amber</a>
-                <a class="dropdown-item" href="#">sepia</a>
-              </div>
-            </div>
-</div>
             <div class="mt-4">
               compatibility settings 
             </div>
