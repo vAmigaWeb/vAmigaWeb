@@ -1112,7 +1112,7 @@ extern "C" void wasm_set_display(const char *name)
 {
   printf("wasm_set_display('%s')\n",name);
 //
-  if( strcmp(name,"adaptive") == 0)
+  if( strcmp(name,"adaptive") == 0 || strcmp(name,"auto") == 0)
   {
     geometry=DISPLAY_ADAPTIVE;
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
@@ -1504,25 +1504,43 @@ RELEASE_FIRE
 char buffer[50];
 extern "C" char* wasm_sprite_info()
 {
-/*   sprintf(buffer, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u", 
-     wrapper->amiga->vic.reg.current.sprX[0],
-     wrapper->amiga->vic.reg.current.sprY[0],
-     wrapper->amiga->vic.reg.current.sprX[1],
-     wrapper->amiga->vic.reg.current.sprY[1],
-     wrapper->amiga->vic.reg.current.sprX[2],
-     wrapper->amiga->vic.reg.current.sprY[2],
-     wrapper->amiga->vic.reg.current.sprX[3],
-     wrapper->amiga->vic.reg.current.sprY[3],
-     wrapper->amiga->vic.reg.current.sprX[4],
-     wrapper->amiga->vic.reg.current.sprY[4],
-     wrapper->amiga->vic.reg.current.sprX[5],
-     wrapper->amiga->vic.reg.current.sprY[5],
-     wrapper->amiga->vic.reg.current.sprX[6],
-     wrapper->amiga->vic.reg.current.sprY[6],
-     wrapper->amiga->vic.reg.current.sprX[7],
-     wrapper->amiga->vic.reg.current.sprY[7]
+  if(!wrapper->amiga->inDebugMode())
+  {
+    wrapper->amiga->debugOn();
+  }
+//   wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(250));
+//   wrapper->amiga->denise.debugger.recordSprite(0);
+
+   Denise *denise = &(wrapper->amiga->denise);
+   auto spriteinfo0 = denise->debugger.getSpriteInfo(0);
+   auto spriteinfo1 = denise->debugger.getSpriteInfo(1);
+   auto spriteinfo2 = denise->debugger.getSpriteInfo(2);
+   auto spriteinfo3 = denise->debugger.getSpriteInfo(3);
+   auto spriteinfo4 = denise->debugger.getSpriteInfo(4);
+   auto spriteinfo5 = denise->debugger.getSpriteInfo(5);
+   auto spriteinfo6 = denise->debugger.getSpriteInfo(6);
+   auto spriteinfo7 = denise->debugger.getSpriteInfo(7);
+
+
+   sprintf(buffer, "%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu", 
+     spriteinfo0.hstrt*2,
+     spriteinfo0.vstrt, 
+     spriteinfo1.hstrt*2,
+     spriteinfo1.vstrt, 
+     spriteinfo2.hstrt*2,
+     spriteinfo2.vstrt, 
+     spriteinfo3.hstrt*2,
+     spriteinfo3.vstrt, 
+     spriteinfo4.hstrt*2,
+     spriteinfo4.vstrt, 
+     spriteinfo5.hstrt*2,
+     spriteinfo5.vstrt, 
+     spriteinfo6.hstrt*2,
+     spriteinfo6.vstrt, 
+     spriteinfo7.hstrt*2,
+     spriteinfo7.vstrt
      );  
-*/
+
    return buffer;
 }
 
@@ -1551,8 +1569,9 @@ extern "C" void wasm_set_sid_model(unsigned SID_Model)
 
 extern "C" void wasm_cut_layers(unsigned cut_layers)
 {
-//  wrapper->amiga->configure(OPT_CUT_LAYERS, 0x100 | (SPR0|SPR1|SPR2|SPR3|SPR4|SPR5|SPR6|SPR7)); 
-//  wrapper->amiga->configure(OPT_CUT_LAYERS, cut_layers); 
+  wrapper->amiga->configure(OPT_HIDDEN_LAYER_ALPHA,255);
+//  wrapper->amiga->configure(OPT_HIDDEN_SPRITES, 0x100 | (SPR0|SPR1|SPR2|SPR3|SPR4|SPR5|SPR6|SPR7)); 
+  wrapper->amiga->configure(OPT_HIDDEN_LAYERS, cut_layers); 
 }
 
 
