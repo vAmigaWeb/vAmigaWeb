@@ -1112,7 +1112,7 @@ extern "C" void wasm_set_display(const char *name)
 {
   printf("wasm_set_display('%s')\n",name);
 //
-  if( strcmp(name,"adaptive") == 0)
+  if( strcmp(name,"adaptive") == 0 || strcmp(name,"auto") == 0)
   {
     geometry=DISPLAY_ADAPTIVE;
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
