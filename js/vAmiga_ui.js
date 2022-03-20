@@ -2039,9 +2039,10 @@ $('.layer').change( function(event) {
         sprite4: 0x10,
         sprite5: 0x20,
         sprite6: 0x40,
-        sprite7: 0x80,        
+        sprite7: 0x80,
+        playfield1: 0x100,
+        playfield2: 0x200        
     };
-    const GLOBAL_SPRITE_BIT= 0x100;
 
     var layer_value = 0;
     for(var layer_id in layers)
@@ -2051,11 +2052,6 @@ $('.layer').change( function(event) {
             layer_value |= layers[layer_id];
         }
     }
-    if((layer_value & 0xff) != 0)
-    {
-        layer_value |= GLOBAL_SPRITE_BIT;
-    }
-
     wasm_cut_layers( layer_value );
 });
 
