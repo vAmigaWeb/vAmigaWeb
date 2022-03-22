@@ -969,6 +969,13 @@ extern "C" void wasm_key(int code1, int code2, int pressed)
   }
 }
 
+extern "C" void wasm_auto_type(int code, int duration, int delay)
+{
+    printf("auto_type ( %d, %d, %d ) \n", code, duration, delay);
+    wrapper->amiga->keyboard.autoType(code, MSEC(duration), MSEC(delay));
+}
+
+
 extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_delay)
 {
   if(pressed==1)
@@ -985,6 +992,9 @@ extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_d
   //  wrapper->amiga->keyboard.scheduleKeyRelease(*new C64Key(code1,code2), frame_delay);
   }
 }
+
+
+
 
 
 char wasm_pull_user_snapshot_file_json_result[255];
