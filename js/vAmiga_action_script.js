@@ -191,10 +191,9 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
         {
             var chars = cmd.substring(1,cmd.length-1).split("");
             var time_to_emit_next_char = 100;
-            emit_string(chars,0,time_to_emit_next_char);
 
             //blocking execution of action script and wait for all keys emitted
-            await sleep(time_to_emit_next_char*chars.length);                  
+            await emit_string(chars,0,time_to_emit_next_char);
         }
     }
     else if(cmd == 'pause')
@@ -277,7 +276,7 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
             execute_joystick_script(joy_cmd_tokens);
         }
     }
-    else if(translateKey2(cmd,cmd) !== undefined)
+    else if(translateSymbol(cmd) !== undefined)
     {
         if(execute)
         {            
@@ -646,25 +645,25 @@ function wasm_runstop_restore()
 
 function press_key(key)
 {
-    let c64code=translateKey2(key, key);
+    let c64code=translateSymbol(key);
     if(c64code !== undefined )
     {
-        wasm_schedule_key(c64code.raw_key[0], c64code.raw_key[1], 1, 1);
+        wasm_key(c64code.raw_key[0], 1);
         if(c64code.modifier != null)
         {
-            wasm_schedule_key(c64code.modifier[0], c64code.modifier[1], 1, 1);
+            wasm_key(c64code.modifier[0], 1);
         }
     }
 }
 function release_key(key)
 {
-    let c64code=translateKey2(key, key);
+    let c64code=translateSymbol(key);
     if(c64code !== undefined )
     {
-        wasm_schedule_key(c64code.raw_key[0], c64code.raw_key[1], 0, 1);
+        wasm_key(c64code.raw_key[0], 0);
         if(c64code.modifier != null)
         {
-            wasm_schedule_key(c64code.modifier[0], c64code.modifier[1], 0, 1);
+            wasm_key(c64code.modifier[0], 0);
         }
     }
 }

@@ -1289,7 +1289,7 @@ function restore_manual_state(port)
 
 function InitWrappers() {
     wasm_loadfile = Module.cwrap('wasm_loadFile', 'string', ['string', 'array', 'number']);
-    wasm_key = Module.cwrap('wasm_key', 'undefined', ['number', 'number', 'number']);
+    wasm_key = Module.cwrap('wasm_key', 'undefined', ['number', 'number']);
     wasm_toggleFullscreen = Module.cwrap('wasm_toggleFullscreen', 'undefined');
     wasm_joystick = Module.cwrap('wasm_joystick', 'undefined', ['string']);
     wasm_reset = Module.cwrap('wasm_reset', 'undefined');
@@ -1326,7 +1326,7 @@ function InitWrappers() {
     wasm_mouse = Module.cwrap('wasm_mouse', 'undefined', ['number','number','number']);
     wasm_mouse_button = Module.cwrap('wasm_mouse_button', 'undefined', ['number','number','number']);
     wasm_set_display = Module.cwrap('wasm_set_display', 'undefined',['string']);
-
+    wasm_auto_type = Module.cwrap('wasm_auto_type', 'undefined', ['number', 'number', 'number']);
 
     connect_audio_processor = async () => {
         if(audioContext.state === 'suspended') {
@@ -2794,7 +2794,7 @@ $('.layer').change( function(event) {
             $('#predefined_actions').collapse('hide');
 
             //Special Keys action
-            var list_actions=['Space','Comma','F1','F3','F5','F8','runStop','restore','commodore', 'Delete','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','ShiftLeft', 'ControlLeft'];
+            var list_actions=['Space','Comma','F1','F3','F5','F8','leftAmiga','rightAmiga', 'AltLeft', 'AltRight','Delete','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','ShiftLeft', 'ControlLeft', 'CapsLock'];
             var html_action_list='';
             list_actions.forEach(element => {
                 html_action_list +='<a class="dropdown-item" href="#">'+element+'</a>';
@@ -2840,7 +2840,7 @@ $('.layer').change( function(event) {
             $('#add_system_action a').click(on_add_action);
 
             //script action
-            var list_actions=['simple while', 'peek & poke', 'API example', 'aimbot', 'keyboard combos'];
+            var list_actions=['simple while', 'API example', 'aimbot', 'keyboard combos'];
             html_action_list='';
             list_actions.forEach(element => {
                 html_action_list +='<a class="dropdown-item" href="#">'+element+'</a>';
@@ -2854,26 +2854,22 @@ $('.layer').change( function(event) {
                     if(action_script_val.trim().length==0)
                     {
                         if(txt=='simple while')                
-                            action_script_val = 'while(not_stopped(this_id))\n{\n  await action("A=>200ms");\n}';
-                        else if(txt=='peek & poke')
-                        {
                             action_script_val = 
-`let orig_color = wasm_peek(0xD020);
-for(let i=0;not_stopped(this_id);i++)
+`
+//do as longs as the actionbutton is not pressed again
+while(not_stopped(this_id))
 {
-	wasm_poke( 0xD020, i%15);
-	await action("200ms");
+    //type 'A' and wait 200 milliseconds
+    await action("A=>200ms");
 }
-wasm_poke(0xD020, orig_color);`;
-                        }
+`;
                         else if(txt=='API example')
                             action_script_val = '//example of the API\nwhile(not_stopped(this_id))\n{\n  //wait some time\n  await action("100ms");\n\n  //get information about the sprites 0..7\n  var y_light=sprite_ypos(0);\n  var y_dark=sprite_ypos(0);\n\n  //reserve exclusive port 1..2 access (manual joystick control is blocked)\n  set_port_owner(1,PORT_ACCESSOR.BOT);\n  await action(`j1left1=>j1up1=>400ms=>j1left0=>j1up0`);\n  //give control back to the user\n  set_port_owner(1,PORT_ACCESSOR.MANUAL);\n}';
                         else if(txt=='aimbot')
-                            action_script_val = '//archon aimbot\nconst port_light=1, port_dark=2, sprite_light=4, sprite_dark=6;\n\nwhile(not_stopped(this_id))\n{\n  await aim_and_shoot( port_light /* change bot side here ;-) */ );\n  await action("100ms");\n}\n\nasync function aim_and_shoot(port)\n{ \n  var y_light=sprite_ypos(sprite_light);\n  var y_dark=sprite_ypos(sprite_dark);\n  var x_light=sprite_xpos(sprite_light);\n  var x_dark=sprite_xpos(sprite_dark);\n\n  var y_diff=Math.abs(y_light - y_dark);\n  var x_diff=Math.abs(x_light - x_dark);\n  var angle = shoot_angle(x_diff,y_diff);\n\n  var x_aim=null;\n  var y_aim=null;\n  if( y_diff<10 || 26<angle && angle<28 )\n  {\n     var x_rel = (port == port_dark) ? x_dark-x_light: x_light-x_dark;  \n     x_aim=x_rel > 0 ?"left":"right";   \n  }\n  if( x_diff <10 || 26<angle && angle<28)\n  {\n     var y_rel = (port == port_dark) ? y_dark-y_light: y_light-y_dark;  \n     y_aim=y_rel > 0 ?"up":"down";   \n  }\n  \n  if(x_aim != null || y_aim != null)\n  {\n    set_port_owner(port, \n      PORT_ACCESSOR.BOT);\n    await action(`j${port}left0=>j${port}up0`);\n\n    await action(`j${port}fire1`);\n    if(x_aim != null)\n     await action(`j${port}${x_aim}1`);\n    if(y_aim != null)\n      await action(`j${port}${y_aim}1`);\n    await action("60ms");\n    if(x_aim != null)\n      await action(`j${port}${x_aim}0`);\n    if(y_aim != null)\n      await action(`j${port}${y_aim}0`);\n    await action(`j${port}fire0`);\n    await action("60ms");\n\n    set_port_owner(\n      port,\n      PORT_ACCESSOR.MANUAL\n    );\n    await action("500ms");\n  }\n}\n\nfunction shoot_angle(x, y) {\n  return Math.atan2(y, x) * 180 / Math.PI;\n}';
+                            action_script_val = '//archon aimbot\nconst port_light=2, port_dark=1, sprite_light=4, sprite_dark=6;\n\nwhile(not_stopped(this_id))\n{\n  await aim_and_shoot( port_light /* change bot side here ;-) */ );\n  await action("100ms");\n}\n\nasync function aim_and_shoot(port)\n{ \n  var y_light=sprite_ypos(sprite_light);\n  var y_dark=sprite_ypos(sprite_dark);\n  var x_light=sprite_xpos(sprite_light);\n  var x_dark=sprite_xpos(sprite_dark);\n\n  var y_diff=Math.abs(y_light - y_dark);\n  var x_diff=Math.abs(x_light - x_dark);\n  var angle = shoot_angle(x_diff,y_diff);\n\n  var x_aim=null;\n  var y_aim=null;\n  if( y_diff<10 || 26<angle && angle<28 )\n  {\n     var x_rel = (port == port_dark) ? x_dark-x_light: x_light-x_dark;  \n     x_aim=x_rel > 0 ?"left":"right";   \n  }\n  if( x_diff <10 || 26<angle && angle<28)\n  {\n     var y_rel = (port == port_dark) ? y_dark-y_light: y_light-y_dark;  \n     y_aim=y_rel > 0 ?"up":"down";   \n  }\n  \n  if(x_aim != null || y_aim != null)\n  {\n    set_port_owner(port, \n      PORT_ACCESSOR.BOT);\n    await action(`j${port}left0=>j${port}up0`);\n\n    await action(`j${port}fire1`);\n    if(x_aim != null)\n     await action(`j${port}${x_aim}1`);\n    if(y_aim != null)\n      await action(`j${port}${y_aim}1`);\n    await action("60ms");\n    if(x_aim != null)\n      await action(`j${port}${x_aim}0`);\n    if(y_aim != null)\n      await action(`j${port}${y_aim}0`);\n    await action(`j${port}fire0`);\n    await action("60ms");\n\n    set_port_owner(\n      port,\n      PORT_ACCESSOR.MANUAL\n    );\n    await action("500ms");\n  }\n}\n\nfunction shoot_angle(x, y) {\n  return Math.atan2(y, x) * 180 / Math.PI;\n}';
                         else if(txt=='keyboard combos')
                             action_script_val =
 `//example for key combinations
-//here CTRL+1 which gives a black cursor
 press_key('ControlLeft');
 press_key('1');
 release_key('1');
@@ -3498,38 +3494,48 @@ function scaleVMCanvas() {
         
     
 
-
-
-function emit_string(keys_to_emit_array, type_first_key_time=200, release_delay_in_ms=50)
+async function emit_string_autotype(keys_to_emit_array, type_first_key_time=0, release_delay_in_ms=100)
 {  
-    // Set the initial delay for the first key (in frames)
-    var delay = type_first_key_time / 50;
-    var release_delay = release_delay_in_ms / 50;
-    if(release_delay<1)
+    var delay = type_first_key_time;
+    var release_delay = release_delay_in_ms;
+    if(release_delay<50)
     {
-        release_delay = 1;
+        release_delay = 50;
     }
     for(the_key of keys_to_emit_array)
     {
-        console.log(the_key);
-        var c64code = translateKey2(the_key, the_key.toLowerCase());
+        var c64code = translateSymbol(the_key);
         if(c64code !== undefined)
         {
             if(c64code.modifier != null)
             {
-                wasm_schedule_key(c64code.modifier[0], c64code.modifier[1], 1, delay);
-                delay=0;
+                wasm_auto_type(c64code.modifier[0], release_delay, delay);
             }
-            wasm_schedule_key(c64code.raw_key[0], c64code.raw_key[1], 1, delay);
+            wasm_auto_type(c64code.raw_key[0], release_delay, delay);
+            delay+=release_delay;
+        }
+    }
+}
 
-            delay=release_delay;
+async function emit_string(keys_to_emit_array, type_first_key_time=0, release_delay_in_ms=100)
+{  
+    if(type_first_key_time>0) await sleep(type_first_key_time);
+    for(the_key of keys_to_emit_array)
+    {
+        var c64code = translateSymbol(the_key);
+        if(c64code !== undefined)
+        {
             if(c64code.modifier != null)
             {
-                wasm_schedule_key(c64code.modifier[0], c64code.modifier[1], 0, delay);
-                delay=0;
+                wasm_key(c64code.modifier[0], 1);
             }
-            wasm_schedule_key(c64code.raw_key[0], c64code.raw_key[1], 0, delay);
-            delay=1;
+            wasm_key(c64code.raw_key[0], 1);    
+            await sleep(release_delay_in_ms);     
+            if(c64code.modifier != null)
+            {
+                wasm_key(c64code.modifier[0], 0);
+            }
+            wasm_key(c64code.raw_key[0],0);                
         }
     }
 }

@@ -10,6 +10,7 @@ function isUpperCase(s){
     return s.toUpperCase() == s && s.toLowerCase() != s;
 }
 
+
 function translateKey2(keycode, key)
 {
     console.log('keycode='+keycode + ', key='+key);
@@ -22,6 +23,41 @@ function translateKey2(keycode, key)
 
     mapindex=key_translation_map[ keycode ];
     raw_key_with_modifier.raw_key = [mapindex,0];
+
+    return raw_key_with_modifier.raw_key === undefined ?
+            undefined:
+            raw_key_with_modifier;
+}
+
+
+function translateSymbol(symbol)
+{
+    console.log('symbol='+symbol);
+    let mapindex;
+    let raw_key_with_modifier = { modifier: null,  raw_key: undefined }
+
+    //check key matches a symbol
+    let sym_key = symbolic_map[symbol];
+    if(sym_key === undefined && isUpperCase(symbol))
+    {//get the lowercase variant and press shift
+        sym_key = symbolic_map[symbol.toLowerCase()];
+        if(sym_key != undefined && !Array.isArray(sym_key))
+        {
+            sym_key = ['ShiftLeft', sym_key];
+        }
+    }
+    if(sym_key!== undefined)
+    {
+        raw_key_with_modifier = create_key_composition(sym_key);
+    }
+    else
+    {
+        mapindex=key_translation_map[ symbol ];
+        if(mapindex != undefined)
+        {
+            raw_key_with_modifier.raw_key = [mapindex,0];
+        }
+    }
 
     return raw_key_with_modifier.raw_key === undefined ?
             undefined:
@@ -80,13 +116,13 @@ symbolic_map = {
     y: 'KeyY',
 
     F1: 'F1',
-    F2: ['ShiftLeft','F1'],
+    F2: 'F2',
     F3: 'F3',
-    F4: ['ShiftLeft','F3'],
+    F4: 'F4',
     F5: 'F5',
-    F6: ['ShiftLeft','F5'],
+    F6: 'F6',
     F7: 'F7',
-    F8: ['ShiftLeft','F7'],
+    F8: 'F8',
     ',': 'Comma',
     '*': 'BracketRight', 
     "1": 'Digit1',
