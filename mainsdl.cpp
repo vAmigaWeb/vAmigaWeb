@@ -957,7 +957,7 @@ uint64_t mach_absolute_time()
 
 extern "C" void wasm_key(int code, int pressed)
 {
-  printf("wasm_key ( %d, %d ) \n", code, pressed);
+//  printf("wasm_key ( %d, %d ) \n", code, pressed);
 
   if(pressed==1)
   {
@@ -980,13 +980,13 @@ extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_d
 {
   if(pressed==1)
   {
-    printf("scheduleKeyPress ( %d, %d, %d ) \n", code1, code2, frame_delay);
+//    printf("scheduleKeyPress ( %d, %d, %d ) \n", code1, code2, frame_delay);
     wrapper->amiga->keyboard.pressKey(code1);
 //    wrapper->amiga->keyboard.scheduleKeyPress(*new AmigaKey(code1,code2), frame_delay);
   }
   else
   {
-    printf("scheduleKeyRelease ( %d, %d, %d ) \n", code1, code2, frame_delay);
+//    printf("scheduleKeyRelease ( %d, %d, %d ) \n", code1, code2, frame_delay);
     wrapper->amiga->keyboard.releaseKey(code1);
   
   //  wrapper->amiga->keyboard.scheduleKeyRelease(*new C64Key(code1,code2), frame_delay);

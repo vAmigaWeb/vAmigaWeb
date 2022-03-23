@@ -2794,7 +2794,7 @@ $('.layer').change( function(event) {
             $('#predefined_actions').collapse('hide');
 
             //Special Keys action
-            var list_actions=['Space','Comma','F1','F3','F5','F8','runStop','restore','commodore', 'Delete','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','ShiftLeft', 'ControlLeft'];
+            var list_actions=['Space','Comma','F1','F3','F5','F8','leftAmiga','rightAmiga', 'AltLeft', 'AltRight','Delete','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','ShiftLeft', 'ControlLeft', 'CapsLock'];
             var html_action_list='';
             list_actions.forEach(element => {
                 html_action_list +='<a class="dropdown-item" href="#">'+element+'</a>';
@@ -3495,33 +3495,28 @@ function scaleVMCanvas() {
         
     
 
-function emit_string_autotype(keys_to_emit_array, type_first_key_time=50, release_delay_in_ms=50)
+async function emit_string_autotype(keys_to_emit_array, type_first_key_time=0, release_delay_in_ms=100)
 {  
-    // Set the initial delay for the first key (in frames)
     var delay = type_first_key_time;
     var release_delay = release_delay_in_ms;
-    if(release_delay<500)
+    if(release_delay<50)
     {
-        release_delay = 500;
+        release_delay = 50;
     }
     for(the_key of keys_to_emit_array)
     {
-        console.log(the_key);
         var c64code = translateSymbol(the_key);
         if(c64code !== undefined)
         {
             if(c64code.modifier != null)
             {
                 wasm_auto_type(c64code.modifier[0], release_delay, delay);
-                delay=0;
             }
             wasm_auto_type(c64code.raw_key[0], release_delay, delay);
-            delay+=1000;
+            delay+=release_delay;
         }
     }
 }
-
-
 
 async function emit_string(keys_to_emit_array, type_first_key_time=0, release_delay_in_ms=50)
 {  
