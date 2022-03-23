@@ -955,17 +955,17 @@ uint64_t mach_absolute_time()
     return nano_now; 
 }
 
-extern "C" void wasm_key(int code1, int code2, int pressed)
+extern "C" void wasm_key(int code, int pressed)
 {
-  printf("wasm_key ( %d, %d, %d ) \n", code1, code2, pressed);
+  printf("wasm_key ( %d, %d ) \n", code, pressed);
 
   if(pressed==1)
   {
-    wrapper->amiga->keyboard.pressKey(code1);
+    wrapper->amiga->keyboard.pressKey(code);
   }
   else
   {
-    wrapper->amiga->keyboard.releaseKey(code1);
+    wrapper->amiga->keyboard.releaseKey(code);
   }
 }
 

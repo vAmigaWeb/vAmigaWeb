@@ -1289,7 +1289,7 @@ function restore_manual_state(port)
 
 function InitWrappers() {
     wasm_loadfile = Module.cwrap('wasm_loadFile', 'string', ['string', 'array', 'number']);
-    wasm_key = Module.cwrap('wasm_key', 'undefined', ['number', 'number', 'number']);
+    wasm_key = Module.cwrap('wasm_key', 'undefined', ['number', 'number']);
     wasm_toggleFullscreen = Module.cwrap('wasm_toggleFullscreen', 'undefined');
     wasm_joystick = Module.cwrap('wasm_joystick', 'undefined', ['string']);
     wasm_reset = Module.cwrap('wasm_reset', 'undefined');
@@ -3523,7 +3523,7 @@ function emit_string_autotype(keys_to_emit_array, type_first_key_time=50, releas
 
 
 
-async function emit_string(keys_to_emit_array, type_first_key_time=200, release_delay_in_ms=50)
+async function emit_string(keys_to_emit_array, type_first_key_time=0, release_delay_in_ms=50)
 {  
     // Set the initial delay for the first key (in frames)
     var delay = type_first_key_time;

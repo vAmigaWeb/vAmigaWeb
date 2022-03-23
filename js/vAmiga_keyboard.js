@@ -53,7 +53,10 @@ function translateSymbol(symbol)
     else
     {
         mapindex=key_translation_map[ symbol ];
-        raw_key_with_modifier.raw_key = [mapindex,0];
+        if(mapindex != undefined)
+        {
+            raw_key_with_modifier.raw_key = [mapindex,0];
+        }
     }
 
     return raw_key_with_modifier.raw_key === undefined ?
