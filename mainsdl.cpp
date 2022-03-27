@@ -13,6 +13,7 @@
 #include "ADFFile.h"
 #include "DMSFile.h"
 #include "EXEFile.h"
+#include "HDFFile.h"
 #include "Snapshot.h"
 
 #include "MemUtils.h"
@@ -1219,6 +1220,16 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
   if (auto disk = load_disk(name, blob, len)) {
     //wrapper->amiga->paula.diskController.insertDisk(std::move(disk), 0, (Cycle)SEC(1.8));
     wrapper->amiga->df0.swapDisk(std::move(disk));
+    return "";
+  }
+
+  if (HDFFile::isCompatible(filename)) {
+    wrapper->amiga->powerOff();
+    HDFFile hdf{blob, len};  
+    wrapper->amiga->configure(OPT_HDR_CONNECT,/*hd drive*/ 0, /*enable*/true);
+    wrapper->amiga->hd0.init(hdf);
+    wrapper->amiga->powerOn();
+    wrapper->amiga->run();
     return "";
   }
 
