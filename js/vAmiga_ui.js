@@ -761,7 +761,7 @@ function configure_file_dialog(reset=false)
                     zip.forEach(function (relativePath, zipfile){
                         if(!relativePath.startsWith("__MACOSX"))
                         {
-                            var mountable = relativePath.toLowerCase().match(/[.](zip|adf|dms|exe|vAmiga)$/i);
+                            var mountable = relativePath.toLowerCase().match(/[.](zip|adf|hdf|dms|exe|vAmiga)$/i);
                             list+='<li '+
                             (mountable ? 'id="li_fileselect'+mountable_count+'"':'')
                             +' class="list-group-item list-group-item-action'+ 
@@ -845,7 +845,7 @@ function configure_file_dialog(reset=false)
             $("#auto_press_play").prop('checked', auto_press_play);
             $("#auto_run").prop('checked', auto_run);    
 
-            if(file_slot_file_name.match(/[.](adf|dms|exe|vAmiga)$/i))
+            if(file_slot_file_name.match(/[.](adf|hdf|dms|exe|vAmiga)$/i))
             {
                 insert_file();
             }
@@ -2154,10 +2154,6 @@ $('.layer').change( function(event) {
             return;
         }
         
-        do_auto_load = $("#auto_load").prop('checked')
-        do_auto_run =  $("#auto_run").prop('checked');
-        do_auto_press_play= $("#auto_press_play").prop('checked');
-
         $('#modal_file_slot').modal('hide');
 
         var execute_load = async function(){
@@ -2187,48 +2183,6 @@ $('.layer').change( function(event) {
 
             if(call_param_dialog_on_disk == false)
             {//loading is probably done by scripting
-            }
-            else if(do_auto_load)
-            {
-                if(file_slot_file_name.endsWith('.tap'))
-                {
-                    //shift + runStop
-                    emit_string(['Enter','ShiftRunStop']);
-                    
-                    if(do_auto_press_play)
-                    {
-                        //press play on tape shortly after emitting load command
-                        setTimeout(function() {wasm_press_play(); },650);
-                    }
-/*                    if(do_auto_run)
-                    {
-                        fire_when_no_more_message("MSG_VC1530_PROGRESS",function() {
-                            emit_string(['Enter','r','u','n','Enter']);
-                        });
-                    }
-*/
-                }
-                else
-                {                    
-                    emit_string(['Enter','l','o','a','d','"','*','"',',','8',',', '1', 'Enter']);
-                    if(do_auto_run)
-                    {
-                        await disk_loading_finished();
-                        /*fire_on_message("MSG_IEC_BUS_BUSY",function() {
-                            fire_on_message("MSG_IEC_BUS_IDLE", function() {
-                                fire_on_message("MSG_IEC_BUS_BUSY",function() {
-                                    fire_on_message("MSG_IEC_BUS_IDLE", function() {*/
-                                        emit_string(['r','u','n','Enter'],0);
-                                    /*})
-                                })               
-                            })
-                        });*/
-                    }
-                }
-            }
-            else if(do_auto_run)
-            {
-                emit_string(['Enter','r','u','n','Enter']);
             }
         };
 
@@ -2274,22 +2228,7 @@ $('.layer').change( function(event) {
                 if(call_param_warpto !=null){
                     wasm_configure("warp_to_frame", `${call_param_warpto}`);
                 }
-/*                $('#alert_reset').show();
-                setTimeout(()=>{
-                    $('#alert_reset').hide();
-                },150);*/
             },0);
-            
-/*            var intervall_id = setInterval(() => {  
-                var cycles_now= wasm_get_cpu_cycles();
-//                console.log("cycles now ="+cycles_now+ " time_coldstart_to_ready_prompt"+time_coldstart_to_ready_prompt+ "  id="+intervall_id);
-                if(cycles_now > time_coldstart_to_ready_prompt)
-                {
-                    clearInterval(intervall_id);
-                    $('#alert_reset').hide();
-                    reset_before_load=false;
-                }
-            }, 50);*/
         }
     }
     $("#button_insert_file").click(insert_file);
