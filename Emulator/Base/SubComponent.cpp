@@ -22,6 +22,7 @@ controlPort2(ref.controlPort2),
 copper(ref.agnus.copper),
 cpu(ref.cpu),
 denise(ref.denise),
+diagBoard(ref.diagBoard),
 diskController(ref.paula.diskController),
 dmaDebugger(ref.agnus.dmaDebugger),
 df0(ref.df0),
@@ -75,6 +76,18 @@ bool
 SubComponent::isRunning() const
 {
     return amiga.isRunning();
+}
+
+bool
+SubComponent::isSuspended() const
+{
+    return amiga.isSuspended();
+}
+
+bool
+SubComponent::isHalted() const
+{
+    return amiga.isHalted();
 }
 
 void

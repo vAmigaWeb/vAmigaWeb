@@ -33,7 +33,7 @@ public:
 private:
     
     const char *getDescription() const override { return "OSDebugger"; }
-    void _dump(dump::Category category, std::ostream& os) const override { }
+    void _dump(Category category, std::ostream& os) const override { }
 
     
     //
@@ -79,6 +79,7 @@ private:
 public:
     
     bool isRamPtr(u32 addr) const;
+    bool isRamOrRomPtr(u32 addr) const;
     bool isValidPtr(u32 addr) const;
 
     

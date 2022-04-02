@@ -17,6 +17,7 @@
 
 HardDrive::HardDrive(Amiga& ref, isize nr) : Drive(ref, nr)
 {
+    /*
     string path;
     
     if (nr == 0) path = INITIAL_HD0;
@@ -36,6 +37,7 @@ HardDrive::HardDrive(Amiga& ref, isize nr) : Drive(ref, nr)
             warn("Cannot open HDF file %s\n", path.c_str());
         }
     }
+    */
 }
 
 void
@@ -130,6 +132,13 @@ HardDrive::init(const HDFFile &hdf)
     hdf.flash(data.ptr, 0, numBytes);
 }
 
+void
+HardDrive::init(const string &path) throws
+{
+    HDFFile hdf(path);
+    init(hdf);
+}
+
 const char *
 HardDrive::getDescription() const
 {
@@ -206,20 +215,27 @@ HardDrive::setConfigItem(Option option, i64 value)
             
             if (bool(value) != config.connected) {
                 
-                config.connected = bool(value);
-                
-                if (value) {
-
-                    // Attach a default disk when the drive gets connected
-                    init(MB(10));
-                    format(FS_OFS, defaultName());
+                if (bool(value)) {
+                    
+                    config.connected = true;
+                    
+                    if (!restoreDisk()) {
+                        
+                        // Attach a small default disk
+                        init(MB(10));
+                        format(FS_OFS, defaultName());
+                    }
+                    
+                    msgQueue.put(MSG_HDR_CONNECT, nr);
                     
                 } else {
                     
+                    config.connected = false;
+                    persistDisk();
                     init();
+                    
+                    msgQueue.put(MSG_HDR_DISCONNECT, nr);
                 }
-                
-                msgQueue.put(value ? MSG_HDR_CONNECT : MSG_HDR_DISCONNECT, nr);
             }
             return;
 
@@ -256,11 +272,11 @@ HardDrive::_inspect() const
 }
 
 void
-HardDrive::_dump(dump::Category category, std::ostream& os) const
+HardDrive::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
-
-    if (category & dump::Config) {
+    
+    if (category == Category::Config) {
         
         os << tab("Nr");
         os << dec(nr) << std::endl;
@@ -274,7 +290,7 @@ HardDrive::_dump(dump::Category category, std::ostream& os) const
         os << dec(config.pan) << std::endl;
     }
     
-    if (category & dump::Drive) {
+    if (category == Category::Drive) {
         
         auto cap1 = geometry.numBytes() / MB(1);
         auto cap2 = ((100 * geometry.numBytes()) / MB(1)) % 100;
@@ -297,28 +313,28 @@ HardDrive::_dump(dump::Category category, std::ostream& os) const
         os << tab("Controller Revision");
         os << controllerRevision << std::endl;
     }
-
-    if (category & dump::Volumes) {
-
+    
+    if (category == Category::Volumes) {
+        
         os << "Type   Size            Used    Free    Full  Name" << std::endl;
-
+        
         for (isize i = 0; i < isize(ptable.size()); i++) {
             
             auto fs = MutableFileSystem(*this, i);
-            fs.dump(dump::Summary, os);
+            fs.dump(Category::Summary, os);
         }
         
         for (isize i = 0; i < isize(ptable.size()); i++) {
-
+            
             os << std::endl;
             os << tab("Partition");
             os << dec(i) << std::endl;
             auto fs = MutableFileSystem(*this, i);
-            fs.dump(dump::Properties, os);
+            fs.dump(Category::Properties, os);
         }
     }
     
-    if (category & dump::Partitions) {
+    if (category == Category::Partitions) {
         
         for (usize i = 0; i < ptable.size(); i++) {
             
@@ -330,8 +346,8 @@ HardDrive::_dump(dump::Category category, std::ostream& os) const
             part.dump(os);
         }
     }
-
-    if (category & dump::State) {
+    
+    if (category == Category::State) {
         
         os << tab("Nr");
         os << dec(nr) << std::endl;
@@ -560,6 +576,60 @@ HardDrive::moveHead(isize c, isize h, isize s)
     
     if (step) {
         msgQueue.put(MSG_HDR_STEP, i16(nr), i16(c), config.stepVolume, config.pan);
+    }
+}
+
+bool
+HardDrive::persistDisk() throws
+{
+    if (!backup.empty()) try {
+        
+        auto hdf = HDFFile(*this);
+        hdf.writeToFile(backup);
+        msg("HD%ld persisted at %s\n", nr, backup.c_str());
+        
+    } catch (...) {
+        
+        warn("Failed to persist HD%ld at %s\n", nr, backup.c_str());
+        return false;
+    }
+    
+    return true;
+}
+
+bool
+HardDrive::restoreDisk() throws
+{
+    string path;
+            
+    if (nr == 0) path = INITIAL_HD0;
+    if (nr == 1) path = INITIAL_HD1;
+    if (nr == 2) path = INITIAL_HD2;
+    if (nr == 3) path = INITIAL_HD3;
+    if (path == "") path = backup;
+    
+    if (path != "") try {
+        
+        auto hdf = HDFFile(path);
+        init(hdf);
+        msg("HD%ld restored from %s\n", nr, backup.c_str());
+        
+    } catch (...) {
+        
+        warn("Failed to restore HD%ld from %s\n", nr, backup.c_str());
+        return false;
+    }
+    
+    return true;
+}
+
+void
+HardDrive::writeToFile(const string &path) throws
+{
+    if (!path.empty()) {
+
+        auto hdf = HDFFile(*this);
+        hdf.writeToFile(path);
     }
 }
 

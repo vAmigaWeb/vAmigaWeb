@@ -17,6 +17,8 @@
 #include "BootBlockImage.h"
 #include <vector>
 
+using util::Buffer;
+
 struct FSBlock : AmigaObject {
         
     // The device this block belongs to
@@ -32,7 +34,7 @@ struct FSBlock : AmigaObject {
     isize corrupted = 0;
         
     // Block data
-    util::Buffer data;
+    Buffer<u8> data;
 
     
     //
@@ -51,7 +53,7 @@ struct FSBlock : AmigaObject {
 protected:
     
     const char *getDescription() const override;
-    void _dump(dump::Category category, std::ostream& os) const override { }
+    void _dump(Category category, std::ostream& os) const override { }
     
     
     //
@@ -293,9 +295,6 @@ public:
     u32 getDataBytesInBlock() const;
     void setDataBytesInBlock(u32 val);
 
-    // Adds data bytes to this block
-    // isize addData(const u8 *buffer, isize size);
-    
     
     //
     // Exporting
@@ -303,6 +302,16 @@ public:
     
     isize writeData(std::ostream& os);
     isize writeData(std::ostream& os, isize size);
+    isize writeData(Buffer<u8> &buf);
+    isize writeData(Buffer<u8> &buf, isize offset, isize count);
+
+    
+    //
+    // Importing
+    //
+    
+    isize overwriteData(Buffer<u8> &buf);
+    isize overwriteData(Buffer<u8> &buf, isize offset, isize count);
 };
 
 typedef FSBlock* BlockPtr;

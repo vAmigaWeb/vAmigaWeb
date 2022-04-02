@@ -9,13 +9,13 @@
 
 #include "config.h"
 #include "FloppyDrive.h"
-#include "Agnus.h"
+#include "Amiga.h"
 #include "BootBlockImage.h"
-#include "CIA.h"
 #include "DiskController.h"
 #include "FloppyFile.h"
 #include "MutableFileSystem.h"
 #include "MsgQueue.h"
+#include "OSDescriptors.h"
 
 FloppyDrive::FloppyDrive(Amiga& ref, isize nr) : Drive(ref, nr)
 {
@@ -199,12 +199,12 @@ FloppyDrive::_inspect() const
 }
 
 void
-FloppyDrive::_dump(dump::Category category, std::ostream& os) const
+FloppyDrive::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
     
-    if (category & dump::Config) {
-
+    if (category == Category::Config) {
+        
         os << tab("Nr");
         os << dec(nr) << std::endl;
         os << tab("Type");
@@ -233,7 +233,7 @@ FloppyDrive::_dump(dump::Category category, std::ostream& os) const
         os << "\"" << searchPath << "\"" << std::endl;
     }
     
-    if (category & dump::State) {
+    if (category == Category::State) {
         
         os << tab("Nr");
         os << dec(nr) << std::endl;
@@ -731,16 +731,6 @@ FloppyDrive::pollsForDisk() const
     return false;
 }
 
-/*
-void
-FloppyDrive::toggleWriteProtection()
-{
-    if (hasDisk()) {
-        disk->setProtectionFlag(!disk->isWriteProtected());
-    }
-}
-*/
-
 bool
 FloppyDrive::isInsertable(Diameter t, Density d) const
 {
@@ -816,11 +806,51 @@ FloppyDrive::insertDisk(std::unique_ptr<FloppyDisk> disk, Cycle delay)
         // Get ownership of the disk
         diskToInsert = std::move(disk);
 
-        // Schedule an ejection event
+        // Schedule an insertion event
         agnus.scheduleRel <s> (delay, DCH_INSERT);
 
         // If there is no delay, service the event immediately
         if (delay == 0) serviceDiskChangeEvent <s> ();
+    }
+}
+
+void
+FloppyDrive::catchFile(const string &path)
+{
+    {   SUSPENDED
+        
+        // Extract the file system
+        auto fs = MutableFileSystem(*this);
+        
+        // Seek file
+        auto file = fs.seekFile(path);
+        if (file == nullptr) throw VAError(ERROR_FILE_NOT_FOUND);
+        
+        // Extract file
+        Buffer<u8> buffer;
+        file->writeData(buffer);
+        
+        // Parse hunks
+        auto descr = ProgramUnitDescriptor(buffer);
+        
+        // Seek the code section and read the first instruction word
+        auto offset = descr.seek(HUNK_CODE);
+        if (!offset) throw VAError(ERROR_HUNK_CORRUPTED);
+        u16 instr = HI_LO(buffer[*offset + 8], buffer[*offset + 9]);
+        
+        // Replace the first instruction word by a software trap
+        auto trap = cpu.debugger.swTraps.create(instr);
+        buffer[*offset + 8] = HI_BYTE(trap);
+        buffer[*offset + 9] = LO_BYTE(trap);
+        
+        // Write the modification back to the file system
+        file->overwriteData(buffer);
+        
+        // Convert the modified file system back to a disk
+        auto adf = ADFFile(fs);
+        
+        // Replace the old disk
+        swapDisk(std::make_unique<FloppyDisk>(adf));
     }
 }
 

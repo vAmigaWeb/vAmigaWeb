@@ -23,9 +23,9 @@
 #include "ZorroManager.h"
 
 void
-Memory::_dump(dump::Category category, std::ostream& os) const
+Memory::_dump(Category category, std::ostream& os) const
 {
-    if (category & dump::Config) {
+    if (category == Category::Config) {
         
         os << util::tab("Chip Ram");
         os << util::dec(config.chipSize / 1024) << " KB" << std::endl;
@@ -53,16 +53,16 @@ Memory::_dump(dump::Category category, std::ostream& os) const
         os << UnmappedMemoryEnum::key(config.unmappingType) << std::endl;
     }
     
-    if (category & dump::State) {
-
+    if (category == Category::State) {
+        
         os << util::tab("Data bus");
         os << util::hex(dataBus) << std::endl;
         os << util::tab("Wom is locked");
         os << util::bol(womIsLocked) << std::endl;
     }
     
-    if (category & dump::Checksums) {
-
+    if (category == Category::Checksums) {
+        
         os << util::tab("Rom checksum");
         os << util::hex(util::fnv32(rom, config.romSize)) << std::endl;
         os << util::tab("Wom checksum");
@@ -77,12 +77,17 @@ Memory::_dump(dump::Category category, std::ostream& os) const
         os << util::hex(util::fnv32(fast, config.fastSize)) << std::endl;
     }
     
-    if (category & dump::BankMap) {
-
-        MemorySource oldsrc = cpuMemSrc[0]; isize oldi = 0;
+    if (category == Category::BankMap) {
+        
+        MemorySource oldsrc = cpuMemSrc[0];
+        isize oldi = 0;
+        
         for (isize i = 0; i <= 0x100; i++) {
+            
             MemorySource newsrc = i < 0x100 ? cpuMemSrc[i] : (MemorySource)-1;
+            
             if (oldsrc != newsrc) {
+                
                 os << "        ";
                 os << util::hex((u8)(oldi)) << "0000" << " - ";
                 os << util::hex((u8)(i - 1)) << "ffff : ";
@@ -504,13 +509,13 @@ Memory::allocExt(i32 bytes, bool update)
 }
 
 void
-Memory::alloc(util::Allocator &allocator, isize bytes, u32 &mask, bool update)
+Memory::alloc(Allocator<u8> &allocator, isize bytes, u32 &mask, bool update)
 {
     // Only proceed if memory layout will change
     if (bytes == allocator.size) return;
 
     // Allocate memory
-    allocator.init(bytes);
+    allocator.alloc(bytes);
     
     // Set the memory mask
     mask = bytes ? u32(bytes - 1) : 0;
@@ -729,6 +734,45 @@ Memory::saveExt(const string &path)
 
     RomFile file(ext, config.extSize);
     file.writeToFile(path);
+}
+
+void
+Memory::patchExpansionLib()
+{
+    /* In Kickstart 1.2, function 'ConfigBoard' is broken. A patch needs to
+     * be applied to make the hard drive controller and the debugger board
+     * compatible with this Rom.
+     */
+    switch (romIdentifier()) {
+
+        case ROM_KICK12_33_166:
+        case ROM_KICK12_33_180:
+        case ROM_KICK121_34_004:
+        case ROM_KICK12_33_180_G11R:
+        {
+            for (isize i = 0; i < KB(512) - 22; i += 2) {
+                
+                if (R16BE(rom + i)      == 0x2c6e &&
+                    R16BE(rom + i + 2)  == 0x0024 &&
+                    R16BE(rom + i + 4)  == 0x4eae &&
+                    R16BE(rom + i + 6)  == 0xff3a &&
+                    R16BE(rom + i + 20) == 0x202f &&
+                    R16BE(rom + i + 22) == 0x0002) {
+                    
+                    msg("Patching Kickstart 1.2 at %lx\n", i);
+            
+                    W32BE(rom + i, 0x426f0004);
+                    W16BE(rom + i + 22, 0x0000);
+                    return;
+                }
+            }
+            warn("Can't find patch location\n");
+            break;
+        }
+
+        default:
+            break;
+    }
 }
 
 template <> MemorySource
@@ -2084,8 +2128,44 @@ Memory::spypeekCustom16(u32 addr) const
 {
     assert(IS_EVEN(addr));
     
-    // TODO: ADD IMPLEMENTATION
-    return 42;
+    switch ((addr >> 1) & 0xFF) {
+
+        case 0x002 >> 1: // DMACONR
+            return agnus.peekDMACONR();
+        case 0x004 >> 1: // VPOSR
+            return agnus.peekVPOSR();
+        case 0x006 >> 1: // VHPOSR
+            return agnus.peekVHPOSR();
+        case 0x008 >> 1: // DSKDATR
+            return diskController.peekDSKDATR();
+        case 0x00A >> 1: // JOY0DAT
+            return denise.peekJOY0DATR();
+        case 0x00C >> 1: // JOY1DAT
+            return denise.peekJOY1DATR();
+        case 0x00E >> 1: // CLXDAT
+            return denise.spypeekCLXDAT();
+        case 0x010 >> 1: // ADKCONR
+            return paula.peekADKCONR();
+        case 0x012 >> 1: // POT0DAT
+            return paula.peekPOTxDAT<0>();
+        case 0x014 >> 1: // POT1DAT
+            return paula.peekPOTxDAT<1>();
+        case 0x016 >> 1: // POTGOR
+            return paula.peekPOTGOR();
+        case 0x018 >> 1: // SERDATR
+            return uart.peekSERDATR();
+        case 0x01A >> 1: // DSKBYTR
+            return diskController.computeDSKBYTR();
+        case 0x01C >> 1: // INTENAR
+            return paula.peekINTENAR();
+        case 0x01E >> 1: // INTREQR
+            return paula.peekINTREQR();
+        case 0x07C >> 1: // DENISEID
+            return denise.spypeekDENISEID();
+
+        default:
+            return 0;
+    }
 }
 
 template <Accessor s> void

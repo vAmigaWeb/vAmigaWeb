@@ -51,7 +51,7 @@ MutableFileSystem::init(FileSystemDescriptor &layout)
     for (isize i = 0; i < numBlocks(); i++) assert(blocks[i] != nullptr);
     
     // Print some debug information
-    if constexpr (FS_DEBUG) { dump(dump::Summary); }
+    if constexpr (FS_DEBUG) { dump(Category::Summary); }
 }
 
 void
@@ -485,7 +485,7 @@ MutableFileSystem::addData(FSBlock &block, const u8 *buffer, isize size)
                 FSBlock *ptr = blockPtr(ref);
                 if (ptr) {
                     isize written = addData(*ptr, buffer, size);
-                    ptr->setFileSize((u32)(ptr->getFileSize() + written));
+                    block.setFileSize((u32)(block.getFileSize() + written));
                     buffer += written;
                     size -= written;
                 }
@@ -597,7 +597,7 @@ MutableFileSystem::importDirectory(const fs::directory_entry &dir, bool recursiv
         if (entry.is_regular_file()) {
             
             // Add file
-            util::Buffer buffer(path);
+            Buffer<u8> buffer(path);
             if (buffer) createFile(name, buffer.ptr, buffer.size);
         }
     }
@@ -687,6 +687,7 @@ MutableFileSystem::exportDirectory(const string &path, bool createDir)
     if (!util::isDirectory(path)) {
         throw VAError(ERROR_DIR_NOT_FOUND);
     }
+    
     // Only proceed if path points to an empty directory
     if (util::numDirectoryItems(path) != 0) {
         throw VAError(ERROR_FS_DIR_NOT_EMPTY);
@@ -698,6 +699,7 @@ MutableFileSystem::exportDirectory(const string &path, bool createDir)
         
     // Export all items
     for (auto const& i : items) {
+        
         if (ErrorCode error = blockPtr(i)->exportBlock(path.c_str()); error != ERROR_OK) {
             throw VAError(error);
         }

@@ -79,6 +79,8 @@ RomFile::identifier(u32 fingerprint)
         case 0xC4F0F55F: return ROM_KICK13_34_005_A500;
         case 0xE0F37258: return ROM_KICK13_34_005_A3000;
 
+        case 0xF80F0FC5: return ROM_KICK12_33_180_MRAS;
+
         case 0x85067666: return ROM_KICK12_33_180_G11R;
         case 0x74680D37: return ROM_KICK13_34_005_G12R;
 
@@ -192,6 +194,8 @@ RomFile::isCommodoreRom(RomIdentifier rev)
         case ROM_KICK13_34_005_A500:
         case ROM_KICK13_34_005_A3000:
 
+        case ROM_KICK12_33_180_MRAS:
+
         case ROM_KICK20_36_028:
         case ROM_KICK202_36_207_A3000:
         case ROM_KICK204_37_175_A500:
@@ -265,6 +269,8 @@ RomFile::title(RomIdentifier rev)
         case ROM_KICK13_34_005_A500:
         case ROM_KICK13_34_005_A3000:   return "Kickstart 1.3";
 
+        case ROM_KICK12_33_180_MRAS:    return "Kickstart 1.2";
+            
         case ROM_KICK12_33_180_G11R:    return "Kickstart 1.2";
         case ROM_KICK13_34_005_G12R:    return "Kickstart 1.3";
 
@@ -327,6 +333,8 @@ RomFile::version(RomIdentifier rev)
         case ROM_KICK121_34_004:        return "Rev 34.004";
         case ROM_KICK13_34_005_A500:
         case ROM_KICK13_34_005_A3000:   return "Rev 34.005";
+
+        case ROM_KICK12_33_180_MRAS:    return "Rev 33.180";
 
         case ROM_KICK12_33_180_G11R:    return "Rev 33.180 (Guardian patch)";
         case ROM_KICK13_34_005_G12R:    return "Rev 34.005 (Guardian patch)";
@@ -391,6 +399,8 @@ RomFile::released(RomIdentifier rev)
         case ROM_KICK13_34_005_A500:    return "December 1987";
         case ROM_KICK13_34_005_A3000:   return "December 1987";
 
+        case ROM_KICK12_33_180_MRAS:    return "2022";
+
         case ROM_KICK12_33_180_G11R:    return "1988";
         case ROM_KICK13_34_005_G12R:    return "1988";
 
@@ -453,10 +463,12 @@ RomFile::model(RomIdentifier rev) {
         case ROM_KICK13_34_005_A500:    return "A500, A1000, A2000, CDTV";
         case ROM_KICK13_34_005_A3000:   return "A3000";
 
-        case ROM_KICK12_33_180_G11R:    return "???";
-        case ROM_KICK13_34_005_G12R:    return "???";
+        case ROM_KICK12_33_180_MRAS:    return "MRAS patch";
 
-        case ROM_KICK20_36_028:         return "???";
+        case ROM_KICK12_33_180_G11R:    return "";
+        case ROM_KICK13_34_005_G12R:    return "";
+
+        case ROM_KICK20_36_028:         return "";
         case ROM_KICK202_36_207_A3000:  return "A3000";
         case ROM_KICK204_37_175_A500:   return "A500";
         case ROM_KICK204_37_175_A3000:  return "A3000";
@@ -489,10 +501,10 @@ RomFile::model(RomIdentifier rev) {
         case ROM_AROS_1ED13DE6E3:       return "All Models";
         case ROM_AROS_1ED13DE6E3_EXT:   return "All Models";
 
-        case ROM_DIAG11:                return "???";
-        case ROM_DIAG12:                return "???";
-        case ROM_DIAG121:               return "???";
-        case ROM_LOGICA20:              return "???";
+        case ROM_DIAG11:                return "";
+        case ROM_DIAG12:                return "";
+        case ROM_DIAG121:               return "";
+        case ROM_LOGICA20:              return "";
 
         default:                        return "";
     }
@@ -574,8 +586,8 @@ RomFile::decrypt()
 {
     const isize headerSize = 11;
 
-    util::Buffer romKey;
-    util::Buffer decrypted;
+    Buffer<u8> romKey;
+    Buffer<u8> decrypted;
     
     // Only proceed if the file is encrypted
     if (!isEncrypted()) return;
@@ -588,7 +600,7 @@ RomFile::decrypt()
     if (romKey.empty()) throw VAError(ERROR_MISSING_ROM_KEY);
     
     // Decrypt
-    decrypted.init(data.size - headerSize);
+    decrypted.alloc(data.size - headerSize);
     for (isize i = 0, j = headerSize; j < data.size; i++, j++) {
         decrypted[i] = data[j] ^ romKey[i % romKey.size];
     }

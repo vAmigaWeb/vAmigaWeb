@@ -82,6 +82,7 @@ Amiga::Amiga()
         &hd2con,
         &hd3con,
         &ramExpansion,
+        &diagBoard,
         &ciaA,
         &ciaB,
         &mem,
@@ -273,6 +274,10 @@ Amiga::getConfigItem(Option option) const
             
             return keyboard.getConfigItem(option);
 
+        case OPT_DIAG_BOARD:
+            
+            return diagBoard.getConfigItem(option);
+            
         default:
             fatalError;
     }
@@ -524,6 +529,11 @@ Amiga::configure(Option option, i64 value)
             controlPort2.joystick.setConfigItem(option, value);
             break;
             
+        case OPT_DIAG_BOARD:
+            
+            diagBoard.setConfigItem(OPT_DIAG_BOARD, value);
+            break;
+            
         case OPT_SRV_PORT:
         case OPT_SRV_PROTOCOL:
         case OPT_SRV_AUTORUN:
@@ -767,23 +777,11 @@ Amiga::_inspect() const
 }
 
 void
-Amiga::_dump(dump::Category category, std::ostream& os) const
+Amiga::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
     
-    if (category & dump::Config) {
-    
-        if constexpr (CNF_DEBUG) {
-            
-            df0.dump(dump::Config);
-            paula.dump(dump::Config);
-            paula.muxer.dump(dump::Config);
-            ciaA.dump(dump::Config);
-            denise.dump(dump::Config);
-        }
-    }
-    
-    if (category & dump::State) {
+    if (category == Category::State) {
         
         os << tab("Power");
         os << bol(isPoweredOn()) << std::endl;
@@ -814,7 +812,7 @@ Amiga::_powerOn()
     // Set initial breakpoints
     for (auto &bp : std::vector <u32> (INITIAL_BREAKPOINTS)) {
         
-        cpu.debugger.breakpoints.addAt(bp);
+        cpu.debugger.breakpoints.setAt(bp);
         debugMode = true;
     }
     
@@ -954,7 +952,8 @@ Amiga::execute()
             if (flags & RL::BREAKPOINT_REACHED) {
                 clearFlag(RL::BREAKPOINT_REACHED);
                 inspect();
-                msgQueue.put(MSG_BREAKPOINT_REACHED, isize(cpu.debugger.breakpointPC));
+                auto addr = isize(cpu.debugger.breakpoints.hit->addr);
+                msgQueue.put(MSG_BREAKPOINT_REACHED, addr);
                 newState = EXEC_PAUSED;
                 break;
             }
@@ -963,7 +962,47 @@ Amiga::execute()
             if (flags & RL::WATCHPOINT_REACHED) {
                 clearFlag(RL::WATCHPOINT_REACHED);
                 inspect();
-                msgQueue.put(MSG_WATCHPOINT_REACHED, isize(cpu.debugger.watchpointPC));
+                auto addr = isize(cpu.debugger.watchpoints.hit->addr);
+                msgQueue.put(MSG_WATCHPOINT_REACHED, addr);
+                newState = EXEC_PAUSED;
+                break;
+            }
+
+            // Did we reach a catchpoint?
+            if (flags & RL::CATCHPOINT_REACHED) {
+                clearFlag(RL::CATCHPOINT_REACHED);
+                inspect();
+                auto vector = u8(cpu.debugger.catchpoints.hit->addr);
+                msgQueue.put(MSG_CATCHPOINT_REACHED, vector);
+                newState = EXEC_PAUSED;
+                break;
+            }
+
+            // Did we reach a software trap?
+            if (flags & RL::SWTRAP_REACHED) {
+                clearFlag(RL::SWTRAP_REACHED);
+                inspect();
+                msgQueue.put(MSG_SWTRAP_REACHED);
+                newState = EXEC_PAUSED;
+                break;
+            }
+
+            // Did we reach a Copper breakpoint?
+            if (flags & RL::COPPERBP_REACHED) {
+                clearFlag(RL::COPPERBP_REACHED);
+                inspect();
+                auto vector = u8(agnus.copper.debugger.breakpoints.hit->addr);
+                msgQueue.put(MSG_COPPERBP_REACHED, vector);
+                newState = EXEC_PAUSED;
+                break;
+            }
+
+            // Did we reach a Copper watchpoint?
+            if (flags & RL::COPPERWP_REACHED) {
+                clearFlag(RL::COPPERWP_REACHED);
+                inspect();
+                auto vector = u8(agnus.copper.debugger.watchpoints.hit->addr);
+                msgQueue.put(MSG_COPPERWP_REACHED, vector);
                 newState = EXEC_PAUSED;
                 break;
             }
@@ -1086,24 +1125,13 @@ Amiga::latestUserSnapshot()
 void
 Amiga::loadSnapshot(const Snapshot &snapshot)
 {
-    // Check if this snapshot is compatible with the emulator
-    if (snapshot.isTooOld() || FORCE_SNAP_TOO_OLD) {
-        throw VAError(ERROR_SNAP_TOO_OLD);
-    }
-    if (snapshot.isTooNew() || FORCE_SNAP_TOO_NEW) {
-        throw VAError(ERROR_SNAP_TOO_NEW);
-    }
-    if (snapshot.isBeta() || FORCE_SNAP_IS_BETA) {
-        if constexpr (!betaRelease) throw VAError(ERROR_SNAP_IS_BETA);
-    }
-
     {   SUSPENDED
         
         try {
-
+            
             // Restore the saved state
             load(snapshot.getData());
-
+            
         } catch (VAError &error) {
             
             /* If we reach this point, the emulator has been put into an
@@ -1114,10 +1142,7 @@ Amiga::loadSnapshot(const Snapshot &snapshot)
              */
             hardReset();
             throw error;
-        }
-                
-        // Print some debug info if requested
-        if constexpr (SNP_DEBUG) dump();
+        }        
     }
     
     // Inform the GUI
@@ -1148,4 +1173,52 @@ Amiga::takeUserSnapshot()
     
     userSnapshot = new Snapshot(*this);
     msgQueue.put(MSG_USER_SNAPSHOT_TAKEN);
+}
+
+fs::path
+Amiga::tmp()
+{
+    STATIC_SYNCHRONIZED
+    
+    static fs::path base;
+            
+    if (base.empty()) {
+
+        // Use /tmp as default folder for temporary files
+        base = "/tmp";
+
+        // Open a file to see if we have write permissions
+        std::ofstream logfile(base / "vAmiga.log");
+
+        // If /tmp is not accessible, use a different directory
+        if (!logfile.is_open()) {
+            
+            base = fs::temp_directory_path();
+            logfile.open(base / "vAmiga.log");
+
+            if (!logfile.is_open()) {
+                
+                throw VAError(ERROR_DIR_NOT_FOUND);
+            }
+        }
+        
+        logfile.close();
+        fs::remove(base / "vAmiga.log");
+    }
+    
+    return base;
+}
+
+fs::path
+Amiga::tmp(const string &name, bool unique)
+{
+    STATIC_SYNCHRONIZED
+    
+    auto base = tmp();
+    auto result = base / name;
+    
+    // Make the file name unique if requested
+    if (unique) result = fs::path(util::makeUniquePath(result.string()));
+    
+    return result;
 }

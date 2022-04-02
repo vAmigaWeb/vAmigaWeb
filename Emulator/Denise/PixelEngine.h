@@ -13,6 +13,16 @@
 #include "SubComponent.h"
 #include "ChangeRecorder.h"
 #include "Constants.h"
+#include "Buffer.h"
+
+using util::Buffer;
+
+struct ScreenBuffer : public Buffer<u32> {
+    
+    bool longFrame;
+    
+    ScreenBuffer(); 
+};
 
 class PixelEngine : public SubComponent {
 
@@ -42,13 +52,13 @@ private:
     ScreenBuffer emuTexture[2];
 
     // Pointer to the texture data in the working buffer
-    u32 *frameBuffer = emuTexture[0].data;
+    u32 *frameBuffer = emuTexture[0].ptr;
 
     // Mutex for synchronizing access to the stable buffer
     util::Mutex bufferMutex;
         
     // Buffer with background noise (random black and white pixels)
-    u32 *noise = nullptr;
+    Buffer<u32> noise;
 
     
     //
@@ -92,8 +102,8 @@ public:
 public:
     
     PixelEngine(Amiga& ref);
-    ~PixelEngine();
-
+ 
+    
     //
     // Methods from AmigaObject
     //
@@ -101,7 +111,7 @@ public:
 private:
     
     const char *getDescription() const override { return "PixelEngine"; }
-    void _dump(dump::Category category, std::ostream& os) const override { }
+    void _dump(Category category, std::ostream& os) const override { }
 
     
     //

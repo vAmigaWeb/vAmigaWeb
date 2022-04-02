@@ -428,11 +428,11 @@ RetroShell::help(const string &command)
 }
 
 void
-RetroShell::dump(AmigaObject &component, dump::Category category)
+RetroShell::dump(AmigaObject &component, Category category)
 {
     std::stringstream ss; string line;
     
-    { SUSPENDED
+    {   SUSPENDED
         
         component.dump(category, ss);
     }

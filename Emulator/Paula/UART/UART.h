@@ -58,7 +58,7 @@ public:
 private:
     
     const char *getDescription() const override { return "UART"; }
-    void _dump(dump::Category category, std::ostream& os) const override;
+    void _dump(Category category, std::ostream& os) const override;
 
     
     //
@@ -114,7 +114,8 @@ public:
     
     // Serial port data and status read
     u16 peekSERDATR();
-    
+    u16 spypeekSERDATR() const;
+
     // Serial port data and stop bits write
     void pokeSERDAT(u16 value);
 

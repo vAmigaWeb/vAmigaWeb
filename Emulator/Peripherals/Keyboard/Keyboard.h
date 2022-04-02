@@ -54,7 +54,7 @@ public:
 private:
     
     const char *getDescription() const override { return "Keyboard"; }
-    void _dump(dump::Category category, std::ostream& os) const override;
+    void _dump(Category category, std::ostream& os) const override;
     
     
     //
@@ -112,6 +112,7 @@ public:
     bool keyIsPressed(KeyCode keycode) const;
     void pressKey(KeyCode keycode);
     void releaseKey(KeyCode keycode);
+    void toggleKey(KeyCode keycode);
     void releaseAllKeys();
 
     void autoType(KeyCode keycode, Cycle duration = MSEC(100), Cycle delay = 0);

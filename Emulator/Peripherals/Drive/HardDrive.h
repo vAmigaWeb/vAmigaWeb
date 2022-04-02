@@ -19,7 +19,10 @@ class HardDrive : public Drive {
     
     friend class HDFFile;
     friend class HdController;
-    
+
+    // Optional paths to a storage file (persistent disk feature)
+    string backup;
+
     // Current configuration
     HardDriveConfig config = {};
     
@@ -41,7 +44,7 @@ class HardDrive : public Drive {
     std::vector<PartitionDescriptor> ptable;
             
     // Disk data
-    util::Buffer data;
+    Buffer<u8> data;
     
     // Current position of the read/write head
     DriveHead head;
@@ -61,10 +64,6 @@ class HardDrive : public Drive {
 public:
 
     HardDrive(Amiga& ref, isize nr);
-
-    // Allocates or deallocates drive memory
-    // void init(isize size) { data.resize(size); }
-    // void dealloc();
         
     // Creates a hard drive with a certain geometry
     void init(const GeometryDescriptor &geometry);
@@ -77,6 +76,7 @@ public:
 
     // Creates a hard drive with the contents of an HDF
     void init(const HDFFile &hdf) throws;
+    void init(const string &path) throws;
 
 private:
 
@@ -91,7 +91,7 @@ private:
 private:
     
     const char *getDescription() const override;
-    void _dump(dump::Category category, std::ostream& os) const override;
+    void _dump(Category category, std::ostream& os) const override;
     
     
     //
@@ -185,6 +185,9 @@ public:
     i64 getConfigItem(Option option) const;
     void setConfigItem(Option option, i64 value);
 
+    string getBackupPath() { return backup; }
+    void setBackupPath(const string &path) { backup = path; }
+    
     
     //
     // Analyzing
@@ -246,6 +249,22 @@ private:
     void moveHead(isize lba);
     void moveHead(isize c, isize h, isize s);
     
+    
+    //
+    // Importing and exporting
+    //
+    
+public:
+    
+    // Persists a disk (called on disconnect)
+    bool persistDisk() throws;
+
+    // Restores a disk (called on connect)
+    bool restoreDisk() throws;
+
+    // Exports the disk in HDF format
+    void writeToFile(const string &path) throws;
+
     
     //
     // Scheduling and serving events

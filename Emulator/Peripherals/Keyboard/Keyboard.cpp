@@ -70,17 +70,17 @@ Keyboard::setConfigItem(Option option, i64 value)
 }
 
 void
-Keyboard::_dump(dump::Category category, std::ostream& os) const
+Keyboard::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
     
-    if (category & dump::Config) {
+    if (category == Category::Config) {
         
         os << tab("Accurate emulation");
         os << bol(config.accurate) << std::endl;
     }
     
-    if (category & dump::State) {
+    if (category == Category::State) {
         
         os << tab("State");
         os << KeyboardStateEnum::key(state) << std::endl;
@@ -90,14 +90,14 @@ Keyboard::_dump(dump::Category category, std::ostream& os) const
         os << dec(spLow) << std::endl;
         os << tab("SP HI cycle");
         os << dec(spHigh) << std::endl;
-
+        
         os << tab("Type ahead buffer");
         os << "[ ";
         for (isize i = queue.begin(); i != queue.end(); i = queue.next(i)) {
             os << hex(queue.elements[i]) << " ";
         }
         os << " ]" << std::endl;
-
+        
         isize count = 0;
         for (isize i = 0; i < 128; i++) count += (isize)keyDown[i];
         os << tab("Down");
@@ -116,11 +116,13 @@ void
 Keyboard::pressKey(KeyCode keycode)
 {
     assert(keycode < 0x80);
-
+    
+    SYNCHRONIZED
+    
     if (!keyDown[keycode] && !queue.isFull()) {
-
+        
         trace(KBD_DEBUG, "Pressing Amiga key %02X\n", keycode);
-
+        
         keyDown[keycode] = true;
         queue.write(keycode);
         wakeUp();
@@ -136,15 +138,23 @@ void
 Keyboard::releaseKey(KeyCode keycode)
 {
     assert(keycode < 0x80);
-
+    
+    SYNCHRONIZED
+    
     if (keyDown[keycode] && !queue.isFull()) {
-
+        
         trace(KBD_DEBUG, "Releasing Amiga key %02X\n", keycode);
-
+        
         keyDown[keycode] = false;
         queue.write(keycode | 0x80);
         wakeUp();
     }
+}
+
+void
+Keyboard::toggleKey(KeyCode keycode)
+{
+    keyIsPressed(keycode) ? releaseKey(keycode) : pressKey(keycode);
 }
 
 void
@@ -232,6 +242,8 @@ Keyboard::processHandshake()
 void
 Keyboard::execute()
 {
+    SYNCHRONIZED
+    
     switch(state) {
             
         case KB_SELFTEST:
@@ -265,9 +277,9 @@ Keyboard::execute()
             break;
             
         case KB_SEND:
-            
+
             trace(KBD_DEBUG, "KB_SEND\n");
-            
+
             // Send a key code if the buffer is filled
             if (!queue.isEmpty()) {
                 sendKeyCode(queue.read());
@@ -275,7 +287,7 @@ Keyboard::execute()
                 agnus.cancel<SLOT_KBD>();
             }
             break;
-            
+
         default:
             fatalError;
     }
