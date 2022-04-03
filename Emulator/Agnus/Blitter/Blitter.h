@@ -170,7 +170,7 @@ private:
 public:
     
     // Optional storage for recording memory locations if BLT_GUARD is enabled
-    util::Buffer memguard;
+    Buffer<u8> memguard;
     
  
     //
@@ -194,7 +194,7 @@ private:
 private:
     
     const char *getDescription() const override { return "Blitter"; }
-    void _dump(dump::Category category, std::ostream& os) const override;
+    void _dump(Category category, std::ostream& os) const override;
 
     
     //

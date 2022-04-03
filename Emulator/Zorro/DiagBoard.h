@@ -9,23 +9,27 @@
 
 #pragma once
 
-#include "HdControllerTypes.h"
+#include "DiagBoardTypes.h"
 #include "ZorroBoard.h"
-#include "HDFFile.h"
+#include "Memory.h"
 
-class HdController : public ZorroBoard {
-    
-    // Number of this controller
-    isize nr;
-
-    // The hard drive this controller is connected to
-    HardDrive &drive;
+class DiagBoard : public ZorroBoard {
+        
+    // Current configuration
+    DiagBoardConfig config = {};
     
     // Rom code
     Buffer<u8> rom;
+        
+    // Transmitted pointers
+    u32 pointer1 = 0;
+    u32 pointer2 = 0;
+
+    // List of tracked tasks
+    std::vector <u32> tasks;
     
-    // Transmitted pointer
-    u32 pointer = 0;
+    // Names of tasks to catch
+    std::vector <string> targets;
     
     
     //
@@ -34,7 +38,7 @@ class HdController : public ZorroBoard {
     
 public:
     
-    HdController(Amiga& ref, HardDrive& hdr);
+    DiagBoard(Amiga& ref);
 
 
     //
@@ -43,7 +47,7 @@ public:
     
 private:
     
-    const char *getDescription() const override;
+    const char *getDescription() const override { return "DiagBoard"; }
     void _dump(Category category, std::ostream& os) const override;
 
     
@@ -66,11 +70,6 @@ private:
     {
         if (hard) {
             
-            worker
-            
-            << baseAddr
-            << state
-            << pointer;
         }
     }
     
@@ -81,6 +80,20 @@ private:
 
     
     //
+    // Configuring
+    //
+
+public:
+    
+    static DiagBoardConfig getDefaultConfig();
+    const DiagBoardConfig &getConfig() const { return config; }
+    void resetConfig() override;
+    
+    i64 getConfigItem(Option option) const;
+    void setConfigItem(Option option, i64 value);
+    
+    
+    //
     // Methods from ZorroBoard
     //
     
@@ -89,14 +102,14 @@ public:
     virtual bool pluggedIn() const override;
     virtual isize pages() const override         { return 1; }
     virtual u8 type() const override             { return ERT_ZORROII | ERTF_DIAGVALID; }
-    virtual u8 product() const override          { return 0x88; }
+    virtual u8 product() const override          { return 0x77; }
     virtual u8 flags() const override            { return 0x00; }
     virtual u16 manufacturer() const override    { return 0x0539; }
-    virtual u32 serialNumber() const override    { return 3141592 + u32(nr); }
+    virtual u32 serialNumber() const override    { return 1; }
     virtual u16 initDiagVec() const override     { return 0x40; }
     virtual string vendorName() const override   { return "RASTEC"; }
-    virtual string productName() const override  { return "HD controller"; }
-    virtual string revisionName() const override { return "0.3"; }
+    virtual string productName() const override  { return "Diag Board"; }
+    virtual string revisionName() const override { return "0.1"; }
 
 private:
     
@@ -118,9 +131,18 @@ public:
         
 private:
     
-    void processCmd();
-    void processInit();
-    void processResource();
-    void processInfoReq();
-    void processInitSeg();
+    void processInit(u32 ptr1);
+    void processAddTask(u32 ptr1);
+    void processRemTask(u32 ptr1);
+    void processLoadSeg(u32 ptr1, u32 ptr2, bool bstr);
+
+    
+    //
+    // Using the board
+    //
+    
+public:
+    
+    // Pauses emulation when the specified task launches
+    void catchTask(const string &name);
 };

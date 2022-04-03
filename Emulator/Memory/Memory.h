@@ -14,6 +14,9 @@
 #include "RomFileTypes.h"
 #include "MemUtils.h"
 
+using util::Allocator;
+using util::Buffer;
+
 #define FAST_RAM_STRT ramExpansion.getBaseAddr()
 
 // Verifies address ranges
@@ -42,11 +45,6 @@ assert((x) >= 0xE80000 && (x) <= 0xE8FFFF);
 // Reading
 //
 
-// Reads a value in big-endian format
-#define R8BE_ALIGNED(a)     (*(u8 *)(a))
-#define R16BE_ALIGNED(a)    (util::bigEndian(*(u16 *)(a)))
-#define R32BE_ALIGNED(a)    (util::bigEndian(*(u32 *)(a)))
-
 // Reads a value from Chip RAM in big endian format
 #define READ_CHIP_8(x)      R8BE_ALIGNED (chip + ((x) & chipMask))
 #define READ_CHIP_16(x)     R16BE_ALIGNED(chip + ((x) & chipMask))
@@ -74,11 +72,6 @@ assert((x) >= 0xE80000 && (x) <= 0xE8FFFF);
 //
 // Writing
 //
-
-// Writes a value in big-endian format
-#define W8BE_ALIGNED(a,v)   { *(u8 *)(a) = (u8)(v); }
-#define W16BE_ALIGNED(a,v)  { *(u16 *)(a) = util::bigEndian((u16)v); }
-#define W32BE_ALIGNED(a,v)  { *(u32 *)(a) = util::bigEndian((u32)v); }
 
 // Writes a value into Chip RAM in big endian format
 #define WRITE_CHIP_8(x,y)   W8BE_ALIGNED (chip + ((x) & chipMask), (y))
@@ -165,12 +158,12 @@ public:
     u8 *slow;
     u8 *fast;
 
-    util::Allocator romAllocator = util::Allocator(rom);
-    util::Allocator womAllocator = util::Allocator(wom);
-    util::Allocator extAllocator = util::Allocator(ext);
-    util::Allocator chipAllocator = util::Allocator(chip);
-    util::Allocator slowAllocator = util::Allocator(slow);
-    util::Allocator fastAllocator = util::Allocator(fast);
+    Allocator<u8> romAllocator = Allocator(rom);
+    Allocator<u8> womAllocator = Allocator(wom);
+    Allocator<u8> extAllocator = Allocator(ext);
+    Allocator<u8> chipAllocator = Allocator(chip);
+    Allocator<u8> slowAllocator = Allocator(slow);
+    Allocator<u8> fastAllocator = Allocator(fast);
 
     u32 romMask = 0;
     u32 womMask = 0;
@@ -217,7 +210,7 @@ public:
 private:
     
     const char *getDescription() const override { return "Memory"; }
-    void _dump(dump::Category category, std::ostream& os) const override;
+    void _dump(Category category, std::ostream& os) const override;
     
     
     //
@@ -318,7 +311,7 @@ public:
 
 private:
     
-    void alloc(util::Allocator &allocator, isize bytes, u32 &mask, bool update);
+    void alloc(Allocator<u8> &allocator, isize bytes, u32 &mask, bool update);
 
 
     //
@@ -385,17 +378,19 @@ public:
     void loadRom(const string &path) throws;
     void loadRom(const u8 *buf, isize len) throws;
     
+    // Installs a Kickstart expansion Rom
     void loadExt(class ExtendedRomFile &rom) throws;
     void loadExt(const string &path) throws;
     void loadExt(const u8 *buf, isize len) throws;
         
-public:
-    
     // Saves a Rom to disk
     void saveRom(const string &path) throws;
     void saveWom(const string &path) throws;
     void saveExt(const string &path) throws;
 
+    // Fixes two bugs in Kickstart 1.2 expansion.library
+    void patchExpansionLib();
+    
     
     //
     // Maintaining the memory source table

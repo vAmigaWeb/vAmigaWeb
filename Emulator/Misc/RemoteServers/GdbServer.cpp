@@ -24,13 +24,13 @@ GdbServer::GdbServer(Amiga& ref) : RemoteServer(ref)
 }
 
 void
-GdbServer::_dump(dump::Category category, std::ostream& os) const
+GdbServer::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
      
     RemoteServer::_dump(category, os);
 
-    if (category & dump::Segments) {
+    if (category == Category::Segments) {
         
         os << tab("Code segment") << hex(codeSeg()) << std::endl;
         os << tab("Data segment") << hex(dataSeg()) << std::endl;
@@ -246,10 +246,6 @@ GdbServer::readMemory(isize addr)
 void
 GdbServer::breakpointReached()
 {
-    // This function is called too often. I.e., it is called when an
-    // suspended block is executed.
-    // TODO: Think about adding a SUSPENDED emulator state
-    
     debug(GDB_DEBUG, "breakpointReached()\n");
     process <'?'> ("");
 }

@@ -40,7 +40,7 @@
  * query information from Paula, you need to invoke a public method on
  * amiga.paula.
  */
-class Amiga : public SuspendableThread {
+class Amiga : public Thread {
 
     /* Result of the latest inspection. In order to update the GUI inspector
      * panels, the emulator schedules events in the inspector slot (SLOT_INS in
@@ -91,7 +91,8 @@ public:
     HdController hd2con = HdController(*this, hd2);
     HdController hd3con = HdController(*this, hd3);
     RamExpansion ramExpansion = RamExpansion(*this);
-
+    DiagBoard diagBoard= DiagBoard(*this);
+    
     // Other Peripherals
     Keyboard keyboard = Keyboard(*this);
     
@@ -169,7 +170,7 @@ public:
 private:
     
     const char *getDescription() const override { return "Amiga"; }
-    void _dump(dump::Category category, std::ostream& os) const override;
+    void _dump(Category category, std::ostream& os) const override;
 
     
     //
@@ -335,4 +336,17 @@ private:
     // Takes a snapshot of a certain kind
     void takeAutoSnapshot();
     void takeUserSnapshot();
+    
+    
+    //
+    // Miscellaneous
+    //
+    
+public:
+    
+    // Returns a path to a temporary folder
+    static fs::path tmp() throws;
+    
+    // Assembles a path to a temporary file
+    static fs::path tmp(const string &name, bool unique = false) throws;
 };

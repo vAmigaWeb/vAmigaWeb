@@ -238,6 +238,103 @@ Interpreter::registerInstructions()
     root.add({"cpu", "inspect", "registers"},
              "command", "Displays the current register values",
              &RetroShell::exec <Token::cpu, Token::inspect, Token::registers>, 0);
+    
+    root.add({"cpu", "callstack" },
+             "command", "Prints recorded subroutine calls",
+             &RetroShell::exec <Token::cpu, Token::callstack>, 0);
+    
+    root.add({"cpu", "break"},
+             "command", "Manages breakpoints");
+
+    root.add({"cpu", "break", "info"},
+             "command", "Lists all breakpoints",
+             &RetroShell::exec <Token::cpu, Token::bp, Token::info>, 0);
+
+    root.add({"cpu", "break", "at"},
+             "command", "Sets a breakpoint at the specified address",
+             &RetroShell::exec <Token::cpu, Token::bp, Token::at>, 1);
+
+    root.add({"cpu", "break", "delete"},
+             "command", "Deletes a breakpoint",
+             &RetroShell::exec <Token::cpu, Token::bp, Token::del>, 1);
+
+    root.add({"cpu", "break", "enable"},
+             "command", "Enables a breakpoint",
+             &RetroShell::exec <Token::cpu, Token::bp, Token::enable>, 1);
+
+    root.add({"cpu", "break", "disable"},
+             "command", "Disables a breakpoint",
+             &RetroShell::exec <Token::cpu, Token::bp, Token::disable>, 1);
+
+    root.add({"cpu", "break", "ignore"},
+             "command", "Ignores a breakpoint a certain number of times",
+             &RetroShell::exec <Token::cpu, Token::bp, Token::ignore>, 2);
+
+    root.add({"cpu", "watch"},
+             "command", "Manages watchpoints");
+
+    root.add({"cpu", "watch", "info"},
+             "command", "Lists all watchpoints",
+             &RetroShell::exec <Token::cpu, Token::wp, Token::info>, 0);
+
+    root.add({"cpu", "watch", "at"},
+             "command", "Sets a watchpoint at the specified address",
+             &RetroShell::exec <Token::cpu, Token::wp, Token::at>, 1);
+
+    root.add({"cpu", "watch", "delete"},
+             "command", "Deletes a watchpoint",
+             &RetroShell::exec <Token::cpu, Token::wp, Token::del>, 1);
+
+    root.add({"cpu", "watch", "enable"},
+             "command", "Enables a watchpoint",
+             &RetroShell::exec <Token::cpu, Token::wp, Token::enable>, 1);
+
+    root.add({"cpu", "watch", "disable"},
+             "command", "Disables a watchpoint",
+             &RetroShell::exec <Token::cpu, Token::wp, Token::disable>, 1);
+
+    root.add({"cpu", "watch", "ignore"},
+             "command", "Ignores a watchpoint a certain number of times",
+             &RetroShell::exec <Token::cpu, Token::wp, Token::ignore>, 2);
+    
+    root.add({"cpu", "catch"},
+             "command", "Manages catchpoints");
+
+    root.add({"cpu", "catch", "info"},
+             "command", "Lists all catchpoints",
+             &RetroShell::exec <Token::cpu, Token::cp, Token::info>, 0);
+
+    root.add({"cpu", "catch", "vector"},
+             "command", "Catches an exception vector",
+             &RetroShell::exec <Token::cpu, Token::cp, Token::vector>, 1);
+
+    root.add({"cpu", "catch", "interrupt"},
+             "command", "Catches an interrupt",
+             &RetroShell::exec <Token::cpu, Token::cp, Token::interrupt>, 1);
+
+    root.add({"cpu", "catch", "trap"},
+             "command", "Catches a trap instruction",
+             &RetroShell::exec <Token::cpu, Token::cp, Token::trap>, 1);
+
+    root.add({"cpu", "catch", "delete"},
+             "command", "Deletes a catchpoint",
+             &RetroShell::exec <Token::cpu, Token::cp, Token::del>, 1);
+
+    root.add({"cpu", "catch", "enable"},
+             "command", "Enables a catchpoint",
+             &RetroShell::exec <Token::cpu, Token::cp, Token::enable>, 1);
+
+    root.add({"cpu", "catch", "disable"},
+             "command", "Disables a catchpoint",
+             &RetroShell::exec <Token::cpu, Token::cp, Token::disable>, 1);
+
+    root.add({"cpu", "catch", "ignore"},
+             "command", "Ignores a catchpoint a certain number of times",
+             &RetroShell::exec <Token::cpu, Token::cp, Token::ignore>, 2);
+
+    root.add({"cpu", "swtraps"},
+             "command", "Lists all software traps",
+             &RetroShell::exec <Token::cpu, Token::swtraps>, 0);
 
     root.add({"cpu", "jump"},
              "command", "Jumps to the specified address",
@@ -388,6 +485,60 @@ Interpreter::registerInstructions()
              "command", "Disassembles a Copper list",
              &RetroShell::exec <Token::copper, Token::list>, 1);
 
+    root.add({"copper", "break"},
+             "command", "Manages breakpoints");
+
+    root.add({"copper", "break", "info"},
+             "command", "Lists all breakpoints",
+             &RetroShell::exec <Token::copper, Token::bp, Token::info>, 0);
+
+    root.add({"copper", "break", "at"},
+             "command", "Sets a breakpoint at the specified address",
+             &RetroShell::exec <Token::copper, Token::bp, Token::at>, 1);
+
+    root.add({"copper", "break", "delete"},
+             "command", "Deletes a breakpoint",
+             &RetroShell::exec <Token::copper, Token::bp, Token::del>, 1);
+
+    root.add({"copper", "break", "enable"},
+             "command", "Enables a breakpoint",
+             &RetroShell::exec <Token::copper, Token::bp, Token::enable>, 1);
+
+    root.add({"copper", "break", "disable"},
+             "command", "Disables a breakpoint",
+             &RetroShell::exec <Token::copper, Token::bp, Token::disable>, 1);
+
+    root.add({"copper", "break", "ignore"},
+             "command", "Ignores a breakpoint a certain number of times",
+             &RetroShell::exec <Token::copper, Token::bp, Token::ignore>, 2);
+ 
+    root.add({"copper", "watch"},
+             "command", "Manages watchpoints");
+
+    root.add({"copper", "watch", "info"},
+             "command", "Lists all watchpoints",
+             &RetroShell::exec <Token::copper, Token::wp, Token::info>, 0);
+
+    root.add({"copper", "watch", "at"},
+             "command", "Sets a watchpoint at the specified address",
+             &RetroShell::exec <Token::copper, Token::wp, Token::at>, 1);
+
+    root.add({"copper", "watch", "delete"},
+             "command", "Deletes a watchpoint",
+             &RetroShell::exec <Token::copper, Token::wp, Token::del>, 1);
+
+    root.add({"copper", "watch", "enable"},
+             "command", "Enables a watchpoint",
+             &RetroShell::exec <Token::copper, Token::wp, Token::enable>, 1);
+
+    root.add({"copper", "watch", "disable"},
+             "command", "Disables a watchpoint",
+             &RetroShell::exec <Token::copper, Token::wp, Token::disable>, 1);
+
+    root.add({"copper", "watch", "ignore"},
+             "command", "Ignores a watchpoint a certain number of times",
+             &RetroShell::exec <Token::copper, Token::wp, Token::ignore>, 2);
+    
     
     //
     // Denise
@@ -790,6 +941,78 @@ Interpreter::registerInstructions()
 
     
     //
+    // Joystick
+    //
+
+    root.add({"joystick1"},
+             "component", "Port 1 joystick");
+
+    root.add({"joystick2"},
+             "component", "Port 2 joystick");
+
+    for (isize i = 0; i < 2; i++) {
+
+        string joystick = (i == 0) ? "joystick1" : "joystick2";
+        
+        root.add({joystick, "config"},
+                 "command", "Displays the current configuration",
+                 &RetroShell::exec <Token::joystick, Token::config>, 0, i);
+        
+        root.add({joystick, "set"},
+                 "command", "Configures the component");
+        
+        root.add({joystick, "set", "autofire"},
+                 "key", "Enables or disables auto-fire mode",
+                 &RetroShell::exec <Token::joystick, Token::set, Token::autofire>, 1, i);
+        
+        root.add({joystick, "set", "bullets"},
+                 "key", "Sets the number of bullets per auto-fire shot",
+                 &RetroShell::exec <Token::joystick, Token::set, Token::bullets>, 1, i);
+        
+        root.add({joystick, "set", "velocity"},
+                 "key", "Configures the auto-fire delay",
+                 &RetroShell::exec <Token::joystick, Token::set, Token::delay>, 1, i);
+        
+        root.add({joystick, "inspect"},
+                 "command", "Displays the internal state",
+                 &RetroShell::exec <Token::joystick, Token::inspect>, 0, i);
+
+        root.add({joystick, ""},
+                 "command", "Presses the Pulls the joystick");
+
+        root.add({joystick, "pull"},
+                 "command", "Pulls the joystick");
+
+        root.add({joystick, "pull", "left"},
+                 "command", "Pulls the joystick left",
+                 &RetroShell::exec <Token::joystick, Token::pull, Token::left>, 0, i);
+        
+        root.add({joystick, "pull", "right"},
+                 "command", "Pulls the joystick right",
+                 &RetroShell::exec <Token::joystick, Token::pull, Token::right>, 0, i);
+
+        root.add({joystick, "pull", "up"},
+                 "command", "Pulls the joystick up",
+                 &RetroShell::exec <Token::joystick, Token::pull, Token::up>, 0, i);
+
+        root.add({joystick, "pull", "down"},
+                 "command", "Pulls the joystick down",
+                 &RetroShell::exec <Token::joystick, Token::pull, Token::down>, 0, i);
+
+        root.add({joystick, "release"},
+                 "command", "Release a joystick axis");
+
+        root.add({joystick, "release", "x"},
+                 "command", "Releases the x-axis",
+                 &RetroShell::exec <Token::joystick, Token::release, Token::xaxis>, 0, i);
+
+        root.add({joystick, "release", "y"},
+                 "command", "Releases the y-axis",
+                 &RetroShell::exec <Token::joystick, Token::release, Token::yaxis>, 0, i);
+    }
+    
+    
+    //
     // Serial port
     //
     
@@ -946,6 +1169,10 @@ Interpreter::registerInstructions()
         root.add({df, "inspect"},
                  "command", "Displays the component state",
                  &RetroShell::exec <Token::dfn, Token::inspect>, 0);
+
+        root.add({df, "catch"},
+                 "command", "Creates a catchpoint for the specfied file",
+                 &RetroShell::exec <Token::dfn, Token::cp>, 1);
     }
 
     //
@@ -1077,6 +1304,18 @@ Interpreter::registerInstructions()
              "command", "Lists all processes",
              &RetroShell::exec <Token::os, Token::processes>, {0, 1});
 
+    root.add({"os", "catch"},
+             "command", "Pauses emulation on task launch",
+             &RetroShell::exec <Token::os, Token::cp>, 1);
+
+    root.add({"os", "set"},
+             "command", "Configures the component");
+        
+    root.add({"os", "set", "diagboard" },
+             "command", "Attaches or detaches the debug expansion board",
+             &RetroShell::exec <Token::os, Token::set, Token::diagboard>, 1);
+
+    
     //
     // Remote server
     //

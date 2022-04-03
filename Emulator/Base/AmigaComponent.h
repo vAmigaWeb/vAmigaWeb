@@ -22,6 +22,9 @@
  */
 #define SYNCHRONIZED util::AutoMutex _am(mutex);
 
+// Variant for static methods
+#define STATIC_SYNCHRONIZED static std::mutex m; std::lock_guard<std::mutex> lock(m);
+
 struct NoCopy
 {
     NoCopy() { };
@@ -88,7 +91,9 @@ public:
     virtual bool isPoweredOn() const = 0;
     virtual bool isPaused() const = 0;
     virtual bool isRunning() const = 0;
-    
+    virtual bool isSuspended() const = 0;
+    virtual bool isHalted() const = 0;
+
     virtual void suspend() = 0;
     virtual void resume() = 0;
 

@@ -29,6 +29,10 @@ VAError::VAError(ErrorCode code, const string &s)
             description = "The emulator is powered on.";
             break;
 
+        case ERROR_DEBUG_OFF:
+            description = "Debug mode is switched off.";
+            break;
+
         case ERROR_RUNNING:
             description = "The emulator is running.";
             break;
@@ -45,14 +49,50 @@ VAError::VAError(ErrorCode code, const string &s)
             description = "This option is locked because the Amiga is powered on.";
             break;
 
+        case ERROR_BP_NOT_FOUND:
+            description = "Breakpoint " + s + " not found";
+            break;
+            
+        case ERROR_BP_ALREADY_SET:
+            description = "A breakpoint at " + s + " is already set";
+            break;
+            
+        case ERROR_WP_NOT_FOUND:
+            description = "Watchpoint " + s + " not found";
+            break;
+
+        case ERROR_WP_ALREADY_SET:
+            description = "A watchpoint at " + s + " is already set";
+            break;
+
+        case ERROR_CP_NOT_FOUND:
+            description = "Catchpoint " + s + " not found";
+            break;
+
+        case ERROR_CP_ALREADY_SET:
+            description = "This catchpoint is already set";
+            break;
+
+        case ERROR_CP_CANT_CATCH:
+            description = "Exception vector " + s + " cannot be catched";
+            break;
+            
         case ERROR_DIR_NOT_FOUND:
             description = "Folder \"" + s + "\" not found.";
+            break;
+
+        case ERROR_DIR_ACCESS_DENIED:
+            description = "Unable to access folder \"" + s + "\". Permission denied.";
             break;
 
         case ERROR_FILE_NOT_FOUND:
             description = "File \"" + s + "\" not found.";
             break;
             
+        case ERROR_FILE_ACCESS_DENIED:
+            description = "Unable to access file \"" + s + "\". Permission denied.";
+            break;
+
         case ERROR_FILE_TYPE_MISMATCH:
             description = "The file content and the file type do not match.";
             break;
@@ -68,7 +108,7 @@ VAError::VAError(ErrorCode code, const string &s)
         case ERROR_FILE_CANT_CREATE:
             description = "Failed to create file \"" + s + "\".";
             break;
-
+            
         case ERROR_OUT_OF_MEMORY:
             description = "Out of memory.";
             break;
@@ -222,11 +262,31 @@ VAError::VAError(ErrorCode code, const string &s)
         case ERROR_INVALID_ROM_KEY:
             description = "Invalid Rom key.";
             break;
-            
+
+        case ERROR_REC_LAUNCH:
+            description = s;
+            break;
+
         case ERROR_OSDB:
             description = "OS Debugger: " + s;
             break;
             
+        case ERROR_HUNK_BAD_COOKIE:
+            description = "Invalid magic cookie.";
+            break;
+            
+        case ERROR_HUNK_NO_SECTIONS:
+            description = "No hunks found.";
+            break;
+
+        case ERROR_HUNK_UNSUPPORTED:
+            description = "Unsupported hunk: " + s;
+            break;
+
+        case ERROR_HUNK_CORRUPTED:
+            description = "Corrupted hunk structure.";
+            break;
+
         case ERROR_FS_UNSUPPORTED:
             description = "Unsupported file system.";
             break;

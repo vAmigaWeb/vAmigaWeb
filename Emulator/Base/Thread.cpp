@@ -114,9 +114,9 @@ Thread::main()
                 case SyncMode::Pulsed: execute<SyncMode::Pulsed>(); break;
             }
         }
-        
-        if (!warpMode || isPaused()) {
-
+                
+        if (!warpMode || !isRunning()) {
+            
             switch (mode) {
                 case SyncMode::Periodic: sleep<SyncMode::Periodic>(); break;
                 case SyncMode::Pulsed: sleep<SyncMode::Pulsed>(); break;
@@ -124,19 +124,17 @@ Thread::main()
         }
         
         // Are we requested to enter or exit warp mode?
-        while (newWarpMode != warpMode) {
+        if (newWarpMode != warpMode) {
             
             AmigaComponent::warpOnOff(newWarpMode);
             warpMode = newWarpMode;
-            break;
         }
 
         // Are we requested to enter or exit warp mode?
-        while (newDebugMode != debugMode) {
+        if (newDebugMode != debugMode) {
             
             AmigaComponent::debugOnOff(newDebugMode);
             debugMode = newDebugMode;
-            break;
         }
 
         // Are we requested to change state?
@@ -146,49 +144,48 @@ Thread::main()
                 
                 AmigaComponent::powerOn();
                 state = EXEC_PAUSED;
-                break;
-            }
 
-            if (state == EXEC_PAUSED && newState == EXEC_OFF) {
+            } else if (state == EXEC_PAUSED && newState == EXEC_OFF) {
                 
                 AmigaComponent::powerOff();
                 state = EXEC_OFF;
-                break;
-            }
-
-            if (state == EXEC_PAUSED && newState == EXEC_RUNNING) {
+            
+            } else if (state == EXEC_PAUSED && newState == EXEC_RUNNING) {
                 
                 AmigaComponent::run();
                 state = EXEC_RUNNING;
-                break;
-            }
-
-            if (state == EXEC_RUNNING && newState == EXEC_OFF) {
-                
-                AmigaComponent::pause();
-                state = EXEC_PAUSED;
-                AmigaComponent::powerOff();
-                state = EXEC_OFF;
-                break;
-            }
-
-            if (state == EXEC_RUNNING && newState == EXEC_PAUSED) {
-                
-                AmigaComponent::pause();
-                state = EXEC_PAUSED;
-                break;
-            }
             
-            if (newState == EXEC_HALTED) {
+            } else if (state == EXEC_RUNNING && newState == EXEC_OFF) {
+                
+                AmigaComponent::pause();
+                state = EXEC_PAUSED;
+            
+            } else if (state == EXEC_RUNNING && newState == EXEC_PAUSED) {
+                
+                AmigaComponent::pause();
+                state = EXEC_PAUSED;
+
+            } else if (state == EXEC_RUNNING && newState == EXEC_SUSPENDED) {
+                
+                state = EXEC_SUSPENDED;
+
+            } else if (state == EXEC_SUSPENDED && newState == EXEC_RUNNING) {
+                
+                state = EXEC_RUNNING;
+
+            } else if (newState == EXEC_HALTED) {
                 
                 AmigaComponent::halt();
                 state = EXEC_HALTED;
                 return;
+
+            } else {
+                
+                // Invalid state transition
+                fatalError;
             }
             
-            // Invalid state transition
-            fatalError;
-            break;
+            debug(RUN_DEBUG, "Changed state to %s\n", ExecutionStateEnum::key(state));
         }
         
         // Compute the CPU load once in a while
@@ -271,15 +268,15 @@ Thread::run(bool blocking)
     
     printf("**** State %s\n",ExecutionStateEnum::key(state));
 
-    if (!isRunning()) {
+    // The emulator is expected to be powered on
+    if (isPoweredOff()) throw VAError(ERROR_POWERED_OFF);
 
-        assert(isPoweredOn());
+    if (!isRunning()) {
 
         // Throw an exception if the emulator is not ready to run
         isReady();
-        
         // Request a state change and wait until the new state has been reached
-        changeStateTo(EXEC_RUNNING, blocking);
+        changeStateTo(EXEC_RUNNING, blocking);        
     }
 
     printf("**** State %s\n",ExecutionStateEnum::key(state));
@@ -438,27 +435,28 @@ Thread::wakeUp()
     if (mode == SyncMode::Pulsed) util::Wakeable::wakeUp();
 }
 
-
-
-
-
 void
-SuspendableThread::suspend()
+Thread::suspend()
 {
     debug(RUN_DEBUG, "Suspending (%ld)...\n", suspendCounter);
     
     if (suspendCounter || isRunning()) {
-        pause();
+
         suspendCounter++;
+        assert(state == EXEC_RUNNING || state == EXEC_SUSPENDED);
+        changeStateTo(EXEC_SUSPENDED, true);
     }
 }
 
 void
-SuspendableThread::resume()
+Thread::resume()
 {
     debug(RUN_DEBUG, "Resuming (%ld)...\n", suspendCounter);
-    
+
     if (suspendCounter && --suspendCounter == 0) {
+        
+        assert(state == EXEC_SUSPENDED);
+        changeStateTo(EXEC_RUNNING, true);
         run();
     }
 }

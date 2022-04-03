@@ -20,6 +20,7 @@ enum_long(ERROR_CODE)
     // Emulator state
     ERROR_POWERED_OFF,
     ERROR_POWERED_ON,
+    ERROR_DEBUG_OFF,
     ERROR_RUNNING,
 
     // Configuration
@@ -27,12 +28,23 @@ enum_long(ERROR_CODE)
     ERROR_OPT_INVARG,
     ERROR_OPT_LOCKED,               // DEPRECATED: Replace by ERROR_POWERED_ON
 
+    // CPU
+    ERROR_BP_NOT_FOUND,
+    ERROR_BP_ALREADY_SET,
+    ERROR_WP_NOT_FOUND,
+    ERROR_WP_ALREADY_SET,
+    ERROR_CP_NOT_FOUND,
+    ERROR_CP_ALREADY_SET,
+    ERROR_CP_CANT_CATCH,
+
     // Memory
     ERROR_OUT_OF_MEMORY,
 
     // General
     ERROR_DIR_NOT_FOUND,
+    ERROR_DIR_ACCESS_DENIED,
     ERROR_FILE_NOT_FOUND,
+    ERROR_FILE_ACCESS_DENIED,
     ERROR_FILE_TYPE_MISMATCH,
     ERROR_FILE_TYPE_UNSUPPORTED,
     ERROR_FILE_CANT_READ,
@@ -84,9 +96,16 @@ enum_long(ERROR_CODE)
     ERROR_MISSING_ROM_KEY,
     ERROR_INVALID_ROM_KEY,
     
+    // Screen recorder
+    ERROR_REC_LAUNCH,
+
     // OS Debugger
     ERROR_OSDB,
-    
+    ERROR_HUNK_BAD_COOKIE,
+    ERROR_HUNK_NO_SECTIONS,
+    ERROR_HUNK_UNSUPPORTED,
+    ERROR_HUNK_CORRUPTED,
+
     // Remote servers
     ERROR_SOCK_CANT_CREATE,
     ERROR_SOCK_CANT_CONNECT,
@@ -168,22 +187,33 @@ struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
                 
             case ERROR_POWERED_OFF:                 return "POWERED_OFF";
             case ERROR_POWERED_ON:                  return "POWERED_ON";
+            case ERROR_DEBUG_OFF:                   return "DEBUG_OFF";
             case ERROR_RUNNING:                     return "RUNNING";
 
             case ERROR_OPT_UNSUPPORTED:             return "OPT_UNSUPPORTED";
             case ERROR_OPT_INVARG:                  return "OPT_INVARG";
             case ERROR_OPT_LOCKED:                  return "OPT_LOCKED";
                 
+            case ERROR_BP_NOT_FOUND:                return "BP_NOT_FOUND";
+            case ERROR_BP_ALREADY_SET:              return "BP_ALREADY_SET";
+            case ERROR_WP_NOT_FOUND:                return "WP_NOT_FOUND";
+            case ERROR_WP_ALREADY_SET:              return "WP_ALREADY_SET";
+            case ERROR_CP_NOT_FOUND:                return "CP_NOT_FOUND";
+            case ERROR_CP_ALREADY_SET:              return "CP_ALREADY_SET";
+            case ERROR_CP_CANT_CATCH:               return "CP_CANT_CATCH";
+
             case ERROR_OUT_OF_MEMORY:               return "OUT_OF_MEMORY";
 
             case ERROR_DIR_NOT_FOUND:               return "DIR_NOT_FOUND";
+            case ERROR_DIR_ACCESS_DENIED:           return "DIR_ACCESS_DENIED";
             case ERROR_FILE_NOT_FOUND:              return "FILE_NOT_FOUND";
+            case ERROR_FILE_ACCESS_DENIED:          return "FILE_ACCESS_DENIED";
             case ERROR_FILE_TYPE_MISMATCH:          return "FILE_TYPE_MISMATCH";
             case ERROR_FILE_TYPE_UNSUPPORTED:       return "FILE_TYPE_UNSUPPORTED";
             case ERROR_FILE_CANT_READ:              return "FILE_CANT_READ";
             case ERROR_FILE_CANT_WRITE:             return "FILE_CANT_WRITE";
             case ERROR_FILE_CANT_CREATE:            return "FILE_CANT_CREATE";
-
+                
             case ERROR_CHIP_RAM_MISSING:            return "CHIP_RAM_MISSING";
             case ERROR_CHIP_RAM_LIMIT:              return "CHIP_RAM_LIMIT";
             case ERROR_AROS_RAM_LIMIT:              return "AROS_RAM_LIMIT";
@@ -221,8 +251,14 @@ struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
             case ERROR_MISSING_ROM_KEY:             return "MISSING_ROM_KEY";
             case ERROR_INVALID_ROM_KEY:             return "INVALID_ROM_KEY";
                 
+            case ERROR_REC_LAUNCH:                  return "REC_LAUNCH";
+
             case ERROR_OSDB:                        return "OSDB";
-                
+            case ERROR_HUNK_BAD_COOKIE:             return "HUNK_BAD_COOKIE";
+            case ERROR_HUNK_NO_SECTIONS:            return "HUNK_NO_SECTIONS";
+            case ERROR_HUNK_UNSUPPORTED:            return "HUNK_UNSUPPORTED";
+            case ERROR_HUNK_CORRUPTED:              return "HUNK_CORRUPTED";
+
             case ERROR_SOCK_CANT_CREATE:            return "SOCK_CANT_CREATE";
             case ERROR_SOCK_CANT_CONNECT:           return "SOCK_CANT_CONNECT";
             case ERROR_SOCK_CANT_BIND:              return "SOCK_CANT_BIND";

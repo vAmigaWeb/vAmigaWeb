@@ -41,7 +41,7 @@
 // Type alias for the datatype used by the host machine's audio backend
 // struct U16Mono; typedef U16Mono SampleType;
 // struct U16Stereo; typedef U16Stereo SampleType;
-struct FloatStereo; typedef FloatStereo SampleType;
+struct FloatStereo; typedef struct FloatStereo SampleType;
 
 
 //
@@ -94,6 +94,8 @@ struct FloatStereo; typedef FloatStereo SampleType;
 
 static const int NO_SEQ_FASTPATH = 0; // Disable sequencer speed optimizations
 static const int LEGACY_COPPER   = 0; // Enable deprecated Copper code
+static const int DIAG_BOARD      = 0; // Plug in the diagnose board
+
 
 //
 // Debug settings
@@ -113,6 +115,7 @@ static const int SNP_DEBUG       = 0; // Serialization (snapshots)
 
 // CPU
 static const int CPU_DEBUG       = 0; // CPU
+static const int CST_DEBUG       = 0; // Call stack recording
 
 // Memory access
 static const int OCSREG_DEBUG    = 0; // General OCS register debugging
@@ -258,4 +261,4 @@ static const bool betaRelease = 0;
 static const bool betaRelease = 1;
 #endif
 
-#include <cassert>
+#include "assert.h"

@@ -16,35 +16,24 @@
 
 #include <fstream>
 
-PixelEngine::PixelEngine(Amiga& ref) : SubComponent(ref)
+ScreenBuffer::ScreenBuffer()
 {
-    // Allocate frame buffers
-    emuTexture[0].data = new u32[PIXELS];
-    emuTexture[1].data = new u32[PIXELS];
-    
-    // Create random background noise pattern
-    const isize noiseSize = 2 * VPIXELS * HPIXELS;
-    noise = new u32[noiseSize];
-    for (isize i = 0; i < noiseSize; i++) {
-        noise[i] = rand() % 2 ? 0xFF000000 : 0xFFFFFFFF;
-    }
+    alloc(PIXELS);
 }
 
-PixelEngine::~PixelEngine()
+PixelEngine::PixelEngine(Amiga& ref) : SubComponent(ref)
 {
-    delete[] emuTexture[0].data;
-    delete[] emuTexture[1].data;
-    delete[] noise;
+    // Create random background noise pattern
+    noise.alloc(2 * VPIXELS * HPIXELS);
+    for (isize i = 0; i < noise.size; i++) {
+        noise[i] = rand() % 2 ? 0xFF000000 : 0xFFFFFFFF;
+    }
 }
 
 void
 PixelEngine::_initialize()
 {
-    resetConfig();
-
-    // Start with a long frame
-    emuTexture[0].longFrame = true;
-    emuTexture[1].longFrame = true;
+    AmigaComponent::_initialize();
     
     // Setup ECS BRDRBLNK color
     indexedRgba[64] = GpuColor(0x00, 0x00, 0x00).rawValue;
@@ -65,7 +54,13 @@ PixelEngine::_reset(bool hard)
 {
     RESET_SNAPSHOT_ITEMS(hard)
     
-    frameBuffer = emuTexture[0].data;
+    if (hard) {
+        
+        emuTexture[0].longFrame = true;
+        emuTexture[1].longFrame = true;
+    }
+    
+    frameBuffer = emuTexture[0].ptr;
     updateRGBA();
 }
 
@@ -85,8 +80,8 @@ PixelEngine::_powerOn()
 
             isize pos = line * HPIXELS + i;
             u32 col = (line / 4) % 2 == (i / 8) % 2 ? 0xFF222222 : 0xFF444444;
-            emuTexture[0].data[pos] = col;
-            emuTexture[1].data[pos] = col;
+            emuTexture[0].ptr[pos] = col;
+            emuTexture[1].ptr[pos] = col;
         }
     }
 }
@@ -298,7 +293,7 @@ PixelEngine::adjustRGB(u8 &r, u8 &g, u8 &b)
 const ScreenBuffer &
 PixelEngine::getStableBuffer()
 {
-    if (frameBuffer == emuTexture[0].data) {
+    if (frameBuffer == emuTexture[0].ptr) {
         return emuTexture[1];
     } else {
         return emuTexture[0];
@@ -310,22 +305,17 @@ PixelEngine::swapBuffers()
 {
     lockStableBuffer();
     
-    if (frameBuffer == emuTexture[0].data) {
+    if (frameBuffer == emuTexture[0].ptr) {
 
-        frameBuffer = emuTexture[1].data;
+        frameBuffer = emuTexture[1].ptr;
         emuTexture[1].longFrame = agnus.frame.lof;
         
     } else {
 
-        frameBuffer = emuTexture[0].data;
+        frameBuffer = emuTexture[0].ptr;
         emuTexture[0].longFrame = agnus.frame.lof;
 
     }
-
-    /*
-    frameBuffer = (frameBuffer == &emuTexture[0]) ? &emuTexture[1] : &emuTexture[0];
-    frameBuffer->longFrame = agnus.frame.lof;
-    */
     
     unlockStableBuffer();
 }
@@ -336,7 +326,7 @@ PixelEngine::getNoise() const
     static u32 offset = 0;
     
     offset = (offset + 100) % PIXELS;
-    return noise + offset;
+    return noise.ptr + offset;
 }
 
 u32 *

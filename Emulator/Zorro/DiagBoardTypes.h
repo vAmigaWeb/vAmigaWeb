@@ -7,27 +7,17 @@
 // See https://www.gnu.org for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
-#include "AmigaObject.h"
-#include <iostream>
+#pragma once
 
-bool
-AmigaObject::verbose = true;
+#include "Aliases.h"
+#include "Reflection.h"
 
-void
-AmigaObject::prefix() const
+//
+// Structures
+//
+
+typedef struct
 {
-    fprintf(stderr, "%s: ", getDescription());
+    bool enabled;
 }
-
-void
-AmigaObject::dump(Category category, std::ostream& ss) const
-{
-    _dump(category, ss);
-}
-
-void
-AmigaObject::dump(Category category) const
-{
-    dump(category, std::cout);
-}
+DiagBoardConfig;

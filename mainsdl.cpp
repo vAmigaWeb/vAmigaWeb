@@ -528,7 +528,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   
   if(render_method==RENDER_SHADER)
   {
-    ScreenBuffer stable = amiga->denise.pixelEngine.getStableBuffer();
+    auto &stable = amiga->denise.pixelEngine.getStableBuffer();
     prevLOF = currLOF;
     currLOF = stable.longFrame;
 
@@ -540,7 +540,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glActiveTexture(GL_TEXTURE0);
     }  
 
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stable.data + clip_offset);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stable.ptr + clip_offset);
 
     if (currLOF != prevLOF) {
       // Case 1: Interlace drawing
@@ -564,7 +564,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   else
   {
 
-    Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getStableBuffer().data;
+    Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getStableBuffer().ptr;
 
   //  SDL_RenderClear(renderer);
     SDL_Rect SrcR;
@@ -841,10 +841,10 @@ bool create_shader()
     initGeometry(basic, 0,0);
     initGeometry(merge, 0,0);
 
-    ScreenBuffer stable = wrapper->amiga->denise.pixelEngine.getStableBuffer();
+    auto &stable = wrapper->amiga->denise.pixelEngine.getStableBuffer();
 
-    longf  = initTexture(stable.data + clip_offset);
-    shortf = initTexture(stable.data + clip_offset);
+    longf  = initTexture(stable.ptr + clip_offset);
+    shortf = initTexture(stable.ptr + clip_offset);
 
     glUseProgram(merge);
     glActiveTexture(GL_TEXTURE1);
@@ -1229,7 +1229,6 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
     wrapper->amiga->configure(OPT_HDR_CONNECT,/*hd drive*/ 0, /*enable*/true);
     wrapper->amiga->hd0.init(hdf);
     wrapper->amiga->powerOn();
-    wrapper->amiga->run();
     return "";
   }
 

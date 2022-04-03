@@ -54,7 +54,7 @@ AmigaFile::init(const u8 *buf, isize len)
 }
 
 void
-AmigaFile::init(const util::Buffer &buffer)
+AmigaFile::init(const Buffer<u8> &buffer)
 {
     init(buffer.ptr, buffer.size);
 }
@@ -180,7 +180,7 @@ AmigaFile::readFromBuffer(const u8 *buf, isize len)
     assert(buf);
 
     // Allocate memory
-    data.init(len);
+    data.alloc(len);
 
     // Copy data
     std::memcpy(data.ptr, buf, data.size);
@@ -190,7 +190,7 @@ AmigaFile::readFromBuffer(const u8 *buf, isize len)
 }
 
 isize
-AmigaFile::readFromBuffer(const util::Buffer &buffer)
+AmigaFile::readFromBuffer(const Buffer<u8> &buffer)
 {
     return readFromBuffer(buffer.ptr, buffer.size);
 }
@@ -236,9 +236,9 @@ AmigaFile::writeToBuffer(u8 *buf, isize offset, isize len)
 }
 
 isize
-AmigaFile::writeToBuffer(util::Buffer &buffer, isize offset, isize len)
+AmigaFile::writeToBuffer(Buffer<u8> &buffer, isize offset, isize len)
 {
-    buffer.init(len);
+    buffer.alloc(len);
     return writeToBuffer(buffer.ptr, offset, len);
 }
 
@@ -261,7 +261,7 @@ AmigaFile::writeToBuffer(u8 *buf)
 }
 
 isize
-AmigaFile::writeToBuffer(util::Buffer &buffer)
+AmigaFile::writeToBuffer(Buffer<u8> &buffer)
 {
     return writeToBuffer(buffer, 0, data.size);
 }

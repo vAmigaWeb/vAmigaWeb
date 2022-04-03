@@ -17,11 +17,17 @@
 void
 RegressionTester::prepare(ConfigScheme scheme, string kickstart)
 {
+    // Only proceed if the /tmp folder exisits
+    if (!util::fileExists("/tmp")) throw VAError(ERROR_DIR_NOT_FOUND, "/tmp");
+
+    // Check if we've got write permissions
+    if (amiga.tmp() != "/tmp") throw VAError(ERROR_DIR_ACCESS_DENIED, "/tmp");
+    
     // Initialize the emulator according to the specified scheme
     amiga.revertToFactorySettings();
     amiga.configure(scheme);
 
-    // Load the Kickstart Rom
+    // Load Kickstart Rom
     amiga.mem.loadRom(kickstart.c_str());
     
     // Run as fast as possible
@@ -89,13 +95,13 @@ RegressionTester::dumpTexture(Amiga &amiga, std::ostream& os)
 {
     {   SUSPENDED
         
-        auto buffer = amiga.denise.pixelEngine.getStableBuffer();
+        auto &buffer = amiga.denise.pixelEngine.getStableBuffer();
         
         for (isize y = y1; y < y2; y++) {
             
             for (isize x = x1; x < x2; x++) {
                 
-                char *cptr = (char *)(buffer.data + y * HPIXELS + x);
+                char *cptr = (char *)(buffer.ptr + y * HPIXELS + x);
                 os.write(cptr + 0, 1);
                 os.write(cptr + 1, 1);
                 os.write(cptr + 2, 1);

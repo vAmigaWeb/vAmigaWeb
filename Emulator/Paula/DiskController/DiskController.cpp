@@ -158,11 +158,11 @@ DiskController::_inspect() const
 }
 
 void
-DiskController::_dump(dump::Category category, std::ostream& os) const
+DiskController::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
     
-    if (category & dump::Config) {
+    if (category == Category::Config) {
         
         os << tab("Drive df0");
         os << bol(config.connected[0], "connected", "disconnected") << std::endl;
@@ -179,8 +179,8 @@ DiskController::_dump(dump::Category category, std::ostream& os) const
         os << tab("autoDskSync");
         os << bol(config.autoDskSync) << std::endl;
     }
-    
-    if (category & dump::State) {
+            
+    if (category == Category::State) {
         
         os << tab("selected");
         os << dec(selected) << std::endl;
@@ -255,64 +255,6 @@ DiskController::setState(DriveState oldState, DriveState newState)
                 msgQueue.put(MSG_DRIVE_READ, selected);
     }
 }
-
-/*
-void
-DiskController::ejectDisk(isize nr, Cycle delay)
-{
-    assert(nr >= 0 && nr <= 3);
-
-    warn("DiskController::ejectDisk(...) has been deprecated.\n");
-    warn("Use Drive::ejectDisk() instead.\n");
-
-    df[nr]->ejectDisk(delay);
-}
-
-void
-DiskController::insertDisk(std::unique_ptr<Disk> disk, isize nr, Cycle delay)
-{
-    assert(disk != nullptr);
-    assert(nr >= 0 && nr <= 3);
-
-    warn("DiskController::insertDisk(...) has been deprecated.\n");
-    warn("Use Drive::insertDisk(...) instead.\n");
-
-    df[nr]->insertDisk(std::move(disk), delay);
-}
-
-void
-DiskController::insertDisk(class FloppyFile &file, isize nr, Cycle delay)
-{
-    assert(nr >= 0 && nr <= 3);
-    
-    warn("DiskController::insertDisk(...) has been deprecated.\n");
-    warn("Use Drive::swapDisk(...) instead.\n");
-
-    df[nr]->swapDisk(file);
-}
-
-void
-DiskController::insertDisk(const string &name, isize nr, Cycle delay)
-{
-    assert(nr >= 0 && nr <= 3);
-    
-    warn("DiskController::insertDisk(...) has been deprecated.\n");
-    warn("Use Drive::swapDisk(...) instead.\n");
-
-    df[nr]->swapDisk(name);
-}
-
-void
-DiskController::insertNew(isize nr, Cycle delay)
-{
-    assert(nr >= 0 && nr <= 3);
-    
-    warn("DiskController::insertNew(...) has been deprecated.\n");
-    warn("Use Drive::swapDisk(...) instead.\n");
-    
-    df[nr]->insertNew();
-}
-*/
 
 void
 DiskController::setWriteProtection(isize nr, bool value)
