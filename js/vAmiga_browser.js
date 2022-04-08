@@ -1,4 +1,4 @@
-var vc64web_version ="2.0.2"; //minimum requirement for snapshot version to be compatible
+var vAmigaWeb_version ="2.0.0_beta2"; //minimum requirement for snapshot version to be compatible
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 
@@ -404,6 +404,11 @@ var collectors = {
             {
                 var src_data = item.data;
                 var version = src_data[6] +'.'+src_data[7]+'.'+src_data[8];
+                if(src_data[9]>0)
+                {
+                    version += `_beta${src_data[9]}`;
+                }
+
                 width=src_data[13]*256+ src_data[12];
                 height=src_data[17]*256+ src_data[16];;
                 var ctx = teaser_canvas.getContext("2d");
@@ -419,13 +424,13 @@ var collectors = {
                     data.set(snapshot_data.subarray(0, data.length), 0);
                     ctx.putImageData(imgData,0,0); 
                 
-                    if(!version.startsWith(vc64web_version))
+                    if(!version.startsWith(vAmigaWeb_version))
                     {
                         ctx.translate(50, 0); // translate to rectangle center 
                         ctx.rotate((Math.PI / 180) * 27); // rotate
-                        ctx.font = '48px serif';
+                        ctx.font = '36px serif';
                         ctx.fillStyle = '#DD0000';
-                        ctx.fillText('V'+version+' please delete', 10, 50);
+                        ctx.fillText('V'+version+' please delete', 10, 45);
                     }
                 }
             }
@@ -455,9 +460,14 @@ var collectors = {
                 get_snapshot_per_id(id,
                     function (snapshot) {
                         var version = snapshot.data[6] +'.'+snapshot.data[7]+'.'+snapshot.data[8];
-                        if(!version.startsWith(vc64web_version))
+                        if(snapshot.data[9]>0)
                         {
-                            alert(`This snapshot has been taken with the older vAmiga version ${version} and can not be loaded with the current version ${vc64web_version}, sorry.`);
+                            version += `_beta${snapshot.data[9]}`;
+                        }
+
+                        if(!version.startsWith(vAmigaWeb_version))
+                        {
+                            alert(`This snapshot has been taken with the older vAmiga version ${version} and can not be loaded with the current version ${vAmigaWeb_version}, sorry.`);
                             return;
                         }
                         wasm_loadfile(
