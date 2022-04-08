@@ -178,6 +178,9 @@ struct SoftwareTraps {
     // Creates a new software trap for a given instruction
     u16 create(u16 instr);
     u16 create(u16 key, u16 instr);
+    
+    // Replaces a software trap by its original opcode
+    u16 resolve(u16 instr);
 };
 
 class Debugger {
@@ -199,12 +202,11 @@ private:
 
     /* Soft breakpoint for implementing single-stepping. In contrast to a
      * standard (hard) breakpoint, a soft breakpoint is deleted when reached.
-     * The CPU halts if softStop matches the CPU's program counter (used to
-     * implement "step over") or if softStop equals UINT64_MAX (used to
-     * implement "step into"). To disable soft stopping, simply set softStop
-     * to an unreachable memory location such as UINT64_MAX - 1.
+     * If a softStop is set, the CPU halts if it matches the program counter
+     * (used to implement "step over") or if it contains a negative value (used
+     * to implement "step into").
      */
-    u64 softStop = UINT64_MAX - 1;
+    std::optional <i64> softStop;
     
     // Buffer storing logged instructions
     static const int logBufferCapacity = 256;
@@ -223,6 +225,14 @@ public:
     Debugger(Moira& ref) : moira(ref) { }
 
     void reset();
+
+    
+    //
+    // Analyzing instructions
+    //
+    
+    static bool isLineAInstr(u16 opcode) { return (opcode & 0xF000) == 0xA000; }
+    static bool isLineFInstr(u16 opcode) { return (opcode & 0xF000) == 0xF000; }
 
     
     //
@@ -248,10 +258,6 @@ public:
     bool breakpointMatches(u32 addr);
     bool watchpointMatches(u32 addr, Size S);
     bool catchpointMatches(u32 vectorNr);
-
-    // Saved program counters (DEPRECATED)
-    i64 breakpointPC = -1;
-    i64 watchpointPC = -1;
 
     
     //

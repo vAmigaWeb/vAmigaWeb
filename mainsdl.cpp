@@ -702,7 +702,11 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
         glUseProgram(basic);
         set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
         glUseProgram(merge);
-        set_texture_display_window(merge, hstart_min, hstop_max, vstart_min, vstop_max);
+        set_texture_display_window(merge, 
+          hstart_min, hstop_max, 
+          /* in merge shader, the height has to be an even number */ 
+          vstart_min & 0xfffe, vstop_max & 0xfffe
+        );
       } 
     }
     else

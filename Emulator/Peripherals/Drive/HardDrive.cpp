@@ -15,9 +15,11 @@
 #include "Memory.h"
 #include "MsgQueue.h"
 
+fs::path HardDrive::wtPath[4];
+std::fstream HardDrive::wtStream[4];
+
 HardDrive::HardDrive(Amiga& ref, isize nr) : Drive(ref, nr)
 {
-    /*
     string path;
     
     if (nr == 0) path = INITIAL_HD0;
@@ -37,7 +39,11 @@ HardDrive::HardDrive(Amiga& ref, isize nr) : Drive(ref, nr)
             warn("Cannot open HDF file %s\n", path.c_str());
         }
     }
-    */
+}
+
+HardDrive::~HardDrive()
+{
+    disableWriteThrough();
 }
 
 void
@@ -54,7 +60,7 @@ HardDrive::init()
     geometry = GeometryDescriptor();
     ptable.clear();
     head = {};
-    modified = false;
+    modified = bool(FORCE_HDR_MODIFIED);
 }
 
 void
@@ -203,7 +209,6 @@ HardDrive::setConfigItem(Option option, i64 value)
             if (!HardDriveTypeEnum::isValid(value)) {
                 throw VAError(ERROR_OPT_INVARG, HardDriveTypeEnum::keyList());
             }
-            
             config.type = (HardDriveType)value;
             return;
 
@@ -212,31 +217,7 @@ HardDrive::setConfigItem(Option option, i64 value)
             if (!isPoweredOff()) {
                 throw VAError(ERROR_OPT_LOCKED);
             }
-            
-            if (bool(value) != config.connected) {
-                
-                if (bool(value)) {
-                    
-                    config.connected = true;
-                    
-                    if (!restoreDisk()) {
-                        
-                        // Attach a small default disk
-                        init(MB(10));
-                        format(FS_OFS, defaultName());
-                    }
-                    
-                    msgQueue.put(MSG_HDR_CONNECT, nr);
-                    
-                } else {
-                    
-                    config.connected = false;
-                    persistDisk();
-                    init();
-                    
-                    msgQueue.put(MSG_HDR_DISCONNECT, nr);
-                }
-            }
+            bool(value) ? connect() : disconnect();
             return;
 
         case OPT_HDR_PAN:
@@ -254,11 +235,66 @@ HardDrive::setConfigItem(Option option, i64 value)
     }
 }
 
+void
+HardDrive::connect()
+{
+    if (config.connected) return;
+    
+    config.connected = true;
+    
+    if (wtPath[nr] != "") {
+        
+        try {
+            
+            debug(WT_DEBUG, "Reading disk from %s...\n", wtPath[nr].c_str());
+            auto hdf = HDFFile(wtPath[nr].string());
+            init(hdf);
+
+            debug(WT_DEBUG, "Trying to enable write-through mode...\n");
+            enableWriteThrough();
+
+            debug(WT_DEBUG, "Success\n");
+
+        } catch (VAError &e) {
+    
+            warn("Error: %s\n", e.what());
+        }
+    }
+    
+    // Attach a small default disk
+    if (!hasDisk()) {
+        
+        debug(WT_DEBUG, "Creating default disk...\n");
+        init(MB(10));
+        format(FS_OFS, defaultName());
+    }
+    
+    msgQueue.put(MSG_HDR_CONNECT, nr);
+}
+
+void
+HardDrive::disconnect()
+{
+    if (!config.connected) return;
+    
+    config.connected = false;
+    disableWriteThrough();
+    init();
+    
+    msgQueue.put(MSG_HDR_DISCONNECT, nr);
+}
+
 const PartitionDescriptor &
 HardDrive::getPartitionInfo(isize nr)
 {
     assert(nr >= 0 && nr < numPartitions());
     return ptable[nr];
+}
+
+bool
+HardDrive::isCompatible()
+{
+    return amiga.hdcon[nr]->isCompatible();
 }
 
 void
@@ -269,6 +305,13 @@ HardDrive::_inspect() const
         info.modified = isModified();
         info.head = head;
     }
+}
+
+isize
+HardDrive::didLoadFromBuffer(const u8 *buffer)
+{
+    disableWriteThrough();
+    return 0;
 }
 
 void
@@ -384,7 +427,7 @@ HardDrive::hasDisk() const
 bool
 HardDrive::hasModifiedDisk() const
 {
-    return hasDisk() && modified;
+    return hasDisk() ? modified : false;
 }
 
 bool
@@ -402,6 +445,55 @@ void
 HardDrive::setProtectionFlag(bool value)
 {
     if (hasDisk()) writeProtected = value;
+}
+
+void
+HardDrive::enableWriteThrough()
+{
+    debug(WT_DEBUG, "enableWriteThrough()\n");
+    
+    if (!wt) {
+        
+        // Only proceed if a storage file is given
+        if (wtPath[nr].empty()) {
+            throw VAError(ERROR_WT, "No storage path specified");
+        }
+        
+        // Only proceed if no other emulator instance is using the storage file
+        if (wtStream[nr].is_open()) {
+            throw VAError(ERROR_WT_BLOCKED);
+        }
+        
+        // Delete the old storage file
+        fs::remove(wtPath[nr]);
+        
+        // Recreate the storage file with the contents of this disk
+        writeToFile(wtPath[nr].string());
+        if (!util::fileExists(wtPath[nr].string())) {
+            throw VAError(ERROR_WT, "Can't create storage file");
+        }
+        // Open file
+        wtStream[nr].open(wtPath[nr], std::ios::binary | std::ios::in | std::ios::out);
+        if (!wtStream[nr].is_open()) {
+            throw VAError(ERROR_WT, "Can't open storage file");
+        }
+        
+        debug(WT_DEBUG, "Write-through mode enabled\n");
+        wt = true;
+    }
+}
+
+void
+HardDrive::disableWriteThrough()
+{
+    if (wt) {
+        
+        // Close file
+        wtStream[nr].close();
+        
+        debug(WT_DEBUG, "Write-through mode disabled\n");
+        wt = false;
+    }
 }
 
 string
@@ -508,9 +600,18 @@ HardDrive::write(isize offset, isize length, u32 addr)
         // Move the drive head to the specified location
         moveHead(offset / geometry.bsize);
 
-        // Perform the write operation
         if (!writeProtected) {
+
+            // Perform the write operation
             mem.spypeek <ACCESSOR_CPU> (addr, length, data.ptr + offset);
+            
+            // Handle write-through mode
+            if (wt) {
+                wtStream[nr].seekp(offset);
+                wtStream[nr].write((char *)(data.ptr + offset), length);
+            }
+            
+            modified = true;
         }
         
         // Inform the GUI
@@ -579,6 +680,7 @@ HardDrive::moveHead(isize c, isize h, isize s)
     }
 }
 
+/*
 bool
 HardDrive::persistDisk() throws
 {
@@ -596,32 +698,7 @@ HardDrive::persistDisk() throws
     
     return true;
 }
-
-bool
-HardDrive::restoreDisk() throws
-{
-    string path;
-            
-    if (nr == 0) path = INITIAL_HD0;
-    if (nr == 1) path = INITIAL_HD1;
-    if (nr == 2) path = INITIAL_HD2;
-    if (nr == 3) path = INITIAL_HD3;
-    if (path == "") path = backup;
-    
-    if (path != "") try {
-        
-        auto hdf = HDFFile(path);
-        init(hdf);
-        msg("HD%ld restored from %s\n", nr, backup.c_str());
-        
-    } catch (...) {
-        
-        warn("Failed to restore HD%ld from %s\n", nr, backup.c_str());
-        return false;
-    }
-    
-    return true;
-}
+*/
 
 void
 HardDrive::writeToFile(const string &path) throws

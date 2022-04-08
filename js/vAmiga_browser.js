@@ -1,4 +1,4 @@
-var vc64web_version ="2.0.0"; //minimum requirement for snapshot version to be compatible
+var vAmigaWeb_version ="2.0.0_beta2"; //minimum requirement for snapshot version to be compatible
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 
@@ -100,12 +100,13 @@ function setup_browser_interface()
 
 
 
-var like_icon_filled = `<svg style="color:var(--red)" width="1.6em" height="1.6em" viewBox="0 0 16 16" class="bi bi-heart-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-  <path fill-rule="evenodd" d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314z"/>
-</svg>`; 
-var like_icon_empty = `<svg style="color:var(--gray)" width="1.5em" height="1.5em" viewBox="0 0 16 16" class="bi bi-heart" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-  <path fill-rule="evenodd" d="M8 2.748l-.717-.737C5.6.281 2.514.878 1.4 3.053c-.523 1.023-.641 2.5.314 4.385.92 1.815 2.834 3.989 6.286 6.357 3.452-2.368 5.365-4.542 6.286-6.357.955-1.886.838-3.362.314-4.385C13.486.878 10.4.28 8.717 2.01L8 2.748zM8 15C-7.333 4.868 3.279-3.04 7.824 1.143c.06.055.119.112.176.171a3.12 3.12 0 0 1 .176-.17C12.72-3.042 23.333 4.867 8 15z"/>
-</svg>`;
+
+var like_icon_filled = `
+<svg style="color:var(--red);width:1.6em;height:1.6em"><use xlink:href="img/sprites.svg#like_filled"/></svg>
+`;
+var like_icon_empty = `
+<svg style="color:var(--gray);width:1.6em;height:1.6em"><use xlink:href="img/sprites.svg#like_empty"/></svg>
+`;
 
 async function load_browser(datasource_name, command="feeds")
 {
@@ -157,13 +158,11 @@ async function load_browser(datasource_name, command="feeds")
     $('#container_snapshots').empty();
 
     var render_persistent_snapshot=function(app_title, item){
-        var x_icon = '<svg width="1.8em" height="auto" viewBox="0 0 16 16" class="bi bi-x" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M11.854 4.146a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708-.708l7-7a.5.5 0 0 1 .708 0z"/><path fill-rule="evenodd" d="M4.146 4.146a.5.5 0 0 0 0 .708l7 7a.5.5 0 0 0 .708-.708l-7-7a.5.5 0 0 0-.708 0z"/></svg>';
+        var x_icon = `
+        <svg style="width:1.8em;height:1.8em"><use xlink:href="img/sprites.svg#x"/></svg>
+        `;
         var export_icon = `
-        <svg class="bi bi-box-arrow-in-down" width="1.6em" height="auto" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-          <path fill-rule="evenodd" d="M4.646 8.146a.5.5 0 0 1 .708 0L8 10.793l2.646-2.647a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 0-.708z"/>
-          <path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-1 0v-9A.5.5 0 0 1 8 1z"/>
-          <path fill-rule="evenodd" d="M1.5 13.5A1.5 1.5 0 0 0 3 15h10a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 13 4h-1.5a.5.5 0 0 0 0 1H13a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5v-8A.5.5 0 0 1 3 5h1.5a.5.5 0 0 0 0-1H3a1.5 1.5 0 0 0-1.5 1.5v8z"/>
-        </svg>
+        <svg style="width:1.6em;height:1.6em"><use xlink:href="img/sprites.svg#export"/></svg>
         `;
         var scaled_width= 15;
         var canvas_width = 384;
@@ -405,6 +404,11 @@ var collectors = {
             {
                 var src_data = item.data;
                 var version = src_data[6] +'.'+src_data[7]+'.'+src_data[8];
+                if(src_data[9]>0)
+                {
+                    version += `_beta${src_data[9]}`;
+                }
+
                 width=src_data[13]*256+ src_data[12];
                 height=src_data[17]*256+ src_data[16];;
                 var ctx = teaser_canvas.getContext("2d");
@@ -420,13 +424,13 @@ var collectors = {
                     data.set(snapshot_data.subarray(0, data.length), 0);
                     ctx.putImageData(imgData,0,0); 
                 
-                    if(!version.startsWith(vc64web_version))
+                    if(!version.startsWith(vAmigaWeb_version))
                     {
                         ctx.translate(50, 0); // translate to rectangle center 
                         ctx.rotate((Math.PI / 180) * 27); // rotate
-                        ctx.font = '48px serif';
+                        ctx.font = '36px serif';
                         ctx.fillStyle = '#DD0000';
-                        ctx.fillText('V'+version+' please delete', 10, 50);
+                        ctx.fillText('V'+version+' please delete', 10, 45);
                     }
                 }
             }
@@ -456,9 +460,14 @@ var collectors = {
                 get_snapshot_per_id(id,
                     function (snapshot) {
                         var version = snapshot.data[6] +'.'+snapshot.data[7]+'.'+snapshot.data[8];
-                        if(!version.startsWith(vc64web_version))
+                        if(snapshot.data[9]>0)
                         {
-                            alert(`This snapshot has been taken with the older vAmiga version ${version} and can not be loaded with the current version ${vc64web_version}, sorry.`);
+                            version += `_beta${snapshot.data[9]}`;
+                        }
+
+                        if(!version.startsWith(vAmigaWeb_version))
+                        {
+                            alert(`This snapshot has been taken with the older vAmiga version ${version} and can not be loaded with the current version ${vAmigaWeb_version}, sorry.`);
                             return;
                         }
                         wasm_loadfile(

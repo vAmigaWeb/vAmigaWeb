@@ -12,6 +12,7 @@
 #include "HdControllerTypes.h"
 #include "ZorroBoard.h"
 #include "HDFFile.h"
+#include "RomFileTypes.h"
 
 class HdController : public ZorroBoard {
     
@@ -20,6 +21,9 @@ class HdController : public ZorroBoard {
 
     // The hard drive this controller is connected to
     HardDrive &drive;
+    
+    // Usage profile
+    HdControllerStats stats = {};
     
     // Rom code
     Buffer<u8> rom;
@@ -102,7 +106,21 @@ private:
     
     void updateMemSrcTables() override;
     
+    
+    //
+    // Analyzing
+    //
+    
+public:
+    
+    const HdControllerStats &getStats() { return stats; }
+    void clearStats() { stats = { }; }
+    
+    // Informs whether the controller is compatible with a certain Kickstart
+    bool isCompatible(RomIdentifier id);
+    bool isCompatible();
 
+    
     //
     // Accessing the board
     //

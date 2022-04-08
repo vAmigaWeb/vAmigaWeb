@@ -40,7 +40,16 @@ HdController::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
         
-    ZorroBoard::_dump(category, os);    
+    ZorroBoard::_dump(category, os);
+    
+    if (category == Category::Stats) {
+        
+        for (isize i = 0; IoCommandEnum::isValid(i); i++) {
+            
+            os << tab(IoCommandEnum::key(i));
+            os << stats.cmdCount[i] << std::endl;
+        }
+    }
 }
 
 void
@@ -58,10 +67,13 @@ HdController::_reset(bool hard)
         rom.patch("virtualhd.device", dosName);
 
         // Patch Kickstart Rom (1.2 only)
-        mem.patchExpansionLib();
+        // mem.patchExpansionLib();
 
         // Set initial state
         state = pluggedIn() ? STATE_AUTOCONF : STATE_SHUTUP;
+        
+        // Wipe out usage information
+        clearStats();
     }
 }
 
@@ -79,6 +91,42 @@ HdController::updateMemSrcTables()
     
     // Map in this device
     mem.cpuMemSrc[firstPage()] = MEM_ZOR;
+}
+
+bool
+HdController::isCompatible(RomIdentifier id)
+{
+    switch (id) {
+            
+        case ROM_KICK13_34_005_A500:
+        case ROM_KICK13_34_005_A3000:
+            
+        case ROM_KICK20_36_028:
+        case ROM_KICK202_36_207_A3000:
+        case ROM_KICK204_37_175_A500:
+        case ROM_KICK204_37_175_A3000:
+        case ROM_KICK205_37_299_A600:
+        case ROM_KICK205_37_300_A600HD:
+        case ROM_KICK205_37_350_A600HD:
+            
+        case ROM_KICK30_39_106_A1200:
+        case ROM_KICK30_39_106_A4000:
+        case ROM_KICK31_40_063_A500:
+        case ROM_KICK31_40_068_A1200:
+        case ROM_KICK31_40_068_A3000:
+        case ROM_KICK31_40_068_A4000:
+        case ROM_KICK31_40_070_A4000T:
+            return true;
+            
+        default:
+            return false;
+    }
+}
+
+bool
+HdController::isCompatible()
+{
+    return isCompatible(mem.romIdentifier());
 }
 
 u8
@@ -202,6 +250,9 @@ HdController::processCmd()
         
         debug(true, "%d.%ld: %s\n", unit, blck, IoCommandEnum::key(cmd));
     }
+    
+    // Update the usage profile
+    if (IoCommandEnum::isValid(cmd)) stats.cmdCount[cmd]++;
     
     switch (cmd) {
             
