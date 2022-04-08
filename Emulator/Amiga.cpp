@@ -607,6 +607,7 @@ Amiga::configure(Option option, long id, i64 value)
         case OPT_INSERT_VOLUME:
         case OPT_EJECT_VOLUME:
             
+            assert(id >= 0 || id <= 4);
             df[id]->setConfigItem(option, value);
             break;
 
@@ -615,12 +616,23 @@ Amiga::configure(Option option, long id, i64 value)
         case OPT_HDR_PAN:
         case OPT_HDR_STEP_VOLUME:
             
+            assert(id >= 0 || id <= 4);
             hd[id]->setConfigItem(option, value);
             break;
 
+        case OPT_CIA_REVISION:
+        case OPT_TODBUG:
+        case OPT_ECLOCK_SYNCING:
+            
+            assert(id == 0 || id == 1);
+            if (id == 0) ciaA.setConfigItem(option, value);
+            if (id == 1) ciaB.setConfigItem(option, value);
+            break;
+            
         case OPT_PULLUP_RESISTORS:
         case OPT_MOUSE_VELOCITY:
             
+            assert(id == PORT_1 || id == PORT_2);
             if (id == PORT_1) controlPort1.mouse.setConfigItem(option, value);
             if (id == PORT_2) controlPort2.mouse.setConfigItem(option, value);
             break;
@@ -933,13 +945,7 @@ Amiga::execute()
                 clearFlag(RL::USER_SNAPSHOT);
                 takeUserSnapshot();
             }
-
-            // Are we requested to update the debugger info structs?
-            if (flags & RL::INSPECT) {
-                clearFlag(RL::INSPECT);
-                inspect();
-            }
-
+            
             // Did we reach a soft breakpoint?
             if (flags & RL::SOFTSTOP_REACHED) {
                 clearFlag(RL::SOFTSTOP_REACHED);
@@ -973,7 +979,7 @@ Amiga::execute()
                 clearFlag(RL::CATCHPOINT_REACHED);
                 inspect();
                 auto vector = u8(cpu.debugger.catchpoints.hit->addr);
-                msgQueue.put(MSG_CATCHPOINT_REACHED, vector);
+                msgQueue.put(MSG_CATCHPOINT_REACHED, cpu.getPC0(), vector);
                 newState = EXEC_PAUSED;
                 break;
             }
@@ -982,7 +988,7 @@ Amiga::execute()
             if (flags & RL::SWTRAP_REACHED) {
                 clearFlag(RL::SWTRAP_REACHED);
                 inspect();
-                msgQueue.put(MSG_SWTRAP_REACHED);
+                msgQueue.put(MSG_SWTRAP_REACHED, cpu.getPC0());
                 newState = EXEC_PAUSED;
                 break;
             }
@@ -991,8 +997,8 @@ Amiga::execute()
             if (flags & RL::COPPERBP_REACHED) {
                 clearFlag(RL::COPPERBP_REACHED);
                 inspect();
-                auto vector = u8(agnus.copper.debugger.breakpoints.hit->addr);
-                msgQueue.put(MSG_COPPERBP_REACHED, vector);
+                auto addr = u8(agnus.copper.debugger.breakpoints.hit->addr);
+                msgQueue.put(MSG_COPPERBP_REACHED, addr);
                 newState = EXEC_PAUSED;
                 break;
             }
@@ -1001,8 +1007,8 @@ Amiga::execute()
             if (flags & RL::COPPERWP_REACHED) {
                 clearFlag(RL::COPPERWP_REACHED);
                 inspect();
-                auto vector = u8(agnus.copper.debugger.watchpoints.hit->addr);
-                msgQueue.put(MSG_COPPERWP_REACHED, vector);
+                auto addr = u8(agnus.copper.debugger.watchpoints.hit->addr);
+                msgQueue.put(MSG_COPPERWP_REACHED, addr);
                 newState = EXEC_PAUSED;
                 break;
             }

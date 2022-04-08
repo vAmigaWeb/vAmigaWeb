@@ -217,18 +217,6 @@ Thread::setMode(SyncMode newMode)
 }
 
 void
-Thread::setWarpLock(bool value)
-{
-    warpLock = value;
-}
-
-void
-Thread::setDebugLock(bool value)
-{
-    debugLock = value;
-}
-
-void
 Thread::powerOn(bool blocking)
 {
     debug(RUN_DEBUG, "powerOn()\n");
@@ -270,13 +258,14 @@ Thread::run(bool blocking)
 
     // The emulator is expected to be powered on
     if (isPoweredOff()) throw VAError(ERROR_POWERED_OFF);
-
+        
     if (!isRunning()) {
 
         // Throw an exception if the emulator is not ready to run
         isReady();
+        
         // Request a state change and wait until the new state has been reached
-        changeStateTo(EXEC_RUNNING, blocking);        
+        changeStateTo(EXEC_RUNNING, blocking);
     }
 
     printf("**** State %s\n",ExecutionStateEnum::key(state));
@@ -310,7 +299,7 @@ Thread::warpOn(isize source)
 {
     assert(source >= 0 && source < 8);
     
-    if (!warpLock) changeWarpTo(warpMode | (u8)(1 << source));
+    changeWarpTo(warpMode | (u8)(1 << source));
 }
 
 void
@@ -318,7 +307,7 @@ Thread::warpOff(isize source)
 {
     assert(source >= 0 && source < 8);
     
-    if (!warpLock) changeWarpTo(warpMode & ~(u8)(1 << source));
+    changeWarpTo(warpMode & ~(u8)(1 << source));
 }
 
 void
@@ -326,13 +315,13 @@ Thread::debugOn(isize source)
 {
     assert(source >= 0 && source < 8);
     
-    if (!debugLock) changeDebugTo(debugMode | (u8)(1 << source));
+    changeDebugTo(debugMode | (u8)(1 << source));
 }
 
 void
 Thread::debugOff(isize source)
 {
-    if (!debugLock) changeDebugTo(debugMode & ~(u8)(1 << source));
+    changeDebugTo(debugMode & ~(u8)(1 << source));
 }
 
 void

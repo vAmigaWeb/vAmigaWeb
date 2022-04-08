@@ -17,13 +17,13 @@
 #define VER_MAJOR 2
 #define VER_MINOR 0
 #define VER_SUBMINOR 0
-#define VER_BETA 1
+#define VER_BETA 2
 
 // Snapshot version number
 #define SNP_MAJOR 2
 #define SNP_MINOR 0
 #define SNP_SUBMINOR 0
-#define SNP_BETA 1
+#define SNP_BETA 2
 
 // Uncomment this setting in a release build
 #define RELEASEBUILD
@@ -177,6 +177,7 @@ static const int FS_DEBUG        = 0; // File System Classes (OFS / FFS)
 
 // Hard Drives
 static const int HDR_ACCEPT_ALL  = 0; // Disables hard drive layout checks
+static const int WT_DEBUG        = 0; // Write-through mode
 
 // Audio
 static const int AUDREG_DEBUG    = 0; // Audio registers

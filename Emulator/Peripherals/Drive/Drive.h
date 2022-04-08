@@ -11,14 +11,15 @@
 
 #include "Drive.h"
 #include "SubComponent.h"
+#include "IOUtils.h"
 
 class Drive : public SubComponent {
 
 protected:
     
-    // Number of the emulated drive (0 = df0 or hd0, 1 = df1 or hd1, etc.)
+    // Drive number (0 = df0 or hd0, 1 = df1 or hd1, etc.)
     const isize nr;
-    
+        
     
     //
     // Initializing

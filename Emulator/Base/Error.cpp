@@ -88,7 +88,19 @@ VAError::VAError(ErrorCode code, const string &s)
         case ERROR_FILE_NOT_FOUND:
             description = "File \"" + s + "\" not found.";
             break;
-            
+
+        case ERROR_FILE_EXISTS:
+            description = "File \"" + s + "\" already exists.";
+            break;
+
+        case ERROR_FILE_IS_DIRECTORY:
+            if (s.empty()) {
+                description = "The selected file is a directory.";
+            } else {
+                description = "File \"" + s + "\" is a directory.";
+            }
+            break;
+
         case ERROR_FILE_ACCESS_DENIED:
             description = "Unable to access file \"" + s + "\". Permission denied.";
             break;
@@ -132,6 +144,16 @@ VAError::VAError(ErrorCode code, const string &s)
             
         case ERROR_AROS_NO_EXTROM:
             description = "No Extension Rom installed.";
+            break;
+
+        case ERROR_WT_BLOCKED:
+            description = "The storage file for the selected hard drive is";
+            description += " being used by another emulator instance. It cannot ";
+            description += " be shared among multiple emulator instances.";
+            break;
+
+        case ERROR_WT:
+            description = "Write through: " + s;
             break;
 
         case ERROR_DISK_MISSING:
