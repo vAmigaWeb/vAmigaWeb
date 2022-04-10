@@ -686,6 +686,7 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
     hstop_max *=2;
 
     hstart_min=hstart_min<208 ? 208:hstart_min;
+    hstop_max=hstop_max>HPIXELS ? HPIXELS:hstop_max;
 
     if(vstart_min < 26) 
       vstart_min = 26;
@@ -694,6 +695,55 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
       vstop_max = 312;
 
     printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
+
+
+    /******* for aggressive mode: texture analysis start ****/
+    Uint32 *texture = (Uint32 *)((Amiga *)amiga)->denise.pixelEngine.getStableBuffer().ptr;
+
+    bool pixels_found=false;
+
+
+    //get vstart_min from texture
+    Uint32 ref_pixel= texture[HPIXELS*vstart_min + hstart_min];
+    printf("refpixel:%u\n",ref_pixel);
+    for(int y=vstart_min;y<vstop_max && !pixels_found;y++)
+    {
+//      printf("\nline:%u\n",y);
+      for(int x=hstart_min;x<hstop_max;x++){
+        Uint32 pixel= texture[HPIXELS*y + x];
+        if(ref_pixel != pixel){
+          pixels_found=true;
+          printf("first_pos=%d, vstart_min=%d\n",y, vstart_min);
+          vstart_min=y;
+          break;
+        }
+      }
+    }
+    
+    //get vstop_max from texture
+    pixels_found=false;
+    ref_pixel= texture[ HPIXELS*vstop_max + hstart_min];
+    printf("refpixel:%u\n",ref_pixel);
+    printf("hstart:%u,hstop:%u\n",hstart_min,hstop_max);
+    
+    for(int y=vstop_max;y>vstart_min && !pixels_found;y--)
+    {
+      printf("\nline:%u\n",y);
+      for(int x=hstart_min;x<hstop_max-3;x++){
+        Uint32 pixel= texture[HPIXELS*y + x];
+        printf("%u:%u ",x,pixel);
+        if(ref_pixel != pixel){
+          pixels_found=true;
+          printf("\nlast_pos=%d, vstop_max=%d\n",y, vstop_max);
+          vstop_max=y;
+          break;
+        }
+      }
+    }
+
+//    SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*HPIXELS*SrcR.y) + SrcR.x*4, 4*HPIXELS);
+    /***** text analysis end ****/
+
 
     if(render_method==RENDER_SHADER)
     {
