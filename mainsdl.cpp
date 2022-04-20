@@ -36,6 +36,8 @@ u8 render_method = RENDER_SOFTWARE;
 #define DISPLAY_ADAPTIVE 4
 u8 geometry  = DISPLAY_ADAPTIVE;
 
+int calibrate_viewport = 0;
+
 /********* shaders ***********/
 GLuint basic;
 GLuint merge;
@@ -435,6 +437,44 @@ u16 vstop_max=VPIXELS;
 u16 hstart_min=200;
 u16 hstop_max=HPIXELS;
 
+u16 vstart_min_tracking=26;
+u16 vstop_max_tracking=VPIXELS;
+
+
+void set_viewport_dimensions()
+{
+    if(render_method==RENDER_SHADER)
+    {
+      if(geometry== DISPLAY_ADAPTIVE)
+      {         
+        glUseProgram(basic);
+        set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
+        glUseProgram(merge);
+        set_texture_display_window(merge, 
+          hstart_min, hstop_max, 
+          /* in merge shader, the height has to be an even number */ 
+          vstart_min & 0xfffe, vstop_max & 0xfffe
+        );
+      } 
+    }
+    else
+    {  
+      if(geometry== DISPLAY_ADAPTIVE)
+      {         
+        xOff = hstart_min;
+        yOff = vstart_min;
+        clipped_width = hstop_max-hstart_min;
+        clipped_height = vstop_max-vstart_min;
+
+        SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
+        SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
+        SDL_SetWindowSize(window, clipped_width, clipped_height);
+      }
+    }
+}
+
+
+
 void draw_one_frame_into_SDL(void *thisAmiga) 
 {
 
@@ -525,12 +565,66 @@ void draw_one_frame_into_SDL(void *thisAmiga)
  //         return;
       draw_one_frame(); // to gather joystick information for example 
   });
-  
+
+  auto &stableBuffer = amiga->denise.pixelEngine.getStableBuffer();
+
+  if(calibrate_viewport>0 && now-last_time >= 500.0)
+  {
+/******* for aggressive mode: texture analysis start ****/
+    Uint32 *texture = (Uint32 *)stableBuffer.ptr;
+
+    bool pixels_found=false;
+
+    //get vstart_min from texture
+    Uint32 ref_pixel= texture[HPIXELS*vstart_min_tracking + hstart_min];
+//    printf("refpixel:%u\n",ref_pixel);
+    for(int y=vstart_min_tracking;y<vstop_max_tracking && !pixels_found;y++)
+    {
+//      printf("\nvstart_line:%u\n",y);
+      for(int x=hstart_min;x<hstop_max;x++){
+        Uint32 pixel= texture[HPIXELS*y + x];
+//        printf("%u:%u ",x,pixel);
+        if(ref_pixel != pixel){
+          pixels_found=true;
+//          printf("\nfirst_pos=%d, vstart_min=%d, vstart_min_track=%d\n",y, vstart_min, vstart_min_tracking);
+//          vstart_min= y;
+          vstart_min= calibrate_viewport==10 ? y: y<vstart_min?y:vstart_min;
+          break;
+        }
+      }
+    }
+    
+    //get vstop_max from texture
+    pixels_found=false;
+    ref_pixel= texture[ HPIXELS*vstop_max_tracking + hstart_min];
+//    printf("refpixel:%u\n",ref_pixel);
+//    printf("hstart:%u,hstop:%u\n",hstart_min,hstop_max);
+    
+    for(int y=vstop_max_tracking;y>vstart_min_tracking && !pixels_found;y--)
+    {
+//      printf("\nline:%u\n",y);
+      for(int x=hstart_min;x<hstop_max-3;x++){
+        Uint32 pixel= texture[HPIXELS*y + x];
+//        printf("%u:%u ",x,pixel);
+        if(ref_pixel != pixel){
+          pixels_found=true;
+          y++; //this line has pixels, so put vstop_max to the next line
+//          printf("\nlast_pos=%d, vstop_max=%d, vstop_max_tracking%d\n",y, vstop_max, vstop_max_tracking);
+//          vstop_max=y;
+          vstop_max= calibrate_viewport==10 ? y: y>vstop_max?y:vstop_max;
+          break;
+        }
+      }
+    }
+    /***** text analysis end ****/ 
+    calibrate_viewport--;
+    set_viewport_dimensions();   
+  }
+
   if(render_method==RENDER_SHADER)
   {
-    auto &stable = amiga->denise.pixelEngine.getStableBuffer();
     prevLOF = currLOF;
-    currLOF = stable.longFrame;
+    currLOF = stableBuffer.longFrame;
 
     if (currLOF) {
       glActiveTexture(GL_TEXTURE0);
@@ -540,7 +634,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glActiveTexture(GL_TEXTURE0);
     }  
 
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stable.ptr + clip_offset);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stableBuffer.ptr + clip_offset);
 
     if (currLOF != prevLOF) {
       // Case 1: Interlace drawing
@@ -564,7 +658,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   else
   {
 
-    Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getStableBuffer().ptr;
+    Uint8 *texture = (Uint8 *)stableBuffer.ptr;
 
   //  SDL_RenderClear(renderer);
     SDL_Rect SrcR;
@@ -640,8 +734,9 @@ void send_message_to_js(const char * msg, long data)
 
 }
 
-bool paused_the_emscripten_main_loop=false;
 
+
+bool paused_the_emscripten_main_loop=false;
 bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
 void theListener(const void * amiga, long type,  u32 data1, u32 data2){
@@ -695,86 +790,12 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
       vstop_max = 312;
 
     printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
+    vstart_min_tracking = vstart_min;
+    vstop_max_tracking = vstop_max;
 
+    calibrate_viewport = 10;
 
-    /******* for aggressive mode: texture analysis start ****/
-    Uint32 *texture = (Uint32 *)((Amiga *)amiga)->denise.pixelEngine.getStableBuffer().ptr;
-
-    bool pixels_found=false;
-
-
-    //get vstart_min from texture
-    Uint32 ref_pixel= texture[HPIXELS*vstart_min + hstart_min];
-    printf("refpixel:%u\n",ref_pixel);
-    for(int y=vstart_min;y<vstop_max && !pixels_found;y++)
-    {
-//      printf("\nline:%u\n",y);
-      for(int x=hstart_min;x<hstop_max;x++){
-        Uint32 pixel= texture[HPIXELS*y + x];
-        if(ref_pixel != pixel){
-          pixels_found=true;
-          printf("first_pos=%d, vstart_min=%d\n",y, vstart_min);
-          vstart_min=y;
-          break;
-        }
-      }
-    }
-    
-    //get vstop_max from texture
-    pixels_found=false;
-    ref_pixel= texture[ HPIXELS*vstop_max + hstart_min];
-    printf("refpixel:%u\n",ref_pixel);
-    printf("hstart:%u,hstop:%u\n",hstart_min,hstop_max);
-    
-    for(int y=vstop_max;y>vstart_min && !pixels_found;y--)
-    {
-      printf("\nline:%u\n",y);
-      for(int x=hstart_min;x<hstop_max-3;x++){
-        Uint32 pixel= texture[HPIXELS*y + x];
-        printf("%u:%u ",x,pixel);
-        if(ref_pixel != pixel){
-          pixels_found=true;
-          printf("\nlast_pos=%d, vstop_max=%d\n",y, vstop_max);
-          vstop_max=y;
-          break;
-        }
-      }
-    }
-
-//    SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*HPIXELS*SrcR.y) + SrcR.x*4, 4*HPIXELS);
-    /***** text analysis end ****/
-
-
-    if(render_method==RENDER_SHADER)
-    {
-      if(geometry== DISPLAY_ADAPTIVE)
-      {         
-        glUseProgram(basic);
-        set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
-        glUseProgram(merge);
-        set_texture_display_window(merge, 
-          hstart_min, hstop_max, 
-          /* in merge shader, the height has to be an even number */ 
-          vstart_min & 0xfffe, vstop_max & 0xfffe
-        );
-      } 
-    }
-    else
-    {  
-      if(geometry== DISPLAY_ADAPTIVE)
-      {         
-        xOff = hstart_min;
-        yOff = vstart_min;
-        clipped_width = hstop_max-hstart_min;
-        clipped_height = vstop_max-vstart_min;
-
-        SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
-        SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
-        SDL_SetWindowSize(window, clipped_width, clipped_height);
-      }
-    }
-
-
+    set_viewport_dimensions();
   }
   
 
