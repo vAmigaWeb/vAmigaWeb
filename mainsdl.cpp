@@ -34,8 +34,10 @@ u8 render_method = RENDER_SOFTWARE;
 #define DISPLAY_WIDER    2
 #define DISPLAY_OVERSCAN 3
 #define DISPLAY_ADAPTIVE 4
+#define DISPLAY_BORDERLESS 5
 u8 geometry  = DISPLAY_ADAPTIVE;
 
+#define CALIBRATE_PROBE_COUNT 10
 int calibrate_viewport = 0;
 
 /********* shaders ***********/
@@ -445,7 +447,7 @@ void set_viewport_dimensions()
 {
     if(render_method==RENDER_SHADER)
     {
-      if(geometry== DISPLAY_ADAPTIVE)
+      if(geometry == DISPLAY_ADAPTIVE || geometry == DISPLAY_BORDERLESS)
       {         
         glUseProgram(basic);
         set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
@@ -472,7 +474,55 @@ void set_viewport_dimensions()
       }
     }
 }
+void calculate_viewport_dimensions(Uint32 *texture)
+{
+  /******* texture analysis start ****/
 
+    bool pixels_found=false;
+
+    //get vstart_min from texture
+    Uint32 ref_pixel= texture[HPIXELS*vstart_min_tracking + hstart_min];
+//    printf("refpixel:%u\n",ref_pixel);
+    for(int y=vstart_min_tracking;y<vstop_max_tracking && !pixels_found;y++)
+    {
+//      printf("\nvstart_line:%u\n",y);
+      for(int x=hstart_min;x<hstop_max;x++){
+        Uint32 pixel= texture[HPIXELS*y + x];
+//        printf("%u:%u ",x,pixel);
+        if(ref_pixel != pixel){
+          pixels_found=true;
+//          printf("\nfirst_pos=%d, vstart_min=%d, vstart_min_track=%d\n",y, vstart_min, vstart_min_tracking);
+//          vstart_min= y;
+          vstart_min= calibrate_viewport==CALIBRATE_PROBE_COUNT ? y: y<vstart_min?y:vstart_min;
+          break;
+        }
+      }
+    }
+    
+    //get vstop_max from texture
+    pixels_found=false;
+    ref_pixel= texture[ HPIXELS*vstop_max_tracking + hstart_min];
+//    printf("refpixel:%u\n",ref_pixel);
+//    printf("hstart:%u,hstop:%u\n",hstart_min,hstop_max);
+    
+    for(int y=vstop_max_tracking;y>vstart_min_tracking && !pixels_found;y--)
+    {
+//      printf("\nline:%u\n",y);
+      for(int x=hstart_min;x<hstop_max-3;x++){
+        Uint32 pixel= texture[HPIXELS*y + x];
+//        printf("%u:%u ",x,pixel);
+        if(ref_pixel != pixel){
+          pixels_found=true;
+          y++; //this line has pixels, so put vstop_max to the next line
+//          printf("\nlast_pos=%d, vstop_max=%d, vstop_max_tracking%d\n",y, vstop_max, vstop_max_tracking);
+//          vstop_max=y;
+          vstop_max= calibrate_viewport==CALIBRATE_PROBE_COUNT ? y: y>vstop_max?y:vstop_max;
+          break;
+        }
+      }
+    }
+    /***** text analysis end ****/
+}
 
 
 void draw_one_frame_into_SDL(void *thisAmiga) 
@@ -570,55 +620,9 @@ void draw_one_frame_into_SDL(void *thisAmiga)
 
   if(calibrate_viewport>0 && now-last_time >= 500.0)
   {
-/******* for aggressive mode: texture analysis start ****/
-    Uint32 *texture = (Uint32 *)stableBuffer.ptr;
-
-    bool pixels_found=false;
-
-    //get vstart_min from texture
-    Uint32 ref_pixel= texture[HPIXELS*vstart_min_tracking + hstart_min];
-//    printf("refpixel:%u\n",ref_pixel);
-    for(int y=vstart_min_tracking;y<vstop_max_tracking && !pixels_found;y++)
-    {
-//      printf("\nvstart_line:%u\n",y);
-      for(int x=hstart_min;x<hstop_max;x++){
-        Uint32 pixel= texture[HPIXELS*y + x];
-//        printf("%u:%u ",x,pixel);
-        if(ref_pixel != pixel){
-          pixels_found=true;
-//          printf("\nfirst_pos=%d, vstart_min=%d, vstart_min_track=%d\n",y, vstart_min, vstart_min_tracking);
-//          vstart_min= y;
-          vstart_min= calibrate_viewport==10 ? y: y<vstart_min?y:vstart_min;
-          break;
-        }
-      }
-    }
-    
-    //get vstop_max from texture
-    pixels_found=false;
-    ref_pixel= texture[ HPIXELS*vstop_max_tracking + hstart_min];
-//    printf("refpixel:%u\n",ref_pixel);
-//    printf("hstart:%u,hstop:%u\n",hstart_min,hstop_max);
-    
-    for(int y=vstop_max_tracking;y>vstart_min_tracking && !pixels_found;y--)
-    {
-//      printf("\nline:%u\n",y);
-      for(int x=hstart_min;x<hstop_max-3;x++){
-        Uint32 pixel= texture[HPIXELS*y + x];
-//        printf("%u:%u ",x,pixel);
-        if(ref_pixel != pixel){
-          pixels_found=true;
-          y++; //this line has pixels, so put vstop_max to the next line
-//          printf("\nlast_pos=%d, vstop_max=%d, vstop_max_tracking%d\n",y, vstop_max, vstop_max_tracking);
-//          vstop_max=y;
-          vstop_max= calibrate_viewport==10 ? y: y>vstop_max?y:vstop_max;
-          break;
-        }
-      }
-    }
-    /***** text analysis end ****/ 
-    calibrate_viewport--;
+    calculate_viewport_dimensions((Uint32 *)stableBuffer.ptr);
     set_viewport_dimensions();   
+    calibrate_viewport--;
   }
 
   if(render_method==RENDER_SHADER)
@@ -765,10 +769,6 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
     printf("vAmiga message=%s, data=%u\n", message_as_string, data1);
     send_message_to_js(message_as_string, data1);
   }
-  if(type == MSG_DISK_INSERT)
-  {
-//    ((Amiga *)amiga)->drive8.dump();
-  }
   if(type == MSG_VIEWPORT)
   {
     printf("tracking MSG_VIEWPORT=%u, %u\n",data1, data2);
@@ -793,8 +793,10 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
     vstart_min_tracking = vstart_min;
     vstop_max_tracking = vstop_max;
 
-    calibrate_viewport = 10;
-
+    if(geometry == DISPLAY_BORDERLESS)
+    {         
+      calibrate_viewport = CALIBRATE_PROBE_COUNT;
+    }
     set_viewport_dimensions();
   }
   
@@ -1198,9 +1200,17 @@ extern "C" void wasm_set_display(const char *name)
 {
   printf("wasm_set_display('%s')\n",name);
 //
-  if( strcmp(name,"adaptive") == 0 || strcmp(name,"auto") == 0)
+  if( strcmp(name,"adaptive") == 0 || 
+      strcmp(name,"auto") == 0 || 
+      strcmp(name,"viewport tracking") == 0)
   {
     geometry=DISPLAY_ADAPTIVE;
+    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
+    clip_offset = 0;
+  }
+  else if( strcmp(name,"borderless") == 0)
+  {
+    geometry=DISPLAY_BORDERLESS;
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
     clip_offset = 0;
   }
