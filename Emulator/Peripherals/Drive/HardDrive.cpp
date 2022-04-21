@@ -15,7 +15,6 @@
 #include "Memory.h"
 #include "MsgQueue.h"
 
-fs::path HardDrive::wtPath[4];
 std::fstream HardDrive::wtStream[4];
 
 HardDrive::HardDrive(Amiga& ref, isize nr) : Drive(ref, nr)
@@ -59,6 +58,7 @@ HardDrive::init()
     controllerRevision = amiga.hdcon[nr]->revisionName();
     geometry = GeometryDescriptor();
     ptable.clear();
+    drivers.clear();
     head = {};
     modified = bool(FORCE_HDR_MODIFIED);
 }
@@ -115,27 +115,61 @@ HardDrive::init(const HDFFile &hdf)
     if (auto value = hdf.getControllerRevision(); value) controllerRevision = *value;
     
     // Copy geometry
-    geometry = hdf.getGeometryDescriptor();
+    geometry = hdf.getGeometryDescriptor(); // TODO: Replace by " = hdf.geometry" (?!)
     
-    // Copy the partition table
-    ptable = hdf.getPartitionDescriptors();
+    // Copy partition table
+    ptable = hdf.getPartitionDescriptors();  // TODO: Replace by " = hdf.ptable" (?!)
 
+    // Copy over all needed file system drivers
+    for (const auto &driver : hdf.drivers) {
+
+        bool needed = HDR_FS_LOAD_ALL;
+
+        for (const auto &part : ptable) {
+            if (driver.dosType == part.dosType) {
+
+                needed = true;
+                break;
+            }
+        }
+        if (needed) { drivers.push_back(driver); }
+    }
+    
     // Check the drive geometry against the file size
     auto numBytes = hdf.data.size;
     
     if (data.size < numBytes) {
         
-        debug(XFILES, "HDF is too large. Ignoring excess bytes.\n");
+        debug(HDR_DEBUG, "HDF is too large. Ignoring excess bytes.\n");
         numBytes = data.size;
     }
     if (data.size > hdf.data.size) {
         
-        debug(XFILES, "HDF is too small. Padding with zeroes.");
+        debug(HDR_DEBUG, "HDF is too small. Padding with zeroes.");
         data.clear(0, hdf.data.size);
     }
     
     // Copy over all blocks
     hdf.flash(data.ptr, 0, numBytes);
+    
+    // Replace the write-through image on disk
+    if (writeThrough) {
+        
+        // Delete the existing image
+        disableWriteThrough();
+        
+        // Recreate the image with the new disk
+        enableWriteThrough();
+    }
+    
+    // Print some debug information
+    if constexpr (HDR_DEBUG) {
+
+        debug(true, "%lu (needed) file system drivers\n", drivers.size());
+        for (auto &driver : drivers) {
+            driver.dump();
+        }
+    }
 }
 
 void
@@ -160,28 +194,22 @@ HardDrive::_reset(bool hard)
     if constexpr (FORCE_HDR_MODIFIED) { modified = true; }
 }
 
-HardDriveConfig
-HardDrive::getDefaultConfig(isize nr)
-{
-    HardDriveConfig defaults;
-    
-    defaults.type = HDR_GENERIC;
-    defaults.connected = false;
-    defaults.pan = IS_EVEN(nr) ? 100 : -100;
-    defaults.stepVolume = 128;
-
-    return defaults;
-}
-
 void
 HardDrive::resetConfig()
 {
-    auto defaults = getDefaultConfig(nr);
-    
-    setConfigItem(OPT_HDR_TYPE, defaults.type);
-    setConfigItem(OPT_HDR_CONNECT, defaults.connected);
-    setConfigItem(OPT_HDR_PAN, defaults.pan);
-    setConfigItem(OPT_HDR_STEP_VOLUME, defaults.stepVolume);
+    assert(isPoweredOff());
+    auto &defaults = amiga.properties;
+
+    std::vector <Option> options = {
+        
+        OPT_HDR_TYPE,
+        OPT_HDR_PAN,
+        OPT_HDR_STEP_VOLUME,
+    };
+
+    for (auto &option : options) {
+        setConfigItem(option, defaults.get(option, nr));
+    }
 }
 
 i64
@@ -190,7 +218,6 @@ HardDrive::getConfigItem(Option option) const
     switch (option) {
             
         case OPT_HDR_TYPE:          return (long)config.type;
-        case OPT_HDR_CONNECT:       return (long)config.connected;
         case OPT_HDR_PAN:           return (long)config.pan;
         case OPT_HDR_STEP_VOLUME:   return (long)config.stepVolume;
 
@@ -212,14 +239,6 @@ HardDrive::setConfigItem(Option option, i64 value)
             config.type = (HardDriveType)value;
             return;
 
-        case OPT_HDR_CONNECT:
-            
-            if (!isPoweredOff()) {
-                throw VAError(ERROR_OPT_LOCKED);
-            }
-            bool(value) ? connect() : disconnect();
-            return;
-
         case OPT_HDR_PAN:
 
             config.pan = (i16)value;
@@ -238,16 +257,14 @@ HardDrive::setConfigItem(Option option, i64 value)
 void
 HardDrive::connect()
 {
-    if (config.connected) return;
+    auto path = writeThroughPath();
     
-    config.connected = true;
-    
-    if (wtPath[nr] != "") {
+    if (!path.empty()) {
         
         try {
             
-            debug(WT_DEBUG, "Reading disk from %s...\n", wtPath[nr].c_str());
-            auto hdf = HDFFile(wtPath[nr].string());
+            debug(WT_DEBUG, "Reading disk from %s...\n", path.c_str());
+            auto hdf = HDFFile(path);
             init(hdf);
 
             debug(WT_DEBUG, "Trying to enable write-through mode...\n");
@@ -267,21 +284,14 @@ HardDrive::connect()
         debug(WT_DEBUG, "Creating default disk...\n");
         init(MB(10));
         format(FS_OFS, defaultName());
-    }
-    
-    msgQueue.put(MSG_HDR_CONNECT, nr);
+    }    
 }
 
 void
 HardDrive::disconnect()
 {
-    if (!config.connected) return;
-    
-    config.connected = false;
     disableWriteThrough();
     init();
-    
-    msgQueue.put(MSG_HDR_DISCONNECT, nr);
 }
 
 const PartitionDescriptor &
@@ -289,6 +299,12 @@ HardDrive::getPartitionInfo(isize nr)
 {
     assert(nr >= 0 && nr < numPartitions());
     return ptable[nr];
+}
+
+HdcState
+HardDrive::getHdcState()
+{
+    return amiga.hdcon[nr]->getHdcState();
 }
 
 bool
@@ -325,8 +341,6 @@ HardDrive::_dump(Category category, std::ostream& os) const
         os << dec(nr) << std::endl;
         os << tab("Type");
         os << HardDriveTypeEnum::key(config.type) << std::endl;
-        os << tab("Connected");
-        os << bol(config.connected) << std::endl;
         os << tab("Step volume");
         os << dec(config.stepVolume) << std::endl;
         os << tab("Pan");
@@ -409,7 +423,7 @@ HardDrive::_dump(Category category, std::ostream& os) const
 bool
 HardDrive::isConnected() const
 {
-    return config.connected;
+    return amiga.hdcon[nr]->getConfigItem(OPT_HDC_CONNECT);
 }
 
 u64
@@ -452,47 +466,61 @@ HardDrive::enableWriteThrough()
 {
     debug(WT_DEBUG, "enableWriteThrough()\n");
     
-    if (!wt) {
-        
-        // Only proceed if a storage file is given
-        if (wtPath[nr].empty()) {
-            throw VAError(ERROR_WT, "No storage path specified");
-        }
-        
-        // Only proceed if no other emulator instance is using the storage file
-        if (wtStream[nr].is_open()) {
-            throw VAError(ERROR_WT_BLOCKED);
-        }
-        
-        // Delete the old storage file
-        fs::remove(wtPath[nr]);
-        
-        // Recreate the storage file with the contents of this disk
-        writeToFile(wtPath[nr].string());
-        if (!util::fileExists(wtPath[nr].string())) {
-            throw VAError(ERROR_WT, "Can't create storage file");
-        }
-        // Open file
-        wtStream[nr].open(wtPath[nr], std::ios::binary | std::ios::in | std::ios::out);
-        if (!wtStream[nr].is_open()) {
-            throw VAError(ERROR_WT, "Can't open storage file");
-        }
-        
+    if (!writeThrough) {
+    
+        saveWriteThroughImage();
+      
         debug(WT_DEBUG, "Write-through mode enabled\n");
-        wt = true;
+        writeThrough = true;
     }
 }
 
 void
 HardDrive::disableWriteThrough()
 {
-    if (wt) {
+    if (writeThrough) {
         
         // Close file
         wtStream[nr].close();
         
         debug(WT_DEBUG, "Write-through mode disabled\n");
-        wt = false;
+        writeThrough = false;
+    }
+}
+
+string
+HardDrive::writeThroughPath()
+{
+    return Amiga::properties.getString("HD" + std::to_string(nr) + "_PATH");
+}
+
+void
+HardDrive::saveWriteThroughImage()
+{
+    auto path = writeThroughPath();
+    
+    // Only proceed if a storage file is given
+    if (path.empty()) {
+        throw VAError(ERROR_WT, "No storage path specified");
+    }
+    
+    // Only proceed if no other emulator instance is using the storage file
+    if (wtStream[nr].is_open()) {
+        throw VAError(ERROR_WT_BLOCKED);
+    }
+    
+    // Delete the old storage file
+    fs::remove(path);
+    
+    // Recreate the storage file with the contents of this disk
+    writeToFile(path);
+    if (!util::fileExists(path)) {
+        throw VAError(ERROR_WT, "Can't create storage file");
+    }
+    // Open file
+    wtStream[nr].open(path, std::ios::binary | std::ios::in | std::ios::out);
+    if (!wtStream[nr].is_open()) {
+        throw VAError(ERROR_WT, "Can't open storage file");
     }
 }
 
@@ -606,7 +634,7 @@ HardDrive::write(isize offset, isize length, u32 addr)
             mem.spypeek <ACCESSOR_CPU> (addr, length, data.ptr + offset);
             
             // Handle write-through mode
-            if (wt) {
+            if (writeThrough) {
                 wtStream[nr].seekp(offset);
                 wtStream[nr].write((char *)(data.ptr + offset), length);
             }
@@ -622,6 +650,29 @@ HardDrive::write(isize offset, isize length, u32 addr)
     }
     
     return error;
+}
+
+void
+HardDrive::readDriver(isize nr, Buffer<u8> &driver)
+{
+    assert(usize(nr) < drivers.size());
+    
+    auto &segList = drivers[nr].blocks;
+    auto bytesPerBlock = geometry.bsize - 20;
+
+    driver.init(isize(segList.size()) * bytesPerBlock);
+    
+    isize bytesRead = 0;
+    for (auto &seg : segList) {
+
+        auto offset = seg * geometry.bsize + 20;
+        
+        assert(offset >= 0);
+        assert(offset + bytesPerBlock <= data.size);
+        
+        memcpy(driver.ptr + bytesRead, data.ptr + offset, bytesPerBlock);
+        bytesRead += bytesPerBlock;
+    }
 }
 
 i8

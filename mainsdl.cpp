@@ -1355,7 +1355,7 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
   if (HDFFile::isCompatible(filename)) {
     wrapper->amiga->powerOff();
     HDFFile hdf{blob, len};  
-    wrapper->amiga->configure(OPT_HDR_CONNECT,/*hd drive*/ 0, /*enable*/true);
+    wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/true);
     wrapper->amiga->hd0.init(hdf);
     wrapper->amiga->powerOn();
     return "";

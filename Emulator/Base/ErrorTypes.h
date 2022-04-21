@@ -28,6 +28,10 @@ enum_long(ERROR_CODE)
     ERROR_OPT_INVARG,
     ERROR_OPT_LOCKED,               // DEPRECATED: Replace by ERROR_POWERED_ON
 
+    // Property storage
+    ERROR_INVALID_KEY,
+    ERROR_SYNTAX,
+
     // CPU
     ERROR_BP_NOT_FOUND,
     ERROR_BP_ALREADY_SET,
@@ -75,7 +79,7 @@ enum_long(ERROR_CODE)
     ERROR_DISK_WRONG_SECTOR_COUNT,
     ERROR_DISK_INVALID_SECTOR_NUMBER,
     
-    // Hard drives
+    // Hard disks
     ERROR_HDR_TOO_LARGE,
     ERROR_HDR_UNSUPPORTED_CYL_COUNT,
     ERROR_HDR_UNSUPPORTED_HEAD_COUNT,
@@ -84,7 +88,12 @@ enum_long(ERROR_CODE)
     ERROR_HDR_UNMATCHED_GEOMETRY,
     ERROR_HDR_UNPARTITIONED,
     ERROR_HDR_CORRUPTED_PTABLE,
+    ERROR_HDR_CORRUPTED_FSH,
+    ERROR_HDR_CORRUPTED_LSEG,
     ERROR_HDR_UNSUPPORTED,
+
+    // Hard drive controller
+    ERROR_HDC_INIT,
 
     // Snapshots
     ERROR_SNAP_TOO_OLD,
@@ -200,6 +209,9 @@ struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
             case ERROR_OPT_INVARG:                  return "OPT_INVARG";
             case ERROR_OPT_LOCKED:                  return "OPT_LOCKED";
                 
+            case ERROR_INVALID_KEY:                 return "INVALID_KEY";
+            case ERROR_SYNTAX:                      return "SYNTAX";
+                
             case ERROR_BP_NOT_FOUND:                return "BP_NOT_FOUND";
             case ERROR_BP_ALREADY_SET:              return "BP_ALREADY_SET";
             case ERROR_WP_NOT_FOUND:                return "WP_NOT_FOUND";
@@ -248,8 +260,12 @@ struct ErrorCodeEnum : util::Reflection<ErrorCodeEnum, ErrorCode>
             case ERROR_HDR_UNMATCHED_GEOMETRY:      return "HDR_UNMATCHED_GEOMETRY";
             case ERROR_HDR_UNPARTITIONED:           return "HDR_UNPARTITIONED";
             case ERROR_HDR_CORRUPTED_PTABLE:        return "HDR_CORRUPTED_PTABLE";
+            case ERROR_HDR_CORRUPTED_FSH:           return "HDR_CORRUPTED_FSH";
+            case ERROR_HDR_CORRUPTED_LSEG:          return "HDR_CORRUPTED_LSEG";
             case ERROR_HDR_UNSUPPORTED:             return "HDR_UNSUPPORTED";
                 
+            case ERROR_HDC_INIT:                    return "HDC_INIT";
+
             case ERROR_SNAP_TOO_OLD:                return "SNAP_TOO_OLD";
             case ERROR_SNAP_TOO_NEW:                return "SNAP_TOO_NEW";
             case ERROR_SNAP_IS_BETA:                return "SNAP_IS_BETA";

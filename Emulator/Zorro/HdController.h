@@ -21,17 +21,26 @@ class HdController : public ZorroBoard {
 
     // The hard drive this controller is connected to
     HardDrive &drive;
+
+    // Current configuration
+    HdcConfig config = {};
     
     // Usage profile
-    HdControllerStats stats = {};
+    HdcStats stats = {};
+    
+    // The current controller state
+    HdcState hdcState = HDC_UNDETECTED;
     
     // Rom code
     Buffer<u8> rom;
     
+    // Number of initialized partitions
+    isize numPartitions = 0;
+
     // Transmitted pointer
     u32 pointer = 0;
-    
-    
+
+
     //
     // Initializing
     //
@@ -62,7 +71,9 @@ private:
     template <class T>
     void applyToPersistentItems(T& worker)
     {
-
+        worker
+        
+        << config.connected;
     }
 
     template <class T>
@@ -74,6 +85,8 @@ private:
             
             << baseAddr
             << state
+            << hdcState
+            << numPartitions
             << pointer;
         }
     }
@@ -108,17 +121,38 @@ private:
     
     
     //
+    // Configuring
+    //
+    
+public:
+
+    const HdcConfig &getConfig() const { return config; }
+    void resetConfig() override;
+    
+    i64 getConfigItem(Option option) const;
+    void setConfigItem(Option option, i64 value);
+
+    
+    //
     // Analyzing
     //
     
 public:
     
-    const HdControllerStats &getStats() { return stats; }
+    const HdcStats &getStats() { return stats; }
     void clearStats() { stats = { }; }
+    
+    // Returns the current controller state
+    HdcState getHdcState() { return hdcState; }
     
     // Informs whether the controller is compatible with a certain Kickstart
     bool isCompatible(RomIdentifier id);
     bool isCompatible();
+
+private:
+    
+    void resetHdcState();
+    void changeHdcState(HdcState newState);
 
     
     //
@@ -136,9 +170,9 @@ public:
         
 private:
     
-    void processCmd();
-    void processInit();
-    void processResource();
-    void processInfoReq();
-    void processInitSeg();
+    void processCmd(u32 ptr);
+    void processInit(u32 ptr);
+    void processResource(u32 ptr);
+    void processInfoReq(u32 ptr);
+    void processInitSeg(u32 ptr);
 };

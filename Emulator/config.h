@@ -17,13 +17,13 @@
 #define VER_MAJOR 2
 #define VER_MINOR 0
 #define VER_SUBMINOR 0
-#define VER_BETA 2
+#define VER_BETA 4
 
 // Snapshot version number
 #define SNP_MAJOR 2
 #define SNP_MINOR 0
 #define SNP_SUBMINOR 0
-#define SNP_BETA 2
+#define SNP_BETA 4
 
 // Uncomment this setting in a release build
 #define RELEASEBUILD
@@ -105,6 +105,7 @@ static const int DIAG_BOARD      = 0; // Plug in the diagnose board
 static const int XFILES          = 0; // Report paranormal activity
 static const int CNF_DEBUG       = 0; // Configuration options
 static const int OBJ_DEBUG       = 0; // Object life-times
+static const int DEF_DEBUG       = 0; // User defaults
 static const int MIMIC_UAE       = 0; // Enable to compare debug logs with UAE
 
 // Runloop
@@ -177,6 +178,7 @@ static const int FS_DEBUG        = 0; // File System Classes (OFS / FFS)
 
 // Hard Drives
 static const int HDR_ACCEPT_ALL  = 0; // Disables hard drive layout checks
+static const int HDR_FS_LOAD_ALL = 0; // Don't filter out unneeded file systems
 static const int WT_DEBUG        = 0; // Write-through mode
 
 // Audio
@@ -198,7 +200,7 @@ static const int HOLD_MOUSE_R    = 0; // Hold down the right mouse button
 // Expansion boards
 static const int ZOR_DEBUG       = 0; // Zorro space, autoconfig
 static const int FAS_DEBUG       = 0; // FastRam
-static const int HDR_DEBUG       = 0; // HardDrive
+static const int HDR_DEBUG       = 1; // HardDrive
 
 // Media types
 static const int ADF_DEBUG       = 0; // ADF and extended ADF files

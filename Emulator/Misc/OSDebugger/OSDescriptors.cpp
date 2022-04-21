@@ -88,13 +88,20 @@ HunkDescriptor::dump(Category category, std::ostream& os) const
         
         for (usize s = 0; s < sections.size(); s++) {
             
-            // auto offset = "Offset " + std::to_string(sections[s].offset);
-            auto offset = "+" + std::to_string(sections[s].offset);
-            auto type = HunkTypeEnum::key(sections[s].type);
+            auto &section = sections[s];
+            auto &reloc = section.relocations;
+            
+            auto offset = "+" + std::to_string(section.offset);
+            auto type = HunkTypeEnum::key(section.type);
 
             os << tab("Section " + std::to_string(s));
             os << std::setw(13) << std::left << std::setfill(' ') << type;
-            os << "  " << offset << std::endl;
+            os << "  " << offset;
+            
+            if (!reloc.empty()) {
+                os << " (" << std::to_string(reloc.size()) << " relocations)";
+            }
+            os << std::endl;
         }
     }
 }
@@ -137,14 +144,15 @@ ProgramUnitDescriptor::init(const u8 *buf, isize len)
     for (isize i = 0; i < numHunks; i++) {
 
         auto value = read();
-        auto memSize = (value & 0x3FFFFFFF) << 2;
-        auto memFlags = (value & 0xC0000000) >> 29;
-        if (memFlags == (MEMF_CHIP | MEMF_FAST)) {
-            memFlags = read() & ~(1 << 30);
+        auto size = (value & 0x3FFFFFFF) << 2;
+        auto flags = (value & 0xC0000000) >> 29;
+        if (flags == (MEMF_CHIP | MEMF_FAST)) {
+            flags = read() & ~(1 << 30);
         }
-        memFlags = memFlags | MEMF_PUBLIC;
-
-        hunks.push_back( HunkDescriptor { .memSize = memSize, .memFlags = memFlags } );
+        flags = flags | MEMF_PUBLIC;
+        
+        auto descr = HunkDescriptor { .memRaw = value, .memSize = size, .memFlags = flags };
+        hunks.push_back(descr);
     }
         
     // Scan sections (s) of all hunks (h)
@@ -178,15 +186,23 @@ ProgramUnitDescriptor::init(const u8 *buf, isize len)
                 break;
                 
             case HUNK_RELOC32:
-
+                
                 for (auto count = read(); count; count = read()) {
 
-                    (void)read();
+                    if (count > KB(64)) {
+                        warn("Relocation section too large (%d)\n", count);
+                        throw VAError(ERROR_HUNK_CORRUPTED);
+                    }
+
                     section.size += 4 * count;
-                    offset += 4 * count;
+                    section.target = read();
+                                        
+                    while (count--) {
+                        section.relocations.push_back(read());
+                    }
                 }
                 break;
-                
+
             case HUNK_EXT:
             case HUNK_SYMBOL:
 

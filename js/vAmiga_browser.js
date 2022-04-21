@@ -1,4 +1,4 @@
-var vAmigaWeb_version ="2.0.0_beta2"; //minimum requirement for snapshot version to be compatible
+var vAmigaWeb_version ="2.0.0_beta4"; //minimum requirement for snapshot version to be compatible
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 

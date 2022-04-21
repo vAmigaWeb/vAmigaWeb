@@ -39,7 +39,7 @@ parseHex(const string &s, isize *result)
 {
     try {
         size_t pos = 0;
-        auto num = std::stol(s, &pos, 16);
+        auto num = std::stoll(s, &pos, 16);
 
         if (pos == s.size()) {
 
@@ -94,6 +94,12 @@ rtrim(const string &s, const string &characters)
 {
     auto pos = s.find_last_not_of(characters);
     return (pos == string::npos) ? "" : s.substr(0, pos + 1);
+}
+
+string
+trim(const string &s, const string &characters)
+{
+    return ltrim(rtrim(s, characters), characters);
 }
 
 std::vector<string>

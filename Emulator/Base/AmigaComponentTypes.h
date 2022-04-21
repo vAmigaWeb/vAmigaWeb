@@ -35,8 +35,9 @@ enum_long(OPT)
     // DMA Debugger
     OPT_DMA_DEBUG_ENABLE,
     OPT_DMA_DEBUG_MODE,
-    OPT_DMA_DEBUG_COLOR,
     OPT_DMA_DEBUG_OPACITY,
+    OPT_DMA_DEBUG_CHANNEL,
+    OPT_DMA_DEBUG_COLOR,
     
     // CPU
     OPT_REG_RESET_VAL,
@@ -74,9 +75,11 @@ enum_long(OPT)
     OPT_INSERT_VOLUME,
     OPT_EJECT_VOLUME,
     
-    // Hard Drives
+    // Hard drive controllers
+    OPT_HDC_CONNECT,
+
+    // Hard drives
     OPT_HDR_TYPE,
-    OPT_HDR_CONNECT,
     OPT_HDR_PAN,
     OPT_HDR_STEP_VOLUME,
     
@@ -158,8 +161,9 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
 
             case OPT_DMA_DEBUG_ENABLE:      return "DMA_DEBUG_ENABLE";
             case OPT_DMA_DEBUG_MODE:        return "DMA_DEBUG_MODE";
-            case OPT_DMA_DEBUG_COLOR:       return "DMA_DEBUG_COLOR";
             case OPT_DMA_DEBUG_OPACITY:     return "DMA_DEBUG_OPACITY";
+            case OPT_DMA_DEBUG_CHANNEL:     return "DMA_DEBUG_CHANNEL";
+            case OPT_DMA_DEBUG_COLOR:       return "DMA_DEBUG_COLOR";
 
             case OPT_REG_RESET_VAL:         return "REG_RESET_VAL";
                 
@@ -192,8 +196,9 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
             case OPT_INSERT_VOLUME:         return "INSERT_VOLUME";
             case OPT_EJECT_VOLUME:          return "EJECT_VOLUME";
                 
+            case OPT_HDC_CONNECT:           return "HDC_CONNECT";
+
             case OPT_HDR_TYPE:              return "HDR_TYPE";
-            case OPT_HDR_CONNECT:           return "HDR_CONNECT";
             case OPT_HDR_PAN:               return "HDR_PAN";
             case OPT_HDR_STEP_VOLUME:       return "HDR_STEP_VOLUME";
 
