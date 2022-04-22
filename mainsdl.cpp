@@ -463,7 +463,7 @@ void set_viewport_dimensions()
     }
     else
     {  
-      if(geometry== DISPLAY_ADAPTIVE)
+      if(geometry== DISPLAY_ADAPTIVE || geometry == DISPLAY_BORDERLESS)
       {         
         xOff = hstart_min;
         yOff = vstart_min;
@@ -900,34 +900,9 @@ class vAmigaWrapper {
     amiga->configure(OPT_SLOW_RAM, 512);
     amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS);
 
+    //turn automatic hd mounting off because kick1.2 makes trouble
+    amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
 
-//    c64->configure(OPT_DRV_AUTO_CONFIG,DRIVE8,1);
-    //SID1 Volumne
-/*    c64->configure(OPT_AUDVOL, 1, 100);
-    c64->configure(OPT_AUDPAN, 1, 50);
-    c64->configure(OPT_SID_ENABLE, 1, true);
-    c64->configure(OPT_SID_ADDRESS, 1, 0xd420);
-*/
-
-
-    //c64->configure(OPT_HIDE_SPRITES, true); 
-    //c64->dump();
-
- //printf("is running = %u\n",c64->isRunning()); 
- //   c64->dump();
- //   c64->drive1.dump();
- //   c64->setDebugLevel(2);
-    //c64->sid.setDebugLevel(4);
- //   c64->drive1.setDebugLevel(3);
- //   c64->sid.dump();
-
-
-/*
-    c64->configure(OPT_DRV_POWER_SAVE, 8, true); 
-    c64->configure(OPT_SID_POWER_SAVE, true); 
-    c64->configure(OPT_VIC_POWER_SAVE, true); 
-
-*/
     printf("waiting on emulator ready in javascript ...\n");
  
   }
