@@ -37,7 +37,7 @@ u8 render_method = RENDER_SOFTWARE;
 #define DISPLAY_BORDERLESS 5
 u8 geometry  = DISPLAY_ADAPTIVE;
 
-#define CALIBRATE_PROBE_COUNT 20
+#define CALIBRATE_PROBE_COUNT 1000
 int calibrate_viewport = 0;
 
 /********* shaders ***********/
@@ -476,14 +476,23 @@ void set_viewport_dimensions()
       }
     }
 }
+
 void calculate_viewport_dimensions(Uint32 *texture)
 {
+    if(calibrate_viewport==CALIBRATE_PROBE_COUNT)
+    {//first call after new viewport size
+      //set start values to the opposite max. borderpos (scan area)  
+      vstart_min = vstop_max_tracking; 
+      vstop_max = vstart_min_tracking;
+      hstart_min = hstop_max_tracking;
+      hstop_max = hstart_min_tracking;
+    }
     bool pixels_found=false;
 
-    //get vstart_min from texture
+    //top border: get vstart_min from texture
     Uint32 ref_pixel= texture[HPIXELS*vstart_min_tracking + hstart_min_tracking];
 //    printf("refpixel:%u\n",ref_pixel);
-    for(int y=vstart_min_tracking;y<vstop_max_tracking && !pixels_found;y++)
+    for(int y=vstart_min_tracking;y<vstart_min && !pixels_found;y++)
     {
 //      printf("\nvstart_line:%u\n",y);
       for(int x=hstart_min_tracking;x<hstop_max;x++){
@@ -499,13 +508,13 @@ void calculate_viewport_dimensions(Uint32 *texture)
       }
     }
     
-    //get vstop_max from texture
+    //bottom border: get vstop_max from texture
     pixels_found=false;
     ref_pixel= texture[ HPIXELS*vstop_max_tracking + hstart_min_tracking];
 //    printf("refpixel:%u\n",ref_pixel);
 //    printf("hstart:%u,hstop:%u\n",hstart_min,hstop_max);
     
-    for(int y=vstop_max_tracking;y>vstart_min_tracking && !pixels_found;y--)
+    for(int y=vstop_max_tracking;y>vstop_max && !pixels_found;y--)
     {
 //      printf("\nline:%u\n",y);
       for(int x=hstart_min_tracking;x<hstop_max;x++){
@@ -521,11 +530,11 @@ void calculate_viewport_dimensions(Uint32 *texture)
       }
     }
 
-    //get hstart_min from texture
+    //left border: get hstart_min from texture
     pixels_found=false;
     ref_pixel= texture[ HPIXELS*vstart_min_tracking + hstart_min_tracking];
 
-    for(int x=hstart_min_tracking;x<hstop_max;x++)
+    for(int x=hstart_min_tracking;x<hstart_min;x++)
     {
 //      printf("\nrow:%u\n",x);
       for(int y=vstart_min_tracking;y<vstop_max_tracking && !pixels_found;y++)
@@ -541,11 +550,11 @@ void calculate_viewport_dimensions(Uint32 *texture)
       }
     }
 
-    //get hstop_max from texture
+    //right border: get hstop_max from texture
     pixels_found=false;
     ref_pixel= texture[ HPIXELS*vstart_min_tracking + hstop_max_tracking];
     
-    for(int x=hstop_max_tracking;x>hstart_min;x--)
+    for(int x=hstop_max_tracking;x>hstop_max;x--)
     {
  //     printf("\nrow:%u\n",x);
       for(int y=vstart_min_tracking;y<vstop_max_tracking && !pixels_found;y++)
