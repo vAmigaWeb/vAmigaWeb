@@ -479,97 +479,98 @@ void set_viewport_dimensions()
 
 void calculate_viewport_dimensions(Uint32 *texture)
 {
-    if(calibrate_viewport==CALIBRATE_PROBE_COUNT)
-    {//first call after new viewport size
-      //set start values to the opposite max. borderpos (scan area)  
-      vstart_min = vstop_max_tracking; 
-      vstop_max = vstart_min_tracking;
-      hstart_min = hstop_max_tracking;
-      hstop_max = hstart_min_tracking;
-    }
-    bool pixels_found=false;
-
-    //top border: get vstart_min from texture
-    Uint32 ref_pixel= texture[HPIXELS*vstart_min_tracking + hstart_min_tracking];
+  if(calibrate_viewport==CALIBRATE_PROBE_COUNT)
+  {//first call after new viewport size
+    //set start values to the opposite max. borderpos (scan area)  
+    vstart_min = vstop_max_tracking; 
+    vstop_max = vstart_min_tracking;
+    hstart_min = hstop_max_tracking;
+    hstop_max = hstart_min_tracking;
+  }
+  bool pixels_found=false;
+  //top border: get vstart_min from texture
+  Uint32 ref_pixel= texture[HPIXELS*vstart_min_tracking + hstart_min_tracking];
 //    printf("refpixel:%u\n",ref_pixel);
-    for(int y=vstart_min_tracking;y<vstart_min && !pixels_found;y++)
-    {
+  for(int y=vstart_min_tracking;y<vstart_min && !pixels_found;y++)
+  {
 //      printf("\nvstart_line:%u\n",y);
-      for(int x=hstart_min_tracking;x<hstop_max;x++){
-        Uint32 pixel= texture[HPIXELS*y + x];
+    for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
+      Uint32 pixel= texture[HPIXELS*y + x];
 //        printf("%u:%u ",x,pixel);
-        if(ref_pixel != pixel){
-          pixels_found=true;
-//          printf("\nfirst_pos=%d, vstart_min=%d, vstart_min_track=%d\n",y, vstart_min, vstart_min_tracking);
-//          vstart_min= y;
-          vstart_min= calibrate_viewport==CALIBRATE_PROBE_COUNT ? y: y<vstart_min?y:vstart_min;
-          break;
-        }
+      if(ref_pixel != pixel){
+        pixels_found=true;
+//        printf("\nfirst_pos=%d, vstart_min=%d, vstart_min_track=%d\n",y, vstart_min, vstart_min_tracking);
+        vstart_min= calibrate_viewport==CALIBRATE_PROBE_COUNT ? y: y<vstart_min?y:vstart_min;
+        break;
       }
     }
-    
-    //bottom border: get vstop_max from texture
-    pixels_found=false;
-    ref_pixel= texture[ HPIXELS*vstop_max_tracking + hstart_min_tracking];
+  }
+  
+  //bottom border: get vstop_max from texture
+  pixels_found=false;
+  ref_pixel= texture[ HPIXELS*vstop_max_tracking + hstart_min_tracking];
 //    printf("refpixel:%u\n",ref_pixel);
 //    printf("hstart:%u,hstop:%u\n",hstart_min,hstop_max);
-    
-    for(int y=vstop_max_tracking;y>vstop_max && !pixels_found;y--)
-    {
+  
+  for(int y=vstop_max_tracking;y>vstop_max && !pixels_found;y--)
+  {
 //      printf("\nline:%u\n",y);
-      for(int x=hstart_min_tracking;x<hstop_max;x++){
-        Uint32 pixel= texture[HPIXELS*y + x];
+    for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
+      Uint32 pixel= texture[HPIXELS*y + x];
 //        printf("%u:%u ",x,pixel);
-        if(ref_pixel != pixel){
-          pixels_found=true;
-          y++; //this line has pixels, so put vstop_max to the next line
+      if(ref_pixel != pixel){
+        pixels_found=true;
+        y++; //this line has pixels, so put vstop_max to the next line
 //          printf("\nlast_pos=%d, vstop_max=%d, vstop_max_tracking%d\n",y, vstop_max, vstop_max_tracking);
-          vstop_max= calibrate_viewport==CALIBRATE_PROBE_COUNT ? y: y>vstop_max?y:vstop_max;
-          break;
-        }
+        vstop_max= calibrate_viewport==CALIBRATE_PROBE_COUNT ? y: y>vstop_max?y:vstop_max;
+        break;
       }
     }
+  }
 
-    //left border: get hstart_min from texture
-    pixels_found=false;
-    ref_pixel= texture[ HPIXELS*vstart_min_tracking + hstart_min_tracking];
+  //left border: get hstart_min from texture
+  pixels_found=false;
+  ref_pixel= texture[ HPIXELS*vstart_min_tracking + hstart_min_tracking];
 
-    for(int x=hstart_min_tracking;x<hstart_min;x++)
-    {
+  for(int x=hstart_min_tracking;x<hstart_min;x++)
+  {
 //      printf("\nrow:%u\n",x);
-      for(int y=vstart_min_tracking;y<vstop_max_tracking && !pixels_found;y++)
-      {
-        Uint32 pixel= texture[HPIXELS*y + x];
-//        printf("%u:%u ",x,pixel);
-        if(ref_pixel != pixel){
-          pixels_found=true;
-//          printf("\nlast_xpos=%d, hstop_max=%d\n",x, hstop_max);
-          hstart_min= calibrate_viewport==CALIBRATE_PROBE_COUNT ? x: x<hstart_min?x:hstart_min;
-          break;
-        }
-      }
-    }
-
-    //right border: get hstop_max from texture
-    pixels_found=false;
-    ref_pixel= texture[ HPIXELS*vstart_min_tracking + hstop_max_tracking];
-    
-    for(int x=hstop_max_tracking;x>hstop_max;x--)
+    for(int y=vstart_min;y<vstop_max && !pixels_found;y++)
     {
- //     printf("\nrow:%u\n",x);
-      for(int y=vstart_min_tracking;y<vstop_max_tracking && !pixels_found;y++)
-      {
-        Uint32 pixel= texture[HPIXELS*y + x];
+      Uint32 pixel= texture[HPIXELS*y + x];
 //        printf("%u:%u ",x,pixel);
-        if(ref_pixel != pixel){
-          pixels_found=true;
-          x++; //this line has pixels, so put vstop_max to the next line
+      if(ref_pixel != pixel){
+        pixels_found=true;
 //          printf("\nlast_xpos=%d, hstop_max=%d\n",x, hstop_max);
-          hstop_max= calibrate_viewport==CALIBRATE_PROBE_COUNT ? x: x>hstop_max?x:hstop_max;
-          break;
-        }
+        hstart_min= calibrate_viewport==CALIBRATE_PROBE_COUNT ? x: x<hstart_min?x:hstart_min;
+        break;
       }
     }
+  }
+
+  //right border: get hstop_max from texture
+  pixels_found=false;
+  ref_pixel= texture[ HPIXELS*vstart_min_tracking + hstop_max_tracking];
+  
+  for(int x=hstop_max_tracking;x>hstop_max;x--)
+  {
+//     printf("\nrow:%u\n",x);
+    for(int y=vstart_min;y<vstop_max && !pixels_found;y++)
+    {
+      Uint32 pixel= texture[HPIXELS*y + x];
+//        printf("%u:%u ",x,pixel);
+      if(ref_pixel != pixel){
+        pixels_found=true;
+        x++; //this line has pixels, so put vstop_max to the next line
+//          printf("\nlast_xpos=%d, hstop_max=%d\n",x, hstop_max);
+        hstop_max= calibrate_viewport==CALIBRATE_PROBE_COUNT ? x: x>hstop_max?x:hstop_max;
+        break;
+      }
+    }
+  }
+
+  printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
+
 }
 
 
@@ -1235,12 +1236,22 @@ extern "C" void wasm_set_display(const char *name)
     geometry=DISPLAY_ADAPTIVE;
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
     clip_offset = 0;
+
+    xOff=252;
+    yOff=26 + 6;
+    clipped_width=HPIXELS-xOff;
+    clipped_height=312-yOff -2*4  ;
   }
   else if( strcmp(name,"borderless") == 0)
   {
     geometry=DISPLAY_BORDERLESS;
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
     clip_offset = 0;
+
+    xOff=252;
+    yOff=26 + 6;
+    clipped_width=HPIXELS-xOff;
+    clipped_height=312-yOff -2*4  ;
   }
   else if( strcmp(name,"narrow") == 0)
   {
