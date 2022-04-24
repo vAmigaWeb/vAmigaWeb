@@ -34,7 +34,11 @@ u8 render_method = RENDER_SOFTWARE;
 #define DISPLAY_WIDER    2
 #define DISPLAY_OVERSCAN 3
 #define DISPLAY_ADAPTIVE 4
+#define DISPLAY_BORDERLESS 5
 u8 geometry  = DISPLAY_ADAPTIVE;
+
+#define CALIBRATE_PROBE_COUNT 1000
+int calibrate_viewport = 0;
 
 /********* shaders ***********/
 GLuint basic;
@@ -435,6 +439,141 @@ u16 vstop_max=VPIXELS;
 u16 hstart_min=200;
 u16 hstop_max=HPIXELS;
 
+u16 vstart_min_tracking=26;
+u16 vstop_max_tracking=VPIXELS;
+u16 hstart_min_tracking=200;
+u16 hstop_max_tracking=HPIXELS;
+
+
+void set_viewport_dimensions()
+{
+    if(render_method==RENDER_SHADER)
+    {
+      if(geometry == DISPLAY_ADAPTIVE || geometry == DISPLAY_BORDERLESS)
+      {         
+        glUseProgram(basic);
+        set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
+        glUseProgram(merge);
+        set_texture_display_window(merge, 
+          hstart_min, hstop_max, 
+          /* in merge shader, the height has to be an even number */ 
+          vstart_min & 0xfffe, vstop_max & 0xfffe
+        );
+      } 
+    }
+    else
+    {  
+      if(geometry== DISPLAY_ADAPTIVE || geometry == DISPLAY_BORDERLESS)
+      {         
+        xOff = hstart_min;
+        yOff = vstart_min;
+        clipped_width = hstop_max-hstart_min;
+        clipped_height = vstop_max-vstart_min;
+
+        SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
+        SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
+        SDL_SetWindowSize(window, clipped_width, clipped_height);
+      }
+    }
+}
+
+void calculate_viewport_dimensions(Uint32 *texture)
+{
+  if(calibrate_viewport==CALIBRATE_PROBE_COUNT)
+  {//first call after new viewport size
+    //set start values to the opposite max. borderpos (scan area)  
+    vstart_min = vstop_max_tracking; 
+    vstop_max = vstart_min_tracking;
+    hstart_min = hstop_max_tracking;
+    hstop_max = hstart_min_tracking;
+  }
+  bool pixels_found=false;
+  //top border: get vstart_min from texture
+  Uint32 ref_pixel= texture[HPIXELS*vstart_min_tracking + hstart_min_tracking];
+//    printf("refpixel:%u\n",ref_pixel);
+  for(int y=vstart_min_tracking;y<vstart_min && !pixels_found;y++)
+  {
+//      printf("\nvstart_line:%u\n",y);
+    for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
+      Uint32 pixel= texture[HPIXELS*y + x];
+//        printf("%u:%u ",x,pixel);
+      if(ref_pixel != pixel){
+        pixels_found=true;
+//        printf("\nfirst_pos=%d, vstart_min=%d, vstart_min_track=%d\n",y, vstart_min, vstart_min_tracking);
+        vstart_min= calibrate_viewport==CALIBRATE_PROBE_COUNT ? y: y<vstart_min?y:vstart_min;
+        break;
+      }
+    }
+  }
+  
+  //bottom border: get vstop_max from texture
+  pixels_found=false;
+  ref_pixel= texture[ HPIXELS*vstop_max_tracking + hstart_min_tracking];
+//    printf("refpixel:%u\n",ref_pixel);
+//    printf("hstart:%u,hstop:%u\n",hstart_min,hstop_max);
+  
+  for(int y=vstop_max_tracking;y>vstop_max && !pixels_found;y--)
+  {
+//      printf("\nline:%u\n",y);
+    for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
+      Uint32 pixel= texture[HPIXELS*y + x];
+//        printf("%u:%u ",x,pixel);
+      if(ref_pixel != pixel){
+        pixels_found=true;
+        y++; //this line has pixels, so put vstop_max to the next line
+//          printf("\nlast_pos=%d, vstop_max=%d, vstop_max_tracking%d\n",y, vstop_max, vstop_max_tracking);
+        vstop_max= calibrate_viewport==CALIBRATE_PROBE_COUNT ? y: y>vstop_max?y:vstop_max;
+        break;
+      }
+    }
+  }
+
+  //left border: get hstart_min from texture
+  pixels_found=false;
+  ref_pixel= texture[ HPIXELS*vstart_min_tracking + hstart_min_tracking];
+
+  for(int x=hstart_min_tracking;x<hstart_min;x++)
+  {
+//      printf("\nrow:%u\n",x);
+    for(int y=vstart_min;y<vstop_max && !pixels_found;y++)
+    {
+      Uint32 pixel= texture[HPIXELS*y + x];
+//        printf("%u:%u ",x,pixel);
+      if(ref_pixel != pixel){
+        pixels_found=true;
+//          printf("\nlast_xpos=%d, hstop_max=%d\n",x, hstop_max);
+        hstart_min= calibrate_viewport==CALIBRATE_PROBE_COUNT ? x: x<hstart_min?x:hstart_min;
+        break;
+      }
+    }
+  }
+
+  //right border: get hstop_max from texture
+  pixels_found=false;
+  ref_pixel= texture[ HPIXELS*vstart_min_tracking + hstop_max_tracking];
+  
+  for(int x=hstop_max_tracking;x>hstop_max;x--)
+  {
+//     printf("\nrow:%u\n",x);
+    for(int y=vstart_min;y<vstop_max && !pixels_found;y++)
+    {
+      Uint32 pixel= texture[HPIXELS*y + x];
+//        printf("%u:%u ",x,pixel);
+      if(ref_pixel != pixel){
+        pixels_found=true;
+        x++; //this line has pixels, so put vstop_max to the next line
+//          printf("\nlast_xpos=%d, hstop_max=%d\n",x, hstop_max);
+        hstop_max= calibrate_viewport==CALIBRATE_PROBE_COUNT ? x: x>hstop_max?x:hstop_max;
+        break;
+      }
+    }
+  }
+
+//  printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
+
+}
+
+
 void draw_one_frame_into_SDL(void *thisAmiga) 
 {
 
@@ -525,12 +664,23 @@ void draw_one_frame_into_SDL(void *thisAmiga)
  //         return;
       draw_one_frame(); // to gather joystick information for example 
   });
-  
+
+  auto &stableBuffer = amiga->denise.pixelEngine.getStableBuffer();
+
+  if(geometry == DISPLAY_BORDERLESS)
+  {
+    if(calibrate_viewport>0 && now-last_time >= 500.0)
+    {
+      calculate_viewport_dimensions((Uint32 *)stableBuffer.ptr);
+      set_viewport_dimensions();   
+      calibrate_viewport--;
+    }
+  }
+
   if(render_method==RENDER_SHADER)
   {
-    auto &stable = amiga->denise.pixelEngine.getStableBuffer();
     prevLOF = currLOF;
-    currLOF = stable.longFrame;
+    currLOF = stableBuffer.longFrame;
 
     if (currLOF) {
       glActiveTexture(GL_TEXTURE0);
@@ -540,7 +690,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glActiveTexture(GL_TEXTURE0);
     }  
 
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stable.ptr + clip_offset);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stableBuffer.ptr + clip_offset);
 
     if (currLOF != prevLOF) {
       // Case 1: Interlace drawing
@@ -564,7 +714,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   else
   {
 
-    Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getStableBuffer().ptr;
+    Uint8 *texture = (Uint8 *)stableBuffer.ptr;
 
   //  SDL_RenderClear(renderer);
     SDL_Rect SrcR;
@@ -640,11 +790,12 @@ void send_message_to_js(const char * msg, long data)
 
 }
 
-bool paused_the_emscripten_main_loop=false;
 
+
+bool paused_the_emscripten_main_loop=false;
 bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
-void theListener(const void * amiga, long type,  u32 data1, u32 data2){
+void theListener(const void * amiga, long type,  int data1, int data2, int data3, int data4){
   if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.frame.nr < warp_to_frame)
   {
     //skip automatic warp mode on disk load
@@ -670,22 +821,20 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
     printf("vAmiga message=%s, data=%u\n", message_as_string, data1);
     send_message_to_js(message_as_string, data1);
   }
-  if(type == MSG_DISK_INSERT)
-  {
-//    ((Amiga *)amiga)->drive8.dump();
-  }
   if(type == MSG_VIEWPORT)
   {
-    printf("tracking MSG_VIEWPORT=%u, %u\n",data1, data2);
-    hstart_min= (data1 >>16) & 0xffff;
-    vstart_min= (data1 ) & 0xffff;
-    hstop_max= (data2 >>16) & 0xffff;
-    vstop_max= (data2 ) & 0xffff;
+    printf("tracking MSG_VIEWPORT=%d, %d, %d, %d\n",data1, data2, data3, data4);
+    hstart_min= data1;
+    vstart_min= data2;
+    hstop_max=  data3;
+    vstop_max=  data4;
     
+
     hstart_min *=2;
     hstop_max *=2;
 
     hstart_min=hstart_min<208 ? 208:hstart_min;
+    hstop_max=hstop_max>HPIXELS ? HPIXELS:hstop_max;
 
     if(vstart_min < 26) 
       vstart_min = 26;
@@ -694,37 +843,16 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
       vstop_max = 312;
 
     printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
+    vstart_min_tracking = vstart_min;
+    vstop_max_tracking = vstop_max;
+    hstart_min_tracking = hstart_min;
+    hstop_max_tracking = hstop_max;
 
-    if(render_method==RENDER_SHADER)
-    {
-      if(geometry== DISPLAY_ADAPTIVE)
-      {         
-        glUseProgram(basic);
-        set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
-        glUseProgram(merge);
-        set_texture_display_window(merge, 
-          hstart_min, hstop_max, 
-          /* in merge shader, the height has to be an even number */ 
-          vstart_min & 0xfffe, vstop_max & 0xfffe
-        );
-      } 
+    if(geometry == DISPLAY_BORDERLESS)
+    {         
+      calibrate_viewport = CALIBRATE_PROBE_COUNT;
     }
-    else
-    {  
-      if(geometry== DISPLAY_ADAPTIVE)
-      {         
-        xOff = hstart_min;
-        yOff = vstart_min;
-        clipped_width = hstop_max-hstart_min;
-        clipped_height = vstop_max-vstart_min;
-
-        SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
-        SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
-        SDL_SetWindowSize(window, clipped_width, clipped_height);
-      }
-    }
-
-
+    set_viewport_dimensions();
   }
   
 
@@ -783,34 +911,9 @@ class vAmigaWrapper {
     amiga->configure(OPT_SLOW_RAM, 512);
     amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS);
 
+    //turn automatic hd mounting off because kick1.2 makes trouble
+//    amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
 
-//    c64->configure(OPT_DRV_AUTO_CONFIG,DRIVE8,1);
-    //SID1 Volumne
-/*    c64->configure(OPT_AUDVOL, 1, 100);
-    c64->configure(OPT_AUDPAN, 1, 50);
-    c64->configure(OPT_SID_ENABLE, 1, true);
-    c64->configure(OPT_SID_ADDRESS, 1, 0xd420);
-*/
-
-
-    //c64->configure(OPT_HIDE_SPRITES, true); 
-    //c64->dump();
-
- //printf("is running = %u\n",c64->isRunning()); 
- //   c64->dump();
- //   c64->drive1.dump();
- //   c64->setDebugLevel(2);
-    //c64->sid.setDebugLevel(4);
- //   c64->drive1.setDebugLevel(3);
- //   c64->sid.dump();
-
-
-/*
-    c64->configure(OPT_DRV_POWER_SAVE, 8, true); 
-    c64->configure(OPT_SID_POWER_SAVE, true); 
-    c64->configure(OPT_VIC_POWER_SAVE, true); 
-
-*/
     printf("waiting on emulator ready in javascript ...\n");
  
   }
@@ -1127,11 +1230,29 @@ extern "C" void wasm_set_display(const char *name)
 {
   printf("wasm_set_display('%s')\n",name);
 //
-  if( strcmp(name,"adaptive") == 0 || strcmp(name,"auto") == 0)
+  if( strcmp(name,"adaptive") == 0 || 
+      strcmp(name,"auto") == 0 || 
+      strcmp(name,"viewport tracking") == 0)
   {
     geometry=DISPLAY_ADAPTIVE;
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
     clip_offset = 0;
+
+    xOff=252;
+    yOff=26 + 6;
+    clipped_width=HPIXELS-xOff;
+    clipped_height=312-yOff -2*4  ;
+  }
+  else if( strcmp(name,"borderless") == 0)
+  {
+    geometry=DISPLAY_BORDERLESS;
+    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
+    clip_offset = 0;
+
+    xOff=252;
+    yOff=26 + 6;
+    clipped_width=HPIXELS-xOff;
+    clipped_height=312-yOff -2*4  ;
   }
   else if( strcmp(name,"narrow") == 0)
   {
@@ -1230,7 +1351,7 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
   if (HDFFile::isCompatible(filename)) {
     wrapper->amiga->powerOff();
     HDFFile hdf{blob, len};  
-    wrapper->amiga->configure(OPT_HDR_CONNECT,/*hd drive*/ 0, /*enable*/true);
+    wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/true);
     wrapper->amiga->hd0.init(hdf);
     wrapper->amiga->powerOn();
     return "";

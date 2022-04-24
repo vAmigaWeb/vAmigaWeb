@@ -30,9 +30,9 @@ typedef FS_VOLUME_TYPE FSVolumeType;
 #ifdef __cplusplus
 struct FSVolumeTypeEnum : util::Reflection<FSVolumeTypeEnum, FSVolumeType>
 {
-    static long minVal() { return FS_NODOS; }
-    static long maxVal() { return FS_FFS_LNFS; }
-    static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
+    static constexpr long minVal = FS_NODOS;
+    static constexpr long maxVal = FS_FFS_LNFS;
+    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
     
     static const char *prefix() { return "FS"; }
     static const char *key(FSVolumeType value)
@@ -95,9 +95,9 @@ typedef FS_BLOCK_TYPE FSBlockType;
 #ifdef __cplusplus
 struct FSBlockTypeEnum : util::Reflection<FSBlockTypeEnum, FSBlockType>
 {
-    static long minVal() { return 0; }
-    static long maxVal() { return FS_DATA_BLOCK_FFS; }
-    static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
+    static constexpr long minVal = 0;
+    static constexpr long maxVal = FS_DATA_BLOCK_FFS;
+    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
     
     static const char *prefix() { return "FS"; }
     static const char *key(FSBlockType value)
@@ -168,9 +168,9 @@ typedef FSI_TYPE FSItemType;
 #ifdef __cplusplus
 struct FSItemTypeEnum : util::Reflection<FSItemTypeEnum, FSItemType>
 {
-    static long minVal() { return 0; }
-    static long maxVal() { return FSI_BITMAP; }
-    static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
+    static constexpr long minVal = 0;
+    static constexpr long maxVal = FSI_BITMAP;
+    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
     
     static const char *prefix() { return "FS"; }
     static const char *key(FSItemType value)

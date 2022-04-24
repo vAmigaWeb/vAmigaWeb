@@ -10,6 +10,7 @@
 #pragma once
 
 #include "Macros.h"
+#include "MemUtils.h"
 #include "Buffer.h"
 #include <vector>
 
@@ -100,6 +101,7 @@ inline void writeString(u8 *& buf, string value)
     buf += len;
 }
 
+
 //
 // Counter (determines the state size)
 //
@@ -151,6 +153,23 @@ public:
         auto len = v.length();
         assert(len < 256);
         count += 1 + isize(len);
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(std::optional<T> &v)
+    {
+        if (v) { *this << *v; }
+        count += 1;
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(std::vector <T> &v)
+    {
+        auto len = v.size();
+        for(usize i = 0; i < len; i++) *this << v[i];
+        count += 8;
         return *this;
     }
 
@@ -239,7 +258,24 @@ public:
         }
         return *this;
     }
-    
+
+    template <class T>
+    auto& operator<<(std::optional <T> &v)
+    {
+        if (v) { *this << *v; }
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(std::vector <T> &v)
+    {
+        isize len = isize(v.size());
+        for (isize i = 0; i < len; i++) {
+            *this << v[i];
+        }
+        return *this;
+    }
+
     template <class T>
     auto& operator>>(std::vector <T> &v)
     {
@@ -334,6 +370,33 @@ public:
         return *this;
     }
 
+    template <class T>
+    auto& operator<<(std::optional <T> &v)
+    {
+        bool b;
+        *this << b;
+        if (b) {
+            T value;
+            *this << value;
+            v = value;
+        }
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(std::vector <T> &v)
+    {
+        i64 len;
+        *this << len;
+        v.clear();
+        v.reserve(len);
+        for (isize i = 0; i < len; i++) {
+            v.push_back(T());
+            *this << v.back();
+        }
+        return *this;
+    }
+    
     template <class T>
     auto& operator>>(std::vector <T> &v)
     {
@@ -436,7 +499,27 @@ public:
         writeString(ptr, v);
         return *this;
     }
-    
+
+    template <class T>
+    auto& operator<<(std::optional <T> &v)
+    {
+        bool b = v ? true : false;
+        *this << b;
+        if (b) { *this << *v; }
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(std::vector <T> &v)
+    {
+        auto len = v.size();
+        *this << i64(len);
+        for (usize i = 0; i < len; i++) {
+            *this << v[i];
+        }
+        return *this;
+    }
+
     template <class T>
     auto& operator>>(std::vector <T> &v)
     {
@@ -478,7 +561,6 @@ public:
         std::memcpy((void *)ptr, src, n);
         ptr += n;
     }
-
 };
 
 
@@ -526,6 +608,27 @@ public:
     auto& operator<<(string &v)
     {
         v = "";
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(std::optional <T> &v)
+    {
+        v = { };
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(std::vector <T> &v)
+    {
+        v.clear();
+        return *this;
+    }
+
+    template <class T>
+    auto& operator>>(std::vector <T> &v)
+    {
+        v.clear();
         return *this;
     }
     

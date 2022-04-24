@@ -76,9 +76,10 @@ template <> void
 RetroShell::exec <Token::regression, Token::setup> (Arguments &argv, long param)
 {
     auto scheme = util::parseEnum <ConfigSchemeEnum> (argv[0]);
-    auto kickrom = argv[1];
+    auto rom = argv[1];
+    auto ext = argv.size() > 2 ? argv[2] : "";
     
-    amiga.regressionTester.prepare(scheme, kickrom);
+    amiga.regressionTester.prepare(scheme, rom, ext);
     
 }
 
@@ -174,9 +175,15 @@ RetroShell::exec <Token::amiga, Token::reset> (Arguments &argv, long param)
 }
 
 template <> void
-RetroShell::exec <Token::amiga, Token::inspect> (Arguments &argv, long param)
+RetroShell::exec <Token::amiga, Token::inspect, Token::state> (Arguments &argv, long param)
 {
     dump(amiga, Category::State);
+}
+
+template <> void
+RetroShell::exec <Token::amiga, Token::inspect, Token::defaults> (Arguments &argv, long param)
+{
+    dump(amiga, Category::Defaults);
 }
 
 
@@ -1408,11 +1415,7 @@ template <> void
 RetroShell::exec <Token::dfn, Token::cp> (Arguments& argv, long param)
 {
     assert(param >= 0 && param <= 3);
-
-    auto path = argv.front();
-
-    printf("df%ld catch %s\n", param, path.c_str());
-    df[param]->catchFile(path);
+    df[param]->catchFile(argv.front());
 }
 
 

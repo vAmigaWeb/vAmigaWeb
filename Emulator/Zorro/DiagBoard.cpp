@@ -44,22 +44,20 @@ DiagBoard::_reset(bool hard)
     }
 }
 
-DiagBoardConfig
-DiagBoard::getDefaultConfig()
-{
-    DiagBoardConfig defaults;
-    
-    defaults.enabled = bool(DIAG_BOARD);
-
-    return defaults;
-}
-
 void
 DiagBoard::resetConfig()
 {
-    auto defaults = getDefaultConfig();
-    
-    setConfigItem(OPT_DIAG_BOARD, defaults.enabled);
+    assert(isPoweredOff());
+    auto &defaults = amiga.properties;
+
+    std::vector <Option> options = {
+        
+        OPT_DIAG_BOARD
+    };
+
+    for (auto &option : options) {
+        setConfigItem(option, defaults.get(option));
+    }
 }
 
 i64
@@ -203,7 +201,7 @@ DiagBoard::processInit(u32 ptr1)
 {
     try {
         
-        debug(ZOR_DEBUG, "processInit\n");
+        debug(DBD_DEBUG, "processInit\n");
         
         auto exec = osDebugger.getExecBase();
         tasks.push_back(exec.ThisTask);
@@ -219,7 +217,7 @@ DiagBoard::processAddTask(u32 ptr1)
 {
     try {
         
-        debug(ZOR_DEBUG, "processAddTask\n");
+        debug(DBD_DEBUG, "processAddTask\n");
 
         // Read task
         os::Task task;
@@ -248,7 +246,7 @@ DiagBoard::processAddTask(u32 ptr1)
 
         // Add task
         tasks.push_back(ptr1);
-        debug(true, "Added %s '%s'\n",
+        debug(DBD_DEBUG, "Added %s '%s'\n",
               type == os::NT_TASK ? "task" : "process", name.c_str());
     
     } catch (...) {
@@ -262,7 +260,7 @@ DiagBoard::processRemTask(u32 ptr1)
 {
     try {
         
-        debug(ZOR_DEBUG, "processRemTask\n");
+        debug(DBD_DEBUG, "processRemTask\n");
         
         // Read task
         os::Task task;
@@ -282,7 +280,7 @@ DiagBoard::processRemTask(u32 ptr1)
                         
         // Remove task
         tasks.erase(it);
-        debug(true, "Removed '%s'\n", name.c_str());
+        debug(DBD_DEBUG, "Removed '%s'\n", name.c_str());
         
     } catch (...) {
         
@@ -295,18 +293,18 @@ DiagBoard::processLoadSeg(u32 ptr1, u32 ptr2, bool bstr)
 {
     try {
         
-        debug(ZOR_DEBUG, "processLoadSeg(%x,%x)\n", ptr1, ptr2);
+        debug(DBD_DEBUG, "processLoadSeg(%x,%x)\n", ptr1, ptr2);
                 
         // Read task name
         string name;
         if (bstr) {
             auto length = (isize)mem.spypeek8 <ACCESSOR_CPU> (4 * ptr1);
-            debug(true, "Length = %ld\n", length);
+            debug(DBD_DEBUG, "Length = %ld\n", length);
             osDebugger.read(4 * ptr1 + 1, name, length);
         } else {
             osDebugger.read(ptr1, name);
         }
-        debug(true, "LoadSeg: '%s' (%x)\n", name.c_str(), ptr2);
+        debug(DBD_DEBUG, "LoadSeg: '%s' (%x)\n", name.c_str(), ptr2);
         
         auto it = std::find(targets.begin(), targets.end(), name);
         if (it != targets.end()) {
@@ -314,7 +312,7 @@ DiagBoard::processLoadSeg(u32 ptr1, u32 ptr2, bool bstr)
             targets.erase(it);
             auto addr = 4 * (ptr2 + 1);
             cpu.debugger.breakpoints.setAt(addr);
-            debug(true, "Setting breakpoint at %x\n", addr);
+            debug(DBD_DEBUG, "Setting breakpoint at %x\n", addr);
         }
             
     } catch (...) {

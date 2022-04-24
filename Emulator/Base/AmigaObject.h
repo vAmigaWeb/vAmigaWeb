@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include "Error.h"
+
 /* Object model:
  *
  * ------------------
@@ -33,21 +35,19 @@
  * AmigaComponent defines the base functionality of all hardware components. It
  * comprises functions for initializing, configuring, and serializing the
  * object, as well as functions for powering up and down, running and
- * pausing. Furthermore, a 'synchronized' macro is provided to prevent mutual
+ * pausing. Furthermore, a 'SYNCHRONIZED' macro is provided to prevent mutual
  * execution of certain code components.
  *
  * Thread adds the ability to run the component asynchroneously. It implements
  * the emulator's state model (off, paused, running).
  */
 
-#include "Error.h"
-
 enum class Category
 {    
     BankMap, Blocks, Breakpoints, Bus, Callstack, Catchpoints, Checksums,
-    Config, Dma, Drive, Events, FileSystem, Geometry, Hunks, List1, List2,
-    Parameters, Partitions, Properties, Registers, Sections, Segments, Signals,
-    State, Stats, Summary, SwTraps, Tod, Volumes, Watchpoints
+    Config, Defaults, Dma, Drive, Events, FileSystem, Geometry, Hunks, List1,
+    List2, Parameters, Partitions, Properties, Registers, Sections, Segments,
+    Signals, State, Stats, Summary, SwTraps, Tod, Volumes, Watchpoints
 };
 
 class AmigaObject {

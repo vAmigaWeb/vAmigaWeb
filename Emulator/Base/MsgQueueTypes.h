@@ -12,6 +12,10 @@
 #include "Aliases.h"
 #include "Reflection.h"
 
+//
+// Enumerations
+//
+
 enum_long(MSG_TYPE)
 {
     MSG_NONE = 0,
@@ -88,9 +92,12 @@ enum_long(MSG_TYPE)
     MSG_DISK_PROTECT,
     MSG_DISK_UNPROTECT,
 
+    // Hard drive controllers
+    MSG_HDC_CONNECT,
+    MSG_HDC_DISCONNECT,
+    MSG_HDC_STATE,
+    
     // Hard drives
-    MSG_HDR_CONNECT,
-    MSG_HDR_DISCONNECT,
     MSG_HDR_STEP,
     MSG_HDR_READ,
     MSG_HDR_WRITE,
@@ -130,9 +137,9 @@ typedef MSG_TYPE MsgType;
 #ifdef __cplusplus
 struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
 {
-    static long minVal() { return 0; }
-    static long maxVal() { return MSG_SRV_SEND; }
-    static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
+    static constexpr long minVal = 0;
+    static constexpr long maxVal = MSG_SRV_SEND;
+    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "MSG"; }
     static const char *key(MsgType value)
@@ -204,8 +211,10 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
             case MSG_DISK_PROTECT:          return "DISK_PROTECT";
             case MSG_DISK_UNPROTECT:        return "DISK_UNPROTECT";
 
-            case MSG_HDR_CONNECT:           return "HDR_CONNECT";
-            case MSG_HDR_DISCONNECT:        return "HDR_DISCONNECT";
+            case MSG_HDC_CONNECT:           return "HDC_CONNECT";
+            case MSG_HDC_DISCONNECT:        return "HDC_DISCONNECT";
+            case MSG_HDC_STATE:             return "HDC_STATE";
+                
             case MSG_HDR_STEP:              return "HDR_STEP";
             case MSG_HDR_READ:              return "HDR_READ";
             case MSG_HDR_WRITE:             return "HDR_WRITE";
@@ -246,8 +255,15 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
 typedef struct
 {
     MsgType type;
-    u32 data1;
-    u32 data2;
+
+    /* The payload of a message consists of up to four (signed) 32-bit values.
+     * We avoid the usage of 64-bit types inside this structure to make it
+     * easily processable by JavaScript (web ports).
+     */
+    i32 data1;
+    i32 data2;
+    i32 data3;
+    i32 data4;
 }
 Message;
 
@@ -256,4 +272,4 @@ Message;
 // Signatures
 //
 
-typedef void Callback(const void *, long, u32, u32);
+typedef void Callback(const void *, long, i32, i32, i32, i32);

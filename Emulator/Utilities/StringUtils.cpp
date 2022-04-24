@@ -9,7 +9,6 @@
 
 #include "config.h"
 #include "StringUtils.h"
-#include "Aliases.h"
 #include <sstream>
 
 namespace util {
@@ -39,7 +38,7 @@ parseHex(const string &s, isize *result)
 {
     try {
         size_t pos = 0;
-        auto num = std::stol(s, &pos, 16);
+        auto num = std::stoll(s, &pos, 16);
 
         if (pos == s.size()) {
 
@@ -94,6 +93,12 @@ rtrim(const string &s, const string &characters)
 {
     auto pos = s.find_last_not_of(characters);
     return (pos == string::npos) ? "" : s.substr(0, pos + 1);
+}
+
+string
+trim(const string &s, const string &characters)
+{
+    return ltrim(rtrim(s, characters), characters);
 }
 
 std::vector<string>
@@ -157,16 +162,16 @@ string byteCountAsString(isize size)
     auto mbfrac = (size * 100 / (1024 * 1024)) % 100;
     auto gbfrac = (size * 100 / (1024 * 1024 * 1024)) % 100;
 
-    if (size < KB(1)) {
+    if (size < 1024) {
 
         return std::to_string(size) + " Bytes";
     }
-    if (size < MB(1)) {
+    if (size < 1024 * 1024) {
 
         auto frac = kbfrac == 0 ? "" : ("." + std::to_string(kbfrac));
         return std::to_string(kb) + frac + " KB";
     }
-    if (size < GB(1)) {
+    if (size < 1024 * 1024 * 1024) {
         
         auto frac = mbfrac == 0 ? "" : ("." + std::to_string(mbfrac));
         return std::to_string(mb) + frac + " MB";
