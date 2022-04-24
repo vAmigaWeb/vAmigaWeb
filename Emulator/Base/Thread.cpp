@@ -333,54 +333,53 @@ Thread::changeStateTo(ExecutionState requestedState, bool blocking)
     printf("**** State change %s -> %s\n",ExecutionStateEnum::key(state),ExecutionStateEnum::key(newState));
     // Are we requested to change state?
     while (newState != state) {
+            if (state == EXEC_OFF && newState == EXEC_PAUSED) {
+                
+                AmigaComponent::powerOn();
+                state = EXEC_PAUSED;
+
+            } else if (state == EXEC_PAUSED && newState == EXEC_OFF) {
+                
+                AmigaComponent::powerOff();
+                state = EXEC_OFF;
+            
+            } else if (state == EXEC_PAUSED && newState == EXEC_RUNNING) {
+                
+                AmigaComponent::run();
+                state = EXEC_RUNNING;
+            
+            } else if (state == EXEC_RUNNING && newState == EXEC_OFF) {
+                
+                AmigaComponent::pause();
+                state = EXEC_PAUSED;
+            
+            } else if (state == EXEC_RUNNING && newState == EXEC_PAUSED) {
+                
+                AmigaComponent::pause();
+                state = EXEC_PAUSED;
+
+            } else if (state == EXEC_RUNNING && newState == EXEC_SUSPENDED) {
+                
+                state = EXEC_SUSPENDED;
+
+            } else if (state == EXEC_SUSPENDED && newState == EXEC_RUNNING) {
+                
+                state = EXEC_RUNNING;
+
+            } else if (newState == EXEC_HALTED) {
+                
+                AmigaComponent::halt();
+                state = EXEC_HALTED;
+                return;
+
+            } else {
+                
+                // Invalid state transition
+                fatalError;
+            }
+            
+//            debug(RUN_DEBUG, "Changed state to %s\n", ExecutionStateEnum::key(state));
         
-        if (state == EXEC_OFF && newState == EXEC_PAUSED) {
-            
-            AmigaComponent::powerOn();
-            state = EXEC_PAUSED;
-            break;
-        }
-
-        if (state == EXEC_PAUSED && newState == EXEC_OFF) {
-            
-            AmigaComponent::powerOff();
-            state = EXEC_OFF;
-            break;
-        }
-
-        if (state == EXEC_PAUSED && newState == EXEC_RUNNING) {
-            
-            AmigaComponent::run();
-            state = EXEC_RUNNING;
-            break;
-        }
-
-        if (state == EXEC_RUNNING && newState == EXEC_OFF) {
-            
-            AmigaComponent::pause();
-            state = EXEC_PAUSED;
-            AmigaComponent::powerOff();
-            state = EXEC_OFF;
-            break;
-        }
-
-        if (state == EXEC_RUNNING && newState == EXEC_PAUSED) {
-            
-            AmigaComponent::pause();
-            state = EXEC_PAUSED;
-            break;
-        }
-        
-        if (newState == EXEC_HALTED) {
-            
-            AmigaComponent::halt();
-            state = EXEC_HALTED;
-            return;
-        }
-        
-        // Invalid state transition
-        fatalError;
-        break;
     }
 
 }
@@ -430,7 +429,6 @@ Thread::suspend()
     debug(RUN_DEBUG, "Suspending (%ld)...\n", suspendCounter);
     
     if (suspendCounter || isRunning()) {
-
         suspendCounter++;
         assert(state == EXEC_RUNNING || state == EXEC_SUSPENDED);
         changeStateTo(EXEC_SUSPENDED, true);

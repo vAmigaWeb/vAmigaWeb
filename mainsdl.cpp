@@ -569,7 +569,7 @@ void calculate_viewport_dimensions(Uint32 *texture)
     }
   }
 
-  printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
+//  printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
 
 }
 
@@ -912,7 +912,7 @@ class vAmigaWrapper {
 
     //turn automatic hd mounting off because kick1.2 makes trouble
     amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
-
+//amiga->configure(OPT_DISK_SWAP_DELAY, 0, SEC(10.0));
     printf("waiting on emulator ready in javascript ...\n");
  
   }
