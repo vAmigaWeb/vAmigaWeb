@@ -74,7 +74,7 @@ HdController::_reset(bool hard)
         rom.patch("virtualhd.device", dosName);
 
         // Patch Kickstart Rom (1.2 only)
-        // mem.patchExpansionLib();
+        mem.patchExpansionLib();
 
         // Set initial state
         state = pluggedIn() ? STATE_AUTOCONF : STATE_SHUTUP;
@@ -261,13 +261,22 @@ HdController::spypeek16(u32 addr) const
             // Number of filesystem drivers to add
             debug(HDR_DEBUG, "Filesystem drivers: %ld\n", drive.numDrivers());
             return u16(drive.numDrivers());
-            // return 0;
             
         case EXPROM_SIZE + 4:
+
+            // Should auto boot be disabled?
+            if (df0.hasDisk() || drive.bootable == false) {
+
+                debug(HDR_DEBUG, "Disabling auto boot\n");
+                return u16(true);
+            }
+            return u16(false);
+
+        case EXPROM_SIZE + 6:
             
-            // Should auto boot be disabled? (Kick 1.2)
-            debug(HDR_DEBUG, "Auto boot: %s\n", df0.hasDisk() ? "yes" : "no");
-            return df0.hasDisk();
+            // Number of shared folders (not supported yet)
+            debug(HDR_DEBUG, "Shared folders: 0\n");
+            return 0;
             
         default:
             
@@ -404,16 +413,7 @@ HdController::processInit(u32 ptr)
     debug(HDR_DEBUG, "processInit(%x)\n", ptr);
 
     auto assignDosName = [&](isize partition, char *name) {
-        
-        // Determine the number of already initialized partitions
-        /*
-        auto nr =
-        hd0con.numPartitions +
-        hd1con.numPartitions +
-        hd2con.numPartitions +
-        hd3con.numPartitions;
-        */
-        
+                
         name[0] = 'D';
         name[1] = 'H';
 

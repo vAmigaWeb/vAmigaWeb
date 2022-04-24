@@ -7,7 +7,11 @@
 // See https://www.gnu.org for license information
 // -----------------------------------------------------------------------------
 
+#include "config.h"
 #include "Chrono.h"
+#include <chrono>
+#include <thread>
+
 #ifdef __MACH__
 #include <mach/mach_time.h>
 #endif

@@ -163,12 +163,9 @@ HardDrive::init(const HDFFile &hdf)
     }
     
     // Print some debug information
+    debug(HDR_DEBUG, "%lu (needed) file system drivers\n", drivers.size());
     if constexpr (HDR_DEBUG) {
-
-        debug(true, "%lu (needed) file system drivers\n", drivers.size());
-        for (auto &driver : drivers) {
-            driver.dump();
-        }
+        for (auto &driver : drivers) driver.dump();
     }
 }
 
@@ -284,6 +281,7 @@ HardDrive::connect()
         debug(WT_DEBUG, "Creating default disk...\n");
         init(MB(10));
         format(FS_OFS, defaultName());
+        bootable = false;
     }    
 }
 
@@ -417,6 +415,12 @@ HardDrive::_dump(Category category, std::ostream& os) const
         os << bol(modified) << std::endl;
         os << tab("Write protected");
         os << bol(writeProtected) << std::endl;
+        os << tab("Bootable");
+        if (bootable) {
+            os << bol(*bootable) << std::endl;
+        } else {
+            os << "Unknown" << std::endl;
+        }
     }
 }
 

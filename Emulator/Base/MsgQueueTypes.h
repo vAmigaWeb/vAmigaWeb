@@ -12,6 +12,10 @@
 #include "Aliases.h"
 #include "Reflection.h"
 
+//
+// Enumerations
+//
+
 enum_long(MSG_TYPE)
 {
     MSG_NONE = 0,
@@ -133,9 +137,9 @@ typedef MSG_TYPE MsgType;
 #ifdef __cplusplus
 struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
 {
-    static long minVal() { return 0; }
-    static long maxVal() { return MSG_SRV_SEND; }
-    static bool isValid(auto val) { return val >= minVal() && val <= maxVal(); }
+    static constexpr long minVal = 0;
+    static constexpr long maxVal = MSG_SRV_SEND;
+    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "MSG"; }
     static const char *key(MsgType value)
@@ -251,8 +255,15 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
 typedef struct
 {
     MsgType type;
-    u32 data1;
-    u32 data2;
+
+    /* The payload of a message consists of up to four (signed) 32-bit values.
+     * We avoid the usage of 64-bit types inside this structure to make it
+     * easily processable by JavaScript (web ports).
+     */
+    i32 data1;
+    i32 data2;
+    i32 data3;
+    i32 data4;
 }
 Message;
 
@@ -261,4 +272,4 @@ Message;
 // Signatures
 //
 
-typedef void Callback(const void *, long, u32, u32);
+typedef void Callback(const void *, long, i32, i32, i32, i32);

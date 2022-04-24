@@ -145,6 +145,11 @@ Thread::main()
                 AmigaComponent::powerOn();
                 state = EXEC_PAUSED;
 
+            } else if (state == EXEC_OFF && newState == EXEC_RUNNING) {
+
+                AmigaComponent::powerOn();
+                state = EXEC_PAUSED;
+
             } else if (state == EXEC_PAUSED && newState == EXEC_OFF) {
                 
                 AmigaComponent::powerOff();
@@ -338,6 +343,11 @@ Thread::changeStateTo(ExecutionState requestedState, bool blocking)
                 AmigaComponent::powerOn();
                 state = EXEC_PAUSED;
 
+            } else if (state == EXEC_OFF && newState == EXEC_RUNNING) {
+
+                AmigaComponent::powerOn();
+                state = EXEC_PAUSED;
+
             } else if (state == EXEC_PAUSED && newState == EXEC_OFF) {
                 
                 AmigaComponent::powerOff();
@@ -429,6 +439,7 @@ Thread::suspend()
     debug(RUN_DEBUG, "Suspending (%ld)...\n", suspendCounter);
     
     if (suspendCounter || isRunning()) {
+
         suspendCounter++;
         assert(state == EXEC_RUNNING || state == EXEC_SUSPENDED);
         changeStateTo(EXEC_SUSPENDED, true);

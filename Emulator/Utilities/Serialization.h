@@ -10,6 +10,7 @@
 #pragma once
 
 #include "Macros.h"
+#include "MemUtils.h"
 #include "Buffer.h"
 #include <vector>
 
@@ -100,6 +101,7 @@ inline void writeString(u8 *& buf, string value)
     buf += len;
 }
 
+
 //
 // Counter (determines the state size)
 //
@@ -151,6 +153,14 @@ public:
         auto len = v.length();
         assert(len < 256);
         count += 1 + isize(len);
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(std::optional<T> &v)
+    {
+        if (v) { *this << *v; }
+        count += 1;
         return *this;
     }
 
@@ -246,6 +256,13 @@ public:
         for (usize i = 0; i < len; i++) {
             hash = util::fnvIt64(hash, v[i]);
         }
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(std::optional <T> &v)
+    {
+        if (v) { *this << *v; }
         return *this;
     }
 
@@ -350,6 +367,19 @@ public:
     auto& operator<<(string &v)
     {
         v = readString(ptr);
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(std::optional <T> &v)
+    {
+        bool b;
+        *this << b;
+        if (b) {
+            T value;
+            *this << value;
+            v = value;
+        }
         return *this;
     }
 
@@ -471,6 +501,15 @@ public:
     }
 
     template <class T>
+    auto& operator<<(std::optional <T> &v)
+    {
+        bool b = v ? true : false;
+        *this << b;
+        if (b) { *this << *v; }
+        return *this;
+    }
+
+    template <class T>
     auto& operator<<(std::vector <T> &v)
     {
         auto len = v.size();
@@ -522,7 +561,6 @@ public:
         std::memcpy((void *)ptr, src, n);
         ptr += n;
     }
-
 };
 
 
@@ -570,6 +608,27 @@ public:
     auto& operator<<(string &v)
     {
         v = "";
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(std::optional <T> &v)
+    {
+        v = { };
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(std::vector <T> &v)
+    {
+        v.clear();
+        return *this;
+    }
+
+    template <class T>
+    auto& operator>>(std::vector <T> &v)
+    {
+        v.clear();
         return *this;
     }
     

@@ -795,7 +795,7 @@ void send_message_to_js(const char * msg, long data)
 bool paused_the_emscripten_main_loop=false;
 bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
-void theListener(const void * amiga, long type,  u32 data1, u32 data2){
+void theListener(const void * amiga, long type,  int data1, int data2, int data3, int data4){
   if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.frame.nr < warp_to_frame)
   {
     //skip automatic warp mode on disk load
@@ -823,12 +823,13 @@ void theListener(const void * amiga, long type,  u32 data1, u32 data2){
   }
   if(type == MSG_VIEWPORT)
   {
-    printf("tracking MSG_VIEWPORT=%u, %u\n",data1, data2);
-    hstart_min= (data1 >>16) & 0xffff;
-    vstart_min= (data1 ) & 0xffff;
-    hstop_max= (data2 >>16) & 0xffff;
-    vstop_max= (data2 ) & 0xffff;
+    printf("tracking MSG_VIEWPORT=%d, %d, %d, %d\n",data1, data2, data3, data4);
+    hstart_min= data1;
+    vstart_min= data2;
+    hstop_max=  data3;
+    vstop_max=  data4;
     
+
     hstart_min *=2;
     hstop_max *=2;
 
@@ -911,8 +912,8 @@ class vAmigaWrapper {
     amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS);
 
     //turn automatic hd mounting off because kick1.2 makes trouble
-    amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
-//amiga->configure(OPT_DISK_SWAP_DELAY, 0, SEC(10.0));
+//    amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
+
     printf("waiting on emulator ready in javascript ...\n");
  
   }
