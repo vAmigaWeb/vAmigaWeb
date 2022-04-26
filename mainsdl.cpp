@@ -578,6 +578,16 @@ bool calculate_viewport_dimensions(Uint32 *texture)
   }
 
   bool dimensions_changed=false;
+
+  //handdisk start pixel 416, stop pixel 676
+  #define HANDSTART_PIXEL 416
+  #define HANDSTOP_PIXEL 676
+  
+  if(hstart_min_calib > HANDSTART_PIXEL-32)
+    hstart_min_calib= HANDSTART_PIXEL-32;
+  if(hstop_max_calib < HANDSTOP_PIXEL+32)
+    hstop_max_calib= HANDSTOP_PIXEL+32;
+
   if(hstart_min_calib < hstop_max_calib )
   {
     if(hstart_min!=hstart_min_calib)
@@ -591,6 +601,12 @@ bool calculate_viewport_dimensions(Uint32 *texture)
       dimensions_changed=true;
     }
   }
+
+  if(vstart_min_calib > VPIXELS/4)
+    vstart_min_calib= VPIXELS/4;
+  if(vstop_max_calib < 3*VPIXELS/4)
+    vstop_max_calib= 3*VPIXELS/4;
+
   if(vstart_min_calib< vstop_max_calib)
   {
     if(vstart_min != vstart_min_calib)
@@ -600,7 +616,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
     }
     if(vstop_max != vstop_max_calib)
     {
-      vstop_max=vstop_max_calib;
+      vstop_max=vstop_max_calib;   
       dimensions_changed=true;
     }
  
