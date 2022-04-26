@@ -3,7 +3,7 @@
   "short_name": "vAmigaWeb",
   "start_url": "/",
   "scope": ".",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#BBBBBB",
   "theme_color": "#BBBBBB",
   "icons": [
