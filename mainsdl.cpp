@@ -927,6 +927,23 @@ class vAmigaWrapper {
     printf("adding a listener to vAmiga message queue...\n");
 
     amiga->msgQueue.setListener(this->amiga, &theListener);
+    amiga->properties.setFallback(OPT_HDC_CONNECT, 0, false);
+
+    // master Volumne
+    amiga->configure(OPT_AUDVOLL, 100); 
+    amiga->configure(OPT_AUDVOLR, 100);
+
+    //SID0 Volumne
+    amiga->configure(OPT_AUDVOL, 0, 100); 
+    amiga->configure(OPT_AUDPAN, 0, 0);
+
+
+    amiga->configure(OPT_CHIP_RAM, 512);
+    amiga->configure(OPT_SLOW_RAM, 512);
+    amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS);
+
+    //turn automatic hd mounting off because kick1.2 makes trouble
+    amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
   }
   ~vAmigaWrapper()
   {
@@ -943,31 +960,7 @@ class vAmigaWrapper {
         });
     }
     
-
-    printf("v4 wrapper calls run on vAmiga->run() method\n");
-
-    //c64->setTakeAutoSnapshots(false);
-    //c64->setWarpLoad(true);
-
-//    c64->configure(OPT_SID_ENGINE, SIDENGINE_RESID);
-//    c64->configure(OPT_SID_SAMPLING, SID_SAMPLE_INTERPOLATE);
-
-
-    // master Volumne
-    amiga->configure(OPT_AUDVOLL, 100); 
-    amiga->configure(OPT_AUDVOLR, 100);
-
-    //SID0 Volumne
-    amiga->configure(OPT_AUDVOL, 0, 100); 
-    amiga->configure(OPT_AUDPAN, 0, 0);
-
-
-    amiga->configure(OPT_CHIP_RAM, 512);
-    amiga->configure(OPT_SLOW_RAM, 512);
-    amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS);
-
-    //turn automatic hd mounting off because kick1.2 makes trouble
-//    amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
+    printf("wrapper calls run on vAmiga->run() method\n");
 
     printf("waiting on emulator ready in javascript ...\n");
  
@@ -1404,6 +1397,7 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
   }
 
   if (HDFFile::isCompatible(filename)) {
+    printf("is hdf\n");
     wrapper->amiga->powerOff();
     HDFFile hdf{blob, len};  
     wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/true);
@@ -1455,8 +1449,15 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
     try { 
       wrapper->amiga->mem.loadRom(*rom); 
       
-      printf("Loaded ROM image %s.\n", name);
-      
+      printf("Loaded ROM image %s. %s\n", name, wrapper->amiga->mem.romTitle());
+       
+/*      wrapper->amiga->configure(OPT_HDC_CONNECT,
+        //hd drive
+        0, 
+        //enable if not AROS
+        strcmp(wrapper->amiga->mem.romTitle(),"AROS Kickstart replacement")!=0
+      );
+*/
     }  
     catch(VAError &exception) { 
       printf("Failed to flash ROM image %s.\n", name);
