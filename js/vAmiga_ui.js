@@ -3402,7 +3402,7 @@ function scaleVMCanvas() {
             strokeStyle	: 'red',
             limitStickTravel: true,
             stickRadius	: 0,
-            mouseSupport	: true		
+            mouseSupport	: true
         });
         v_fire.addEventListener('touchStartValidation', function(event){
             var touch	= event.changedTouches[0];

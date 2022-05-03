@@ -1043,7 +1043,7 @@ bool create_renderer_software()
 
     renderer = SDL_CreateRenderer(window,
           -1, 
-          SDL_RENDERER_SOFTWARE
+          SDL_RENDERER_SOFTWARE|SDL_RENDERER_PRESENTVSYNC
           );
     return renderer != NULL; 
 }

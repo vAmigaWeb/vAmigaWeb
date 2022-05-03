@@ -513,6 +513,10 @@ function installKeyboard() {
                             wasm_schedule_key(key_code[0], key_code[1], 0,1);
                         }                    
                     }
+                    else
+                    {
+                      the_key_element.setAttribute('key-state', 'pressed');
+                    }
                 }
                }
             }
@@ -530,14 +534,35 @@ function installKeyboard() {
                     let key_code = translateKey(keydef.c, keydef.k);
                     wasm_schedule_key(key_code[0], key_code[1], 0, 1);
                     release_modifiers();
+                    the_key_element.setAttribute('key-state', '');
                 }
             }
 
+            the_key_element.addEventListener("focus", (event)=>{ event.preventDefault(); event.currentTarget.blur();})
             the_key_element.addEventListener("mousedown", key_down_handler);
             the_key_element.addEventListener("mouseup", key_up_handler);
 
-            the_key_element.addEventListener("touchstart", ()=>{event.preventDefault(); key_down_handler()});
-            the_key_element.addEventListener("touchend", ()=>{ event.preventDefault(); key_up_handler(); });
+            the_key_element.addEventListener("touchstart", (event)=>{
+                event.preventDefault(); 
+                key_down_handler();
+                let scroll_area=document.getElementById("vbk_scroll_area");
+                touch_start_x=event.changedTouches[0].clientX;
+                touch_start_scrollLeft=scroll_area.scrollLeft;
+                touch_start_id=event.changedTouches[0].identifier;
+            });
+            the_key_element.addEventListener("touchend", (event)=>{event.preventDefault(); key_up_handler(); });
+            the_key_element.addEventListener("touchmove", (event)=>{
+                let scroll_area=document.getElementById("vbk_scroll_area");
+                for(touch of event.changedTouches)
+                {
+                    if(touch.identifier == touch_start_id)
+                    {
+                        let scroll_x = touch_start_scrollLeft+(touch_start_x-touch.clientX);
+                        scroll_area.scroll(scroll_x, 0);
+                    }
+                } 
+            });
+
         });
     });
 
