@@ -364,6 +364,9 @@ button[id^="detail_run"] {
     font-size:x-small;
 }
 
+[key-state="pressed"] {
+    box-shadow: inset 0 0 0.1em white, 0em 0em 3em white;
+}
 
 .darkkey {
     background-color: rgb(78,87,95);
