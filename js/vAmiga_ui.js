@@ -800,7 +800,7 @@ function configure_file_dialog(reset=false)
 
                                 if(mountable_count==1)
                                 {//in case that there was only one mountable file in the zip, auto mount it
-                                    configure_file_dialog(true);
+                                    configure_file_dialog(false);
                                 }        
                                 else
                                 {//file is ready to insert
@@ -1823,6 +1823,28 @@ function InitWrappers() {
         lock_action_button=this.checked;
         install_custom_keys();
         save_setting('lock_action_button', lock_action_button);
+    });
+
+//----
+    let set_vbk_choice = function (choice) {
+        $(`#button_vbk_touch`).text('keycap touch behaviour='+choice);
+        current_vbk_touch=choice;
+        save_setting("vbk_touch",choice);   
+
+        for(el of document.querySelectorAll(".vbk_choice_text"))
+        {
+            el.style.display="none";
+        }
+        document.getElementById(choice.replace(" ","_").replace(" ","_")+"_text").style.display="inherit";
+    }
+    current_vbk_touch=load_setting("vbk_touch", "mix of both");
+    set_vbk_choice(current_vbk_touch);
+
+    $(`#choose_vbk_touch a`).click(function () 
+    {
+        let choice=$(this).text();
+        set_vbk_choice(choice);
+        $("#modal_settings").focus();
     });
 
 //----

@@ -543,24 +543,45 @@ function installKeyboard() {
             the_key_element.addEventListener("mouseup", key_up_handler);
 
             the_key_element.addEventListener("touchstart", (event)=>{
-                event.preventDefault(); 
-                key_down_handler();
-                let scroll_area=document.getElementById("vbk_scroll_area");
-                touch_start_x=event.changedTouches[0].clientX;
-                touch_start_scrollLeft=scroll_area.scrollLeft;
-                touch_start_id=event.changedTouches[0].identifier;
-            });
-            the_key_element.addEventListener("touchend", (event)=>{event.preventDefault(); key_up_handler(); });
-            the_key_element.addEventListener("touchmove", (event)=>{
-                let scroll_area=document.getElementById("vbk_scroll_area");
-                for(touch of event.changedTouches)
+                if(current_vbk_touch.startsWith("exact") || current_vbk_touch.startsWith("mix"))
                 {
-                    if(touch.identifier == touch_start_id)
+                    event.preventDefault(); 
+                    key_down_handler();
+                }
+                if(current_vbk_touch.startsWith("mix"))
+                {
+                    let scroll_area=document.getElementById("vbk_scroll_area");
+                    touch_start_x=event.changedTouches[0].clientX;
+                    touch_start_scrollLeft=scroll_area.scrollLeft;
+                    touch_start_id=event.changedTouches[0].identifier;
+                }
+            });
+            the_key_element.addEventListener("touchmove", (event)=>{
+                if(current_vbk_touch.startsWith("mix"))
+                {
+                    let scroll_area=document.getElementById("vbk_scroll_area");
+                    for(touch of event.changedTouches)
                     {
-                        let scroll_x = touch_start_scrollLeft+(touch_start_x-touch.clientX);
-                        scroll_area.scroll(scroll_x, 0);
+                        if(touch.identifier == touch_start_id)
+                        {
+                            let scroll_x = touch_start_scrollLeft+(touch_start_x-touch.clientX);
+                            scroll_area.scroll(scroll_x, 0);
+                        }
                     }
                 } 
+            });
+            the_key_element.addEventListener("touchend", (event)=>{
+                if(current_vbk_touch.startsWith("smart"))
+                {
+                    event.preventDefault(); 
+                    key_down_handler();
+                    setTimeout(key_up_handler,100); 
+                }
+                else
+                {
+                    event.preventDefault(); 
+                    key_up_handler(); 
+                }
             });
 
         });
