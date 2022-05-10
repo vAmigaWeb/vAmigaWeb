@@ -314,7 +314,7 @@ function installKeyboard() {
 
     var the_keyBoard='';
     keymap.forEach(row => {
-        the_keyBoard+='<div class="justify-content-center" style="display:flex">';
+        the_keyBoard+='<div draggable="false" class="justify-content-center" style="display:flex;user-select:none;">';
         row.forEach(keydef => {
             if(keydef.k === undefined)
             {
@@ -426,6 +426,14 @@ function installKeyboard() {
         }
     }
 
+    let virtual_keyboard = document.getElementById("virtual_keyboard");
+    virtual_keyboard.addEventListener("contextmenu", (event)=>{event.preventDefault();});
+    virtual_keyboard.addEventListener("dragstart", (event)=>{event.preventDefault();});
+    virtual_keyboard.addEventListener("drop", (event)=>{event.preventDefault();});
+    virtual_keyboard.addEventListener("select", (event)=>{event.preventDefault();});
+
+    $('#virtual_keyboard').css("user-select","none");
+    
     keymap.forEach(row => {
         row.forEach(keydef => {
             if(keydef.k === undefined)
@@ -571,15 +579,14 @@ function installKeyboard() {
                 } 
             });
             the_key_element.addEventListener("touchend", (event)=>{
+                event.preventDefault(); 
                 if(current_vbk_touch.startsWith("smart"))
                 {
-                    event.preventDefault(); 
                     key_down_handler();
                     setTimeout(key_up_handler,100); 
                 }
                 else
                 {
-                    event.preventDefault(); 
                     key_up_handler(); 
                 }
             });
