@@ -82,7 +82,7 @@
     <!-- 
       we pin the keyboard collapsable at the bottom and give it the full width 
     -->
-    <div class="collapse" id="virtual_keyboard">
+    <div class="collapse" style="user-select: none;" id="virtual_keyboard">
       <div class="justify-content-center" id="vbk_scroll_area"
         style="display: flex;flex-wrap: nowrap;overflow-x: auto;">
         <div style="flex: 0 0 auto;padding-right: 15px;padding-left: 15px;position: relative;min-width: 0;max-width: 100%;">
@@ -90,7 +90,7 @@
             the following absolute width defines the scrollable area
             if it is to short then some keys on the outer egdes are clipped
           -->
-          <div style="width:780px;user-select:none" id="divKeyboardRows"></div>      
+          <div style="width:780px;" id="divKeyboardRows"></div>      
         </div>
       </div>
     </div>
