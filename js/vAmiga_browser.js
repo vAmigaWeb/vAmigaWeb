@@ -288,7 +288,10 @@ async function load_browser(datasource_name, command="feeds")
                 let id = this.id.match(/canvas_snap_(.*)/)[1];
                 collector.show_detail(app_title, id);
             };
-            collector.draw_item_into_canvas(app_title, canvas, app_snaps[z]);  
+            try {
+                collector.draw_item_into_canvas(app_title, canvas, app_snaps[z]);  
+            } catch(e) { console.error(e); }
+              
         }
     }
 
