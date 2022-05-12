@@ -927,7 +927,7 @@ class vAmigaWrapper {
     printf("adding a listener to vAmiga message queue...\n");
 
     amiga->msgQueue.setListener(this->amiga, &theListener);
-    amiga->properties.setFallback(OPT_HDC_CONNECT, 0, false);
+    amiga->defaults.setFallback(OPT_HDC_CONNECT, 0, false);
 
     // master Volumne
     amiga->configure(OPT_AUDVOLL, 100); 

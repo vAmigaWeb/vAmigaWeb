@@ -83,7 +83,7 @@ Snapshot::finalizeRead()
 
     if (isTooOld()) throw VAError(ERROR_SNAP_TOO_OLD);
     if (isTooNew()) throw VAError(ERROR_SNAP_TOO_NEW);
-    if (isBeta() && !betaRelease) throw VAError(ERROR_SNAP_IS_BETA);
+    //if (isBeta() && !betaRelease) throw VAError(ERROR_SNAP_IS_BETA);
 }
 
 bool

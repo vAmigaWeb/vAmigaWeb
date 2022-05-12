@@ -1,4 +1,6 @@
-var vAmigaWeb_version ="2.0.0_beta4"; //minimum requirement for snapshot version to be compatible
+var vAmigaWeb_version ="2.0.0"; //minimum requirement for snapshot version to be compatible
+var compatible_snapshot_version_format=/^(2[.]0[.]0|2[.]0[.]0_beta4)$/g
+
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 
@@ -286,7 +288,10 @@ async function load_browser(datasource_name, command="feeds")
                 let id = this.id.match(/canvas_snap_(.*)/)[1];
                 collector.show_detail(app_title, id);
             };
-            collector.draw_item_into_canvas(app_title, canvas, app_snaps[z]);  
+            try {
+                collector.draw_item_into_canvas(app_title, canvas, app_snaps[z]);  
+            } catch(e) { console.error(e); }
+              
         }
     }
 
@@ -424,13 +429,21 @@ var collectors = {
                     data.set(snapshot_data.subarray(0, data.length), 0);
                     ctx.putImageData(imgData,0,0); 
                 
-                    if(!version.startsWith(vAmigaWeb_version))
+                    if(!version.match(compatible_snapshot_version_format))
                     {
                         ctx.translate(50, 0); // translate to rectangle center 
                         ctx.rotate((Math.PI / 180) * 27); // rotate
                         ctx.font = '36px serif';
                         ctx.fillStyle = '#DD0000';
                         ctx.fillText('V'+version+' please delete', 10, 45);
+                    }
+                    else if(version!=vAmigaWeb_version)
+                    {
+                        ctx.translate(0, 230); // translate to rectangle center 
+                        //ctx.rotate((Math.PI / 180) * 27); // rotate
+                        ctx.font = '20px serif';
+                        ctx.fillStyle = '#aa0';
+                        ctx.fillText('saved with V'+version+' maybe incompatible', 10, 45);
                     }
                 }
             }
@@ -465,7 +478,7 @@ var collectors = {
                             version += `_beta${snapshot.data[9]}`;
                         }
 
-                        if(!version.startsWith(vAmigaWeb_version))
+                        if(!version.match(compatible_snapshot_version_format))
                         {
                             alert(`This snapshot has been taken with the older vAmiga version ${version} and can not be loaded with the current version ${vAmigaWeb_version}, sorry.`);
                             return;
