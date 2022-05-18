@@ -1156,30 +1156,55 @@ extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_d
 char wasm_pull_user_snapshot_file_json_result[255];
 
 
-extern "C" bool wasm_has_disk()
+extern "C" bool wasm_has_disk(const char *drive_name)
 {
-  return wrapper->amiga->df0.hasDisk();
+  if(strcmp(drive_name,"df0") == 0)
+  {
+    return wrapper->amiga->df0.hasDisk();
+  }
+  else if (strcmp(drive_name,"dh0") == 0)
+  {
+    return wrapper->amiga->hd0.hasDisk();
+  }
+  return false;
 }
  
-extern "C" char* wasm_export_disk()
+extern "C" char* wasm_export_disk(const char *drive_name)
 {
-  if(!wrapper->amiga->df0.hasDisk())
+  if(strcmp(drive_name,"df0") == 0)
   {
-    printf("no disk in df0\n");
-    sprintf(wasm_pull_user_snapshot_file_json_result, "{\"size\": 0 }");
-    return wasm_pull_user_snapshot_file_json_result;
-  }
+    if(!wrapper->amiga->df0.hasDisk())
+    {
+      printf("no disk in df0\n");
+      sprintf(wasm_pull_user_snapshot_file_json_result, "{\"size\": 0 }");
+      return wasm_pull_user_snapshot_file_json_result;
+    }
 
-  ADFFile *adf = new ADFFile(wrapper->amiga->df0);
-  sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",
-  (unsigned long)adf->data.ptr, 
-  adf->data.size
-  );
+    ADFFile *adf = new ADFFile(wrapper->amiga->df0);
+    sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",
+    (unsigned long)adf->data.ptr, 
+    adf->data.size
+    );
+  }
+  else if (strcmp(drive_name,"dh0") == 0)
+  {
+    if(!wrapper->amiga->hd0.hasDisk())
+    {
+      printf("no disk in dh0\n");
+      sprintf(wasm_pull_user_snapshot_file_json_result, "{\"size\": 0 }");
+      return wasm_pull_user_snapshot_file_json_result;
+    }
+
+    HDFFile *hdf = new HDFFile(wrapper->amiga->hd0);
+    sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",
+    (unsigned long)hdf->data.ptr, 
+    hdf->data.size
+    );
+  }
   printf("return => %s\n",wasm_pull_user_snapshot_file_json_result);
 
   return wasm_pull_user_snapshot_file_json_result;
 }
-
 
 Snapshot *snapshot=NULL;
 extern "C" void wasm_delete_user_snapshot()
