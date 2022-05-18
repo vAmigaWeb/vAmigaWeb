@@ -1314,8 +1314,8 @@ function InitWrappers() {
 
     wasm_peek = Module.cwrap('wasm_peek', 'number', ['number']);
     wasm_poke = Module.cwrap('wasm_poke', 'undefined', ['number', 'number']);
-    wasm_has_disk = Module.cwrap('wasm_has_disk', 'number');
-    wasm_export_disk = Module.cwrap('wasm_export_disk', 'string');
+    wasm_has_disk = Module.cwrap('wasm_has_disk', 'number', ['string']);
+    wasm_export_disk = Module.cwrap('wasm_export_disk', 'string', ['string']);
     wasm_configure = Module.cwrap('wasm_configure', 'string', ['string', 'string']);
     wasm_write_string_to_ser = Module.cwrap('wasm_write_string_to_ser', 'undefined', ['string']);
     wasm_print_error = Module.cwrap('wasm_print_error', 'undefined', ['number']);
@@ -2276,7 +2276,7 @@ $('.layer').change( function(event) {
         $("#input_app_title").val(global_apptitle);
         $("#input_app_title").focus();
 
-        if(wasm_has_disk())
+        if(wasm_has_disk("df0"))
         {
             $("#button_export_disk").show();
         }
@@ -2284,10 +2284,18 @@ $('.layer').change( function(event) {
         {
             $("#button_export_disk").hide();
         }
+        if(wasm_has_disk("dh0"))
+        {
+            $("#button_export_hdf").show();
+        }
+        else
+        {
+            $("#button_export_hdf").hide();
+        }
     }
     $('#button_export_disk').click(function() 
     {
-        let d64_json = wasm_export_disk();
+        let d64_json = wasm_export_disk("df0");
         let d64_obj = JSON.parse(d64_json);
         let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
         let filebuffer = d64_buffer.slice(0,d64_obj.size);
@@ -2304,6 +2312,29 @@ $('.layer').change( function(event) {
             app_name = app_name.substring(0,extension_pos);
         }
         a.download = app_name+'.adf';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+    });
+    $('#button_export_disk').click(function() 
+    {
+        let d64_json = wasm_export_disk("dh0");
+        let d64_obj = JSON.parse(d64_json);
+        let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
+        let filebuffer = d64_buffer.slice(0,d64_obj.size);
+        let blob_data = new Blob([filebuffer], {type: 'application/octet-binary'});
+        const url = window.URL.createObjectURL(blob_data);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+
+        let app_name = $("#input_app_title").val();
+        let extension_pos = app_name.indexOf(".");
+        if(extension_pos >=0)
+        {
+            app_name = app_name.substring(0,extension_pos);
+        }
+        a.download = app_name+'.hdf';
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
