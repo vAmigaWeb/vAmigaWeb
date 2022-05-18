@@ -2316,7 +2316,7 @@ $('.layer').change( function(event) {
         a.click();
         window.URL.revokeObjectURL(url);
     });
-    $('#button_export_disk').click(function() 
+    $('#button_export_hdf').click(function() 
     {
         let d64_json = wasm_export_disk("dh0");
         let d64_obj = JSON.parse(d64_json);
