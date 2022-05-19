@@ -2034,7 +2034,9 @@ bind_config_choice("OPT_CPU_OVERCLOCKING", "68000 CPU",[0,2,3,4,8,16,32], 0,
     val = Math.round(val /7.09);
     return val == 1 ? 0: val;
 });
-
+$('#hardware_settings').append(`<div style="font-size: smaller" class="ml-3 vbk_choice_text">
+<span>7.09 Mhz</span> is the original speed of a stock A1000 or A500 machine. CPU speed is proportional to energy consumption.   
+</div>`);
 
 //------
 
