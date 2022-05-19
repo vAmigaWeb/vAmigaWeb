@@ -22,6 +22,9 @@
 #include "RTC.h"
 #include "ZorroManager.h"
 
+// REMOVE ASAP
+Accessor _accessor;
+
 void
 Memory::_dump(Category category, std::ostream& os) const
 {
@@ -1546,8 +1549,8 @@ Memory::poke8 <ACCESSOR_CPU, MEM_CHIP> (u32 addr, u8 value)
 {
     ASSERT_CHIP_ADDR(addr);
     
-    if constexpr (BLT_GUARD) {
-        if (blitter.memguard[addr & mem.chipMask]) {
+    if constexpr (BLT_MEM_GUARD) {
+        if (blitter.checkMemguard(addr & mem.chipMask)) {
             trace(true, "CPU(8) OVERWRITES BLITTER AT ADDR %x\n", addr);
         }
     }
@@ -1564,8 +1567,8 @@ Memory::poke16 <ACCESSOR_CPU, MEM_CHIP> (u32 addr, u16 value)
 {
     ASSERT_CHIP_ADDR(addr);
     
-    if constexpr (BLT_GUARD) {
-        if (blitter.memguard[addr & mem.chipMask]) {
+    if constexpr (BLT_MEM_GUARD) {
+        if (blitter.checkMemguard(addr & mem.chipMask)) {
             trace(true, "CPU(16) OVERWRITES BLITTER AT ADDR %x\n", addr);
         }
     }
@@ -2174,7 +2177,7 @@ Memory::spypeekCustom16(u32 addr) const
 template <Accessor s> void
 Memory::pokeCustom16(u32 addr, u16 value)
 {
-
+    _accessor = s;
     assert(string(regName(addr)) == string(Memory::regName(addr)));
 
     if ((addr & 0xFFF) == 0x30) {

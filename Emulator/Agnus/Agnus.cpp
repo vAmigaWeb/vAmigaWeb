@@ -44,7 +44,7 @@ Agnus::_reset(bool hard)
     }
     
     if (hard) assert(clock == 0);
-    
+
     // Schedule initial events
     scheduleRel<SLOT_SEC>(NEVER, SEC_TRIGGER);
     scheduleRel<SLOT_TER>(NEVER, TER_TRIGGER);
@@ -69,7 +69,8 @@ Agnus::resetConfig()
     std::vector <Option> options = {
         
         OPT_AGNUS_REVISION,
-        OPT_SLOW_RAM_MIRROR
+        OPT_SLOW_RAM_MIRROR,
+        OPT_PTR_DROPS
     };
 
     for (auto &option : options) {
@@ -82,8 +83,9 @@ Agnus::getConfigItem(Option option) const
 {
     switch (option) {
             
-        case OPT_AGNUS_REVISION: return config.revision;
-        case OPT_SLOW_RAM_MIRROR: return config.slowRamMirror;
+        case OPT_AGNUS_REVISION:    return config.revision;
+        case OPT_SLOW_RAM_MIRROR:   return config.slowRamMirror;
+        case OPT_PTR_DROPS:         return config.ptrDrops;
             
         default:
             fatalError;
@@ -120,6 +122,11 @@ Agnus::setConfigItem(Option option, i64 value)
         case OPT_SLOW_RAM_MIRROR:
             
             config.slowRamMirror = value;
+            return;
+
+        case OPT_PTR_DROPS:
+
+            config.ptrDrops = value;
             return;
             
         default:
@@ -236,15 +243,12 @@ Agnus::cycleToBeam(Cycle cycle) const
 void
 Agnus::execute()
 {
-    // Process pending events
-    if (nextTrigger <= clock) executeUntil(clock);
-
-    // If this assertion hits, the HSYNC event hasn't been served
-    assert(pos.h < HPOS_MAX);
-
     // Advance the internal clock and the horizontal counter
     clock += DMA_CYCLES(1);
-    pos.h++;
+    pos.h = (pos.h + 1) % HPOS_CNT;
+
+    // Process pending events
+    if (nextTrigger <= clock) executeUntil(clock);
 }
 
 void
@@ -302,29 +306,26 @@ Agnus::syncWithEClock()
 
 void
 Agnus::executeUntilBusIsFree()
-{    
-    isize posh = pos.h == 0 ? HPOS_MAX : pos.h - 1;
+{
+    // If the CPU is overclocked, sync it with Agnus
+    cpu.resyncOverclockedCpu();
 
+    // Disable overclocking temporarily
+    cpu.slowCycles = 1;
+    
     // Check if the bus is blocked
-    if (busOwner[posh] != BUS_NONE) {
+    if (busOwner[pos.h] != BUS_NONE) {
 
         // This variable counts the number of DMA cycles the CPU will be suspended
         DMACycle delay = 0;
 
         // Execute Agnus until the bus is free
         do {
-            
-            /*
-            if (pos.v >= 0x66 && pos.v <= 0x66) {
-                trace(true, "CPU blocked in %ld by %s\n", posh, BusOwnerEnum::key(busOwner[posh]));
-            }
-            */
-            
-            posh = pos.h;
+
             execute();
             if (++delay == 2) bls = true;
-            
-        } while (busOwner[posh] != BUS_NONE);
+
+        } while (busOwner[pos.h] != BUS_NONE);
 
         // Clear the BLS line (Blitter slow down)
         bls = false;
@@ -332,49 +333,19 @@ Agnus::executeUntilBusIsFree()
         // Add wait states to the CPU
         cpu.addWaitStates(DMA_CYCLES(delay));
     }
-    
-    /*
-    if (pos.v >= 0x66 && pos.v <= 0x66) {
-        trace(true, "CPU got cycle %ld\n", posh);
-    }
-    */
-    
+
     // Assign bus to the CPU
-    busOwner[posh] = BUS_CPU;
+    busOwner[pos.h] = BUS_CPU;
 }
 
 void
 Agnus::executeUntilBusIsFreeForCIA()
 {
+    // If the CPU is overclocked, sync it with Agnus
+    cpu.resyncOverclockedCpu();
+
     // Sync with the E clock driving the CIA
     syncWithEClock();
-    
-    isize posh = pos.h == 0 ? HPOS_MAX : pos.h - 1;
-    
-    // Check if the bus is blocked
-    if (busOwner[posh] != BUS_NONE) {
-
-        // This variable counts the number of DMA cycles the CPU will be suspended
-        DMACycle delay = 0;
-
-        // Execute Agnus until the bus is free
-        do {
-
-            posh = pos.h;
-            execute();
-            if (++delay == 2) bls = true;
-            
-        } while (busOwner[posh] != BUS_NONE);
-
-        // Clear the BLS line (Blitter slow down)
-        bls = false;
-
-        // Add wait states to the CPU
-        cpu.addWaitStates(DMA_CYCLES(delay));
-    }
-
-    // Assign bus to the CPU
-    busOwner[posh] = BUS_CPU;
 }
 
 void
@@ -382,7 +353,7 @@ Agnus::recordRegisterChange(Cycle delay, u32 addr, u16 value, Accessor acc)
 {
     // Record the new register value
     changeRecorder.insert(clock + delay, RegChange { addr, value, (u16)acc } );
-    
+
     // Schedule the register change
     scheduleNextREGEvent();
 }
@@ -554,7 +525,7 @@ Agnus::executeFirstSpriteCycle()
                 denise.pokeSPRxPOS<nr>(value);
                 
             } else {
-                
+
                 busOwner[pos.h] = BUS_BLOCKED;
             }
         }
@@ -570,7 +541,7 @@ Agnus::executeFirstSpriteCycle()
                 denise.pokeSPRxDATA<nr>(value);
                 
             } else {
-                
+
                 busOwner[pos.h] = BUS_BLOCKED;
             }
         }
@@ -596,7 +567,7 @@ Agnus::executeSecondSpriteCycle()
                 denise.pokeSPRxCTL<nr>(value);
                 
             } else {
-                
+
                 busOwner[pos.h] = BUS_BLOCKED;
             }
         }
@@ -612,7 +583,7 @@ Agnus::executeSecondSpriteCycle()
                 denise.pokeSPRxDATB<nr>(value);
                 
             } else {
-                
+
                 busOwner[pos.h] = BUS_BLOCKED;
             }
         }
@@ -690,6 +661,8 @@ Agnus::hsyncHandler()
 void
 Agnus::vsyncHandler()
 {
+    assert(clock >= 0);
+
     // Run the screen recorder
     denise.screenRecorder.vsyncHandler(clock - 50 * DMA_CYCLES(HPOS_CNT));
     
