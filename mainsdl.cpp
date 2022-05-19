@@ -2025,7 +2025,8 @@ extern "C" const char* wasm_configure(char* option, char* _value)
               strcmp(option,"DRIVE_SPEED") == 0  ||
               strcmp(option,"CHIP_RAM") == 0  ||
               strcmp(option,"SLOW_RAM") == 0  ||
-              strcmp(option,"FAST_RAM") == 0  
+              strcmp(option,"FAST_RAM") == 0  ||
+              strcmp(option,"CPU_OVERCLOCKING") == 0 
     )
     {
       wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseNum(value));

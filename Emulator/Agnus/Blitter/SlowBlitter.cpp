@@ -994,7 +994,7 @@ Blitter::beginSlowCopyBlit()
     // In debug mode, we execute the whole micro program immediately.
     // This let's us compare checksums with the FastBlitter.
     if constexpr (SLOW_BLT_DEBUG) {
-        
+
         BusOwner owner = agnus.busOwner[agnus.pos.h];
         agnus.setBLS(false);
         
@@ -1051,7 +1051,7 @@ Blitter::beginSlowLineBlit()
     // In debug mode, we execute the whole micro program immediately.
     // This let's us compare checksums with the FastBlitter.
     if constexpr (SLOW_BLT_DEBUG) {
-        
+
         BusOwner owner = agnus.busOwner[agnus.pos.h];
         agnus.setBLS(false);
         
@@ -1102,8 +1102,8 @@ Blitter::exec()
 
             agnus.doBlitterDmaWrite(bltdpt, dhold);
 
-            if constexpr (BLT_GUARD) {
-                memguard[bltdpt & agnus.ptrMask & mem.chipMask] = 1;
+            if constexpr (BLT_MEM_GUARD) {
+                memguard[bltdpt & agnus.ptrMask & mem.chipMask] = blitcount;
             }
 
             if constexpr (BLT_CHECKSUM) {
@@ -1365,8 +1365,8 @@ Blitter::execLine()
 
             agnus.doBlitterDmaWrite(bltdpt, dhold);
 
-            if constexpr (BLT_GUARD) {
-                memguard[bltdpt & agnus.ptrMask & mem.chipMask] = 1;
+            if constexpr (BLT_MEM_GUARD) {
+                memguard[bltdpt & agnus.ptrMask & mem.chipMask] = blitcount;
             }
 
             if constexpr (BLT_CHECKSUM) {

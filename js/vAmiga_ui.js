@@ -1967,7 +1967,9 @@ function validate_hardware()
 
 validate_hardware();
 
-function bind_config_choice(key, name, values, default_value){
+function bind_config_choice(key, name, values, default_value, value2text=null, text2value=null){
+    value2text = value2text == null ? (t)=>t: value2text;
+    text2value = text2value == null ? (t)=>t: text2value;
     $('#hardware_settings').append(
     `
     <div class="dropdown mr-1 mt-3">
@@ -1979,7 +1981,7 @@ function bind_config_choice(key, name, values, default_value){
             (function(vals){
                 let list='';
                 for(val of vals){
-                    list+=`<a class="dropdown-item" href="#">${val}</a>`;
+                    list+=`<a class="dropdown-item" href="#">${value2text(val)}</a>`;
                 }
                 return list;
             })(values)
@@ -1990,10 +1992,10 @@ function bind_config_choice(key, name, values, default_value){
 
     let set_choice = function (choice) {
         $(`#button_${key}`).text(name+'='+choice);
-        save_setting(key,choice);
+        save_setting(key, text2value(choice));
         validate_hardware();
 
-        let result=wasm_configure(key.substring(4),choice);
+        let result=wasm_configure(key.substring(4),`${text2value(choice)}`);
         if(result.length>0)
         {
             alert(result);
@@ -2002,7 +2004,7 @@ function bind_config_choice(key, name, values, default_value){
             return;
         }
     }
-    set_choice(load_setting(key, default_value));
+    set_choice(value2text(load_setting(key, default_value)));
 
     $(`#choose_${key} a`).click(function () 
     {
@@ -2025,7 +2027,16 @@ bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'20
 bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0');
 bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048');
 
-
+bind_config_choice("OPT_CPU_OVERCLOCKING", "68000 CPU",[0,2,3,4,8,16,32], 0, 
+(v)=>{ return Math.round((v==0?1:v)*7.09)+' MHz'},
+(t)=>{
+    let val =t.replace(' MHz','');
+    val = Math.round(val /7.09);
+    return val == 1 ? 0: val;
+});
+$('#hardware_settings').append(`<div style="font-size: smaller" class="ml-3 vbk_choice_text">
+<span>7.09 Mhz</span> is the original speed of a stock A1000 or A500 machine. CPU speed is proportional to energy consumption.   
+</div>`);
 
 //------
 

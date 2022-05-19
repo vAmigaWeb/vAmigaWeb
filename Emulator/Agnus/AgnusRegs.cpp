@@ -33,19 +33,7 @@ Agnus::pokeDMACON(u16 value)
     trace(DMA_DEBUG, "pokeDMACON(%04x)\n", value);
 
     // Schedule the write cycle
-    if constexpr (s == ACCESSOR_CPU) {
-        if (value & 0x8000) {
-            recordRegisterChange(DMA_CYCLES(1), SET_DMACON, value);
-        } else {
-            recordRegisterChange(DMA_CYCLES(1), SET_DMACON, value);
-        }
-    } else {
-        if (value & 0x8000) {
-            recordRegisterChange(DMA_CYCLES(2), SET_DMACON, value);
-        } else {
-            recordRegisterChange(DMA_CYCLES(2), SET_DMACON, value);
-        }
-    }
+    recordRegisterChange(DMA_CYCLES(2), SET_DMACON, value);
 }
 
 void
@@ -189,10 +177,10 @@ Agnus::peekVHPOSR() const
         result = HI_LO(latchedPos.v & 0xFF, 0);
 
     } else {
-        
-        // The returned position is four cycles ahead
-        auto pos = agnus.pos + Beam {0,4};
-        
+
+        // The returned position is five cycles ahead
+        auto pos = Beam { agnus.pos.v, agnus.pos.h } + Beam {0,5};
+
         // Rectify the vertical position if it has wrapped over
         if (pos.v >= frame.numLines()) pos.v = 0;
         
@@ -248,10 +236,10 @@ Agnus::peekVPOSR() const
         result |= latchedPos.v >> 8;
 
     } else {
-        
-        // The returned position is four cycles ahead
-        auto pos = agnus.pos + Beam {0,4};
-        
+
+        // The returned position is five cycles ahead
+        auto pos = Beam { agnus.pos.v, agnus.pos.h } + Beam {0,5};
+
         // Rectify the vertical position if it has wrapped over
         if (pos.v >= frame.numLines()) pos.v = 0;
         
@@ -392,7 +380,7 @@ template <Accessor s> void
 Agnus::pokeDIWSTRT(u16 value)
 {
     trace(DIW_DEBUG, "pokeDIWSTRT<%s>(%04x)\n", AccessorEnum::key(s), value);
-    
+
     recordRegisterChange(DMA_CYCLES(4), SET_DIWSTRT_AGNUS, value);
     recordRegisterChange(DMA_CYCLES(3), SET_DIWSTRT_DENISE, value);
 }
@@ -401,7 +389,7 @@ template <Accessor s> void
 Agnus::pokeDIWSTOP(u16 value)
 {
     trace(DIW_DEBUG, "pokeDIWSTOP<%s>(%04x)\n", AccessorEnum::key(s), value);
-    
+
     recordRegisterChange(DMA_CYCLES(4), SET_DIWSTOP_AGNUS, value);
     recordRegisterChange(DMA_CYCLES(3), SET_DIWSTOP_DENISE, value);
 }
@@ -462,6 +450,16 @@ Agnus::pokeSPRxCTL(u16 value)
     sprVStrt[x] = (i16)((value & 0b100) << 6 | (sprVStrt[x] & 0x00FF));
     sprVStop[x] = (i16)((value & 0b010) << 7 | (value >> 8));
 
+    // ECS Agnus supports an additional position bit (encoded in 'unused' area)
+    if (GET_BIT(value, 6)) {
+        trace(XFILES, "XFILES: pokeSPRxCTL: Extended VSTRT bit set\n");
+        if (isECS()) sprVStrt[x] |= 0x0200;
+    }
+    if (GET_BIT(value, 5)) {
+        trace(XFILES, "XFILES: pokeSPRxCTL: Extended VSTOP bit set\n");
+        if (isECS()) sprVStop[x] |= 0x0200;
+    }
+
     // Update sprite DMA status
     if (sprVStrt[x] == v) sprDmaState[x] = SPR_DMA_ACTIVE;
     if (sprVStop[x] == v) sprDmaState[x] = SPR_DMA_IDLE;
@@ -473,12 +471,7 @@ void Agnus::pokeDSKPTH(u16 value)
     trace(DSKREG_DEBUG, "pokeDSKPTH(%04x) [%s]\n", value, AccessorEnum::key(s));
 
     // Schedule the write cycle
-    if constexpr (s == ACCESSOR_CPU) {
-        recordRegisterChange(DMA_CYCLES(1), SET_DSKPTH, value, s);
-    }
-    if constexpr (s == ACCESSOR_AGNUS) {
-        recordRegisterChange(DMA_CYCLES(2), SET_DSKPTH, value, s);
-    }
+    recordRegisterChange(DMA_CYCLES(2), SET_DSKPTH, value, s);
 }
 
 void
@@ -503,12 +496,7 @@ void Agnus::pokeDSKPTL(u16 value)
     trace(DSKREG_DEBUG, "pokeDSKPTL(%04x) [%s]\n", value, AccessorEnum::key(s));
 
     // Schedule the write cycle
-    if constexpr (s == ACCESSOR_CPU) {
-        recordRegisterChange(DMA_CYCLES(1), SET_DSKPTL, value, s);
-    }
-    if constexpr (s == ACCESSOR_AGNUS) {
-        recordRegisterChange(DMA_CYCLES(2), SET_DSKPTL, value, s);
-    }
+    recordRegisterChange(DMA_CYCLES(2), SET_DSKPTL, value, s);
 }
 
 void
@@ -545,12 +533,7 @@ Agnus::pokeBPLxPTH(u16 value)
     trace(BPLREG_DEBUG, "pokeBPL%dPTH(%04x) [%s]\n", x, value, AccessorEnum::key(s));
     
     // Schedule the write cycle
-    if constexpr (s == ACCESSOR_CPU) {
-        recordRegisterChange(DMA_CYCLES(1), SET_BPL1PTH + x - 1, value, s);
-    }
-    if constexpr (s == ACCESSOR_AGNUS) {
-        recordRegisterChange(DMA_CYCLES(2), SET_BPL1PTH + x - 1, value, s);
-    }
+    recordRegisterChange(DMA_CYCLES(2), SET_BPL1PTH + x - 1, value, s);
 }
 
 template <int x> void
@@ -575,12 +558,7 @@ Agnus::pokeBPLxPTL(u16 value)
     trace(BPLREG_DEBUG, "pokeBPL%dPTL(%04x) [%s]\n", x, value, AccessorEnum::key(s));
 
     // Schedule the write cycle
-    if constexpr (s == ACCESSOR_CPU) {
-        recordRegisterChange(DMA_CYCLES(1), SET_BPL1PTL + x - 1, value, s);
-    }
-    if constexpr (s == ACCESSOR_AGNUS) {
-        recordRegisterChange(DMA_CYCLES(2), SET_BPL1PTL + x - 1, value, s);
-    }
+    recordRegisterChange(DMA_CYCLES(2), SET_BPL1PTL + x - 1, value, s);
 }
 
 template <int x> void
@@ -601,12 +579,7 @@ Agnus::pokeSPRxPTH(u16 value)
     trace(SPRREG_DEBUG, "pokeSPR%dPTH(%04x) [%s]\n", x, value, AccessorEnum::key(s));
 
     // Schedule the write cycle
-    if constexpr (s == ACCESSOR_CPU) {
-        recordRegisterChange(DMA_CYCLES(1), SET_SPR0PTH + x, value, s);
-    }
-    if constexpr (s == ACCESSOR_AGNUS) {
-        recordRegisterChange(DMA_CYCLES(2), SET_SPR0PTH + x, value, s);
-    }
+    recordRegisterChange(DMA_CYCLES(2), SET_SPR0PTH + x, value, s);
 }
 
 template <int x> void
@@ -631,12 +604,7 @@ Agnus::pokeSPRxPTL(u16 value)
     trace(SPRREG_DEBUG, "pokeSPR%dPTL(%04x) [%s]\n", x, value, AccessorEnum::key(s));
 
     // Schedule the write cycle
-    if constexpr (s == ACCESSOR_CPU) {
-        recordRegisterChange(DMA_CYCLES(1), SET_SPR0PTL + x, value, s);
-    }
-    if constexpr (s == ACCESSOR_AGNUS) {
-        recordRegisterChange(DMA_CYCLES(2), SET_SPR0PTL + x, value, s);
-    }
+    recordRegisterChange(DMA_CYCLES(2), SET_SPR0PTL + x, value, s);
 }
 
 template <int x> void
@@ -657,7 +625,7 @@ Agnus::dropWrite(BusOwner owner)
     /* A write to a pointer register is dropped if the pointer was used one
      * cycle before the update would happen.
      */
-    if (!NO_PTR_DROPS && pos.h >= 1 && busOwner[pos.h - 1] == owner) {
+    if (config.ptrDrops && pos.h >= 1 && busOwner[pos.h - 1] == owner) {
         
         trace(XFILES, "XFILES: Dropping pointer register write (%d)\n", owner);
         return true;
