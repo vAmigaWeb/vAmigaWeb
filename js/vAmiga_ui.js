@@ -2023,11 +2023,11 @@ bind_config_choice("OPT_DRIVE_SPEED", "drive speed",['-1', '1', '2', '4', '8'],'
 $('#hardware_settings').append(`<div class="mt-4">hardware settings</div><span style="font-size: smaller;">(shuts machine down on agnus model or memory change)</span>`);
 
 bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_OLD','OCS','ECS_1MB','ECS_2MB'],'ECS_2MB');
-bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'2048');
-bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0');
-bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048');
+bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
+bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0', (v)=>`${v} KB`, t=>parseInt(t));
+bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
 
-bind_config_choice("OPT_CPU_OVERCLOCKING", "68000 CPU",[0,2,3,4,8,16,32], 0, 
+bind_config_choice("OPT_CPU_OVERCLOCKING", "68000 CPU",[0,2,3,4,5,6,8,12,14], 0, 
 (v)=>{ return Math.round((v==0?1:v)*7.09)+' MHz'},
 (t)=>{
     let val =t.replace(' MHz','');
@@ -2035,7 +2035,7 @@ bind_config_choice("OPT_CPU_OVERCLOCKING", "68000 CPU",[0,2,3,4,8,16,32], 0,
     return val == 1 ? 0: val;
 });
 $('#hardware_settings').append(`<div style="font-size: smaller" class="ml-3 vbk_choice_text">
-<span>7.09 Mhz</span> is the original speed of a stock A1000 or A500 machine. CPU speed is proportional to energy consumption.   
+<span>7.09 Mhz</span> is the original speed of a stock A1000 or A500 machine. For effective overclocking be sure to enable fast ram and disable slow ram otherwise the overclocked CPU will get blocked by chipset DMA. CPU speed is proportional to energy consumption.
 </div>`);
 
 //------
