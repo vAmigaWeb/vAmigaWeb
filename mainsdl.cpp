@@ -1332,9 +1332,10 @@ extern "C" void wasm_set_display(const char *name)
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
     geometry=DISPLAY_NARROW;
     xOff=252 + 4;
-    yOff=26 +24;
-    clipped_width=HPIXELS-xOff - 8;
-    clipped_height=312-yOff -2*24 -2;
+    yOff=26 +16;
+    clipped_width=HPIXELS-xOff - 8;   
+    //clipped_height=312-yOff -2*24 -2; 
+    clipped_height=clipped_width/3;
   }
   else if( strcmp(name,"standard") == 0)
   {
@@ -1342,9 +1343,10 @@ extern "C" void wasm_set_display(const char *name)
   
     geometry=DISPLAY_STANDARD;
     xOff=252;
-    yOff=26 + 6;
+    yOff=26 +12;
     clipped_width=HPIXELS-xOff;
-    clipped_height=312-yOff -2*4  ;
+//    clipped_height=312-yOff -2*4  ;
+    clipped_height=(clipped_width/3) & 0xfffe;
   }
   else if( strcmp(name,"wider") == 0)
   {
@@ -1352,9 +1354,10 @@ extern "C" void wasm_set_display(const char *name)
   
     geometry=DISPLAY_WIDER;
     xOff=224;
-    yOff=26 + 2;
+    yOff=26 +10;
     clipped_width=HPIXELS-xOff;
-    clipped_height=312-yOff -2*2;
+//    clipped_height=312-yOff -2*2;
+    clipped_height=clipped_width/3 & 0xfffe;
   }
   else if( strcmp(name,"overscan") == 0)
   {
@@ -1363,10 +1366,13 @@ extern "C" void wasm_set_display(const char *name)
     geometry=DISPLAY_OVERSCAN;
 
     xOff=208; //first pixel in dpaint iv,overscan=max 
-    yOff=26; //must be even
+    yOff=26 +10; //must be even
     clipped_width=HPIXELS-xOff;
-    clipped_height=312-yOff; //must be even
+    //clipped_height=312-yOff; //must be even
+    clipped_height=clipped_width/3 & 0xfffe;
   }
+
+  printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);
 
   if(render_method==RENDER_SHADER)
   {
