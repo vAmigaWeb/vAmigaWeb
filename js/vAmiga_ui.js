@@ -3397,8 +3397,14 @@ function setTheme() {
 function scaleVMCanvas() {
         let the_canvas = document.getElementById("canvas");
         var src_width=the_canvas.width;
-        var src_height=the_canvas.height*2;
-        var src_ratio = src_width/src_height; //1.25 
+        var src_height=the_canvas.height; 
+
+        var src_ratio = src_width/src_height; //1.25
+        if(src_ratio>1.6)
+        {//some browsers don't give the double size
+            src_height*=2;
+            src_ratio = src_width/src_height;
+        }
         var inv_src_ratio = src_height/src_width;
         var wratio = window.innerWidth / window.innerHeight;
 
