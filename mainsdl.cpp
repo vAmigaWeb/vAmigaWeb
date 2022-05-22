@@ -1335,7 +1335,7 @@ extern "C" void wasm_set_display(const char *name)
     yOff=26 +16;
     clipped_width=HPIXELS-xOff - 8;   
     //clipped_height=312-yOff -2*24 -2; 
-    clipped_height=clipped_width/3;
+    clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
   }
   else if( strcmp(name,"standard") == 0)
   {
@@ -1346,7 +1346,8 @@ extern "C" void wasm_set_display(const char *name)
     yOff=26 +12;
     clipped_width=HPIXELS-xOff;
 //    clipped_height=312-yOff -2*4  ;
-    clipped_height=(clipped_width/3) & 0xfffe;
+//    clipped_height=(4*clipped_width/5 )/2 & 0xfffe;
+    clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
   }
   else if( strcmp(name,"wider") == 0)
   {
@@ -1357,7 +1358,7 @@ extern "C" void wasm_set_display(const char *name)
     yOff=26 +10;
     clipped_width=HPIXELS-xOff;
 //    clipped_height=312-yOff -2*2;
-    clipped_height=clipped_width/3 & 0xfffe;
+    clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
   }
   else if( strcmp(name,"overscan") == 0)
   {
@@ -1369,7 +1370,7 @@ extern "C" void wasm_set_display(const char *name)
     yOff=26 +10; //must be even
     clipped_width=HPIXELS-xOff;
     //clipped_height=312-yOff; //must be even
-    clipped_height=clipped_width/3 & 0xfffe;
+    clipped_height=(3*clipped_width/4 +24 /*32 due to PAL?*/)/2 & 0xfffe;
   }
 
   printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);

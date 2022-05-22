@@ -3395,9 +3395,10 @@ function setTheme() {
   
 
 function scaleVMCanvas() {
-        var src_width=428 -2*33;
-        var src_height=284 -2*22;
-        var src_ratio = src_width/src_height; //1.6  kehrwert=0.625
+        let the_canvas = document.getElementById("canvas");
+        var src_width=the_canvas.width;
+        var src_height=the_canvas.height*2;
+        var src_ratio = src_width/src_height; //1.25 
         var inv_src_ratio = src_height/src_width;
         var wratio = window.innerWidth / window.innerHeight;
 
@@ -3405,9 +3406,9 @@ function scaleVMCanvas() {
         if(wratio < src_ratio)
         {
             var reducedHeight=window.innerWidth*inv_src_ratio;
-            //alles was kleiner 1.6
-            $("#canvas").css("width", "100%");
-            $("#canvas").css("height", Math.round(reducedHeight)+'px');
+            //all lower than 1.25
+            $("#canvas").css("width", "100%")
+            .css("height", Math.round(reducedHeight)+'px');
             
             if($("#virtual_keyboard").is(":hidden"))
             {   //center vertical, if virtual keyboard and navbar not present
@@ -3426,7 +3427,7 @@ function scaleVMCanvas() {
         }
         else
         {
-            //alles was größer als 1.6
+            //all greater than 1.25
             if(use_wide_screen)
             {
                 $("#canvas").css("width", "100%"); 
