@@ -37,6 +37,9 @@ u8 render_method = RENDER_SOFTWARE;
 #define DISPLAY_BORDERLESS 5
 u8 geometry  = DISPLAY_ADAPTIVE;
 
+
+u8 target_fps = 50;
+
 /********* shaders ***********/
 GLuint basic;
 GLuint merge;
@@ -458,6 +461,9 @@ void set_viewport_dimensions()
           /* in merge shader, the height has to be an even number */ 
           vstart_min & 0xfffe, vstop_max & 0xfffe
         );
+
+        clipped_width = hstop_max-hstart_min;
+        clipped_height = vstop_max-vstart_min;
       } 
     }
     else
@@ -644,7 +650,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   double now = emscripten_get_now();  
  
   double elapsedTimeInSeconds = (now - start_time)/1000.0;
-  int64_t targetFrameCount = (int64_t)(elapsedTimeInSeconds * 50);
+  int64_t targetFrameCount = (int64_t)(elapsedTimeInSeconds * target_fps);
  
   int max_gap = 8;
 
@@ -1063,6 +1069,26 @@ void create_texture()
         HPIXELS, VPIXELS);
 
   window_surface = SDL_GetWindowSurface(window);
+}
+
+
+extern "C" int wasm_get_renderer()
+{ 
+  return render_method;
+}
+
+extern "C" int wasm_get_render_width()
+{ 
+  return clipped_width;
+}
+extern "C" int wasm_get_render_height()
+{ 
+  return clipped_height;
+}
+
+extern "C" void wasm_set_target_fps(int _target_fps)
+{ 
+  target_fps=_target_fps;
 }
 
 
