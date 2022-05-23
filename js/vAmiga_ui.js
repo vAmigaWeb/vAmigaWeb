@@ -17,6 +17,7 @@ let call_param_display=null;
 
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
 let use_wide_screen=false;
+let use_ntsc_pixel=false;
 
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 const audioContext = new AudioContext();
@@ -2052,6 +2053,16 @@ auto_snapshot_switch.change( function() {
 
 //------
 
+ntsc_pixel_ratio_switch = $('#ntsc_pixel_ratio_switch');
+use_ntsc_pixel=load_setting('ntsc_pixel', false);
+ntsc_pixel_ratio_switch.prop('checked', use_ntsc_pixel);
+ntsc_pixel_ratio_switch.change( function() {
+    use_ntsc_pixel  = this.checked;
+    save_setting('ntsc_pixel', this.checked);
+    scaleVMCanvas();
+});
+//------
+
 wide_screen_switch = $('#wide_screen_switch');
 use_wide_screen=load_setting('widescreen', false);
 wide_screen_switch.prop('checked', use_wide_screen);
@@ -3399,13 +3410,17 @@ function scaleVMCanvas() {
         let the_canvas = document.getElementById("canvas");
         var src_width=the_canvas.width;
         var src_height=the_canvas.height; 
-
+        if(use_ntsc_pixel)
+        {
+            src_height*=52/44;
+        }
         var src_ratio = src_width/src_height; //1.25
-        if(src_ratio>1.6)
-        {//some browsers don't give the double size
+        if(the_canvas.getContext('2d')!=0)
+        {//software renderer only has half of height pixels
             src_height*=2;
             src_ratio = src_width/src_height;
         }
+
         var inv_src_ratio = src_height/src_width;
         var wratio = window.innerWidth / window.innerHeight;
 
