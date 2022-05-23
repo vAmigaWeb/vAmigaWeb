@@ -474,6 +474,7 @@ void set_viewport_dimensions()
         SDL_SetWindowSize(window, clipped_width, clipped_height);
       }
     }
+    EM_ASM({scaleVMCanvas()});
 }
 
 
@@ -1377,10 +1378,13 @@ extern "C" void wasm_set_display(const char *name)
 
   if(render_method==RENDER_SHADER)
   {
+//    SDL_SetWindowSize(window, clipped_width, clipped_height);
+
     glUseProgram(basic); 
     set_texture_display_window(basic, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
     glUseProgram(merge);
     set_texture_display_window(merge, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
+
   }
   else
   {
@@ -1388,6 +1392,8 @@ extern "C" void wasm_set_display(const char *name)
     SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
     SDL_SetWindowSize(window, clipped_width, clipped_height);
   }
+
+  EM_ASM({scaleVMCanvas()});
 }
 
 std::unique_ptr<FloppyDisk> load_disk(const char* filename, Uint8 *blob, long len)

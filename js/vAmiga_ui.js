@@ -16,6 +16,7 @@ let call_param_url=null;
 let call_param_display=null;
 
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
+let use_wide_screen=false;
 
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 const audioContext = new AudioContext();
