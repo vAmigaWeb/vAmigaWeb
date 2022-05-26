@@ -1330,6 +1330,11 @@ function InitWrappers() {
     wasm_set_display = Module.cwrap('wasm_set_display', 'undefined',['string']);
     wasm_auto_type = Module.cwrap('wasm_auto_type', 'undefined', ['number', 'number', 'number']);
 
+    wasm_set_target_fps = Module.cwrap('wasm_set_target_fps', 'undefined', ['number']);
+    wasm_get_renderer = Module.cwrap('wasm_get_renderer', 'number');
+
+
+
     connect_audio_processor = async () => {
         if(audioContext.state === 'suspended') {
             await audioContext.resume();  
@@ -3408,18 +3413,18 @@ function setTheme() {
 
 function scaleVMCanvas() {
         let the_canvas = document.getElementById("canvas");
-        var src_width=the_canvas.width;
-        var src_height=the_canvas.height; 
+        var src_width=Module._wasm_get_render_width();
+        var src_height=Module._wasm_get_render_height()*2; 
         if(use_ntsc_pixel)
         {
             src_height*=52/44;
         }
         var src_ratio = src_width/src_height; //1.25
-        if(the_canvas.getContext('2d')!=0)
+/*        if(Module._wasm_get_renderer()==0)
         {//software renderer only has half of height pixels
             src_height*=2;
             src_ratio = src_width/src_height;
-        }
+        }*/
 
         var inv_src_ratio = src_height/src_width;
         var wratio = window.innerWidth / window.innerHeight;
