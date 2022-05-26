@@ -60,6 +60,23 @@ const GLchar *vertexSource =
   "  v_texcoord = a_texcoord;  \n"
   "}                           \n";
 
+
+/*const GLchar *basicSource_PerfectPixel_experiment =
+  "#version 300 es      \n"
+  "precision mediump float;                        \n"
+  "uniform sampler2D u_long;                       \n"
+  "in vec2 v_texcoord;                        \n"
+  "out vec4 color;                                 \n"
+  "void main() {                                   \n"
+  "  vec2 size = vec2(908,314); \n"
+  "  vec2 uv = v_texcoord * size;         \n"
+  "  vec2 duv = fwidth(v_texcoord);        \n"
+  "  uv = floor(uv) + vec2(0.5) + clamp((fract(uv) - vec2(0.5) + duv)/duv, vec2(0,0), vec2(1,1)); \n"
+  "  uv /= size;                                  \n"
+  "  color = texture(u_long, uv);            \n"
+  "}                                               \n";
+*/
+
 const GLchar *basicSource =
   "#version 300 es      \n"
   "precision mediump float;                        \n"
@@ -209,6 +226,7 @@ GLuint initTexture(const GLuint *source) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, HPIXELS, VPIXELS, 0, GL_RGBA, GL_UNSIGNED_BYTE, source);
 
   return texture;
@@ -453,6 +471,12 @@ void set_viewport_dimensions()
     {
       if(geometry == DISPLAY_ADAPTIVE || geometry == DISPLAY_BORDERLESS)
       {         
+        clipped_width = hstop_max-hstart_min;
+        clipped_height = vstop_max-vstart_min;
+        SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height*2); 
+        SDL_SetWindowSize(window, clipped_width, clipped_height*2);
+        glViewport(0, 0, clipped_width, clipped_height*2);
+
         glUseProgram(basic);
         set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
         glUseProgram(merge);
@@ -462,8 +486,6 @@ void set_viewport_dimensions()
           vstart_min & 0xfffe, vstop_max & 0xfffe
         );
 
-        clipped_width = hstop_max-hstart_min;
-        clipped_height = vstop_max-vstart_min;
       } 
     }
     else
@@ -1399,18 +1421,19 @@ extern "C" void wasm_set_display(const char *name)
     //clipped_height=312-yOff; //must be even
     clipped_height=(3*clipped_width/4 +24 /*32 due to PAL?*/)/2 & 0xfffe;
   }
-
   printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);
 
   if(render_method==RENDER_SHADER)
   {
-//    SDL_SetWindowSize(window, clipped_width, clipped_height);
+//    SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
+    SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height*2); 
+    SDL_SetWindowSize(window, clipped_width, clipped_height*2);
+    glViewport(0, 0, clipped_width, clipped_height*2);
 
     glUseProgram(basic); 
     set_texture_display_window(basic, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
     glUseProgram(merge);
     set_texture_display_window(merge, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
-
   }
   else
   {
