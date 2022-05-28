@@ -1347,11 +1347,43 @@ extern "C" void wasm_set_warp(unsigned on)
 /*  }*/
 }
 
-
+bool ntsc=false;
 extern "C" void wasm_set_display(const char *name)
 {
+  if( strcmp(name,"ntsc") == 0)
+  {
+    if(!ntsc)
+    {
+      ntsc=true;
+      if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
+           geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN
+      ) {clipped_height-=48;}
+      else
+      {
+        EM_ASM({scaleVMCanvas()});
+        return;
+      }
+    }
+  }
+  else if( strcmp(name,"pal") == 0)
+  {
+    if(ntsc)
+    {
+      ntsc=false;
+      if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
+           geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN
+      ) {clipped_height+=48;}
+      else
+      {
+        EM_ASM({scaleVMCanvas()});
+        return;
+      }
+    }
+  }
+
+
   printf("wasm_set_display('%s')\n",name);
-//
+
   if( strcmp(name,"adaptive") == 0 || 
       strcmp(name,"auto") == 0 || 
       strcmp(name,"viewport tracking") == 0)
@@ -1385,6 +1417,7 @@ extern "C" void wasm_set_display(const char *name)
     clipped_width=HPIXELS-xOff - 8;   
     //clipped_height=312-yOff -2*24 -2; 
     clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
+    if(ntsc){clipped_height-=48;}
   }
   else if( strcmp(name,"standard") == 0)
   {
@@ -1397,6 +1430,7 @@ extern "C" void wasm_set_display(const char *name)
 //    clipped_height=312-yOff -2*4  ;
 //    clipped_height=(4*clipped_width/5 )/2 & 0xfffe;
     clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
+    if(ntsc){clipped_height-=48;}
   }
   else if( strcmp(name,"wider") == 0)
   {
@@ -1408,6 +1442,7 @@ extern "C" void wasm_set_display(const char *name)
     clipped_width=HPIXELS-xOff;
 //    clipped_height=312-yOff -2*2;
     clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
+    if(ntsc){clipped_height-=48;}
   }
   else if( strcmp(name,"overscan") == 0)
   {
@@ -1420,6 +1455,7 @@ extern "C" void wasm_set_display(const char *name)
     clipped_width=HPIXELS-xOff;
     //clipped_height=312-yOff; //must be even
     clipped_height=(3*clipped_width/4 +24 /*32 due to PAL?*/)/2 & 0xfffe;
+    if(ntsc){clipped_height-=48;}
   }
   printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);
 

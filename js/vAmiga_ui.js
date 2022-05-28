@@ -2060,11 +2060,13 @@ auto_snapshot_switch.change( function() {
 
 ntsc_pixel_ratio_switch = $('#ntsc_pixel_ratio_switch');
 use_ntsc_pixel=load_setting('ntsc_pixel', false);
+wasm_set_display(use_ntsc_pixel ? 'ntsc':'pal');
+
 ntsc_pixel_ratio_switch.prop('checked', use_ntsc_pixel);
 ntsc_pixel_ratio_switch.change( function() {
     use_ntsc_pixel  = this.checked;
     save_setting('ntsc_pixel', this.checked);
-    scaleVMCanvas();
+    wasm_set_display(use_ntsc_pixel ? 'ntsc':'pal');
 });
 //------
 
