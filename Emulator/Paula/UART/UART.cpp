@@ -90,28 +90,50 @@ UART::spypeekSERDATR() const
 void
 UART::pokeSERDAT(u16 value)
 {
-    trace(SER_DEBUG, "pokeSERDAT(%X)\n", value);
+    trace(SER_DEBUG, "pokeSERDAT(%04x)\n", value);
+
+    // Experimental findings:
+    // From here, the TSRE bit goes high in
+    // DMA_CYCLES(1) + (bitcount(value) + 1) * pulseWidth() cycles
+
+    // Schedule the write cycle
+    agnus.recordRegisterChange(DMA_CYCLES(1), SET_SERDAT, value);
+}
+
+void
+UART::setSERDAT(u16 value)
+{
+    trace(SER_DEBUG, "setSERDAT(%04x)\n", value);
 
     // Write value into the transmit buffer
-    transmitBuffer = value & 0x3FF;
+    transmitBuffer = value;
 
     // Start the transmission if the shift register is empty
-    if (transmitShiftReg == 0 && transmitBuffer != 0) copyToTransmitShiftRegister();
+    if (transmitShiftReg == 0 && transmitBuffer != 0) {
+        agnus.scheduleRel <SLOT_TXD> (DMA_CYCLES(0), TXD_BIT);
+    }
 }
 
 void
 UART::pokeSERPER(u16 value)
 {
-    trace(SER_DEBUG, "pokeSERPER(%X)\n", value);
+    trace(SPRREG_DEBUG, "pokeSERPER(%04x)\n", value);
+
+    setSERPER(value);
+}
+
+void
+UART::setSERPER(u16 value)
+{
+    trace(SER_DEBUG, "setSERPER(%04x)\n", value);
     serper = value;
     trace(SER_DEBUG, "New baud rate = %ld\n", baudRate());
-
 }
 
 void
 UART::copyToTransmitShiftRegister()
 {
-    trace(SER_DEBUG, "Copying %X into transmit shift register\n", transmitBuffer);
+    trace(SER_DEBUG, "Copying %04x into transmit shift register\n", transmitBuffer);
 
     assert(transmitShiftReg == 0);
     assert(transmitBuffer != 0);
@@ -133,10 +155,7 @@ UART::copyToTransmitShiftRegister()
 
     // Trigger a TBE interrupt
     trace(SER_DEBUG, "Triggering TBE interrupt\n");
-    paula.raiseIrq(INT_TBE);
-
-    // Schedule the transmission of the first bit
-    agnus.scheduleRel<SLOT_TXD>(0, TXD_BIT);
+    paula.scheduleIrqRel(INT_TBE, DMA_CYCLES(2));
 }
 
 void

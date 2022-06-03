@@ -106,7 +106,7 @@ const GLchar *mergeSource =
 
 int clip_width  = 724;
 int clip_height = 568;
-int clip_offset = 0; 
+int clip_offset = HBLANK_MIN*4;//HBLANK_MAX*4; 
 int buffer_size = 4096;
 
 bool prevLOF = false;
@@ -171,8 +171,8 @@ GLuint compileProgram(const GLchar *source) {
 
 void set_texture_display_window(const GLuint program, float hstart, float hstop, float vstart, float vstop)
 {
-  const float x1 = hstart / HPIXELS;
-  const float x2 = hstop / HPIXELS;
+  const float x1 = (hstart-clip_offset) / HPIXELS;
+  const float x2 = (hstop-clip_offset) / HPIXELS;
   const float y1 = vstart  / VPIXELS;
   const float y2 = vstop / VPIXELS;
 
@@ -466,7 +466,10 @@ bool reset_calibration=true;
 
 void set_viewport_dimensions()
 {
-//    printf("calib: set_viewport_dimensions %d, %d\n",vstart_min, vstop_max);
+    printf("calib: set_viewport_dimensions hmin=%d, hmax=%d, vmin=%d, vmax=%d\n",hstart_min,hstop_max,vstart_min, vstop_max);
+    
+//    hstart_min=0; hstop_max=HPIXELS;
+    
     if(render_method==RENDER_SHADER)
     {
       if(geometry == DISPLAY_ADAPTIVE || geometry == DISPLAY_BORDERLESS)
@@ -481,7 +484,7 @@ void set_viewport_dimensions()
         set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
         glUseProgram(merge);
         set_texture_display_window(merge, 
-          hstart_min, hstop_max, 
+          hstart_min, hstop_max,
           /* in merge shader, the height has to be an even number */ 
           vstart_min & 0xfffe, vstop_max & 0xfffe
         );
@@ -588,7 +591,10 @@ bool calculate_viewport_dimensions(Uint32 *texture)
   //right border: get hstop_max from texture
   pixels_found=false;
   ref_pixel= texture[ HPIXELS*vstart_min_tracking + hstop_max_tracking];
-  
+//  printf("hstop_max_tracking %d\n",hstop_max_tracking);
+//  printf("hstop_max_calib %d\n",hstop_max_calib);
+//  printf("ref_pixel %d\n",ref_pixel);
+
   for(int x=hstop_max_tracking;x>hstop_max_calib;x--)
   {
 //     printf("\nrow:%u\n",x);
@@ -605,6 +611,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
       }
     }
   }
+//  printf("->hstop_max_calib %d\n",hstop_max_calib);
 
   bool dimensions_changed=false;
 
@@ -650,7 +657,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
     }
  
   }
-//  printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
+  printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
 
 //  printf("calib dimensions changed=%d\n",dimensions_changed);
   return dimensions_changed;
@@ -778,7 +785,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glActiveTexture(GL_TEXTURE0);
     }  
 
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stableBuffer.ptr + clip_offset);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stableBuffer.ptr+clip_offset);
 
     if (currLOF != prevLOF) {
       // Case 1: Interlace drawing
@@ -802,12 +809,12 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   else
   {
 
-    Uint8 *texture = (Uint8 *)stableBuffer.ptr;
+    Uint8 *texture = (Uint8 *)(stableBuffer.ptr)+clip_offset*4;
 
   //  SDL_RenderClear(renderer);
     SDL_Rect SrcR;
 
-    SrcR.x = xOff;
+    SrcR.x = xOff-HBLANK_MIN*4;
     SrcR.y = yOff;
     SrcR.w = clipped_width;
     SrcR.h = clipped_height;
@@ -921,8 +928,8 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
     hstart_min *=2;
     hstop_max *=2;
 
-    hstart_min=hstart_min<208 ? 208:hstart_min;
-    hstop_max=hstop_max>HPIXELS ? HPIXELS:hstop_max;
+    //hstart_min=hstart_min<208 ? 208:hstart_min;
+//    hstop_max=hstop_max>(HPIXELS+HBLANK_MIN)? (HPIXELS+HBLANK_MIN):hstop_max;
 
     if(vstart_min < 26) 
       vstart_min = 26;
@@ -1027,8 +1034,8 @@ bool create_shader()
 
     auto &stable = wrapper->amiga->denise.pixelEngine.getStableBuffer();
 
-    longf  = initTexture(stable.ptr + clip_offset);
-    shortf = initTexture(stable.ptr + clip_offset);
+    longf  = initTexture(stable.ptr /*+ clip_offset*/);
+    shortf = initTexture(stable.ptr /*+ clip_offset*/);
 
     glUseProgram(merge);
     glActiveTexture(GL_TEXTURE1);
@@ -1390,7 +1397,7 @@ extern "C" void wasm_set_display(const char *name)
   {
     geometry=DISPLAY_ADAPTIVE;
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
-    clip_offset = 0;
+ //   clip_offset = 0;
 
     xOff=252;
     yOff=26 + 6;
@@ -1401,7 +1408,7 @@ extern "C" void wasm_set_display(const char *name)
   {
     geometry=DISPLAY_BORDERLESS;
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
-    clip_offset = 0;
+ //   clip_offset = 0;
 
     xOff=252;
     yOff=26 + 6;
@@ -1451,8 +1458,8 @@ extern "C" void wasm_set_display(const char *name)
     geometry=DISPLAY_OVERSCAN;
 
     xOff=208; //first pixel in dpaint iv,overscan=max 
-    yOff=26 +10; //must be even
-    clipped_width=HPIXELS-xOff;
+    yOff=26; //must be even
+    clipped_width=(HPIXELS+HBLANK_MAX)-xOff;
     //clipped_height=312-yOff; //must be even
     clipped_height=(3*clipped_width/4 +24 /*32 due to PAL?*/)/2 & 0xfffe;
     if(ntsc){clipped_height-=48;}
