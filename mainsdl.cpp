@@ -1431,8 +1431,8 @@ extern "C" void wasm_set_display(const char *name)
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
   
     geometry=DISPLAY_STANDARD;
-    xOff=252;
-    yOff=26 +12;
+    xOff=208+HBLANK_MAX;
+    yOff=VBLANK_CNT +10;
     clipped_width=HPIXELS-xOff;
 //    clipped_height=312-yOff -2*4  ;
 //    clipped_height=(4*clipped_width/5 )/2 & 0xfffe;
@@ -1444,9 +1444,9 @@ extern "C" void wasm_set_display(const char *name)
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
   
     geometry=DISPLAY_WIDER;
-    xOff=224;
-    yOff=26 +10;
-    clipped_width=HPIXELS-xOff;
+    xOff=208+ HBLANK_MAX/2;
+    yOff=VBLANK_CNT + 2;
+    clipped_width=(HPIXELS+HBLANK_MAX/2 )-xOff;
 //    clipped_height=312-yOff -2*2;
     clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
     if(ntsc){clipped_height-=48;}
@@ -1458,7 +1458,7 @@ extern "C" void wasm_set_display(const char *name)
     geometry=DISPLAY_OVERSCAN;
 
     xOff=208; //first pixel in dpaint iv,overscan=max 
-    yOff=26; //must be even
+    yOff=VBLANK_CNT; //must be even
     clipped_width=(HPIXELS+HBLANK_MAX)-xOff;
     //clipped_height=312-yOff; //must be even
     clipped_height=(3*clipped_width/4 +24 /*32 due to PAL?*/)/2 & 0xfffe;
