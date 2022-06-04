@@ -1361,6 +1361,9 @@ extern "C" void wasm_set_display(const char *name)
   {
     if(!ntsc)
     {
+      wrapper->amiga->configure(OPT_MACHINE_TYPE, MACHINE_NTSC);
+      target_fps=60;
+
       ntsc=true;
       if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
            geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN
@@ -1376,6 +1379,9 @@ extern "C" void wasm_set_display(const char *name)
   {
     if(ntsc)
     {
+      wrapper->amiga->configure(OPT_MACHINE_TYPE, MACHINE_PAL);
+      target_fps=50;
+
       ntsc=false;
       if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
            geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN
