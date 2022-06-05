@@ -67,3 +67,27 @@ add_custom_target(publish
 	COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${PUBLISH_FOLDER}
 	DEPENDS vAmiga
 )
+
+set(UAT_FOLDER "../../uat")
+add_custom_target(uat
+	COMMAND ${CMAKE_COMMAND} -E rm -rf ${UAT_FOLDER}/roms
+	COMMAND ${CMAKE_COMMAND} -E rm -rf ${UAT_FOLDER}/css
+	COMMAND ${CMAKE_COMMAND} -E rm -rf ${UAT_FOLDER}/js
+	COMMAND ${CMAKE_COMMAND} -E rm -rf ${UAT_FOLDER}/img
+	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/vC64.*
+	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/*.js
+#	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/*.json
+	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/index.html
+	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/run.html
+	COMMAND ${CMAKE_COMMAND} -E copy vAmiga.html ${UAT_FOLDER}/index.html
+    COMMAND ${CMAKE_COMMAND} -E copy vAmiga.js ${UAT_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy vAmiga.wasm ${UAT_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy_directory ../js ${UAT_FOLDER}/js
+	COMMAND ${CMAKE_COMMAND} -E copy_directory ../css ${UAT_FOLDER}/css
+	COMMAND ${CMAKE_COMMAND} -E copy_directory ../img ${UAT_FOLDER}/img
+	COMMAND ${CMAKE_COMMAND} -E copy_directory ../roms ${UAT_FOLDER}/roms
+	COMMAND ${CMAKE_COMMAND} -E copy ../run.html ${UAT_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy ../sw.js ${UAT_FOLDER}
+#	COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${UAT_FOLDER}
+	DEPENDS vAmiga
+)

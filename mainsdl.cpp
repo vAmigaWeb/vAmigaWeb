@@ -37,7 +37,7 @@ u8 render_method = RENDER_SOFTWARE;
 #define DISPLAY_BORDERLESS 5
 u8 geometry  = DISPLAY_ADAPTIVE;
 
-
+bool ntsc=false;
 u8 target_fps = 50;
 
 /********* shaders ***********/
@@ -928,15 +928,17 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
     hstart_min *=2;
     hstop_max *=2;
 
-    //hstart_min=hstart_min<208 ? 208:hstart_min;
-//    hstop_max=hstop_max>(HPIXELS+HBLANK_MIN)? (HPIXELS+HBLANK_MIN):hstop_max;
+    hstart_min=hstart_min<208 ? 208:hstart_min;
+    hstop_max=hstop_max>(HPIXELS+HBLANK_MAX)? (HPIXELS+HBLANK_MAX):hstop_max;
 
     if(vstart_min < 26) 
       vstart_min = 26;
 
-    if(vstop_max > 312) 
-      vstop_max = 312;
-
+    if(vstop_max > VPOS_MAX) 
+      vstop_max = VPOS_MAX; //312
+    if(ntsc && vstop_max > VPOS_MAX-48 )
+      vstop_max = VPOS_MAX-48; 
+    
     printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
     vstart_min_tracking = vstart_min;
     vstop_max_tracking = vstop_max;
@@ -1354,7 +1356,6 @@ extern "C" void wasm_set_warp(unsigned on)
 /*  }*/
 }
 
-bool ntsc=false;
 extern "C" void wasm_set_display(const char *name)
 {
   if( strcmp(name,"ntsc") == 0)
@@ -1363,6 +1364,16 @@ extern "C" void wasm_set_display(const char *name)
     {
       wrapper->amiga->configure(OPT_MACHINE_TYPE, MACHINE_NTSC);
       target_fps=60;
+
+
+      if(geometry==DISPLAY_BORDERLESS || geometry == DISPLAY_ADAPTIVE)
+      {
+        /*    if(ntsc && vstop_max > VPOS_MAX-48 )
+      vstop_max = VPOS_MAX-48; 
+    vstop_max_tracking = vstop_max;
+*/
+        wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
+      }
 
       ntsc=true;
       if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
