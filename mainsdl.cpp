@@ -37,6 +37,10 @@ u8 render_method = RENDER_SOFTWARE;
 #define DISPLAY_BORDERLESS 5
 u8 geometry  = DISPLAY_ADAPTIVE;
 
+//HRM: In NTSC, the fields are 262, then 263 lines and in PAL, 312, then 313 lines.
+//312-50=262
+#define PAL_EXTRA_VPIXEL 50
+
 bool ntsc=false;
 u8 target_fps = 50;
 
@@ -936,8 +940,8 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
 
     if(vstop_max > VPOS_MAX) 
       vstop_max = VPOS_MAX; //312
-    if(ntsc && vstop_max > VPOS_MAX-48 )
-      vstop_max = VPOS_MAX-48; 
+    if(ntsc && vstop_max > VPOS_MAX-PAL_EXTRA_VPIXEL )
+      vstop_max = VPOS_MAX-PAL_EXTRA_VPIXEL; 
     
     printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
     vstart_min_tracking = vstart_min;
@@ -1390,7 +1394,7 @@ extern "C" void wasm_set_display(const char *name)
       ntsc=true;
       if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
            geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN
-      ) {clipped_height-=48;}
+      ) {clipped_height-=PAL_EXTRA_VPIXEL;}
       else
       {
         EM_ASM({scaleVMCanvas()});
@@ -1406,7 +1410,7 @@ extern "C" void wasm_set_display(const char *name)
       ntsc=false;
       if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
            geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN
-      ) {clipped_height+=48;}
+      ) {clipped_height+=PAL_EXTRA_VPIXEL;}
       else
       {
         EM_ASM({scaleVMCanvas()});
@@ -1451,7 +1455,7 @@ extern "C" void wasm_set_display(const char *name)
     clipped_width=HPIXELS-xOff - 8;   
     //clipped_height=312-yOff -2*24 -2; 
     clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
-    if(ntsc){clipped_height-=48;}
+    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
   else if( strcmp(name,"standard") == 0)
   {
@@ -1464,7 +1468,7 @@ extern "C" void wasm_set_display(const char *name)
 //    clipped_height=312-yOff -2*4  ;
 //    clipped_height=(4*clipped_width/5 )/2 & 0xfffe;
     clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
-    if(ntsc){clipped_height-=48;}
+    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
   else if( strcmp(name,"wider") == 0)
   {
@@ -1476,7 +1480,7 @@ extern "C" void wasm_set_display(const char *name)
     clipped_width=(HPIXELS+HBLANK_MAX/2 )-xOff;
 //    clipped_height=312-yOff -2*2;
     clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
-    if(ntsc){clipped_height-=48;}
+    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
   else if( strcmp(name,"overscan") == 0)
   {
@@ -1489,7 +1493,7 @@ extern "C" void wasm_set_display(const char *name)
     clipped_width=(HPIXELS+HBLANK_MAX)-xOff;
     //clipped_height=312-yOff; //must be even
     clipped_height=(3*clipped_width/4 +24 /*32 due to PAL?*/)/2 & 0xfffe;
-    if(ntsc){clipped_height-=48;}
+    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
   printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);
 
