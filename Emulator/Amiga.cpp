@@ -138,7 +138,7 @@ void
 Amiga::prefix() const
 {
     fprintf(stderr, "[%lld] (%3ld,%3ld) ",
-            agnus.frame.nr, agnus.pos.v, agnus.pos.h);
+            agnus.pos.frame, agnus.pos.v, agnus.pos.h);
 
     fprintf(stderr, "%06X ", cpu.getPC0());
     fprintf(stderr, "%2X ", cpu.getIPL());
@@ -184,7 +184,7 @@ void
 Amiga::_reset(bool hard)
 {
     RESET_SNAPSHOT_ITEMS(hard)
-    
+
     // Clear all runloop flags
     flags = 0;
 }
@@ -196,7 +196,7 @@ Amiga::resetConfig()
 
     std::vector <Option> options = {
 
-        OPT_MACHINE_TYPE
+        OPT_VIDEO_FORMAT
     };
 
     for (auto &option : options) {
@@ -209,7 +209,7 @@ Amiga::getConfigItem(Option option) const
 {
     switch (option) {
 
-        case OPT_MACHINE_TYPE:
+        case OPT_VIDEO_FORMAT:
 
             return config.type;
 
@@ -382,11 +382,14 @@ Amiga::setConfigItem(Option option, i64 value)
 {
     switch (option) {
 
-        case OPT_MACHINE_TYPE:
+        case OPT_VIDEO_FORMAT:
 
             if (value != config.type) {
 
-                setMachineType(MachineType(value));
+                SUSPENDED
+
+                config.type = VideoFormat(value);
+                agnus.setVideoFormat(config.type);
             }
             return;
 
@@ -425,7 +428,7 @@ Amiga::configure(Option option, i64 value)
 
     switch (option) {
 
-        case OPT_MACHINE_TYPE:
+        case OPT_VIDEO_FORMAT:
 
             setConfigItem(option, value);
             break;
@@ -738,7 +741,7 @@ Amiga::configure(ConfigScheme scheme)
 
             case CONFIG_A1000_OCS_1MB:
 
-                configure(OPT_MACHINE_TYPE, MACHINE_PAL);
+                configure(OPT_VIDEO_FORMAT, PAL);
                 configure(OPT_CHIP_RAM, 512);
                 configure(OPT_SLOW_RAM, 512);
                 configure(OPT_AGNUS_REVISION, AGNUS_OCS_OLD);
@@ -746,7 +749,7 @@ Amiga::configure(ConfigScheme scheme)
 
             case CONFIG_A500_OCS_1MB:
                 
-                configure(OPT_MACHINE_TYPE, MACHINE_PAL);
+                configure(OPT_VIDEO_FORMAT, PAL);
                 configure(OPT_CHIP_RAM, 512);
                 configure(OPT_SLOW_RAM, 512);
                 configure(OPT_AGNUS_REVISION, AGNUS_OCS);
@@ -754,7 +757,7 @@ Amiga::configure(ConfigScheme scheme)
                 
             case CONFIG_A500_ECS_1MB:
                 
-                configure(OPT_MACHINE_TYPE, MACHINE_PAL);
+                configure(OPT_VIDEO_FORMAT, PAL);
                 configure(OPT_CHIP_RAM, 512);
                 configure(OPT_SLOW_RAM, 512);
                 configure(OPT_AGNUS_REVISION, AGNUS_ECS_1MB);
@@ -788,34 +791,6 @@ Amiga::overrideOption(Option option, i64 value)
     }
 
     return value;
-}
-
-void
-Amiga::setMachineType(MachineType type)
-{
-    bool pal = type == MACHINE_PAL;
-    trace(NTSC_DEBUG, "Switching to %s mode\n", pal ? "PAL" : "NTSC");
-
-    {   SUSPENDED
-
-        config.type = type;
-
-        // Change the frame type
-        agnus.pos.type = pal ? LINE_PAL : LINE_NTSC_LONG;
-        agnus.frame.type = pal ? LINE_PAL : LINE_NTSC_LONG;
-
-        // Rectify pending events that rely on exact beam positions
-        if (isPoweredOn()) agnus.rectifyVBLEvent();
-
-        // Adjust the video frequency
-        setFrequency(type == MACHINE_PAL ? 50 : 60);
-
-        // Clear frame buffers
-        denise.pixelEngine.clearTextures();
-
-        // Inform the GUI
-        msgQueue.put(MSG_MACHINE_TYPE, config.type);
-    }
 }
 
 InspectionTarget
@@ -878,7 +853,7 @@ Amiga::_inspect() const
         info.dmaClock = agnus.clock;
         info.ciaAClock = ciaA.getClock();
         info.ciaBClock = ciaB.getClock();
-        info.frame = agnus.frame.nr;
+        info.frame = agnus.pos.frame;
         info.vpos = agnus.pos.v;
         info.hpos = agnus.pos.h;
     }
@@ -891,8 +866,8 @@ Amiga::_dump(Category category, std::ostream& os) const
 
     if (category == Category::Config) {
 
-        os << tab("Machine type");
-        os << MachineTypeEnum::key(config.type);
+        os << tab("Video format");
+        os << VideoFormatEnum::key(config.type);
     }
 
     if (category == Category::State) {

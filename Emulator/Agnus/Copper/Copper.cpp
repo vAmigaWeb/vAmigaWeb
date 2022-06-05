@@ -68,7 +68,7 @@ Copper::findMatchOld(Beam &match) const
     u32 mask = getVMHM();
 
     // Iterate through all lines starting from the current position
-    isize numLines = agnus.frame.numLines();
+    isize numLines = agnus.pos.vCnt();
     while ((isize)(beam >> 8) < numLines) {
 
         // Check if the vertical components are equal
@@ -111,7 +111,7 @@ Copper::findMatch(Beam &match) const
     u32 mask = getVMHM();
 
     // Iterate through all lines starting from the current position
-    isize numLines = agnus.frame.numLines();
+    isize numLines = agnus.pos.vCnt();
     while ((isize)(beam >> 8) < numLines) {
 
         // Check if the vertical components are equal
@@ -261,7 +261,9 @@ Copper::scheduleWaitWakeup(bool bfd)
     if (findMatch(trigger)) {
 
         // In how many cycles do we get there?
-        auto delay = agnus.frame.diff(trigger.v, trigger.h, agnus.pos.v, agnus.pos.h);
+        // auto delay = agnus.frame.diff(trigger.v, trigger.h, agnus.pos.v, agnus.pos.h);
+        // assert(delay == DMA_CYCLES(agnus.pos.diff(trigger.v, trigger.h)));
+        auto delay = DMA_CYCLES(agnus.pos.diff(trigger.v, trigger.h));
 
         if (delay == 0) {
 
@@ -421,7 +423,7 @@ Copper::vsyncHandler()
         
         if (checkcnt) {
             msg("[%lld] Checksum: %x (%lld) lc1 = %x lc2 = %x\n",
-                agnus.frame.nr, checksum, checkcnt, cop1lc, cop2lc);
+                agnus.pos.frame, checksum, checkcnt, cop1lc, cop2lc);
         }
         checkcnt = 0;
         checksum = util::fnvInit32();

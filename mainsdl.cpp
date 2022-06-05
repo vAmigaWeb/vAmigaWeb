@@ -694,7 +694,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     {
       amiga->execute();
       i--;
-      if(warp_to_frame>0 && amiga->agnus.frame.nr > warp_to_frame)
+      if(warp_to_frame>0 && amiga->agnus.pos.frame > warp_to_frame)
       {
         printf("reached warp_to_frame count\n");
         amiga->warpOff();
@@ -891,7 +891,7 @@ bool paused_the_emscripten_main_loop=false;
 bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
 void theListener(const void * amiga, long type,  int data1, int data2, int data3, int data4){
-  if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.frame.nr < warp_to_frame)
+  if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.pos.frame < warp_to_frame)
   {
     //skip automatic warp mode on disk load
   }
@@ -948,6 +948,29 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
     set_viewport_dimensions();
 
     reset_calibration=true;
+  }
+  else if(type == MSG_MACHINE_TYPE)
+  {
+    printf("video format=%s\n",VideoFormatEnum::key(data1));    
+    printf("MSG_MACHINE_TYPE=%s\n", data1==PAL?"PAL":"NTSC");
+    ntsc = (data1==NTSC);
+
+    if(ntsc)
+    {
+      target_fps=60;
+      total_executed_frame_count=0;
+
+      if(geometry==DISPLAY_BORDERLESS || geometry == DISPLAY_ADAPTIVE)
+      {//it must determine the viewport again, i.e. we need a new message for calibration
+        //enforce this by calling
+        ((Amiga *)amiga)->configure(OPT_VIEWPORT_TRACKING, true); 
+      }
+    }
+    else
+    {
+      target_fps=50;
+      total_executed_frame_count=0;
+    }
   }
 }
 
@@ -1362,18 +1385,7 @@ extern "C" void wasm_set_display(const char *name)
   {
     if(!ntsc)
     {
-      wrapper->amiga->configure(OPT_MACHINE_TYPE, MACHINE_NTSC);
-      target_fps=60;
-
-
-      if(geometry==DISPLAY_BORDERLESS || geometry == DISPLAY_ADAPTIVE)
-      {
-        /*    if(ntsc && vstop_max > VPOS_MAX-48 )
-      vstop_max = VPOS_MAX-48; 
-    vstop_max_tracking = vstop_max;
-*/
-        wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
-      }
+      wrapper->amiga->configure(OPT_VIDEO_FORMAT, NTSC);
 
       ntsc=true;
       if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
@@ -1390,9 +1402,7 @@ extern "C" void wasm_set_display(const char *name)
   {
     if(ntsc)
     {
-      wrapper->amiga->configure(OPT_MACHINE_TYPE, MACHINE_PAL);
-      target_fps=50;
-
+      wrapper->amiga->configure(OPT_VIDEO_FORMAT, PAL);
       ntsc=false;
       if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
            geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN

@@ -434,8 +434,7 @@ Agnus::_dump(Category category, std::ostream& os) const
     if (category == Category::Config) {
 
         os << tab("Chip Revison");
-        os << AgnusRevisionEnum::key(config.revision);
-        os << bol(isPAL(), " (PAL)", " (NTSC)") << std::endl;
+        os << AgnusRevisionEnum::key(config.revision) << std::endl;
         os << tab("Slow Ram mirror");
         os << bol(config.slowRamMirror) << std::endl;
         os << tab("Pointer drops");
@@ -446,16 +445,6 @@ Agnus::_dump(Category category, std::ostream& os) const
         
         os << tab("Clock");
         os << dec(clock) << std::endl;
-        os << tab("Frame");
-        os << dec(frame.nr) << std::endl;
-        os << tab("LOF");
-        os << dec(frame.lof) << std::endl;
-        os << tab("LOF in previous frame");
-        os << dec(frame.prevlof) << std::endl;
-        os << tab("Beam position");
-        os << "(" << dec(pos.v) << "," << dec(pos.h) << ")" << std::endl;
-        os << tab("Latched position");
-        os << "(" << dec(latchedPos.v) << "," << dec(latchedPos.h) << ")" << std::endl;
         os << tab("scrollOdd");
         os << dec(scrollOdd) << std::endl;
         os << tab("scrollEven");
@@ -465,7 +454,25 @@ Agnus::_dump(Category category, std::ostream& os) const
         
         sequencer.dump(Category::State, os);
     }
-    
+
+    if (category == Category::Beam) {
+
+        os << tab("Frame");
+        os << dec(pos.frame) << bol(isPAL(), " (PAL)", " (NTSC)") << std::endl;
+        os << tab("Position");
+        os << "(" << dec(pos.v) << "," << dec(pos.h) << ")" << std::endl;
+        os << tab("Latched");
+        os << "(" << dec(latchedPos.v) << "," << dec(latchedPos.h) << ")" << std::endl;
+        os << tab("LOF");
+        os << dec(pos.lof) << std::endl;
+        os << tab("LOF toggle");
+        os << dec(pos.lofToggle) << std::endl;
+        os << tab("LOL");
+        os << dec(pos.lol) << std::endl;
+        os << tab("LOL toggle");
+        os << dec(pos.lolToggle) << std::endl;
+    }
+
     if (category == Category::Registers) {
         
         sequencer.dump(Category::Registers, os);
@@ -534,10 +541,10 @@ Agnus::_dump(Category category, std::ostream& os) const
             
             if (info.trigger != NEVER) {
                 
-                if (info.frameRel == -1) {
+                if (info.frameRel < 0) {
                     os << std::left << std::setw(18) << "previous frame";
                 } else if (info.frameRel > 0) {
-                    os << std::left << std::setw(18) << "other frame";
+                    os << std::left << std::setw(18) << "upcoming frame";
                 } else {
                     string vpos = std::to_string(info.vpos);
                     string hpos = std::to_string(info.hpos);
@@ -607,7 +614,7 @@ Agnus::_inspect() const
     eventInfo.dmaClock = agnus.clock;
     eventInfo.ciaAClock = ciaa.getClock();
     eventInfo.ciaBClock  = ciab.getClock();
-    eventInfo.frame = agnus.frame.nr;
+    eventInfo.frame = agnus.pos.frame;
     eventInfo.vpos = agnus.pos.v;
     eventInfo.hpos = agnus.pos.h;
     
@@ -623,33 +630,18 @@ Agnus::inspectSlot(EventSlot nr) const
     
     auto &info = slotInfo[nr];
     auto cycle = trigger[nr];
-    
+
     info.slot = nr;
     info.eventId = id[nr];
     info.trigger = cycle;
     info.triggerRel = cycle - agnus.clock;
-    
-    if (agnus.belongsToCurrentFrame(cycle)) {
-        
-        Beam beam = agnus.cycleToBeam(cycle);
-        info.vpos = beam.v;
-        info.hpos = beam.h;
-        info.frameRel = 0;
-        
-    } else if (agnus.belongsToNextFrame(cycle)) {
-        
-        info.vpos = 0;
-        info.hpos = 0;
-        info.frameRel = 1;
-        
-    } else {
-        
-        assert(agnus.belongsToPreviousFrame(cycle));
-        info.vpos = 0;
-        info.hpos = 0;
-        info.frameRel = -1;
-    }
-    
+
+    auto beam = pos + isize(AS_DMA_CYCLES(cycle - clock));
+
+    info.vpos = beam.v;
+    info.hpos = beam.h;
+    info.frameRel = long(beam.frame - pos.frame);
+
     info.eventName = agnus.eventName((EventSlot)nr, id[nr]);
 }
 

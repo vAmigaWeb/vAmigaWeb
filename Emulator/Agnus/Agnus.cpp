@@ -30,11 +30,10 @@ Agnus::_reset(bool hard)
     RESET_SNAPSHOT_ITEMS(hard)
     
     // Start with a long frame
-    frame = Frame();
+    pos.lof = true;
 
-    // Setup the correct line type
-    pos.type = frame.type =
-    amiga.getConfig().type == MACHINE_PAL ? LINE_PAL : LINE_NTSC_LONG;
+    // Adjust to the correct video mode
+    setVideoFormat(amiga.getConfig().type);
 
     // Initialize statistical counters
     clearStats();
@@ -54,7 +53,6 @@ Agnus::_reset(bool hard)
     scheduleRel<SLOT_TER>(NEVER, TER_TRIGGER);
     scheduleRel<SLOT_CIAA>(CIA_CYCLES(AS_CIA_CYCLES(clock)), CIA_EXECUTE);
     scheduleRel<SLOT_CIAB>(CIA_CYCLES(AS_CIA_CYCLES(clock)), CIA_EXECUTE);
-    scheduleStrobe0Event();
     scheduleRel<SLOT_IRQ>(NEVER, IRQ_CHECK);
     diskController.scheduleFirstDiskEvent();
     scheduleFirstBplEvent();
@@ -137,6 +135,29 @@ Agnus::setConfigItem(Option option, i64 value)
     }
 }
 
+void
+Agnus::setVideoFormat(VideoFormat newFormat)
+{
+    trace(NTSC_DEBUG, "Video format = %s\n", VideoFormatEnum::key(newFormat));
+
+    // Change the frame type
+    agnus.pos.type = newFormat;
+    agnus.pos.lol = false;
+    agnus.pos.lolToggle = newFormat == NTSC;
+
+    // Adjust the refresh rate
+    amiga.setFrequency(newFormat == PAL ? 50 : 60);
+
+    // Rectify pending events that rely on exact beam positions
+    agnus.rectifyVBLEvent();
+    
+    // Clear frame buffers
+    denise.pixelEngine.clearTextures();
+
+    // Inform the GUI
+    msgQueue.put(MSG_MACHINE_TYPE, newFormat);
+}
+
 bool
 Agnus::isOCS() const
 {
@@ -186,67 +207,6 @@ Agnus::slowRamIsMirroredIn() const
     } else {
         return false;
     }
-}
-
-Cycle
-Agnus::cyclesInFrame() const
-{
-    // TODO: ADD NTSC MODE COMPATIBILITY
-    return DMA_CYCLES(frame.numLines() * HPOS_CNT_PAL);
-}
-
-Cycle
-Agnus::startOfFrame() const
-{
-    // TODO: FIX NTSC MODE COMPATIBILITY
-    assert(clock - DMA_CYCLES(pos.v * HPOS_CNT_PAL + pos.h) == frame.start);
-    return frame.start;
-}
-
-Cycle
-Agnus::startOfNextFrame() const
-{
-    return startOfFrame() + cyclesInFrame();
-}
-
-bool
-Agnus::belongsToPreviousFrame(Cycle cycle) const
-{
-    return cycle < startOfFrame();
-}
-
-bool
-Agnus::belongsToCurrentFrame(Cycle cycle) const
-{
-    return !belongsToPreviousFrame(cycle) && !belongsToNextFrame(cycle);
-}
-
-bool
-Agnus::belongsToNextFrame(Cycle cycle) const
-{
-    return cycle >= startOfNextFrame();
-}
-
-// DEPRECATED: NOT NTSC COMPATIBLE
-Cycle
-Agnus::beamToCycle(Beam beam) const
-{
-    return startOfFrame() + DMA_CYCLES(beam.v * HPOS_CNT_PAL + beam.h);
-}
-
-Beam
-Agnus::cycleToBeam(Cycle cycle) const
-{
-    // TODO: Add NTSC compatibility
-
-    Beam result;
-
-    Cycle diff = AS_DMA_CYCLES(cycle - startOfFrame());
-    assert(diff >= 0);
-
-    result.v = (isize)(diff / HPOS_CNT_PAL);
-    result.h = (isize)(diff % HPOS_CNT_PAL);
-    return result;
 }
 
 void
@@ -609,7 +569,7 @@ Agnus::updateSpriteDMA()
      }
 
     // Disable DMA in the last rasterline
-    if (v == frame.lastLine()) {
+    if (v == pos.vMax()) {
         for (isize i = 0; i < 8; i++) sprDmaState[i] = SPR_DMA_IDLE;
         return;
     }
@@ -624,29 +584,28 @@ Agnus::updateSpriteDMA()
 void
 Agnus::hsyncHandler()
 {
-    // Toggle the line type in NTSC mode
+    assert(pos.h == HPOS_CNT_PAL || pos.h == HPOS_CNT_NTSC);
+    
+    // REMOVE ASAP
     switch (pos.type) {
 
-        case LINE_PAL:
+        case PAL:
 
             assert(pos.h == HPOS_CNT_PAL);
             break;
 
-        case LINE_NTSC_SHORT:
+        case NTSC:
 
-            assert(pos.h == HPOS_CNT_PAL);
-            pos.type = LINE_NTSC_LONG;
-            break;
-
-        case LINE_NTSC_LONG:
-
-            assert(pos.h == HPOS_CNT_NTSC);
-            pos.type = LINE_NTSC_SHORT;
+            assert(pos.lol || pos.h == HPOS_CNT_PAL);
+            assert(!pos.lol || pos.h == HPOS_CNT_NTSC);
             break;
     }
 
     // Reset the horizontal counter
     pos.h = 0;
+
+    // Toggle line length if needed
+    if (pos.lolToggle) pos.lol = !pos.lol;
 
     // Let Denise finish up the current line
     denise.endOfLine(pos.v);
@@ -664,7 +623,7 @@ Agnus::hsyncHandler()
     paula.channel3.requestDMA();
 
     // Advance the vertical counter
-    if (++pos.v >= frame.numLines()) vsyncHandler();
+    if (++pos.v > pos.vMax()) vsyncHandler();
 
     // Save the current value of certain variables
     dmaconInitial = dmacon;
@@ -697,11 +656,15 @@ Agnus::vsyncHandler()
     paula.executeUntil(clock - 50 * DMA_CYCLES(HPOS_CNT_PAL));
 
     // Advance to the next frame
-    frame.next(denise.lace(), clock, pos.type);
+    assert(denise.lace() == pos.lofToggle);
+    pos.frame++;
+    if (pos.lofToggle) { pos.lof = !pos.lof; }
 
     // Reset vertical position counter
     pos.v = 0;
-            
+
+    scheduleStrobe0Event();
+
     // Let other components do their own VSYNC stuff
     sequencer.vsyncHandler();
     copper.vsyncHandler();

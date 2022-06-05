@@ -165,7 +165,7 @@ Agnus::scheduleNextREGEvent()
 void
 Agnus::scheduleStrobe0Event()
 {
-    schedulePos<SLOT_VBL>(frame.numLines() + vStrobeLine(), 0, VBL_STROBE0);
+    schedulePos<SLOT_VBL>(vStrobeLine(), 0, VBL_STROBE0);
 }
 
 void
@@ -183,8 +183,8 @@ Agnus::scheduleStrobe2Event()
 void
 Agnus::serviceREGEvent(Cycle until)
 {
-    assert(pos.type != LINE_PAL || pos.h <= HPOS_CNT_PAL);
-    assert(pos.type == LINE_PAL || pos.h <= HPOS_CNT_NTSC);
+    assert(pos.type != PAL || pos.h <= HPOS_CNT_PAL);
+    assert(pos.type == PAL || pos.h <= HPOS_CNT_NTSC);
 
     // Iterate through all recorded register changes
     while (!changeRecorder.isEmpty()) {
@@ -195,8 +195,8 @@ Agnus::serviceREGEvent(Cycle until)
         // Apply the register change
         RegChange &change = changeRecorder.read();
 
-        assert (pos.type != LINE_PAL || change.addr == SET_STRHOR || pos.h <= HPOS_MAX_PAL);
-        assert (pos.type == LINE_PAL || change.addr == SET_STRHOR || pos.h <= HPOS_MAX_NTSC);
+        assert (pos.type != PAL || change.addr == SET_STRHOR || pos.h <= HPOS_MAX_PAL);
+        assert (pos.type == PAL || change.addr == SET_STRHOR || pos.h <= HPOS_MAX_NTSC);
 
         switch (change.addr) {
                 
@@ -274,8 +274,8 @@ Agnus::serviceREGEvent(Cycle until)
         }
     }
 
-    assert (pos.type != LINE_PAL || pos.h <= HPOS_MAX_PAL);
-    assert (pos.type == LINE_PAL || pos.h <= HPOS_MAX_NTSC);
+    assert (pos.type != PAL || pos.h <= HPOS_MAX_PAL);
+    assert (pos.type == PAL || pos.h <= HPOS_MAX_NTSC);
 
     // Schedule next event
     scheduleNextREGEvent();
@@ -455,9 +455,9 @@ Agnus::serviceEOL()
 {
     assert(pos.h == HPOS_MAX_PAL || pos.h == HPOS_MAX_NTSC);
 
-    if (pos.h == HPOS_MAX_PAL && pos.type == LINE_NTSC_LONG) {
+    if (pos.h == HPOS_MAX_PAL && pos.lol) {
 
-        // Run for an additional cycle
+        // Run for an additional cycle (long line)
         agnus.scheduleNextBplEvent(pos.h);
 
     } else {
@@ -497,14 +497,12 @@ Agnus::serviceVBLEvent(EventID id)
             break;
             
         case VBL_STROBE2:
-            
+
             assert(pos.v == 5);
             assert(pos.h == 178);
-            
+
             // Nothing is done here at the moment
-            
-            // Schedule next event
-            scheduleStrobe0Event();
+            cancel<SLOT_VBL>();
             break;
             
         default:
@@ -536,7 +534,7 @@ Agnus::serviceDASEvent(EventID id)
             busOwner[0x01] = BUS_REFRESH;
             busOwner[0x03] = BUS_REFRESH;
             busOwner[0x05] = BUS_REFRESH;
-            busOwner[0xE2] = BUS_REFRESH;
+            busOwner[pos.lol ? 0xE3 : 0xE2] = BUS_REFRESH;
             stats.usage[BUS_REFRESH] += 4;
             break;
 
