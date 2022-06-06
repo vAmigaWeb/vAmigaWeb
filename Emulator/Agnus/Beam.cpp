@@ -211,3 +211,73 @@ Beam::cyclesPerFrames(isize count) const
 {
     return cyclesPerFrames(count, type, lofToggle);
 }
+
+Pixel
+Beam::pixel(isize hpos) const
+{
+    if (hpos >= HBLANK_MIN) {
+
+        // Every texture line starts with the HBLANK area
+        return 4 * (hpos - HBLANK_MIN);
+        
+    } else {
+
+        // Everything left to the HBLANK area belongs to the previous line
+        return 4 * (hpos - HBLANK_MIN + hLatched);
+    }
+}
+
+void
+Beam::eol()
+{
+    // Remember and reset the horizontal coordinate
+    hLatched = h;
+
+    // Advance to the next line
+    h = 0;
+    if (++v > vMax()) eof();
+
+    // Toggle the line length if toggling is enabled
+    if (lolToggle) lol = !lol;
+}
+
+void
+Beam::eof()
+{
+    // Remember and reset the vertical coordinate
+    vLatched = v;
+
+    // Advance to the next frame
+    v = 0;
+    frame++;
+
+    // Toggle the frame length if toggling is enabled
+    if (lofToggle) lof = !lof;
+}
+
+void
+Beam::switchMode(VideoFormat format)
+{
+    switch (format) {
+
+        case PAL:
+
+            type = PAL;
+            lol = false;
+            lolToggle = false;
+            vLatched = VPOS_MAX_PAL_LF;
+            break;
+
+        case NTSC:
+
+            type = NTSC;
+            lol = false;
+            lolToggle = true;
+            vLatched = VPOS_MAX_NTSC_LF;
+            break;
+
+        default:
+            fatalError;
+    }
+}
+

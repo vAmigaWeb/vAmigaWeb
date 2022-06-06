@@ -10,6 +10,7 @@
 #pragma once
 
 #include "Aliases.h"
+#include "BeamTypes.h"
 #include "BusTypes.h"
 #include "AgnusTypes.h"
 #include "SequencerTypes.h"
@@ -209,8 +210,7 @@ enum_i8(EventID)
     BPL_H3_MOD          = 0x48,
     BPL_H4              = 0x4C,
     BPL_H4_MOD          = 0x50,
-    BPL_EOL             = 0x54,
-    BPL_EVENT_COUNT     = 0x58,
+    BPL_EVENT_COUNT     = 0x54,
 
     // DAS slot
     DAS_REFRESH         = 1,
@@ -239,6 +239,8 @@ enum_i8(EventID)
     DAS_S7_2,
     DAS_SDMA,
     DAS_TICK,
+    DAS_HSYNC,
+    DAS_EOL,
     DAS_EVENT_COUNT,
 
     // Copper slot

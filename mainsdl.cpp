@@ -44,6 +44,8 @@ u8 geometry  = DISPLAY_ADAPTIVE;
 bool ntsc=false;
 u8 target_fps = 50;
 
+extern "C" void wasm_set_display(const char *name);
+
 /********* shaders ***********/
 GLuint basic;
 GLuint merge;
@@ -110,7 +112,7 @@ const GLchar *mergeSource =
 
 int clip_width  = 724;
 int clip_height = 568;
-int clip_offset = HBLANK_MIN*4;//HBLANK_MAX*4; 
+int clip_offset = 0;//HBLANK_MIN*4;//HBLANK_MAX*4; 
 int buffer_size = 4096;
 
 bool prevLOF = false;
@@ -175,8 +177,8 @@ GLuint compileProgram(const GLchar *source) {
 
 void set_texture_display_window(const GLuint program, float hstart, float hstop, float vstart, float vstop)
 {
-  const float x1 = (hstart-clip_offset) / HPIXELS;
-  const float x2 = (hstop-clip_offset) / HPIXELS;
+  const float x1 = (hstart-HBLANK_MIN*4) / HPIXELS;
+  const float x2 = (hstop-HBLANK_MIN*4) / HPIXELS;
   const float y1 = vstart  / VPIXELS;
   const float y2 = vstop / VPIXELS;
 
@@ -622,7 +624,8 @@ bool calculate_viewport_dimensions(Uint32 *texture)
   //handdisk start pixel 416, stop pixel 676
   #define HANDSTART_PIXEL 416
   #define HANDSTOP_PIXEL 676
-  
+
+
   if(hstart_min_calib > HANDSTART_PIXEL-32)
     hstart_min_calib= HANDSTART_PIXEL-32;
   if(hstop_max_calib < HANDSTOP_PIXEL+32)
@@ -768,7 +771,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     if(now-last_time_calibrated >= 700.0)
     {
       last_time_calibrated=now;
-      bool dimensions_changed=calculate_viewport_dimensions((Uint32 *)stableBuffer.ptr);
+      bool dimensions_changed=calculate_viewport_dimensions((Uint32 *)stableBuffer.ptr - HBLANK_MIN*4);
       if(dimensions_changed)
       {
         set_viewport_dimensions(); 
@@ -953,13 +956,14 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
 
     reset_calibration=true;
   }
-  else if(type == MSG_MACHINE_TYPE)
+  else if(type == MSG_VIDEO_FORMAT)
   {
     printf("video format=%s\n",VideoFormatEnum::key(data1));    
-    printf("MSG_MACHINE_TYPE=%s\n", data1==PAL?"PAL":"NTSC");
-    ntsc = (data1==NTSC);
+//    wasm_set_display(data1==PAL?"pal":"ntsc");
 
-    if(ntsc)
+    bool _ntsc = (data1==NTSC);
+
+    if(_ntsc)
     {
       target_fps=60;
       total_executed_frame_count=0;
@@ -1454,7 +1458,7 @@ extern "C" void wasm_set_display(const char *name)
     yOff=26 +16;
     clipped_width=HPIXELS-xOff - 8;   
     //clipped_height=312-yOff -2*24 -2; 
-    clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
+    clipped_height=(3*clipped_width/4 +(ntsc?0:32) /*32 due to PAL?*/)/2 & 0xfffe;
     if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
   else if( strcmp(name,"standard") == 0)
@@ -1467,7 +1471,7 @@ extern "C" void wasm_set_display(const char *name)
     clipped_width=HPIXELS-xOff;
 //    clipped_height=312-yOff -2*4  ;
 //    clipped_height=(4*clipped_width/5 )/2 & 0xfffe;
-    clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
+    clipped_height=(3*clipped_width/4 +(ntsc?0:32) /*32 due to PAL?*/)/2 & 0xfffe;
     if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
   else if( strcmp(name,"wider") == 0)
@@ -1479,7 +1483,7 @@ extern "C" void wasm_set_display(const char *name)
     yOff=VBLANK_CNT + 2;
     clipped_width=(HPIXELS+HBLANK_MAX/2 )-xOff;
 //    clipped_height=312-yOff -2*2;
-    clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
+    clipped_height=(3*clipped_width/4 +(ntsc?0:32) /*32 due to PAL?*/)/2 & 0xfffe;
     if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
   else if( strcmp(name,"overscan") == 0)
@@ -1492,7 +1496,7 @@ extern "C" void wasm_set_display(const char *name)
     yOff=VBLANK_CNT; //must be even
     clipped_width=(HPIXELS+HBLANK_MAX)-xOff;
     //clipped_height=312-yOff; //must be even
-    clipped_height=(3*clipped_width/4 +24 /*32 due to PAL?*/)/2 & 0xfffe;
+    clipped_height=(3*clipped_width/4 +(ntsc?0:24) /*32 due to PAL?*/)/2 & 0xfffe;
     if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
   printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);

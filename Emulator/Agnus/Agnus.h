@@ -76,7 +76,10 @@ public:
     
     // Pending register changes
     RegChangeRecorder<8> changeRecorder;
-    
+
+    // An optional sync event to be processed in serviceRegEvent()
+    EventID syncEvent = EVENT_NONE;
+
     
     //
     // Counters
@@ -87,10 +90,10 @@ public:
 
     // The current beam position
     Beam pos;
-    
+
     // Latched beam position (recorded when BPLCON0::ERSY is set)
     Beam latchedPos;
-    
+
     
     //
     // Registers
@@ -145,10 +148,10 @@ public:
 public:
     
     // Recorded DMA values for all cycles in the current rasterline
-    u16 busValue[HPOS_CNT_NTSC];
+    u16 busValue[HPOS_CNT];
 
     // Recorded DMA usage for all cycles in the current rasterline
-    BusOwner busOwner[HPOS_CNT_NTSC];
+    BusOwner busOwner[HPOS_CNT];
 
     
     //
@@ -245,10 +248,11 @@ private:
         << data
         << nextTrigger
         >> changeRecorder
-
+        << syncEvent
+        
         >> pos
         >> latchedPos
-
+        
         << bplcon0
         << bplcon0Initial
         << bplcon1
@@ -341,18 +345,6 @@ private:
     void inspectSlot(EventSlot nr) const;
     void clearStats();
     void updateStats();
-    
-
-    //
-    // Examining the current frame
-    //
-
-public:
-
- 
-    // Returns the master cycle belonging to beam position (0,0)
-    // Cycle startOfFrame() const;
-
 
 
     //
@@ -368,10 +360,6 @@ public:
     // Indicates if the current rasterline is the last line in this frame
     bool inLastRasterline(isize posv) const { return posv == pos.vMax(); }
     bool inLastRasterline() const { return inLastRasterline(pos.v); }
-
-    // Returns the pixel position for the current horizontal position
-    Pixel pixelpos(isize posh) const { return (posh * 4) + 2; }
-    Pixel pixelpos() const { return pixelpos(pos.h); }
 
 
     //
@@ -425,13 +413,19 @@ private:
     // Updates the sprite DMA status in cycle 0xDF
     void updateSpriteDMA();
 
-    // Finishes up the current rasterline
-    void hsyncHandler();
+    // Finishes up the current line
+    void eolHandler();
 
     // Finishes up the current frame
+    void eofHandler();
+
+    // Called at the beginning of the HSYNC area
+    void hsyncHandler();
+
+    // Called at the beginning of the VSYNC area
     void vsyncHandler();
 
-    
+
     //
     // Controlling DMA (AgnusDma.cpp)
     //
@@ -770,7 +764,6 @@ public:
     void serviceBPLEvent(EventID id);
     template <isize nr> void serviceBPLEventHires();
     template <isize nr> void serviceBPLEventLores();
-    void serviceEOL();
 
     // Services a vertical blank interrupt
     void serviceVBLEvent(EventID id);

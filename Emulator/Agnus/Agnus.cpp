@@ -141,21 +141,16 @@ Agnus::setVideoFormat(VideoFormat newFormat)
     trace(NTSC_DEBUG, "Video format = %s\n", VideoFormatEnum::key(newFormat));
 
     // Change the frame type
-    agnus.pos.type = newFormat;
-    agnus.pos.lol = false;
-    agnus.pos.lolToggle = newFormat == NTSC;
-
-    // Adjust the refresh rate
-    amiga.setFrequency(newFormat == PAL ? 50 : 60);
+    agnus.pos.switchMode(newFormat);
 
     // Rectify pending events that rely on exact beam positions
     agnus.rectifyVBLEvent();
     
     // Clear frame buffers
-    denise.pixelEngine.clearTextures();
+    denise.pixelEngine.clearAll();
 
     // Inform the GUI
-    msgQueue.put(MSG_MACHINE_TYPE, newFormat);
+    msgQueue.put(MSG_VIDEO_FORMAT, newFormat);
 }
 
 bool
@@ -582,7 +577,7 @@ Agnus::updateSpriteDMA()
 }
 
 void
-Agnus::hsyncHandler()
+Agnus::eolHandler()
 {
     assert(pos.h == HPOS_CNT_PAL || pos.h == HPOS_CNT_NTSC);
     
@@ -601,14 +596,11 @@ Agnus::hsyncHandler()
             break;
     }
 
-    // Reset the horizontal counter
-    pos.h = 0;
+    // Pass control to the DMA debugger
+    dmaDebugger.eolHandler();
 
-    // Toggle line length if needed
-    if (pos.lolToggle) pos.lol = !pos.lol;
-
-    // Let Denise finish up the current line
-    denise.endOfLine(pos.v);
+    // Move to the next line
+    pos.eol();
 
     // Update pot counters
     if (paula.chargeX0 < 1.0) U8_INC(paula.potCntX0, 1);
@@ -622,32 +614,32 @@ Agnus::hsyncHandler()
     paula.channel2.requestDMA();
     paula.channel3.requestDMA();
 
-    // Advance the vertical counter
-    if (++pos.v > pos.vMax()) vsyncHandler();
+    // Check if we have reached a new frame
+    if (pos.v == 0) eofHandler();
 
     // Save the current value of certain variables
     dmaconInitial = dmacon;
     bplcon0Initial = bplcon0;
     bplcon1Initial = bplcon1;
-    
-    // Clear the bus usage table
-    for (isize i = 0; i < HPOS_CNT_NTSC; i++) busOwner[i] = BUS_NONE;
 
-    // Pass control to the sequencer
-    sequencer.hsyncHandler();
-    
+    // Pass control to other components
+    sequencer.eolHandler();
+    denise.eolHandler();
+
+    // Clear the bus usage table
+    for (isize i = 0; i < HPOS_CNT; i++) busOwner[i] = BUS_NONE;
+
     // Schedule the first BPL and DAS events
     scheduleFirstBplEvent();
     scheduleFirstDasEvent();
-    
-    // Let Denise prepare for the next line
-    denise.beginOfLine(pos.v);
 }
 
 void
-Agnus::vsyncHandler()
+Agnus::eofHandler()
 {
     assert(clock >= 0);
+    assert(pos.v == 0);
+    assert(denise.lace() == pos.lofToggle);
 
     // Run the screen recorder
     denise.screenRecorder.vsyncHandler(clock - 50 * DMA_CYCLES(HPOS_CNT_PAL));
@@ -655,23 +647,14 @@ Agnus::vsyncHandler()
     // Synthesize sound samples
     paula.executeUntil(clock - 50 * DMA_CYCLES(HPOS_CNT_PAL));
 
-    // Advance to the next frame
-    assert(denise.lace() == pos.lofToggle);
-    pos.frame++;
-    if (pos.lofToggle) { pos.lof = !pos.lof; }
-
-    // Reset vertical position counter
-    pos.v = 0;
-
     scheduleStrobe0Event();
 
     // Let other components do their own VSYNC stuff
-    sequencer.vsyncHandler();
-    copper.vsyncHandler();
-    denise.vsyncHandler();
-    controlPort1.joystick.vsyncHandler();
-    controlPort2.joystick.vsyncHandler();
-    retroShell.vsyncHandler();
+    sequencer.eofHandler();
+    copper.eofHandler();
+    controlPort1.joystick.eofHandler();
+    controlPort2.joystick.eofHandler();
+    retroShell.eofHandler();
 
     // Update statistics
     updateStats();
@@ -680,6 +663,27 @@ Agnus::vsyncHandler()
     // Let the thread synchronize
     amiga.setFlag(RL::SYNC_THREAD);
 }
+
+void
+Agnus::hsyncHandler()
+{
+    assert(pos.h == 0x11);
+    
+    // Draw the previous line
+    isize vpos = agnus.pos.vPrev();
+    denise.hsyncHandler(vpos);
+    dmaDebugger.hsyncHandler(vpos);
+
+    // Call the vsyncHandler once we've finished a frame
+    if (pos.v == 0) vsyncHandler();
+}
+
+void
+Agnus::vsyncHandler()
+{
+    denise.vsyncHandler();
+}
+
 
 //
 // Instantiate template functions

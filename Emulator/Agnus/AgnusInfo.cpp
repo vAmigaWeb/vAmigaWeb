@@ -128,10 +128,6 @@ Agnus::eventName(EventSlot slot, EventID id)
                 case BPL_H4_MOD | DRAW_ODD:     return "BPL_H4*[O]";
                 case BPL_H4_MOD | DRAW_EVEN:    return "BPL_H4*[E]";
                 case BPL_H4_MOD | DRAW_BOTH:    return "BPL_H4*[OE]";
-                case BPL_EOL:                   return "BPL_EOL";
-                case BPL_EOL | DRAW_ODD:        return "BPL_EOL [O]";
-                case BPL_EOL | DRAW_EVEN:       return "BPL_EOL [E]";
-                case BPL_EOL | DRAW_BOTH:       return "BPL_EOL [OE]";
                 default:                        return "*** INVALID ***";
             }
             break;
@@ -166,6 +162,8 @@ Agnus::eventName(EventSlot slot, EventID id)
                 case DAS_S7_2:      return "DAS_S7_2";
                 case DAS_SDMA:      return "DAS_SDMA";
                 case DAS_TICK:      return "DAS_TICK";
+                case DAS_HSYNC:     return "DAS_HSYNC";
+                case DAS_EOL:       return "DAS_EOL";
                 default:            return "*** INVALID ***";
             }
             break;

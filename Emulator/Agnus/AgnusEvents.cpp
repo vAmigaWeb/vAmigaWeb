@@ -97,10 +97,8 @@ Agnus::scheduleNextBplEvent(isize hpos)
 {
     assert(hpos >= 0 && hpos < HPOS_CNT_NTSC);
 
-    if (u8 next = sequencer.nextBplEvent[hpos]) {
-        scheduleRel<SLOT_BPL>(DMA_CYCLES(next - pos.h), sequencer.bplEvent[next]);
-    }
-    assert(hasEvent<SLOT_BPL>());
+    u8 next = sequencer.nextBplEvent[hpos];
+    scheduleRel<SLOT_BPL>(DMA_CYCLES(next - pos.h), sequencer.bplEvent[next]);
 }
 
 void
@@ -113,8 +111,6 @@ Agnus::scheduleBplEventForCycle(isize hpos)
     } else {
         scheduleNextBplEvent(hpos);
     }
-
-    assert(hasEvent<SLOT_BPL>());
 }
 
 void
@@ -130,20 +126,19 @@ Agnus::scheduleFirstDasEvent()
 void
 Agnus::scheduleNextDasEvent(isize hpos)
 {
-    assert(hpos >= 0 && hpos < HPOS_CNT_NTSC);
+    assert(hpos >= 0 && hpos < HPOS_CNT);
 
-    if (u8 next = sequencer.nextDasEvent[hpos]) {
-        scheduleRel<SLOT_DAS>(DMA_CYCLES(next - pos.h), sequencer.dasEvent[next]);
-        assert(hasEvent<SLOT_DAS>());
-    } else {
-        cancel<SLOT_DAS>();
-    }
+    u8 next = sequencer.nextDasEvent[hpos];
+    assert(next >= 0 && next < HPOS_CNT);
+
+    scheduleRel<SLOT_DAS>(DMA_CYCLES(next - pos.h), sequencer.dasEvent[next]);
+    assert(hasEvent<SLOT_DAS>());
 }
 
 void
 Agnus::scheduleDasEventForCycle(isize hpos)
 {
-    assert(hpos >= pos.h && hpos < HPOS_CNT_NTSC);
+    assert(hpos >= pos.h && hpos < HPOS_CNT);
 
     if (sequencer.dasEvent[hpos] != EVENT_NONE) {
         scheduleRel<SLOT_DAS>(DMA_CYCLES(hpos - pos.h), sequencer.dasEvent[hpos]);
@@ -156,10 +151,10 @@ void
 Agnus::scheduleNextREGEvent()
 {
     // Determine when the next register change happens
-    Cycle nextTrigger = changeRecorder.trigger();
+    Cycle next = changeRecorder.trigger();
 
     // Schedule a register change event for that cycle
-    scheduleAbs<SLOT_REG>(nextTrigger, REG_CHANGE);
+    if (next < trigger[SLOT_REG]) scheduleAbs<SLOT_REG>(next, REG_CHANGE);
 }
 
 void
@@ -186,20 +181,28 @@ Agnus::serviceREGEvent(Cycle until)
     assert(pos.type != PAL || pos.h <= HPOS_CNT_PAL);
     assert(pos.type == PAL || pos.h <= HPOS_CNT_NTSC);
 
+    if (syncEvent) {
+
+        // Call the EOL handler if requested
+        if (syncEvent == DAS_EOL) eolHandler();
+
+        // Call the HSYNC handler if requested
+        if (syncEvent == DAS_HSYNC) hsyncHandler();
+
+        syncEvent = EVENT_NONE;
+    }
+
     // Iterate through all recorded register changes
     while (!changeRecorder.isEmpty()) {
 
         // We're done once the trigger cycle exceeds the target cycle
-        if (changeRecorder.trigger() > until) return;
+        if (changeRecorder.trigger() > until) break;
 
         // Apply the register change
         RegChange &change = changeRecorder.read();
 
-        assert (pos.type != PAL || change.addr == SET_STRHOR || pos.h <= HPOS_MAX_PAL);
-        assert (pos.type == PAL || change.addr == SET_STRHOR || pos.h <= HPOS_MAX_NTSC);
-
         switch (change.addr) {
-                
+
             case SET_BLTSIZE: blitter.setBLTSIZE(change.value); break;
             case SET_BLTSIZV: blitter.setBLTSIZV(change.value); break;
                 
@@ -266,16 +269,11 @@ Agnus::serviceREGEvent(Cycle until)
             case SET_DSKPTL: setDSKPTL(change.value); break;
 
             case SET_SERDAT: uart.setSERDAT(change.value); break;
-                
-            case SET_STRHOR: hsyncHandler(); break;
-                
+
             default:
                 fatalError;
         }
     }
-
-    assert (pos.type != PAL || pos.h <= HPOS_MAX_PAL);
-    assert (pos.type == PAL || pos.h <= HPOS_MAX_NTSC);
 
     // Schedule next event
     scheduleNextREGEvent();
@@ -305,6 +303,10 @@ void
 Agnus::serviceBPLEvent(EventID id)
 {
     switch (id) {
+
+        case EVENT_NONE:
+            assert(pos.h == HPOS_MAX);
+            break;
 
         case EVENT_NONE | DRAW_ODD:
             hires() ? denise.drawHiresOdd() : denise.drawLoresOdd();
@@ -407,25 +409,6 @@ Agnus::serviceBPLEvent(EventID id)
         case BPL_L6_MOD | DRAW_ODD:     LO_MOD_ODD(5);  break;
         case BPL_L6_MOD | DRAW_EVEN:    LO_MOD_EVEN(5); break;
         case BPL_L6_MOD | DRAW_BOTH:    LO_MOD_BOTH(5); break;
-
-        case BPL_EOL:
-            serviceEOL();
-            return;
-
-        case BPL_EOL | DRAW_ODD:
-            serviceEOL();
-            hires() ? denise.drawHiresOdd() : denise.drawLoresOdd();
-            return;
-
-        case BPL_EOL | DRAW_EVEN:
-            serviceEOL();
-            hires() ? denise.drawHiresEven() : denise.drawLoresEven();
-            return;
-
-        case BPL_EOL | DRAW_BOTH:
-            serviceEOL();
-            hires() ? denise.drawHiresBoth() : denise.drawLoresBoth();
-            return;
             
         default:
             dump(Category::Dma);
@@ -448,23 +431,6 @@ Agnus::serviceBPLEventLores()
 {
     // Perform bitplane DMA
     denise.setBPLxDAT<nr>(doBitplaneDmaRead<nr>());
-}
-
-void
-Agnus::serviceEOL()
-{
-    assert(pos.h == HPOS_MAX_PAL || pos.h == HPOS_MAX_NTSC);
-
-    if (pos.h == HPOS_MAX_PAL && pos.lol) {
-
-        // Run for an additional cycle (long line)
-        agnus.scheduleNextBplEvent(pos.h);
-
-    } else {
-
-        // Call the hsync handler at the beginning of the next DMA cycle
-        recordRegisterChange(0, SET_STRHOR, 1);
-    }
 }
 
 void
@@ -531,20 +497,29 @@ Agnus::serviceDASEvent(EventID id)
     switch (id) {
 
         case DAS_REFRESH:
+
             busOwner[0x01] = BUS_REFRESH;
             busOwner[0x03] = BUS_REFRESH;
             busOwner[0x05] = BUS_REFRESH;
             busOwner[pos.lol ? 0xE3 : 0xE2] = BUS_REFRESH;
+
+            busValue[0x01] = 0;
+            busValue[0x03] = 0;
+            busValue[0x05] = 0;
+            busValue[pos.lol ? 0xE3 : 0xE2] = 0;
+
             stats.usage[BUS_REFRESH] += 4;
             break;
 
         case DAS_D0:
         case DAS_D1:
         case DAS_D2:
+
             paula.diskController.performDMA();
             break;
 
         case DAS_A0:
+
             if (audxDR[0]) {
                 audxDR[0] = false;
                 paula.channel0.pokeAUDxDAT(doAudioDmaRead<0>());
@@ -552,6 +527,7 @@ Agnus::serviceDASEvent(EventID id)
             break;
 
         case DAS_A1:
+
             if (audxDR[1]) {
                 audxDR[1] = false;
                 paula.channel1.pokeAUDxDAT(doAudioDmaRead<1>());
@@ -559,6 +535,7 @@ Agnus::serviceDASEvent(EventID id)
             break;
 
         case DAS_A2:
+
             if (audxDR[2]) {
                 audxDR[2] = false;
                 paula.channel2.pokeAUDxDAT(doAudioDmaRead<2>());
@@ -566,6 +543,7 @@ Agnus::serviceDASEvent(EventID id)
             break;
 
         case DAS_A3:
+
             if (audxDR[3]) {
                 audxDR[3] = false;
                 paula.channel3.pokeAUDxDAT(doAudioDmaRead<3>());
@@ -573,75 +551,128 @@ Agnus::serviceDASEvent(EventID id)
             break;
 
         case DAS_S0_1:
+
             executeFirstSpriteCycle<0>();
             break;
 
         case DAS_S0_2:
+
             executeSecondSpriteCycle<0>();
             break;
 
         case DAS_S1_1:
+
             executeFirstSpriteCycle<1>();
             break;
 
         case DAS_S1_2:
+
             executeSecondSpriteCycle<1>();
             break;
 
         case DAS_S2_1:
+
             executeFirstSpriteCycle<2>();
             break;
 
         case DAS_S2_2:
+
             executeSecondSpriteCycle<2>();
             break;
 
         case DAS_S3_1:
+
             executeFirstSpriteCycle<3>();
             break;
 
         case DAS_S3_2:
+
             executeSecondSpriteCycle<3>();
             break;
 
         case DAS_S4_1:
+
             executeFirstSpriteCycle<4>();
             break;
 
         case DAS_S4_2:
+
             executeSecondSpriteCycle<4>();
             break;
 
         case DAS_S5_1:
+
             executeFirstSpriteCycle<5>();
             break;
 
         case DAS_S5_2:
+
             executeSecondSpriteCycle<5>();
             break;
 
         case DAS_S6_1:
+
             executeFirstSpriteCycle<6>();
             break;
 
         case DAS_S6_2:
+
             executeSecondSpriteCycle<6>();
             break;
 
         case DAS_S7_1:
+
             executeFirstSpriteCycle<7>();
             break;
 
         case DAS_S7_2:
+
             executeSecondSpriteCycle<7>();
             break;
 
         case DAS_SDMA:
+
             updateSpriteDMA();
             break;
 
         case DAS_TICK:
+            
             ciab.tod.increment();
+            break;
+
+        case DAS_HSYNC:
+
+            /* Ask the REG slot handler to call the HSYNC handler at the
+             * beginning of the next cycle. We utilize the REG handler,
+             * because it is the first one to execute. Hence, we can assure
+             * that the the HSYNC handler is executed before any other
+             * operation is performed in this cycle.
+             */
+            syncEvent = id;
+            // recordRegisterChange(DMA_CYCLES(1), REG_NONE, 0);
+            scheduleRel <SLOT_REG> (DMA_CYCLES(1), REG_CHANGE);
+            break;
+
+        case DAS_EOL:
+
+            assert(pos.h == HPOS_MAX_PAL || pos.h == HPOS_MAX_NTSC);
+
+            if (pos.h == HPOS_MAX_PAL && pos.lol) {
+
+                // Run for an additional cycle (long line)
+                break;
+
+            } else {
+
+                /* Ask the REG slot handler to call the EOL handler at the
+                 * beginning of the next cycle. We utilize the REG handler,
+                 * because it is the first one to execute. Hence, we can assure
+                 * that the the EOL handler is executed before any other
+                 * operation is performed in this cycle.
+                 */
+                syncEvent = id;
+                scheduleRel <SLOT_REG> (DMA_CYCLES(1), REG_CHANGE);
+            }
             break;
 
         default:

@@ -226,8 +226,8 @@ Denise::drawOdd(Pixel offset)
     };
     
     u16 mask = masks[bpu()];
-    Pixel currentPixel = agnus.pixelpos() + offset;
-    
+    Pixel currentPixel = agnus.pos.pixel() + offset + 2;
+
     u8 slices[16];
     extractSlicesOdd(slices);
     
@@ -272,8 +272,8 @@ Denise::drawEven(Pixel offset)
     };
     
     u16 mask = masks[bpu()];
-    Pixel currentPixel = agnus.pixelpos() + offset;
-    
+    Pixel currentPixel = agnus.pos.pixel() + offset + 2;
+
     u8 slices[16];
     extractSlicesEven(slices);
     
@@ -825,26 +825,6 @@ Denise::drawAttachedSpritePixelPair(Pixel hpos)
 }
 
 void
-Denise::copyOverlappingSpritePixels()
-{
-    /* This function is called inside endOfLine(). At this point, the mBuffer
-     * may contain sprite pixels at indices greater than HPIXELS. To make these
-     * pixels appear, we need to copy them at the beginning of the bBuffer.
-     *
-     * The current code has been written to handle overscan mode in DPaint IV
-     * correctly. The implementation is not 100% accurate, because the sprite
-     * pixels are simply copied over the existing pixels. This is correct for
-     * DPaint IV, but does not work in scenarios with different bitplane
-     * priority settings.
-     */
-    for (isize i = 0; i < 32; i++) {
-        if (denise.mBuffer[HPIXELS + i]) {
-            denise.bBuffer[i] = denise.mBuffer[HPIXELS + i];
-        }
-    }
-}
-
-void
 Denise::updateBorderColor()
 {
     if (config.revision != DENISE_OCS && ecsena() && brdrblnk()) {
@@ -861,7 +841,8 @@ void
 Denise::drawBorder()
 {
     bool hFlopWasSet = hflop || hflopOn != -1;
-    
+    isize hblank = 4 * HBLANK_MIN;
+
     if (agnus.sequencer.lineIsBlank || !hFlopWasSet) {
 
         // Draw blank line
@@ -873,29 +854,18 @@ Denise::drawBorder()
 
         // Draw left border
         if (!hflop && hflopOn != -1) {
-            for (isize i = 0; i < 2 * hflopOn; i++) {
+            for (isize i = 0; i < 2 * hflopOn - hblank; i++) {
                 bBuffer[i] = iBuffer[i] = mBuffer[i] = borderColor;
             }
         }
 
         // Draw right border
         if (hflopOff != -1) {
-            for (isize i = 2 * hflopOff; i < HPIXELS; i++) {
+            for (isize i = 2 * hflopOff - hblank; i < HPIXELS; i++) {
                 bBuffer[i] = iBuffer[i] = mBuffer[i] = borderColor;
             }
         }
     }
-
-#ifdef LINE_DEBUG
-    if (LINE_DEBUG) {
-        for (Pixel i = 0; i < HPIXELS / 2; i++) {
-            iBuffer[i] = mBuffer[i] = 64;
-        }
-    }
-#endif
-#ifdef COLUMN_DEBUG
-    iBuffer[4*COLUMN_DEBUG] = mBuffer[4*COLUMN_DEBUG] = 64;
-#endif
 }
 
 template <int x> void
@@ -1023,38 +993,17 @@ Denise::vsyncHandler()
 }
 
 void
-Denise::beginOfLine(isize vpos)
-{    
-    // Save the current values of various Denise registers
-    initialBplcon0 = bplcon0;
-    initialBplcon1 = bplcon1;
-    initialBplcon2 = bplcon2;
-    wasArmed = armed;
-
-    // Update the horizontal DIW flipflop
-    hflop = (hflopOff != -1) ? false : (hflopOn != -1) ? true : hflop;
-    hflopOn = denise.hstrt; 
-    hflopOff = denise.hstop;
-
-    // Wrap around the unprocessed bBuffer part
-    for (isize i = 0; i < 32; i++) bBuffer[i] = bBuffer[HPIXELS + i];
-
-    // Clear the rest of the bBuffer
-    std::memset(bBuffer + 32, 0, sizeof(bBuffer) - 32);
-
-    // Reset the sprite clipping range
-    spriteClipBegin = HPIXELS;
-    spriteClipEnd = HPIXELS + 32;
-}
-
-void
-Denise::endOfLine(isize vpos)
+Denise::hsyncHandler(isize vpos)
 {
+    assert(agnus.pos.h == 0x11);
+    assert(vpos >= 0 && vpos <= VPOS_MAX);
+
+    //
+    // Finish the current line
+    //
+
     // Check if we are below the VBLANK area
     if (vpos >= 26) {
-
-        // Take care of overlapping sprite pixels from the previous line
-        if (wasArmed) copyOverlappingSpritePixels();
 
         // Translate bitplane data to color register indices
         translate();
@@ -1090,18 +1039,45 @@ Denise::endOfLine(isize vpos)
     assert(sprChanges[2].isEmpty());
     assert(sprChanges[3].isEmpty());
 
-    // Invoke the DMA debugger
-    dmaDebugger.computeOverlay();
-    
     // Encode a HIRES / LORES marker in the first HBLANK pixel
-    *denise.pixelEngine.pixelAddr(HBLANK_MIN * 4) = hires() ? 0 : -1;
+    u32 *ptr = pixelEngine.frameBuffer + HPIXELS * vpos;
+    *ptr = hires() ? 0 : -1;
 
-    // Add a debug pixel if requested
-    if constexpr (NTSC_DEBUG) {
+    // Clear the last pixel if this line was a short line
+    if (agnus.pos.hLatched == HPOS_CNT_PAL) pixelEngine.clear(vpos, HPOS_MAX);
 
-        u32 color = agnus.pos.lol ? -1 : 0;
-        *denise.pixelEngine.pixelAddr(HBLANK_MIN * 4 + 1) =  color;
+    // Clear the bBuffer
+    std::memset(bBuffer, 0, sizeof(bBuffer));
+
+    // Remember whether sprites were armed in this line
+    wasArmed = armed;
+
+    // Reset the sprite clipping range
+    spriteClipBegin = HPIXELS;
+    spriteClipEnd = HPIXELS + 32;
+
+    // Add some debug information if requested
+#ifdef LINE_DEBUG
+    if (LINE_DEBUG) {
+        for (Pixel i = 0; i < HPIXELS; i++) {
+            ptr[i] = (i & 1) ? 0xFF0000FF : 0xFFFFFFFF;
+        }
     }
+#endif
+}
+
+void
+Denise::eolHandler()
+{
+    // Save the current values of various Denise registers
+    initialBplcon0 = bplcon0;
+    initialBplcon1 = bplcon1;
+    initialBplcon2 = bplcon2;
+
+    // Update the horizontal DIW flipflop
+    hflop = (hflopOff != -1) ? false : (hflopOn != -1) ? true : hflop;
+    hflopOn = denise.hstrt;
+    hflopOff = denise.hstop;
 }
 
 template void Denise::drawOdd<false>(Pixel offset);

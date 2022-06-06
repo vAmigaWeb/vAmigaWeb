@@ -1122,6 +1122,19 @@ Amiga::execute()
     }
 }
 
+util::Time
+Amiga::getDelay()
+{
+    switch (config.type) {
+
+        case PAL:   return util::Time(i64(1000000000 / 50));
+        case NTSC:  return util::Time(i64(1000000000 / 60));
+
+        default:
+            fatalError;
+    }
+}
+
 void
 Amiga::setFlag(u32 flag)
 {
@@ -1217,8 +1230,12 @@ Amiga::latestUserSnapshot()
 void
 Amiga::loadSnapshot(const Snapshot &snapshot)
 {
+    // bool wasPAL, isPAL;
+
     {   SUSPENDED
-        
+
+        // wasPAL = agnus.isPAL();
+
         try {
             
             // Restore the saved state
@@ -1234,11 +1251,14 @@ Amiga::loadSnapshot(const Snapshot &snapshot)
              */
             hardReset();
             throw error;
-        }        
+        }
+
+        // isPAL = agnus.isPAL();
     }
     
     // Inform the GUI
     msgQueue.put(MSG_SNAPSHOT_RESTORED);
+    msgQueue.put(MSG_VIDEO_FORMAT, agnus.isPAL() ? PAL : NTSC);
 }
 
 void

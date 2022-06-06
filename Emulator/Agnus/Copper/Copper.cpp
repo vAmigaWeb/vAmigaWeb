@@ -211,7 +211,7 @@ Copper::move(u32 addr, u16 value)
               "pokeCustom16(%X [%s], %X)\n", addr, Memory::regName(addr), value);
 
         // Color registers
-        pixelEngine.colChanges.insert(4 * agnus.pos.h, RegChange { addr, value} );
+        pixelEngine.colChanges.insert(agnus.pos.pixel(), RegChange { addr, value} );
         return;
     }
 
@@ -409,7 +409,7 @@ Copper::isIllegalInstr(u32 addr) const
 }
 
 void
-Copper::vsyncHandler()
+Copper::eofHandler()
 {
     /* "At the start of each vertical blanking interval, COP1LC is automatically
      *  used to start the program counter. That is, no matter what the Copper is

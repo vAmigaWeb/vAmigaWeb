@@ -29,7 +29,7 @@ Sequencer::initDasEventTable()
             p[0x09] = DAS_D1;
             p[0x0B] = DAS_D2;
         }
-        
+
         // Audio DMA is possible even in lines where the DMACON bits are false
         p[0x0D] = DAS_A0;
         p[0x0F] = DAS_A1;
@@ -58,6 +58,10 @@ Sequencer::initDasEventTable()
 
         p[0xDF] = DAS_SDMA;
         p[0x66] = DAS_TICK;
+
+        p[0x10] = DAS_HSYNC;
+        p[0xE2] = DAS_EOL;
+        p[0xE3] = DAS_EOL;
     }
 }
 
@@ -65,6 +69,7 @@ void
 Sequencer::initDasEvents()
 {
     for (isize i = 0; i < HPOS_CNT; i++) dasEvent[i] = dasDMA[0][i];
+    for (isize i = 0; i < HPOS_CNT; i++) nextDasEvent[i] = HPOS_MAX;
     updateDasJumpTable();
 }
 
@@ -84,6 +89,7 @@ void
 Sequencer::updateDasJumpTable(i16 end)
 {
     assert(end <= HPOS_MAX);
+    assert(nextDasEvent[HPOS_MAX] == HPOS_MAX);
 
     u8 next = nextDasEvent[end];
     

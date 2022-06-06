@@ -12,6 +12,7 @@
 #include "DmaDebuggerTypes.h"
 #include "SubComponent.h"
 #include "Colors.h"
+#include "Constants.h"
 
 class DmaDebugger : public SubComponent {
 
@@ -23,6 +24,15 @@ class DmaDebugger : public SubComponent {
     
     // Colors used for highlighting DMA (derived from config.debugColor)
     RgbColor debugColor[BUS_COUNT][5] = {};
+
+    // A local copy of the bus value table (recorded in the EOL handler)
+    u16 busValue[HPOS_CNT];
+
+    // A local copy of the bus owner table (recorded in the EOL handler)
+    BusOwner busOwner[HPOS_CNT];
+
+    // HSYNC handler information (recorded in the EOL handler)
+    isize pixel0 = 0;
 
 
     //
@@ -101,9 +111,17 @@ private:
 
 public:
     
-    // Superimposes the debug output onto the current rasterline
-    void computeOverlay();
+    // Called by Agnus at the end of each scanline
+    void eolHandler();
 
-    // Cleans up some texture data at the end of each frame
+    // Called by Agnus at the beginning of the HSYNC area
+    void hsyncHandler(isize vpos);
+
+    // Cleans by Agnus at the end of each frame
     void vSyncHandler();
+
+private:
+
+    // Visualizes DMA usage for a certain range of DMA cycles
+    void computeOverlay(u32 *ptr, isize first, isize last, BusOwner *own, u16 *val);
 };
