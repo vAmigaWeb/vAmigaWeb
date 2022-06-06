@@ -1385,6 +1385,8 @@ extern "C" void wasm_set_warp(unsigned on)
 
 extern "C" void wasm_set_display(const char *name)
 {
+  printf("wasm_set_display('%s')\n",name);
+
   if( strcmp(name,"ntsc") == 0)
   {
     if(!ntsc)
@@ -1419,8 +1421,6 @@ extern "C" void wasm_set_display(const char *name)
     }
   }
 
-
-  printf("wasm_set_display('%s')\n",name);
 
   if( strcmp(name,"adaptive") == 0 || 
       strcmp(name,"auto") == 0 || 
@@ -1577,6 +1577,10 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
       printf("isSnapshot\n");
       wrapper->amiga->loadSnapshot(*file);
       file_still_unprocessed=false;
+
+      wasm_set_display(wrapper->amiga->agnus.isNTSC()?"ntsc":"pal");
+
+      printf("run snapshot at %d Hz, isPAL=%d\n", target_fps, !ntsc);
     }
     catch(VAError &exception) {
       ErrorCode ec=exception.data;
