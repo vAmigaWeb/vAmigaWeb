@@ -179,8 +179,8 @@ void set_texture_display_window(const GLuint program, float hstart, float hstop,
 {
   const float x1 = (hstart-HBLANK_MIN*4) / HPIXELS;
   const float x2 = (hstop-HBLANK_MIN*4) / HPIXELS;
-  const float y1 = vstart  / VPIXELS;
-  const float y2 = vstop / VPIXELS;
+  const float y1 = vstart  / VPOS_MAX;
+  const float y2 = vstop / VPOS_MAX;
 
   const GLfloat coords[] = {
     x1,y1, x2,y1, x1,y2, x2,y2
@@ -645,10 +645,10 @@ bool calculate_viewport_dimensions(Uint32 *texture)
     }
   }
 
-  if(vstart_min_calib > VPIXELS/4)
-    vstart_min_calib= VPIXELS/4;
-  if(vstop_max_calib < 3*VPIXELS/4)
-    vstop_max_calib= 3*VPIXELS/4;
+  if(vstart_min_calib > VPOS_MAX/4)
+    vstart_min_calib= VPOS_MAX/4;
+  if(vstop_max_calib < 3*VPOS_MAX/4)
+    vstop_max_calib= 3*VPOS_MAX/4;
 
   if(vstart_min_calib< vstop_max_calib)
   {
