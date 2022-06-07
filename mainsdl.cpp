@@ -37,6 +37,12 @@ u8 render_method = RENDER_SOFTWARE;
 #define DISPLAY_BORDERLESS 5
 u8 geometry  = DISPLAY_ADAPTIVE;
 
+const char* display_names[] = {"narrow","standard","wider","overscan",
+"viewport tracking","borderless"}; 
+
+
+
+
 //HRM: In NTSC, the fields are 262, then 263 lines and in PAL, 312, then 313 lines.
 //312-50=262
 #define PAL_EXTRA_VPIXEL 50
@@ -469,6 +475,7 @@ u16 vstop_max_tracking=256;
 u16 hstart_min_tracking=200;
 u16 hstop_max_tracking=HPIXELS;
 bool reset_calibration=true;
+bool request_to_reset_calibration=false;
 
 void set_viewport_dimensions()
 {
@@ -524,6 +531,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 {
   if(reset_calibration)
   {
+      //printf("reset_calibration %d %d\n",vstop_max_tracking, vstart_min_tracking);
       //first call after new viewport size
       //set start values to the opposite max. borderpos (scan area)  
       vstart_min_calib = vstop_max_tracking; 
@@ -531,6 +539,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
       hstart_min_calib = hstop_max_tracking;
       hstop_max_calib = hstart_min_tracking;  
       reset_calibration=false;
+
   }
 
   bool pixels_found=false;
@@ -666,7 +675,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
   }
   printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
 
-//  printf("calib dimensions changed=%d\n",dimensions_changed);
+  //printf("calib dimensions changed=%d\n",dimensions_changed);
   return dimensions_changed;
 }
 
@@ -767,15 +776,20 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   if(geometry == DISPLAY_BORDERLESS)
   {
 //    printf("calibration count=%f\n",now-last_time_calibrated);
-    
     if(now-last_time_calibrated >= 700.0)
-    {
+    {  
       last_time_calibrated=now;
       bool dimensions_changed=calculate_viewport_dimensions((Uint32 *)stableBuffer.ptr - HBLANK_MIN*4);
       if(dimensions_changed)
       {
         set_viewport_dimensions(); 
       }  
+
+      if(request_to_reset_calibration)
+      {
+        reset_calibration=true;
+        request_to_reset_calibration=false;
+      }
     }
   }
 
@@ -952,33 +966,17 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
     hstart_min_tracking = hstart_min;
     hstop_max_tracking = hstop_max;
 
-    set_viewport_dimensions();
-
+    if(geometry==DISPLAY_ADAPTIVE)
+    {
+      set_viewport_dimensions();
+    }
     reset_calibration=true;
   }
   else if(type == MSG_VIDEO_FORMAT)
   {
     printf("video format=%s\n",VideoFormatEnum::key(data1));    
-//    wasm_set_display(data1==PAL?"pal":"ntsc");
-
-    bool _ntsc = (data1==NTSC);
-
-    if(_ntsc)
-    {
-      target_fps=60;
-      total_executed_frame_count=0;
-
-      if(geometry==DISPLAY_BORDERLESS || geometry == DISPLAY_ADAPTIVE)
-      {//it must determine the viewport again, i.e. we need a new message for calibration
-        //enforce this by calling
-        ((Amiga *)amiga)->configure(OPT_VIEWPORT_TRACKING, true); 
-      }
-    }
-    else
-    {
-      target_fps=50;
-      total_executed_frame_count=0;
-    }
+    wasm_set_display(data1?"ntsc":"pal");
+    request_to_reset_calibration=true;
   }
 }
 
@@ -1393,11 +1391,20 @@ extern "C" void wasm_set_display(const char *name)
 
   if( strcmp(name,"ntsc") == 0)
   {
+    name= display_names[geometry];
+    printf("resetting new display %s\n",name);
     if(!ntsc)
     {
-      wrapper->amiga->configure(OPT_VIDEO_FORMAT, NTSC);
+      printf("was not yet ntsc\n");
+
+      if(wrapper->amiga->getConfigItem(OPT_VIDEO_FORMAT)!=NTSC)
+      {
+        printf("was not yet ntsc so we have to configure it\n");
+        wrapper->amiga->configure(OPT_VIDEO_FORMAT, NTSC);
+      }
 
       ntsc=true;
+/*
       if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
            geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN
       ) {clipped_height-=PAL_EXTRA_VPIXEL;}
@@ -1406,22 +1413,34 @@ extern "C" void wasm_set_display(const char *name)
         EM_ASM({scaleVMCanvas()});
         return;
       }
+*/
     }
   }
   else if( strcmp(name,"pal") == 0)
   {
+    name= display_names[geometry];
+    printf("resetting  new display %s\n",name);
+
     if(ntsc)
     {
-      wrapper->amiga->configure(OPT_VIDEO_FORMAT, PAL);
+      printf("was not yet PAL\n");
+      if(wrapper->amiga->getConfigItem(OPT_VIDEO_FORMAT)!=PAL)
+      {
+        printf("was not yet PAL so we have to configure it\n");
+        wrapper->amiga->configure(OPT_VIDEO_FORMAT, PAL);
+      }
       ntsc=false;
-      if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
+/*      if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
            geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN
-      ) {clipped_height+=PAL_EXTRA_VPIXEL;}
+      ) {
+        clipped_height+=PAL_EXTRA_VPIXEL;
+      }
       else
       {
         EM_ASM({scaleVMCanvas()});
         return;
       }
+*/
     }
   }
 
@@ -1443,12 +1462,7 @@ extern "C" void wasm_set_display(const char *name)
   {
     geometry=DISPLAY_BORDERLESS;
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
- //   clip_offset = 0;
-
-    xOff=252;
-    yOff=26 + 6;
-    clipped_width=HPIXELS-xOff;
-    clipped_height=312-yOff -2*4  ;
+    return;
   }
   else if( strcmp(name,"narrow") == 0)
   {
@@ -1581,9 +1595,15 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
       printf("isSnapshot\n");
       wrapper->amiga->loadSnapshot(*file);
       file_still_unprocessed=false;
+      delete file;
+//      wasm_set_display(wrapper->amiga->agnus.isNTSC()?"ntsc":"pal");
 
-      wasm_set_display(wrapper->amiga->agnus.isNTSC()?"ntsc":"pal");
-
+/*      if(geometry==DISPLAY_BORDERLESS || geometry == DISPLAY_ADAPTIVE)
+      {//it must determine the viewport again, i.e. we need a new message for calibration
+        //enforce this by calling
+        wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
+      }
+*/
       printf("run snapshot at %d Hz, isPAL=%d\n", target_fps, !ntsc);
     }
     catch(VAError &exception) {
