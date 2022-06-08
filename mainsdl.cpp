@@ -895,14 +895,14 @@ void send_message_to_js(const char * msg)
 
 }
 
-void send_message_to_js(const char * msg, long data)
+void send_message_to_js(const char * msg, long data1, long data2)
 {
     EM_ASM(
     {
         if (typeof message_handler === 'undefined')
             return;
-        message_handler( "MSG_"+UTF8ToString($0), $1 );
-    }, msg, data );    
+        message_handler( "MSG_"+UTF8ToString($0), $1, $2 );
+    }, msg, data1, data2 );    
 
 }
 
@@ -929,13 +929,13 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
   }
 
   const char *message_as_string =  (const char *)MsgTypeEnum::key((MsgType)type);
-  if(type == MSG_SER_IN || type == MSG_SER_OUT)
+  if(type == MSG_DRIVE_SELECT)
   {
   }
   else
   {
     printf("vAmiga message=%s, data=%u\n", message_as_string, data1);
-    send_message_to_js(message_as_string, data1);
+    send_message_to_js(message_as_string, data1, data2);
   }
   if(type == MSG_VIEWPORT)
   {
@@ -1402,25 +1402,15 @@ extern "C" void wasm_set_display(const char *name)
         printf("was not yet ntsc so we have to configure it\n");
         wrapper->amiga->configure(OPT_VIDEO_FORMAT, NTSC);
       }
-
+      target_fps=60;
+      total_executed_frame_count=0;
       ntsc=true;
-/*
-      if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
-           geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN
-      ) {clipped_height-=PAL_EXTRA_VPIXEL;}
-      else
-      {
-        EM_ASM({scaleVMCanvas()});
-        return;
-      }
-*/
     }
   }
   else if( strcmp(name,"pal") == 0)
   {
     name= display_names[geometry];
     printf("resetting  new display %s\n",name);
-
     if(ntsc)
     {
       printf("was not yet PAL\n");
@@ -1429,18 +1419,9 @@ extern "C" void wasm_set_display(const char *name)
         printf("was not yet PAL so we have to configure it\n");
         wrapper->amiga->configure(OPT_VIDEO_FORMAT, PAL);
       }
+      target_fps=50;
+      total_executed_frame_count=0;
       ntsc=false;
-/*      if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
-           geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN
-      ) {
-        clipped_height+=PAL_EXTRA_VPIXEL;
-      }
-      else
-      {
-        EM_ASM({scaleVMCanvas()});
-        return;
-      }
-*/
     }
   }
 

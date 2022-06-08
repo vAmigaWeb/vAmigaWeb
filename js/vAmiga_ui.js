@@ -23,6 +23,13 @@ const AudioContext = window.AudioContext || window.webkitAudioContext;
 const audioContext = new AudioContext();
 let audio_connected=false;
 
+const audio_df_insert = new Audio('sounds/insert.ogg');
+const audio_df_eject = new Audio('sounds/eject.ogg');
+const audio_df_step = new Audio('sounds/step.ogg');
+const audio_hd_step = new Audio('sounds/stephd.ogg');
+
+
+
 const load_script= (url) => {
     return new Promise(resolve =>
     {
@@ -309,7 +316,7 @@ async function disk_loading_finished()
 }   
 
 
-function message_handler(msg, data)
+function message_handler(msg, data, data2)
 {
     //console.log(`js receives msg:${msg} data:${data}`);
     //UTF8ToString(cores_msg);
@@ -370,18 +377,29 @@ function message_handler(msg, data)
     {
         emulator_currently_runs=false;
     }
-    else if(msg == "MSG_IEC_BUS_IDLE" || 
-            msg == "MSG_IEC_BUS_BUSY" || 
-            msg.startsWith("MSG_DRIVE_")
-        )
+    else if(msg == "MSG_VIDEO_FORMAT")
     {
-        try { last_drive_event = wasm_get_cpu_cycles(); } catch {};
-        check_ready_to_fire(msg);
+        $('#ntsc_pixel_ratio_switch').prop('checked', data==1);  
     }
-    else if(msg == "MSG_RS232")
+    else if(msg == "MSG_DRIVE_STEP")
     {
-        //rs232_message.push(data);
-        rs232_message += String.fromCharCode(data);
+        audio_df_step.play();
+        $("#drop_zone").html(`df${data} ${data2}`);
+    }
+    else if(msg == "MSG_DISK_INSERT")
+    {
+        audio_df_insert.play();
+    }
+    else if(msg == "MSG_DISK_EJECT")
+    {
+        $("#drop_zone").html(`df${data} eject`);
+        audio_df_eject.play();
+    }
+    else if(msg == "MSG_HDR_STEP")
+    {
+        audio_hd_step.play();
+     //   console.log(`MSG_DRIVE_STEP ${data} ${data2}`);
+        $("#drop_zone").html(`dh${data} ${data2}`);
     }
 }
 rs232_message = "";
