@@ -198,7 +198,7 @@ Denise::pokeBPLCON1(u16 value)
 void
 Denise::setBPLCON1(u16 oldValue, u16 newValue)
 {
-    trace(BPLREG_DEBUG, "setBPLCON1(%X)\n", newValue);
+    trace(BPLREG_DEBUG, "setBPLCON1(%x,%x)\n", oldValue, newValue);
 
     bplcon1 = newValue & 0xFF;
 
@@ -274,8 +274,6 @@ Denise::pokeCLXCON(u16 value)
 template <isize x, Accessor s> void
 Denise::pokeBPLxDAT(u16 value)
 {
-    _accessor = s;
-
     assert(x < 6);
     trace(BPLREG_DEBUG, "pokeBPL%ldDAT(%X)\n", x + 1, value);
 

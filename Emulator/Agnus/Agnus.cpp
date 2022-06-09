@@ -580,21 +580,6 @@ void
 Agnus::eolHandler()
 {
     assert(pos.h == HPOS_CNT_PAL || pos.h == HPOS_CNT_NTSC);
-    
-    // REMOVE ASAP
-    switch (pos.type) {
-
-        case PAL:
-
-            assert(pos.h == HPOS_CNT_PAL);
-            break;
-
-        case NTSC:
-
-            assert(pos.lol || pos.h == HPOS_CNT_PAL);
-            assert(!pos.lol || pos.h == HPOS_CNT_NTSC);
-            break;
-    }
 
     // Pass control to the DMA debugger
     dmaDebugger.eolHandler();
@@ -673,6 +658,9 @@ Agnus::hsyncHandler()
     isize vpos = agnus.pos.vPrev();
     denise.hsyncHandler(vpos);
     dmaDebugger.hsyncHandler(vpos);
+
+    // Encode a HIRES / LORES marker in the first HBLANK pixel
+    REPLACE_BIT(*pixelEngine.frameBufferAddr(vpos), 28, hires());
 
     // Call the vsyncHandler once we've finished a frame
     if (pos.v == 0) vsyncHandler();

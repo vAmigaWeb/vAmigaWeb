@@ -1039,10 +1039,6 @@ Denise::hsyncHandler(isize vpos)
     assert(sprChanges[2].isEmpty());
     assert(sprChanges[3].isEmpty());
 
-    // Encode a HIRES / LORES marker in the first HBLANK pixel
-    u32 *ptr = pixelEngine.frameBuffer + HPIXELS * vpos;
-    *ptr = hires() ? 0 : -1;
-
     // Clear the last pixel if this line was a short line
     if (agnus.pos.hLatched == HPOS_CNT_PAL) pixelEngine.clear(vpos, HPOS_MAX);
 
@@ -1056,14 +1052,8 @@ Denise::hsyncHandler(isize vpos)
     spriteClipBegin = HPIXELS;
     spriteClipEnd = HPIXELS + 32;
 
-    // Add some debug information if requested
-#ifdef LINE_DEBUG
-    if (LINE_DEBUG) {
-        for (Pixel i = 0; i < HPIXELS; i++) {
-            ptr[i] = (i & 1) ? 0xFF0000FF : 0xFFFFFFFF;
-        }
-    }
-#endif
+    // Hand control over to the debugger
+    debugger.hsyncHandler(vpos);
 }
 
 void

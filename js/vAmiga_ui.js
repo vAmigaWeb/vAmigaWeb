@@ -29,7 +29,7 @@ let load_sound = async function(url){
     let audio_buffer= await audioContext.decodeAudioData(buffer);
     return audio_buffer;
 } 
-let sound_volumne=0.4;// 40 %
+let sound_volumne=0.1;// 10%
 let play_sound = function(audio_buffer){
         if(audio_buffer== null)
         {                 
@@ -416,7 +416,7 @@ function message_handler(msg, data, data2)
     {
         $('#ntsc_pixel_ratio_switch').prop('checked', data==1);  
     }
-    else if(msg == "MSG_DRIVE_STEP")
+    else if(msg == "MSG_DRIVE_STEP" || msg == "MSG_DRIVE_POLL")
     {
         play_sound(audio_df_step);   
         $("#drop_zone").html(`df${data} ${data2}`);

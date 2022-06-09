@@ -17,13 +17,13 @@
 #define VER_MAJOR 2
 #define VER_MINOR 1
 #define VER_SUBMINOR 0
-#define VER_BETA 1
+#define VER_BETA 2
 
 // Snapshot version number
 #define SNP_MAJOR 2
 #define SNP_MINOR 1
 #define SNP_SUBMINOR 0
-#define SNP_BETA 1
+#define SNP_BETA 2
 
 // Uncomment this setting in a release build
 #define RELEASEBUILD
@@ -62,6 +62,7 @@ struct FloatStereo; typedef struct FloatStereo SampleType;
 
 // Uncomment to colorize a certain scanline
 // #define LINE_DEBUG (vpos == 0 || vpos == 160 || vpos == 300)
+// #define LINE_DEBUG (vpos == 200)
 
 
 //
