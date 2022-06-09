@@ -30,16 +30,16 @@ Paula::pokeADKCON(u16 value)
     
     // Report unusual values
     if (set && (GET_BIT(value, 13) || GET_BIT(value, 14))) {
-        trace(XFILES, "XFILES (ADKCON): PRECOMP set (%x)\n", value);
+        xfiles("ADKCON: PRECOMP set (%x)\n", value);
     }
         if (clr && GET_BIT(value, 12)) {
-        trace(XFILES, "XFILES (ADKCON): MFMPREC cleared (GCR) (%x)\n", value);
+        xfiles("ADKCON: MFMPREC cleared (GCR) (%x)\n", value);
     }
         if (set && GET_BIT(value, 9)) {
-        trace(XFILES, "XFILES (ADKCON): MSBSYNC set (GCR) (%x)\n", value);
+        xfiles("ADKCON: MSBSYNC set (GCR) (%x)\n", value);
     }
         if (clr && GET_BIT(value, 8)) {
-        trace(XFILES, "XFILES (ADKCON): FAST cleared (GCR) (%x)\n", value);
+        xfiles("ADKCON: FAST cleared (GCR) (%x)\n", value);
     }
         
     if (set) adkcon |= (value & 0x7FFF); else adkcon &= ~value;
@@ -171,7 +171,7 @@ Paula::pokePOTGO(u16 value)
         potCntY1 = 0;
 
         // Schedule the first DISCHARGE event
-        agnus.schedulePos<SLOT_POT>(agnus.pos.v, HPOS_MAX, POT_DISCHARGE, 8);
+        agnus.schedulePos<SLOT_POT>(agnus.pos.v, HPOS_MAX_PAL, POT_DISCHARGE, 8);
     }
 }
 

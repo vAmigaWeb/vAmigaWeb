@@ -36,7 +36,6 @@ Thread::~Thread()
 template <> void
 Thread::execute <Thread::SyncMode::Periodic> ()
 {
-    // Call the execution function
     loadClock.go();
     execute();
     loadClock.stop();
@@ -45,7 +44,6 @@ Thread::execute <Thread::SyncMode::Periodic> ()
 template <> void
 Thread::execute <Thread::SyncMode::Pulsed> ()
 {
-    // Call the execution function
     loadClock.go();
     execute();
     loadClock.stop();
@@ -89,7 +87,7 @@ Thread::sleep <Thread::SyncMode::Periodic> ()
     // Sleep for a while
     // std::cout << "Sleeping... " << targetTime.asMilliseconds() << std::endl;
     // std::cout << "Delay = " << delay.asNanoseconds() << std::endl;
-    targetTime += delay;
+    targetTime += getDelay();
     targetTime.sleepUntil();
 }
 
@@ -106,7 +104,7 @@ Thread::main()
     debug(RUN_DEBUG, "main()\n");
 #ifndef __EMSCRIPTEN__    
     while (++loopCounter) {
-           
+
         if (isRunning()) {
                         
             switch (mode) {
@@ -207,12 +205,6 @@ Thread::main()
         }
     }
 #endif
-}
-
-void
-Thread::setSyncDelay(util::Time newDelay)
-{
-    delay = newDelay;
 }
 
 void

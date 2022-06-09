@@ -37,8 +37,20 @@ u8 render_method = RENDER_SOFTWARE;
 #define DISPLAY_BORDERLESS 5
 u8 geometry  = DISPLAY_ADAPTIVE;
 
+const char* display_names[] = {"narrow","standard","wider","overscan",
+"viewport tracking","borderless"}; 
 
+
+
+
+//HRM: In NTSC, the fields are 262, then 263 lines and in PAL, 312, then 313 lines.
+//312-50=262
+#define PAL_EXTRA_VPIXEL 50
+
+bool ntsc=false;
 u8 target_fps = 50;
+
+extern "C" void wasm_set_display(const char *name);
 
 /********* shaders ***********/
 GLuint basic;
@@ -106,7 +118,7 @@ const GLchar *mergeSource =
 
 int clip_width  = 724;
 int clip_height = 568;
-int clip_offset = 0; 
+int clip_offset = 0;//HBLANK_MIN*4;//HBLANK_MAX*4; 
 int buffer_size = 4096;
 
 bool prevLOF = false;
@@ -171,10 +183,10 @@ GLuint compileProgram(const GLchar *source) {
 
 void set_texture_display_window(const GLuint program, float hstart, float hstop, float vstart, float vstop)
 {
-  const float x1 = hstart / HPIXELS;
-  const float x2 = hstop / HPIXELS;
-  const float y1 = vstart  / VPIXELS;
-  const float y2 = vstop / VPIXELS;
+  const float x1 = (hstart-HBLANK_MIN*4) / HPIXELS;
+  const float x2 = (hstop-HBLANK_MIN*4) / HPIXELS;
+  const float y1 = vstart  / VPOS_MAX;
+  const float y2 = vstop / VPOS_MAX;
 
   const GLfloat coords[] = {
     x1,y1, x2,y1, x1,y2, x2,y2
@@ -463,10 +475,14 @@ u16 vstop_max_tracking=256;
 u16 hstart_min_tracking=200;
 u16 hstop_max_tracking=HPIXELS;
 bool reset_calibration=true;
+bool request_to_reset_calibration=false;
 
 void set_viewport_dimensions()
 {
-//    printf("calib: set_viewport_dimensions %d, %d\n",vstart_min, vstop_max);
+    printf("calib: set_viewport_dimensions hmin=%d, hmax=%d, vmin=%d, vmax=%d\n",hstart_min,hstop_max,vstart_min, vstop_max);
+    
+//    hstart_min=0; hstop_max=HPIXELS;
+    
     if(render_method==RENDER_SHADER)
     {
       if(geometry == DISPLAY_ADAPTIVE || geometry == DISPLAY_BORDERLESS)
@@ -481,7 +497,7 @@ void set_viewport_dimensions()
         set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
         glUseProgram(merge);
         set_texture_display_window(merge, 
-          hstart_min, hstop_max, 
+          hstart_min, hstop_max,
           /* in merge shader, the height has to be an even number */ 
           vstart_min & 0xfffe, vstop_max & 0xfffe
         );
@@ -515,6 +531,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 {
   if(reset_calibration)
   {
+      //printf("reset_calibration %d %d\n",vstop_max_tracking, vstart_min_tracking);
       //first call after new viewport size
       //set start values to the opposite max. borderpos (scan area)  
       vstart_min_calib = vstop_max_tracking; 
@@ -522,6 +539,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
       hstart_min_calib = hstop_max_tracking;
       hstop_max_calib = hstart_min_tracking;  
       reset_calibration=false;
+
   }
 
   bool pixels_found=false;
@@ -588,7 +606,10 @@ bool calculate_viewport_dimensions(Uint32 *texture)
   //right border: get hstop_max from texture
   pixels_found=false;
   ref_pixel= texture[ HPIXELS*vstart_min_tracking + hstop_max_tracking];
-  
+//  printf("hstop_max_tracking %d\n",hstop_max_tracking);
+//  printf("hstop_max_calib %d\n",hstop_max_calib);
+//  printf("ref_pixel %d\n",ref_pixel);
+
   for(int x=hstop_max_tracking;x>hstop_max_calib;x--)
   {
 //     printf("\nrow:%u\n",x);
@@ -605,13 +626,15 @@ bool calculate_viewport_dimensions(Uint32 *texture)
       }
     }
   }
+//  printf("->hstop_max_calib %d\n",hstop_max_calib);
 
   bool dimensions_changed=false;
 
   //handdisk start pixel 416, stop pixel 676
   #define HANDSTART_PIXEL 416
   #define HANDSTOP_PIXEL 676
-  
+
+
   if(hstart_min_calib > HANDSTART_PIXEL-32)
     hstart_min_calib= HANDSTART_PIXEL-32;
   if(hstop_max_calib < HANDSTOP_PIXEL+32)
@@ -631,10 +654,10 @@ bool calculate_viewport_dimensions(Uint32 *texture)
     }
   }
 
-  if(vstart_min_calib > VPIXELS/4)
-    vstart_min_calib= VPIXELS/4;
-  if(vstop_max_calib < 3*VPIXELS/4)
-    vstop_max_calib= 3*VPIXELS/4;
+  if(vstart_min_calib > VPOS_MAX/4)
+    vstart_min_calib= VPOS_MAX/4;
+  if(vstop_max_calib < 3*VPOS_MAX/4)
+    vstop_max_calib= 3*VPOS_MAX/4;
 
   if(vstart_min_calib< vstop_max_calib)
   {
@@ -650,9 +673,9 @@ bool calculate_viewport_dimensions(Uint32 *texture)
     }
  
   }
-//  printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
+  //printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
 
-//  printf("calib dimensions changed=%d\n",dimensions_changed);
+  //printf("calib dimensions changed=%d\n",dimensions_changed);
   return dimensions_changed;
 }
 
@@ -687,7 +710,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     {
       amiga->execute();
       i--;
-      if(warp_to_frame>0 && amiga->agnus.frame.nr > warp_to_frame)
+      if(warp_to_frame>0 && amiga->agnus.pos.frame > warp_to_frame)
       {
         printf("reached warp_to_frame count\n");
         amiga->warpOff();
@@ -753,15 +776,20 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   if(geometry == DISPLAY_BORDERLESS)
   {
 //    printf("calibration count=%f\n",now-last_time_calibrated);
-    
     if(now-last_time_calibrated >= 700.0)
-    {
+    {  
       last_time_calibrated=now;
-      bool dimensions_changed=calculate_viewport_dimensions((Uint32 *)stableBuffer.ptr);
+      bool dimensions_changed=calculate_viewport_dimensions((Uint32 *)stableBuffer.ptr - HBLANK_MIN*4);
       if(dimensions_changed)
       {
         set_viewport_dimensions(); 
       }  
+
+      if(request_to_reset_calibration)
+      {
+        reset_calibration=true;
+        request_to_reset_calibration=false;
+      }
     }
   }
 
@@ -778,7 +806,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glActiveTexture(GL_TEXTURE0);
     }  
 
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stableBuffer.ptr + clip_offset);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stableBuffer.ptr+clip_offset);
 
     if (currLOF != prevLOF) {
       // Case 1: Interlace drawing
@@ -802,12 +830,12 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   else
   {
 
-    Uint8 *texture = (Uint8 *)stableBuffer.ptr;
+    Uint8 *texture = (Uint8 *)(stableBuffer.ptr)+clip_offset*4;
 
   //  SDL_RenderClear(renderer);
     SDL_Rect SrcR;
 
-    SrcR.x = xOff;
+    SrcR.x = xOff-HBLANK_MIN*4;
     SrcR.y = yOff;
     SrcR.w = clipped_width;
     SrcR.h = clipped_height;
@@ -867,14 +895,14 @@ void send_message_to_js(const char * msg)
 
 }
 
-void send_message_to_js(const char * msg, long data)
+void send_message_to_js(const char * msg, long data1, long data2)
 {
     EM_ASM(
     {
         if (typeof message_handler === 'undefined')
             return;
-        message_handler( "MSG_"+UTF8ToString($0), $1 );
-    }, msg, data );    
+        message_handler( "MSG_"+UTF8ToString($0), $1, $2 );
+    }, msg, data1, data2 );    
 
 }
 
@@ -884,7 +912,7 @@ bool paused_the_emscripten_main_loop=false;
 bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
 void theListener(const void * amiga, long type,  int data1, int data2, int data3, int data4){
-  if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.frame.nr < warp_to_frame)
+  if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.pos.frame < warp_to_frame)
   {
     //skip automatic warp mode on disk load
   }
@@ -901,13 +929,13 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
   }
 
   const char *message_as_string =  (const char *)MsgTypeEnum::key((MsgType)type);
-  if(type == MSG_SER_IN || type == MSG_SER_OUT)
+  if(type == MSG_DRIVE_SELECT)
   {
   }
   else
   {
     printf("vAmiga message=%s, data=%u\n", message_as_string, data1);
-    send_message_to_js(message_as_string, data1);
+    send_message_to_js(message_as_string, data1, data2);
   }
   if(type == MSG_VIEWPORT)
   {
@@ -922,23 +950,33 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
     hstop_max *=2;
 
     hstart_min=hstart_min<208 ? 208:hstart_min;
-    hstop_max=hstop_max>HPIXELS ? HPIXELS:hstop_max;
+    hstop_max=hstop_max>(HPIXELS+HBLANK_MAX)? (HPIXELS+HBLANK_MAX):hstop_max;
 
     if(vstart_min < 26) 
       vstart_min = 26;
 
-    if(vstop_max > 312) 
-      vstop_max = 312;
-
+    if(vstop_max > VPOS_MAX) 
+      vstop_max = VPOS_MAX; //312
+    if(ntsc && vstop_max > VPOS_MAX-PAL_EXTRA_VPIXEL )
+      vstop_max = VPOS_MAX-PAL_EXTRA_VPIXEL; 
+    
     printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
     vstart_min_tracking = vstart_min;
     vstop_max_tracking = vstop_max;
     hstart_min_tracking = hstart_min;
     hstop_max_tracking = hstop_max;
 
-    set_viewport_dimensions();
-
+    if(geometry==DISPLAY_ADAPTIVE)
+    {
+      set_viewport_dimensions();
+    }
     reset_calibration=true;
+  }
+  else if(type == MSG_VIDEO_FORMAT)
+  {
+    printf("video format=%s\n",VideoFormatEnum::key(data1));    
+    wasm_set_display(data1?"ntsc":"pal");
+    request_to_reset_calibration=true;
   }
 }
 
@@ -962,7 +1000,7 @@ class vAmigaWrapper {
     amiga->configure(OPT_AUDVOLL, 100); 
     amiga->configure(OPT_AUDVOLR, 100);
 
-    //SID0 Volumne
+    //Volumne
     amiga->configure(OPT_AUDVOL, 0, 100); 
     amiga->configure(OPT_AUDPAN, 0, 0);
 
@@ -1027,8 +1065,8 @@ bool create_shader()
 
     auto &stable = wrapper->amiga->denise.pixelEngine.getStableBuffer();
 
-    longf  = initTexture(stable.ptr + clip_offset);
-    shortf = initTexture(stable.ptr + clip_offset);
+    longf  = initTexture(stable.ptr /*+ clip_offset*/);
+    shortf = initTexture(stable.ptr /*+ clip_offset*/);
 
     glUseProgram(merge);
     glActiveTexture(GL_TEXTURE1);
@@ -1347,42 +1385,46 @@ extern "C" void wasm_set_warp(unsigned on)
 /*  }*/
 }
 
-bool ntsc=false;
 extern "C" void wasm_set_display(const char *name)
 {
+  printf("wasm_set_display('%s')\n",name);
+
   if( strcmp(name,"ntsc") == 0)
   {
+    name= display_names[geometry];
+    printf("resetting new display %s\n",name);
     if(!ntsc)
     {
-      ntsc=true;
-      if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
-           geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN
-      ) {clipped_height-=48;}
-      else
+      printf("was not yet ntsc\n");
+
+      if(wrapper->amiga->getConfigItem(OPT_VIDEO_FORMAT)!=NTSC)
       {
-        EM_ASM({scaleVMCanvas()});
-        return;
+        printf("was not yet ntsc so we have to configure it\n");
+        wrapper->amiga->configure(OPT_VIDEO_FORMAT, NTSC);
       }
+      target_fps=60;
+      total_executed_frame_count=0;
+      ntsc=true;
     }
   }
   else if( strcmp(name,"pal") == 0)
   {
+    name= display_names[geometry];
+    printf("resetting  new display %s\n",name);
     if(ntsc)
     {
-      ntsc=false;
-      if( geometry==DISPLAY_NARROW || geometry==DISPLAY_STANDARD ||
-           geometry==DISPLAY_WIDER || geometry==DISPLAY_OVERSCAN
-      ) {clipped_height+=48;}
-      else
+      printf("was not yet PAL\n");
+      if(wrapper->amiga->getConfigItem(OPT_VIDEO_FORMAT)!=PAL)
       {
-        EM_ASM({scaleVMCanvas()});
-        return;
+        printf("was not yet PAL so we have to configure it\n");
+        wrapper->amiga->configure(OPT_VIDEO_FORMAT, PAL);
       }
+      target_fps=50;
+      total_executed_frame_count=0;
+      ntsc=false;
     }
   }
 
-
-  printf("wasm_set_display('%s')\n",name);
 
   if( strcmp(name,"adaptive") == 0 || 
       strcmp(name,"auto") == 0 || 
@@ -1390,7 +1432,7 @@ extern "C" void wasm_set_display(const char *name)
   {
     geometry=DISPLAY_ADAPTIVE;
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
-    clip_offset = 0;
+ //   clip_offset = 0;
 
     xOff=252;
     yOff=26 + 6;
@@ -1401,12 +1443,7 @@ extern "C" void wasm_set_display(const char *name)
   {
     geometry=DISPLAY_BORDERLESS;
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
-    clip_offset = 0;
-
-    xOff=252;
-    yOff=26 + 6;
-    clipped_width=HPIXELS-xOff;
-    clipped_height=312-yOff -2*4  ;
+    return;
   }
   else if( strcmp(name,"narrow") == 0)
   {
@@ -1416,33 +1453,33 @@ extern "C" void wasm_set_display(const char *name)
     yOff=26 +16;
     clipped_width=HPIXELS-xOff - 8;   
     //clipped_height=312-yOff -2*24 -2; 
-    clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
-    if(ntsc){clipped_height-=48;}
+    clipped_height=(3*clipped_width/4 +(ntsc?0:32) /*32 due to PAL?*/)/2 & 0xfffe;
+    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
   else if( strcmp(name,"standard") == 0)
   {
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
   
     geometry=DISPLAY_STANDARD;
-    xOff=252;
-    yOff=26 +12;
+    xOff=208+HBLANK_MAX;
+    yOff=VBLANK_CNT +10;
     clipped_width=HPIXELS-xOff;
 //    clipped_height=312-yOff -2*4  ;
 //    clipped_height=(4*clipped_width/5 )/2 & 0xfffe;
-    clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
-    if(ntsc){clipped_height-=48;}
+    clipped_height=(3*clipped_width/4 +(ntsc?0:32) /*32 due to PAL?*/)/2 & 0xfffe;
+    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
   else if( strcmp(name,"wider") == 0)
   {
     wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
   
     geometry=DISPLAY_WIDER;
-    xOff=224;
-    yOff=26 +10;
-    clipped_width=HPIXELS-xOff;
+    xOff=208+ HBLANK_MAX/2;
+    yOff=VBLANK_CNT + 2;
+    clipped_width=(HPIXELS+HBLANK_MAX/2 )-xOff;
 //    clipped_height=312-yOff -2*2;
-    clipped_height=(3*clipped_width/4 +32 /*32 due to PAL?*/)/2 & 0xfffe;
-    if(ntsc){clipped_height-=48;}
+    clipped_height=(3*clipped_width/4 +(ntsc?0:32) /*32 due to PAL?*/)/2 & 0xfffe;
+    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
   else if( strcmp(name,"overscan") == 0)
   {
@@ -1451,11 +1488,11 @@ extern "C" void wasm_set_display(const char *name)
     geometry=DISPLAY_OVERSCAN;
 
     xOff=208; //first pixel in dpaint iv,overscan=max 
-    yOff=26 +10; //must be even
-    clipped_width=HPIXELS-xOff;
+    yOff=VBLANK_CNT; //must be even
+    clipped_width=(HPIXELS+HBLANK_MAX)-xOff;
     //clipped_height=312-yOff; //must be even
-    clipped_height=(3*clipped_width/4 +24 /*32 due to PAL?*/)/2 & 0xfffe;
-    if(ntsc){clipped_height-=48;}
+    clipped_height=(3*clipped_width/4 +(ntsc?0:24) /*32 due to PAL?*/)/2 & 0xfffe;
+    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
   printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);
 
@@ -1539,6 +1576,16 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
       printf("isSnapshot\n");
       wrapper->amiga->loadSnapshot(*file);
       file_still_unprocessed=false;
+      delete file;
+//      wasm_set_display(wrapper->amiga->agnus.isNTSC()?"ntsc":"pal");
+
+/*      if(geometry==DISPLAY_BORDERLESS || geometry == DISPLAY_ADAPTIVE)
+      {//it must determine the viewport again, i.e. we need a new message for calibration
+        //enforce this by calling
+        wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
+      }
+*/
+      printf("run snapshot at %d Hz, isPAL=%d\n", target_fps, !ntsc);
     }
     catch(VAError &exception) {
       ErrorCode ec=exception.data;

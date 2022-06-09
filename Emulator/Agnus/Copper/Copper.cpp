@@ -68,7 +68,7 @@ Copper::findMatchOld(Beam &match) const
     u32 mask = getVMHM();
 
     // Iterate through all lines starting from the current position
-    isize numLines = agnus.frame.numLines();
+    isize numLines = agnus.pos.vCnt();
     while ((isize)(beam >> 8) < numLines) {
 
         // Check if the vertical components are equal
@@ -111,7 +111,7 @@ Copper::findMatch(Beam &match) const
     u32 mask = getVMHM();
 
     // Iterate through all lines starting from the current position
-    isize numLines = agnus.frame.numLines();
+    isize numLines = agnus.pos.vCnt();
     while ((isize)(beam >> 8) < numLines) {
 
         // Check if the vertical components are equal
@@ -211,7 +211,7 @@ Copper::move(u32 addr, u16 value)
               "pokeCustom16(%X [%s], %X)\n", addr, Memory::regName(addr), value);
 
         // Color registers
-        pixelEngine.colChanges.insert(4 * agnus.pos.h, RegChange { addr, value} );
+        pixelEngine.colChanges.insert(agnus.pos.pixel(), RegChange { addr, value} );
         return;
     }
 
@@ -257,63 +257,28 @@ Copper::scheduleWaitWakeup(bool bfd)
 {
     Beam trigger;
 
-    if constexpr (LEGACY_COPPER) {
-        
-        // Find the trigger position for this WAIT command
-        if (findMatchOld(trigger)) {
-            
-            // In how many cycles do we get there?
-            isize delay = trigger - agnus.pos;
-            
-            if (delay == 0) {
-                
-                // Copper does not stop
-                agnus.scheduleRel <SLOT_COP> (DMA_CYCLES(2), COP_FETCH);
-                
-            } else if (delay == 2) {
-                
-                // Copper does not stop
-                agnus.scheduleRel <SLOT_COP> (DMA_CYCLES(2), COP_FETCH);
-                
-            } else {
-                
-                // Wake up 2 cycles earlier with a WAKEUP event
-                delay -= 2;
-                if (bfd) {
-                    agnus.scheduleRel <SLOT_COP> (DMA_CYCLES(delay), COP_WAKEUP);
-                } else {
-                    agnus.scheduleRel <SLOT_COP> (DMA_CYCLES(delay), COP_WAKEUP_BLIT);
-                }
-            }
-            
+    // Find the trigger position for this WAIT command
+    if (findMatch(trigger)) {
+
+        // In how many cycles do we get there?
+        // auto delay = agnus.frame.diff(trigger.v, trigger.h, agnus.pos.v, agnus.pos.h);
+        // assert(delay == DMA_CYCLES(agnus.pos.diff(trigger.v, trigger.h)));
+        auto delay = DMA_CYCLES(agnus.pos.diff(trigger.v, trigger.h));
+
+        if (delay == 0) {
+
+            EventID event = COP_FETCH;
+            agnus.scheduleRel <SLOT_COP> (DMA_CYCLES(2), event);
+
         } else {
-            
-            agnus.scheduleAbs <SLOT_COP> (NEVER, COP_REQ_DMA);
+
+            EventID event = bfd ? COP_WAKEUP : COP_WAKEUP_BLIT;
+            agnus.scheduleRel <SLOT_COP> (delay, event);
         }
-        
+
     } else {
-    
-        // Find the trigger position for this WAIT command
-        if (findMatch(trigger)) {
-            
-            // In how many cycles do we get there?
-            isize delay = trigger - agnus.pos;
-            
-            if (delay == 0) {
-                
-                EventID event = COP_FETCH;
-                agnus.scheduleRel <SLOT_COP> (DMA_CYCLES(2), event);
-                
-            } else {
-                
-                EventID event = bfd ? COP_WAKEUP : COP_WAKEUP_BLIT;
-                agnus.scheduleRel <SLOT_COP> (DMA_CYCLES(delay), event);
-            }
-            
-        } else {
-            
-            agnus.scheduleAbs <SLOT_COP> (NEVER, COP_REQ_DMA);
-        }
+
+        agnus.scheduleAbs <SLOT_COP> (NEVER, COP_REQ_DMA);
     }
 }
 
@@ -444,7 +409,7 @@ Copper::isIllegalInstr(u32 addr) const
 }
 
 void
-Copper::vsyncHandler()
+Copper::eofHandler()
 {
     /* "At the start of each vertical blanking interval, COP1LC is automatically
      *  used to start the program counter. That is, no matter what the Copper is
@@ -458,7 +423,7 @@ Copper::vsyncHandler()
         
         if (checkcnt) {
             msg("[%lld] Checksum: %x (%lld) lc1 = %x lc2 = %x\n",
-                agnus.frame.nr, checksum, checkcnt, cop1lc, cop2lc);
+                agnus.pos.frame, checksum, checkcnt, cop1lc, cop2lc);
         }
         checkcnt = 0;
         checksum = util::fnvInit32();

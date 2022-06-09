@@ -50,7 +50,10 @@ enum_long(MSG_TYPE)
     MSG_SCRIPT_PAUSE,
     MSG_SCRIPT_ABORT,
     MSG_SCRIPT_WAKEUP,
-        
+
+    // Amiga
+    MSG_VIDEO_FORMAT,
+
     // CPU
     MSG_OVERCLOCKING,
     MSG_BREAKPOINT_UPDATED,
@@ -176,6 +179,8 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
             case MSG_SCRIPT_ABORT:          return "SCRIPT_ABORT";
             case MSG_SCRIPT_WAKEUP:         return "MSG_SCRIPT_WAKEUP";
 
+            case MSG_VIDEO_FORMAT:          return "VIDEO_FORMAT";
+                
             case MSG_OVERCLOCKING:          return "OVERCLOCKING";
             case MSG_BREAKPOINT_UPDATED:    return "BREAKPOINT_UPDATED";
             case MSG_BREAKPOINT_REACHED:    return "BREAKPOINT_REACHED";

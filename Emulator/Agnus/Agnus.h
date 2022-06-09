@@ -17,7 +17,6 @@
 #include "Copper.h"
 #include "DmaDebugger.h"
 #include "Sequencer.h"
-#include "Frame.h"
 #include "Memory.h"
 
 /* Bitplane event modifiers
@@ -77,7 +76,10 @@ public:
     
     // Pending register changes
     RegChangeRecorder<8> changeRecorder;
-    
+
+    // An optional sync event to be processed in serviceRegEvent()
+    EventID syncEvent = EVENT_NONE;
+
     
     //
     // Counters
@@ -88,12 +90,9 @@ public:
 
     // The current beam position
     Beam pos;
-    
+
     // Latched beam position (recorded when BPLCON0::ERSY is set)
     Beam latchedPos;
-    
-    // Information about the current frame
-    Frame frame;
 
     
     //
@@ -136,7 +135,7 @@ public:
     //
     // Derived values
     //
-        
+
     // Shift values derives from BPLCON1
     i8 scrollOdd;
     i8 scrollEven;
@@ -249,11 +248,11 @@ private:
         << data
         << nextTrigger
         >> changeRecorder
-
+        << syncEvent
+        
         >> pos
         >> latchedPos
-        >> frame
-
+        
         << bplcon0
         << bplcon0Initial
         << bplcon1
@@ -299,15 +298,21 @@ public:
     
     i64 getConfigItem(Option option) const;
     void setConfigItem(Option option, i64 value);
-    
-    
+
+    void setVideoFormat(VideoFormat newFormat);
+
+
     //
     // Querying chip properties
     //
-    
+
+public:
+
     bool isOCS() const;
     bool isECS() const;
-    
+    bool isPAL() const { return pos.type == PAL; }
+    bool isNTSC() const { return !isPAL(); }
+
     // Returns the chip identification bits of this Agnus (show up in VPOSR)
     u16 idBits() const;
     
@@ -340,31 +345,6 @@ private:
     void inspectSlot(EventSlot nr) const;
     void clearStats();
     void updateStats();
-    
-
-    //
-    // Examining the current frame
-    //
-
-public:
-
-    /* Returns the number of master cycles in the current frame. The result
-     * depends on the number of lines that are drawn. This values varies
-     * between long and short frames.
-     */
-    Cycle cyclesInFrame() const;
-
-    /* Returns the master cycle belonging to beam position (0,0). The first
-     * function treats (0,0) as the upper left position of the current frame.
-     * The second function referes to the next frame.
-     */
-    Cycle startOfFrame() const;
-    Cycle startOfNextFrame() const;
-
-    // Indicates if the provided master cycle belongs to a specific frame.
-    bool belongsToPreviousFrame(Cycle cycle) const;
-    bool belongsToCurrentFrame(Cycle cycle) const;
-    bool belongsToNextFrame(Cycle cycle) const;
 
 
     //
@@ -378,31 +358,10 @@ public:
     bool inVBlankArea() const { return inVBlankArea(pos.v); }
 
     // Indicates if the current rasterline is the last line in this frame
-    bool inLastRasterline(isize posv) const { return posv == frame.lastLine(); }
+    bool inLastRasterline(isize posv) const { return posv == pos.vMax(); }
     bool inLastRasterline() const { return inLastRasterline(pos.v); }
 
-    // Returns the pixel position for the current horizontal position
-    Pixel ppos(isize posh) const { return (posh * 4) + 2; }
-    Pixel ppos() const { return ppos(pos.h); }
 
-    
-    //
-    // Working with the beam position
-    //
-
-public:
-
-    /* Translates a beam position to a master cycle. The beam position must be
-     * a position inside the current frame.
-     */
-    Cycle beamToCycle(Beam beam) const;
-
-    /* Translates a master cycle to a beam position. The beam position must
-     * belong to the current frame.
-     */
-    Beam cycleToBeam(Cycle cycle) const;
-
-    
     //
     // Querying graphic modes
     //
@@ -454,13 +413,19 @@ private:
     // Updates the sprite DMA status in cycle 0xDF
     void updateSpriteDMA();
 
-    // Finishes up the current rasterline
-    void hsyncHandler();
+    // Finishes up the current line
+    void eolHandler();
 
     // Finishes up the current frame
+    void eofHandler();
+
+    // Called at the beginning of the HSYNC area
+    void hsyncHandler();
+
+    // Called at the beginning of the VSYNC area
     void vsyncHandler();
 
-    
+
     //
     // Controlling DMA (AgnusDma.cpp)
     //
@@ -565,6 +530,8 @@ public:
     
     template <int x> void pokeSPRxPOS(u16 value);
     template <int x> void pokeSPRxCTL(u16 value);
+
+    void pokeBEAMCON0(u16 value);
 
     
     //
@@ -696,25 +663,23 @@ public:
     }
 
     /*
-    template<EventSlot s> [[deprecated]] void scheduleRelOld(Cycle cycle, EventID id) {
-        scheduleAbs<s>(clock + cycle, id);
-    }
-    
-    template<EventSlot s> [[deprecated]] void scheduleRelOld(Cycle cycle, EventID id, i64 data) {
-        scheduleAbs<s>(clock + cycle, id, data);
+    template<EventSlot s> void schedulePos(Beam target, EventID id, i64 data) {
+
+        assert(target.v > pos.v || (target.v == pos.v && target.h >= pos.h));
+        scheduleRel<s>(DMA_CYCLES(pos.diff(target.v, target.h)), id, data);
     }
     */
 
-    template<EventSlot s> void schedulePos(Beam pos, EventID id, i64 data) {
-        scheduleAbs<s>(beamToCycle(pos), id, data);
-    }
-
     template<EventSlot s> void schedulePos(isize vpos, isize hpos, EventID id) {
-        scheduleAbs<s>(beamToCycle( Beam { vpos, hpos } ), id);
+
+        assert(vpos > pos.v || (vpos == pos.v && hpos >= pos.h));
+        scheduleRel<s>(DMA_CYCLES(pos.diff(vpos, hpos)), id);
     }
 
     template<EventSlot s> void schedulePos(isize vpos, isize hpos, EventID id, i64 data) {
-        scheduleAbs<s>(beamToCycle( Beam { vpos, hpos } ), id, data);
+
+        assert(vpos > pos.v || (vpos == pos.v && hpos >= pos.h));
+        scheduleRel<s>(DMA_CYCLES(pos.diff(vpos, hpos)), id, data);
     }
     
     template<EventSlot s> void rescheduleRel(Cycle cycle) {
@@ -722,17 +687,15 @@ public:
     }
 
     /*
-    template<EventSlot s> [[deprecated]] void rescheduleRelOld(Cycle cycle) {
-        rescheduleAbs<s>(clock + cycle);
-    }
-    */
-    
     template<EventSlot s> void reschedulePos(Beam pos) {
         rescheduleAbs<s>(beamToCycle(pos));
     }
+    */
 
     template<EventSlot s> void reschedulePos(i16 vpos, i16 hpos) {
-        rescheduleAbs<s>(beamToCycle( Beam { vpos, hpos } ));
+
+        assert(vpos > pos.v || (vpos == pos.v && hpos >= pos.h));
+        rescheduleRel<s>(DMA_CYCLES(pos.diff(vpos, hpos)));
     }
 
     template<EventSlot s> void cancel()
@@ -797,17 +760,17 @@ public:
     // Services a register change event
     void serviceREGEvent(Cycle until);
 
-    // Services a raster event
-    void serviceRASEvent();
-
     // Services a bitplane event
     void serviceBPLEvent(EventID id);
     template <isize nr> void serviceBPLEventHires();
     template <isize nr> void serviceBPLEventLores();
 
     // Services a vertical blank interrupt
-    void serviceVblEvent(EventID id);
-    
+    void serviceVBLEvent(EventID id);
+
+    // Renews the trigger cycle of a pending VBL event
+    void rectifyVBLEvent();
+
     // Services a Disk, Audio, or Sprite event
     void serviceDASEvent(EventID id);
     

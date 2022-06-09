@@ -138,7 +138,7 @@ void
 Amiga::prefix() const
 {
     fprintf(stderr, "[%lld] (%3ld,%3ld) ",
-            agnus.frame.nr, agnus.pos.v, agnus.pos.h);
+            agnus.pos.frame, agnus.pos.v, agnus.pos.h);
 
     fprintf(stderr, "%06X ", cpu.getPC0());
     fprintf(stderr, "%2X ", cpu.getIPL());
@@ -184,15 +184,34 @@ void
 Amiga::_reset(bool hard)
 {
     RESET_SNAPSHOT_ITEMS(hard)
-    
+
     // Clear all runloop flags
     flags = 0;
+}
+
+void
+Amiga::resetConfig()
+{
+    assert(isPoweredOff());
+
+    std::vector <Option> options = {
+
+        OPT_VIDEO_FORMAT
+    };
+
+    for (auto &option : options) {
+        setConfigItem(option, defaults.get(option));
+    }
 }
 
 i64
 Amiga::getConfigItem(Option option) const
 {
     switch (option) {
+
+        case OPT_VIDEO_FORMAT:
+
+            return config.type;
 
         case OPT_AGNUS_REVISION:
         case OPT_SLOW_RAM_MIRROR:
@@ -359,6 +378,27 @@ Amiga::getConfigItem(Option option, long id) const
 }
 
 void
+Amiga::setConfigItem(Option option, i64 value)
+{
+    switch (option) {
+
+        case OPT_VIDEO_FORMAT:
+
+            if (value != config.type) {
+
+                SUSPENDED
+
+                config.type = VideoFormat(value);
+                agnus.setVideoFormat(config.type);
+            }
+            return;
+
+        default:
+            fatalError;
+    }
+}
+
+void
 Amiga::configure(Option option, i64 value)
 {
     debug(CNF_DEBUG, "configure(%s, %lld)\n", OptionEnum::key(option), value);
@@ -387,6 +427,11 @@ Amiga::configure(Option option, i64 value)
     value = overrideOption(option, value);
 
     switch (option) {
+
+        case OPT_VIDEO_FORMAT:
+
+            setConfigItem(option, value);
+            break;
 
         case OPT_AGNUS_REVISION:
         case OPT_SLOW_RAM_MIRROR:
@@ -695,7 +740,8 @@ Amiga::configure(ConfigScheme scheme)
         switch(scheme) {
 
             case CONFIG_A1000_OCS_1MB:
-                
+
+                configure(OPT_VIDEO_FORMAT, PAL);
                 configure(OPT_CHIP_RAM, 512);
                 configure(OPT_SLOW_RAM, 512);
                 configure(OPT_AGNUS_REVISION, AGNUS_OCS_OLD);
@@ -703,6 +749,7 @@ Amiga::configure(ConfigScheme scheme)
 
             case CONFIG_A500_OCS_1MB:
                 
+                configure(OPT_VIDEO_FORMAT, PAL);
                 configure(OPT_CHIP_RAM, 512);
                 configure(OPT_SLOW_RAM, 512);
                 configure(OPT_AGNUS_REVISION, AGNUS_OCS);
@@ -710,6 +757,7 @@ Amiga::configure(ConfigScheme scheme)
                 
             case CONFIG_A500_ECS_1MB:
                 
+                configure(OPT_VIDEO_FORMAT, PAL);
                 configure(OPT_CHIP_RAM, 512);
                 configure(OPT_SLOW_RAM, 512);
                 configure(OPT_AGNUS_REVISION, AGNUS_ECS_1MB);
@@ -805,7 +853,7 @@ Amiga::_inspect() const
         info.dmaClock = agnus.clock;
         info.ciaAClock = ciaA.getClock();
         info.ciaBClock = ciaB.getClock();
-        info.frame = agnus.frame.nr;
+        info.frame = agnus.pos.frame;
         info.vpos = agnus.pos.v;
         info.hpos = agnus.pos.h;
     }
@@ -815,7 +863,13 @@ void
 Amiga::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
-    
+
+    if (category == Category::Config) {
+
+        os << tab("Video format");
+        os << VideoFormatEnum::key(config.type);
+    }
+
     if (category == Category::State) {
         
         os << tab("Power");
@@ -1068,6 +1122,19 @@ Amiga::execute()
     }
 }
 
+util::Time
+Amiga::getDelay()
+{
+    switch (config.type) {
+
+        case PAL:   return util::Time(i64(1000000000 / 50));
+        case NTSC:  return util::Time(i64(1000000000 / 60));
+
+        default:
+            fatalError;
+    }
+}
+
 void
 Amiga::setFlag(u32 flag)
 {
@@ -1163,8 +1230,12 @@ Amiga::latestUserSnapshot()
 void
 Amiga::loadSnapshot(const Snapshot &snapshot)
 {
+    // bool wasPAL, isPAL;
+
     {   SUSPENDED
-        
+
+        // wasPAL = agnus.isPAL();
+
         try {
             
             // Restore the saved state
@@ -1180,11 +1251,14 @@ Amiga::loadSnapshot(const Snapshot &snapshot)
              */
             hardReset();
             throw error;
-        }        
+        }
+
+        // isPAL = agnus.isPAL();
     }
     
     // Inform the GUI
     msgQueue.put(MSG_SNAPSHOT_RESTORED);
+    msgQueue.put(MSG_VIDEO_FORMAT, agnus.isPAL() ? PAL : NTSC);
 }
 
 void

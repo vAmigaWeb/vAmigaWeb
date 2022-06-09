@@ -44,7 +44,7 @@
 
 enum class Category
 {    
-    BankMap, Blocks, Breakpoints, Bus, Callstack, Catchpoints, Checksums,
+    BankMap, Beam, Blocks, Breakpoints, Bus, Callstack, Catchpoints, Checksums,
     Config, Defaults, Dma, Drive, Events, FileSystem, Geometry, Hunks, List1,
     List2, Parameters, Partitions, Properties, Registers, Sections, Segments,
     Signals, State, Stats, Summary, SwTraps, Tod, Volumes, Watchpoints
@@ -130,10 +130,16 @@ if constexpr (enable) { if (verbose) { \
 prefix(); \
 fprintf(stderr, "%s:%d " format, getDescription(), __LINE__, ##__VA_ARGS__); }}
 
+#define xfiles(format, ...) \
+if constexpr (XFILES) { if (verbose) { \
+prefix(); \
+fprintf(stderr, "XFILES: " format, ##__VA_ARGS__); }}
+
 #else
 
 #define debug(enable, format, ...)
 #define plain(enable, format, ...)
 #define trace(enable, format, ...)
+#define xfiles(format, ...)
 
 #endif

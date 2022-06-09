@@ -26,27 +26,27 @@ Sequencer::_reset(bool hard)
 }
 
 void
-Sequencer::hsyncHandler()
+Sequencer::eolHandler()
 {
     ddfInitial = ddf;
     
     // Renew the signal recorder if it has been modified
     if (sigRecorder.modified) {
 
-        trace(SEQ_DEBUG, "hsyncHandler: sigRecorder.modified\n");
+        trace(SEQ_DEBUG, "eolHandler: sigRecorder.modified\n");
         hsyncActions |= UPDATE_SIG_RECORDER;
     }
 
     // Check the vertical DIW flipflop
     if (agnus.pos.v == vstop || agnus.inLastRasterline()) {
 
-        trace(SEQ_DEBUG, "hsyncHandler: Vertical flipflop off\n");
+        trace(SEQ_DEBUG, "eolHandler: Vertical flipflop off\n");
         ddfInitial.bpv = ddf.bpv = false;
         hsyncActions |= UPDATE_SIG_RECORDER;
 
     } else if (agnus.pos.v == vstrt) {
 
-        trace(SEQ_DEBUG, "hsyncHandler: Vertical flipflop on\n");
+        trace(SEQ_DEBUG, "eolHandler: Vertical flipflop on\n");
         ddfInitial.bpv = ddf.bpv = true;
         hsyncActions |= UPDATE_SIG_RECORDER;
     }
@@ -65,7 +65,7 @@ Sequencer::hsyncHandler()
         newDmaDAS = agnus.dmacon & 0b111111;
 
         // Disable sprites outside the sprite DMA area
-        if (agnus.pos.v < 25 || agnus.pos.v >= agnus.frame.lastLine()) {
+        if (agnus.pos.v < 25 || agnus.pos.v >= agnus.pos.vMax()) {
             newDmaDAS &= 0b011111;
         }
     }
@@ -101,7 +101,7 @@ Sequencer::hsyncHandler()
 }
 
 void
-Sequencer::vsyncHandler()
+Sequencer::eofHandler()
 {
 
 }

@@ -47,6 +47,7 @@ add_custom_target(run
 set(PUBLISH_FOLDER "../../vAmigaWeb.github.io")
 add_custom_target(publish
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${PUBLISH_FOLDER}/roms
+	COMMAND ${CMAKE_COMMAND} -E rm -rf ${PUBLISH_FOLDER}/sounds
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${PUBLISH_FOLDER}/css
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${PUBLISH_FOLDER}/js
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${PUBLISH_FOLDER}/img
@@ -62,8 +63,35 @@ add_custom_target(publish
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../css ${PUBLISH_FOLDER}/css
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../img ${PUBLISH_FOLDER}/img
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../roms ${PUBLISH_FOLDER}/roms
+	COMMAND ${CMAKE_COMMAND} -E copy_directory ../sounds ${PUBLISH_FOLDER}/sounds
 	COMMAND ${CMAKE_COMMAND} -E copy ../run.html ${PUBLISH_FOLDER}
 	COMMAND ${CMAKE_COMMAND} -E copy ../sw.js ${PUBLISH_FOLDER}
 	COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${PUBLISH_FOLDER}
+	DEPENDS vAmiga
+)
+
+set(UAT_FOLDER "../../uat")
+add_custom_target(uat
+	COMMAND ${CMAKE_COMMAND} -E rm -rf ${UAT_FOLDER}/sounds
+	COMMAND ${CMAKE_COMMAND} -E rm -rf ${UAT_FOLDER}/roms
+	COMMAND ${CMAKE_COMMAND} -E rm -rf ${UAT_FOLDER}/css
+	COMMAND ${CMAKE_COMMAND} -E rm -rf ${UAT_FOLDER}/js
+	COMMAND ${CMAKE_COMMAND} -E rm -rf ${UAT_FOLDER}/img
+	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/vC64.*
+	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/*.js
+#	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/*.json
+	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/index.html
+	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/run.html
+	COMMAND ${CMAKE_COMMAND} -E copy vAmiga.html ${UAT_FOLDER}/index.html
+    COMMAND ${CMAKE_COMMAND} -E copy vAmiga.js ${UAT_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy vAmiga.wasm ${UAT_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy_directory ../js ${UAT_FOLDER}/js
+	COMMAND ${CMAKE_COMMAND} -E copy_directory ../css ${UAT_FOLDER}/css
+	COMMAND ${CMAKE_COMMAND} -E copy_directory ../img ${UAT_FOLDER}/img
+	COMMAND ${CMAKE_COMMAND} -E copy_directory ../roms ${UAT_FOLDER}/roms
+	COMMAND ${CMAKE_COMMAND} -E copy_directory ../sounds ${UAT_FOLDER}/sounds
+	COMMAND ${CMAKE_COMMAND} -E copy ../run.html ${UAT_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy ../sw.js ${UAT_FOLDER}
+#	COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${UAT_FOLDER}
 	DEPENDS vAmiga
 )

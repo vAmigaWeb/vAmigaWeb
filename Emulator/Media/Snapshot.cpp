@@ -18,9 +18,10 @@ Thumbnail::take(Amiga &amiga, isize dx, isize dy)
     u32 *source = (u32 *)amiga.denise.pixelEngine.getStableBuffer().ptr;
     u32 *target = screen;
     
-    isize xStart = 4 * HBLANK_MAX + 1, xEnd = HPIXELS + 4 * HBLANK_MIN;
-    isize yStart = VBLANK_CNT, yEnd = VPIXELS - 2;
-    
+    isize xStart = 4 * HBLANK_CNT + 1;
+    isize xEnd = HPIXELS;
+    isize yStart = VBLANK_CNT;
+    isize yEnd = VPIXELS - 2;
     width  = (i32)((xEnd - xStart) / dx);
     height = (i32)((yEnd - yStart) / dy);
     
@@ -80,11 +81,10 @@ Snapshot::finalizeRead()
     if constexpr (FORCE_SNAP_TOO_OLD) throw VAError(ERROR_SNAP_TOO_OLD);
     if constexpr (FORCE_SNAP_TOO_NEW) throw VAError(ERROR_SNAP_TOO_NEW);
     if constexpr (FORCE_SNAP_IS_BETA) throw VAError(ERROR_SNAP_IS_BETA);
-/*
+
     if (isTooOld()) throw VAError(ERROR_SNAP_TOO_OLD);
     if (isTooNew()) throw VAError(ERROR_SNAP_TOO_NEW);
     if (isBeta() && !betaRelease) throw VAError(ERROR_SNAP_IS_BETA);
-*/
 }
 
 bool

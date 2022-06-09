@@ -486,7 +486,8 @@ public:
         return ((sprpos[x] & 0xFF) << 1) | (sprctl[x] & 0x01); }
 
     // Returns the horizontal position of a sprite in pixel coordinates
-    template <isize x> Pixel sprhppos() const { return 2 * (sprhpos<x>() + 1); }
+    template <isize x> Pixel sprhppos() const {
+        return 2 * (sprhpos<x>() + 1) - 4 * HBLANK_MIN; }
     
     // Checks the z buffer and returns true if a sprite pixel is visible
     bool spritePixelIsVisible(Pixel hpos) const;
@@ -507,7 +508,7 @@ private:
     // Draws a single sprite pixel
     template <isize x> void drawSpritePixel(Pixel hpos);
     template <isize x> void drawAttachedSpritePixelPair(Pixel hpos);
-    
+
     
     //
     // Checking collisions
@@ -534,12 +535,12 @@ public:
     // Called by Agnus at the beginning of each frame
     void vsyncHandler();
 
-    // Called by Agnus at the beginning of each rasterline
-    void beginOfLine(isize vpos);
+    // Called by Agnus at the beginning of the HSYNC area
+    void hsyncHandler(isize vpos);
 
-    // Called by Agnus at the end of a rasterline
-    void endOfLine(isize vpos);
-    
+    // Called by Agnus at the end of each line
+    void eolHandler();
+
     
     //
     // Accessing registers (DeniseRegs.cpp)

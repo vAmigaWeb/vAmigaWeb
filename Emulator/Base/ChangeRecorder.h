@@ -36,9 +36,7 @@
 enum RegChangeID : i32
 {
     SET_NONE,
- 
-    SET_STRHOR,
-    
+     
     SET_BLTSIZE,
     SET_BLTSIZV,
     SET_BLTCON0,
@@ -135,7 +133,9 @@ enum RegChangeID : i32
     SET_SPR7PTL,
 
     SET_DSKPTH,
-    SET_DSKPTL
+    SET_DSKPTL,
+
+    SET_SERDAT
 };
 
 struct RegChange

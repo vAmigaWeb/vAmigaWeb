@@ -9,14 +9,33 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "BeamTypes.h"
+#include "AmigaTypes.h"
 #include "Constants.h"
 
 struct Beam
 {
-    // Counters for the vertical and horizontal beam position
-    isize v;
-    isize h;
+    // The vertical and horizontal beam position
+    isize v = 0;
+    isize h = 0;
+
+    // Latched coordinates (recorded in eof() and eol(), respectively)
+    isize vLatched = VPOS_CNT;
+    isize hLatched = HPOS_CNT;
+
+    // The frame count
+    i64 frame = 0;
+
+    // Long frame flipflop
+    bool lof = false;
+    bool lofToggle = false;
+
+    // Long line fliflop
+    bool lol = false;
+    bool lolToggle = false;
+
+    // The type of the current line
+    VideoFormat type;
 
     template <class W>
     void operator<<(W& worker)
@@ -24,11 +43,41 @@ struct Beam
         worker
 
         << v
-        << h;
+        << h
+        << frame
+        << lof
+        << lofToggle
+        << lol
+        << lolToggle
+        << type;
     }
+
+
+    //
+    // Querying coordinates
+    //
+
+    isize vPrev() const { return v ? v - 1 : vLatched - 1; }
+    isize hPrev() const { return h ? h - 1 : hLatched - 1; }
+
     
-    Beam(isize v, isize h) : v(v), h(h) { }
-    Beam(isize cycle = 0) : Beam(cycle / HPOS_CNT, cycle % HPOS_CNT) { }
+    //
+    // Querying boundaries
+    //
+
+    isize hCnt() const { return lol ? 228 : 227; }
+    isize hMax() const { return lol ? 227 : 226; }
+    isize vCnt() const { return type == PAL ? vCntPal() : vCntNtsc(); }
+    isize vMax() const { return type == PAL ? vMaxPal() : vMaxNtsc(); }
+    isize vMaxPal() const { return lof ? 312 : 311; }
+    isize vMaxNtsc() const { return lof ? 262 : 261; }
+    isize vCntPal() const { return lof ? 313 : 312; }
+    isize vCntNtsc() const { return lof ? 263 : 262; }
+
+
+    //
+    // Comparing
+    //
 
     bool operator==(const Beam& beam) const
     {
@@ -40,47 +89,75 @@ struct Beam
         return v != beam.v || h != beam.h;
     }
 
-    Beam& operator+=(const Beam& beam)
+    bool operator>(const Beam& beam) const
     {
-        v += beam.v;
-        h += beam.h;
-
-        if (h >= HPOS_CNT) { h -= HPOS_CNT; v++; }
-        else if (h < 0)    { h += HPOS_CNT; v--; }
-
-        return *this;
+        return v > beam.v || (v == beam.v && h > beam.h);
     }
 
-    Beam operator+(const Beam& beam) const
+    bool operator<(const Beam& beam) const
     {
-        auto vv = v + beam.v;
-        auto hh = h + beam.h;
-
-        if (hh >= HPOS_CNT) { hh -= HPOS_CNT; vv++; }
-        else if (hh < 0)    { hh += HPOS_CNT; vv--; }
-
-        return Beam(vv, hh);
+        return v < beam.v || (v == beam.v && h < beam.h);
     }
 
-    Beam operator+(const isize i) const
+    bool operator>=(const Beam& beam) const
     {
-        return *this + Beam(i);
+        return *this == beam || *this > beam;
     }
 
-    isize operator-(const Beam& beam) const
+    bool operator<=(const Beam& beam) const
     {
-        return (v * HPOS_CNT + h) - (beam.v * HPOS_CNT + beam.h);
+        return *this == beam || *this < beam;
     }
 
-    Beam& operator++()
-    {
-        if (++h > HPOS_MAX) { v++; h = 0; }
-        return *this;
-    }
 
-    Beam& operator--()
-    {
-        if (--h < 0) { v--; h = HPOS_MAX; }
-        return *this;
-    }
+    //
+    // Calculating new beam positions
+    //
+
+    Beam& operator+=(isize i);
+    Beam operator+(const isize i) const;
+
+    Beam& operator-=(isize i);
+    Beam operator-(const isize i) const;
+
+    // Computes the DMA cycle difference to the specified position
+    isize diff(isize v2, isize h2) const;
+
+    // Predicts the type of the current frame
+    FrameType predictFrameType() const;
+
+    // Predicts the type of the next frame
+    static isize predictNextFrameType(FrameType type, bool toggle);
+    FrameType predictNextFrameType() const;
+
+    // Returns the number of DMA cycles executed in a single frame
+    static isize cyclesPerFrame(FrameType type);
+    isize cyclesPerFrame() const;
+
+    // Returns the number of DMA cycles executed in a certain number of frames
+    static isize cyclesPerFrames(isize count, FrameType type, bool toggle);
+    isize cyclesPerFrames(isize count) const;
+
+
+    //
+    // Converting positions to pixel locations
+    //
+
+    // Translates a DMA cycle to a pixel position
+    Pixel pixel(isize h) const;
+    Pixel pixel() const { return pixel(h); }
+
+
+    //
+    // Switching lines, frames, and video modes
+    //
+
+    // Called by Agnus in the EOL handler to switch to the next line
+    void eol();
+
+    // Called by Agnus in the EOF handler to switch to the next frame
+    void eof();
+
+    // Called by Agnus when the video format is changed (PAL / NTSC)
+    void switchMode(VideoFormat format);
 };

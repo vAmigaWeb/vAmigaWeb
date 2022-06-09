@@ -23,6 +23,48 @@ const AudioContext = window.AudioContext || window.webkitAudioContext;
 const audioContext = new AudioContext();
 let audio_connected=false;
 
+let load_sound = async function(url){
+    let response = await fetch(url);
+    let buffer = await response.arrayBuffer();
+    let audio_buffer= await audioContext.decodeAudioData(buffer);
+    return audio_buffer;
+} 
+let sound_volumne=0.1;// 10%
+let play_sound = function(audio_buffer){
+        if(audio_buffer== null)
+        {                 
+            load_all_sounds();
+            return;
+        }
+        const source = audioContext.createBufferSource();
+        source.buffer = audio_buffer;
+
+        let gain_node = audioContext.createGain();
+        gain_node.gain.value = sound_volumne; 
+        gain_node.connect(audioContext.destination);
+
+        source.connect(gain_node);
+        source.start();
+}   
+
+let audio_df_insert=null;
+let audio_df_eject=null;
+let audio_df_step=null;
+let audio_hd_step=null;
+async function load_all_sounds()
+{
+    if(audio_df_insert==null)
+        audio_df_insert=await load_sound('sounds/insert.mp3');
+    if(audio_df_eject==null)
+        audio_df_eject=await load_sound('sounds/eject.mp3');
+    if(audio_df_step == null)
+        audio_df_step=await load_sound('sounds/step.mp3');
+    if(audio_hd_step == null)   
+        audio_hd_step=await load_sound('sounds/stephd.mp3');
+}
+load_all_sounds();
+
+
 const load_script= (url) => {
     return new Promise(resolve =>
     {
@@ -309,7 +351,7 @@ async function disk_loading_finished()
 }   
 
 
-function message_handler(msg, data)
+function message_handler(msg, data, data2)
 {
     //console.log(`js receives msg:${msg} data:${data}`);
     //UTF8ToString(cores_msg);
@@ -370,18 +412,29 @@ function message_handler(msg, data)
     {
         emulator_currently_runs=false;
     }
-    else if(msg == "MSG_IEC_BUS_IDLE" || 
-            msg == "MSG_IEC_BUS_BUSY" || 
-            msg.startsWith("MSG_DRIVE_")
-        )
+    else if(msg == "MSG_VIDEO_FORMAT")
     {
-        try { last_drive_event = wasm_get_cpu_cycles(); } catch {};
-        check_ready_to_fire(msg);
+        $('#ntsc_pixel_ratio_switch').prop('checked', data==1);  
     }
-    else if(msg == "MSG_RS232")
+    else if(msg == "MSG_DRIVE_STEP" || msg == "MSG_DRIVE_POLL")
     {
-        //rs232_message.push(data);
-        rs232_message += String.fromCharCode(data);
+        play_sound(audio_df_step);   
+        $("#drop_zone").html(`df${data} ${data2}`);
+    }
+    else if(msg == "MSG_DISK_INSERT")
+    {
+        play_sound(audio_df_insert); 
+    }
+    else if(msg == "MSG_DISK_EJECT")
+    {
+        $("#drop_zone").html(`df${data} eject`);
+        play_sound(audio_df_eject); 
+    }
+    else if(msg == "MSG_HDR_STEP")
+    {
+        play_sound(audio_hd_step); 
+     //   console.log(`MSG_DRIVE_STEP ${data} ${data2}`);
+        $("#drop_zone").html(`dh${data} ${data2}`);
     }
 }
 rs232_message = "";
@@ -1406,23 +1459,24 @@ function InitWrappers() {
         };
         worklet_node.connect(audioContext.destination);        
     }
-    
 
-    click_unlock=async function() {
+    click_unlock_WebAudio=async function() {
         await connect_audio_processor();
         if(audioContext.state === 'running') {
-            document.removeEventListener('click',click_unlock);
+            document.removeEventListener('click',click_unlock_WebAudio);
         }
     }
-    touch_unlock=async function() {
+    touch_unlock_WebAudio=async function() {
         await connect_audio_processor();
         if(audioContext.state === 'running') {
-            document.getElementById('canvas').removeEventListener('touchstart',touch_unlock);
+            document.getElementById('canvas').removeEventListener('touchstart',touch_unlock_WebAudio);
         }
     }
-    document.addEventListener('click',click_unlock, false);
+
+    document.addEventListener('click',click_unlock_WebAudio, false);
+
     //iOS safari does not bubble click events on canvas so we add this extra event handler here
-    document.getElementById('canvas').addEventListener('touchstart',touch_unlock,false);
+    document.getElementById('canvas').addEventListener('touchstart',touch_unlock_WebAudio,false);
 
     get_audio_context=function() {
         if (typeof Module === 'undefined'
@@ -3127,7 +3181,7 @@ release_key('ControlLeft');`;
         //install_custom_keys();
     }
 
-    $("#button_show_menu").click();
+    $("#navbar").collapse('show')
     return;
 }
 

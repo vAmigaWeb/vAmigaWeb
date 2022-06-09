@@ -42,7 +42,10 @@
  * amiga.paula.
  */
 class Amiga : public Thread {
-    
+
+    // The current configuration
+    AmigaConfig config = {};
+
     /* Result of the latest inspection. In order to update the GUI inspector
      * panels, the emulator schedules events in the inspector slot (SLOT_INS in
      * the secondary table) on a periodic basis. Inside the event handler, the
@@ -204,7 +207,7 @@ private:
     template <class T>
     void applyToPersistentItems(T& worker)
     {
-        
+        worker << config.type;
     }
 
     template <class T>
@@ -233,19 +236,24 @@ private:
 public:
     
     void execute() override;
+    util::Time getDelay() override;
 
-    
+
     //
     // Configuring
     //
     
 public:
-        
+
+    const AmigaConfig &getConfig() const { return config; }
+    void resetConfig() override;
+
     // Gets a single configuration item
     i64 getConfigItem(Option option) const;
     i64 getConfigItem(Option option, long id) const;
-    
+
     // Sets a single configuration item
+    void setConfigItem(Option option, i64 value);
     void configure(Option option, i64 value) throws;
     void configure(Option option, long id, i64 value) throws;
     
@@ -260,7 +268,7 @@ private:
     // Overrides a config option if the corresponding debug option is enabled
     i64 overrideOption(Option option, i64 value);
 
-    
+
     //
     // Analyzing
     //

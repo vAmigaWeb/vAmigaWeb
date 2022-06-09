@@ -14,11 +14,8 @@
 void
 Sequencer::initBplEvents()
 {
-    for (isize i = 0; i < HPOS_MAX; i++) bplEvent[i] = EVENT_NONE;
-    for (isize i = 0; i < HPOS_MAX; i++) nextBplEvent[i] = HPOS_MAX;
-    
-    bplEvent[HPOS_MAX] = BPL_EOL;
-    nextBplEvent[HPOS_MAX] = 0;
+    for (isize i = 0; i < HPOS_CNT; i++) bplEvent[i] = EVENT_NONE;
+    for (isize i = 0; i < HPOS_CNT; i++) nextBplEvent[i] = HPOS_MAX;    
 }
 
 void
@@ -30,7 +27,7 @@ Sequencer::initSigRecorder()
     sigRecorder.insert(ddfstrt, SIG_BPHSTART);
     sigRecorder.insert(ddfstop, SIG_BPHSTOP);
     sigRecorder.insert(0xD8, SIG_RHW);
-    sigRecorder.insert(HPOS_MAX, SIG_DONE);
+    sigRecorder.insert(HPOS_CNT_NTSC, SIG_DONE);
  
     sigRecorder.modified = false;
 }
@@ -63,9 +60,10 @@ Sequencer::computeBplEventTable(const SigRecorder &sr)
         computeBplEventsFast <ecs> (sr, state);
     }
     
-    // Add the EOL event (end of line)
-    bplEvent[HPOS_MAX] |= BPL_EOL;
-                            
+    // Add EOL events (end of line)
+    // bplEvent[HPOS_MAX_PAL] |= BPL_EOL;
+    // bplEvent[HPOS_MAX_NTSC] |= BPL_EOL;
+
     // Update the jump table
     updateBplJumpTable();
 
@@ -144,7 +142,7 @@ Sequencer::computeBplEventsSlow(const SigRecorder &sr, DDFState &state)
         u16 signal = sigRecorder.elements[i];
         isize trigger = (isize)sigRecorder.keys[i];
         
-        assert(trigger < HPOS_CNT);
+        assert(trigger <= HPOS_CNT_NTSC);
         
         // Emulate the display logic up to the next signal change
         computeBplEvents <ecs> (cycle, trigger, state);
@@ -208,8 +206,10 @@ Sequencer::computeBplEvents(isize strt, isize stop, DDFState &state)
         }
         
         // Superimpose drawing flags
-        if ((j & mask) == (agnus.scrollOdd & mask))  id = (EventID)(id | 1);
-        if ((j & mask) == (agnus.scrollEven & mask)) id = (EventID)(id | 2);
+        isize jj = j >= 1 ? j : HPOS_CNT_PAL + j;
+
+        if ((jj & mask) == (agnus.scrollOdd & mask))  id = (EventID)(id | 1);
+        if ((jj & mask) == (agnus.scrollEven & mask)) id = (EventID)(id | 2);
         
         bplEvent[j] = id;
     }
@@ -403,11 +403,14 @@ Sequencer::processSignal <true> (u16 signal, DDFState &state)
 }
 
 void
-Sequencer::updateBplJumpTable()
+Sequencer::updateBplJumpTable(i16 end)
 {
-    u8 next = 0;
+    assert(end <= HPOS_MAX);
+    assert(nextBplEvent[HPOS_MAX] == HPOS_MAX);
+
+    u8 next = nextBplEvent[end];
     
-    for (isize i = HPOS_MAX; i >= 0; i--) {
+    for (isize i = end; i >= 0; i--) {
         
         nextBplEvent[i] = next;
         if (bplEvent[i]) next = (i8)i;

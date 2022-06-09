@@ -10,6 +10,7 @@
 #pragma once
 
 #include "Aliases.h"
+#include "BeamTypes.h"
 #include "BusTypes.h"
 #include "AgnusTypes.h"
 #include "SequencerTypes.h"
@@ -92,7 +93,6 @@ enum_long(SLOT)
     SLOT_TXD,                       // Serial data out (UART)
     SLOT_RXD,                       // Serial data in (UART)
     SLOT_POT,                       // Potentiometer
-    SLOT_RAS,                       // HSYNC handler (End of Line)
     SLOT_TER,                       // Enables tertiary slots
     
     // Tertiary slots
@@ -148,7 +148,6 @@ struct EventSlotEnum : util::Reflection<EventSlotEnum, EventSlot>
             case SLOT_TXD:   return "TXD";
             case SLOT_RXD:   return "RXD";
             case SLOT_POT:   return "POT";
-            case SLOT_RAS:   return "RAS";
             case SLOT_TER:   return "TER";
                 
             case SLOT_DC0:   return "DC0";
@@ -211,8 +210,7 @@ enum_i8(EventID)
     BPL_H3_MOD          = 0x48,
     BPL_H4              = 0x4C,
     BPL_H4_MOD          = 0x50,
-    BPL_EOL             = 0x54,
-    BPL_EVENT_COUNT     = 0x58,
+    BPL_EVENT_COUNT     = 0x54,
 
     // DAS slot
     DAS_REFRESH         = 1,
@@ -241,6 +239,8 @@ enum_i8(EventID)
     DAS_S7_2,
     DAS_SDMA,
     DAS_TICK,
+    DAS_HSYNC,
+    DAS_EOL,
     DAS_EVENT_COUNT,
 
     // Copper slot
@@ -326,11 +326,7 @@ enum_i8(EventID)
     // Screenshots
     SCR_TAKE            = 1,
     SCR_EVENT_COUNT,
-    
-    // Rasterline slot
-    RAS_HSYNC           = 1,
-    RAS_EVENT_COUNT,
-    
+        
     // SEC slot
     TER_TRIGGER         = 1,
     TER_EVENT_COUNT,
@@ -486,8 +482,7 @@ typedef struct
     Cycle trigger;
     Cycle triggerRel;
 
-    // Trigger relative to the current frame
-    // -1 = earlier frame, 0 = current frame, 1 = later frame
+    // Trigger frame relative to the current frame
     long frameRel;
 
     // The trigger cycle translated to a beam position.

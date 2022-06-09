@@ -31,6 +31,46 @@ PixelEngine::PixelEngine(Amiga& ref) : SubComponent(ref)
 }
 
 void
+PixelEngine::clearAll()
+{
+    lockStableBuffer();
+
+    for (isize line = 0; line < VPIXELS; line++) {
+        clear(emuTexture[0].ptr, line);
+    }
+    for (isize line = 0; line < VPIXELS; line++) {
+        clear(emuTexture[1].ptr, line);
+    }
+
+    unlockStableBuffer();
+}
+
+void
+PixelEngine::clear(isize line)
+{
+    clear(frameBuffer, line, 0, HPOS_MAX);
+}
+
+void
+PixelEngine::clear(isize line, Pixel pixel)
+{
+    clear(frameBuffer, line, pixel, pixel);
+}
+
+void
+PixelEngine::clear(u32 *ptr, isize line, Pixel first, Pixel last)
+{
+    ptr += line * HPIXELS;
+
+    constexpr u32 col1 = 0xFF222222; // 0xFF662222
+    constexpr u32 col2 = 0xFF444444; // 0xFFAA4444
+
+    for (Pixel i = 4 * first; i < 4 * (last + 1); i++) {
+        ptr[i] = ((line >> 2) & 1) == ((i >> 3) & 1) ? col1 : col2;
+    }
+}
+
+void
 PixelEngine::_initialize()
 {
     AmigaComponent::_initialize();
@@ -74,16 +114,7 @@ PixelEngine::didLoadFromBuffer(const u8 *buffer)
 void
 PixelEngine::_powerOn()
 {
-    // Initialize frame buffers with a checkerboard pattern (for debugging)
-    for (isize line = 0; line < VPIXELS; line++) {
-        for (isize i = 0; i < HPIXELS; i++) {
-
-            isize pos = line * HPIXELS + i;
-            u32 col = (line / 4) % 2 == (i / 8) % 2 ? 0xFF222222 : 0xFF444444;
-            emuTexture[0].ptr[pos] = col;
-            emuTexture[1].ptr[pos] = col;
-        }
-    }
+    clearAll();
 }
 
 void
@@ -302,13 +333,12 @@ PixelEngine::swapBuffers()
     if (frameBuffer == emuTexture[0].ptr) {
 
         frameBuffer = emuTexture[1].ptr;
-        emuTexture[1].longFrame = agnus.frame.lof;
-        
+        emuTexture[1].longFrame = agnus.pos.lof;
+
     } else {
 
         frameBuffer = emuTexture[0].ptr;
-        emuTexture[0].longFrame = agnus.frame.lof;
-
+        emuTexture[0].longFrame = agnus.pos.lof;
     }
     
     unlockStableBuffer();
@@ -324,14 +354,12 @@ PixelEngine::getNoise() const
 }
 
 u32 *
-PixelEngine::pixelAddr(isize pixel) const
+PixelEngine::frameBufferAddr(isize v, isize h) const
 {
-    isize offset = pixel + agnus.pos.v * HPIXELS;
-
-    assert(pixel < HPIXELS);
-    assert(offset < PIXELS);
-
-    return frameBuffer + offset;
+    assert(v >= 0 && v <= VPOS_MAX);
+    assert(h >= 0 && h <= HPOS_MAX);
+    
+    return frameBuffer + v * HPIXELS + h;
 }
 
 void
@@ -408,9 +436,9 @@ PixelEngine::colorize(isize line)
     colChanges.clear();
 
     // Wipe out the HBLANK area
-    for (pixel = 4 * HBLANK_MIN; pixel <= 4 * HBLANK_MAX; pixel++) {
-        dst[pixel] = rgbaHBlank;
-    }
+    auto start = agnus.pos.pixel(HBLANK_MIN);
+    auto stop  = agnus.pos.pixel(HBLANK_MAX);
+    for (pixel = start; pixel <= stop; pixel++) dst[pixel] = rgbaHBlank;
 }
 
 void

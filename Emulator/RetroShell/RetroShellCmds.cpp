@@ -132,6 +132,24 @@ RetroShell::exec <Token::amiga, Token::init> (Arguments &argv, long param)
 }
 
 template <> void
+RetroShell::exec <Token::amiga, Token::config> (Arguments& argv, long param)
+{
+    dump(amiga, Category::Config);
+}
+
+template <> void
+RetroShell::exec <Token::amiga, Token::set, Token::pal> (Arguments& argv, long param)
+{
+    amiga.configure(OPT_VIDEO_FORMAT, PAL);
+}
+
+template <> void
+RetroShell::exec <Token::amiga, Token::set, Token::ntsc> (Arguments& argv, long param)
+{
+    amiga.configure(OPT_VIDEO_FORMAT, NTSC);
+}
+
+template <> void
 RetroShell::exec <Token::amiga, Token::power, Token::on> (Arguments &argv, long param)
 {
     amiga.powerOn();
@@ -572,6 +590,12 @@ template <> void
 RetroShell::exec <Token::agnus, Token::inspect, Token::state> (Arguments &argv, long param)
 {
     dump(amiga.agnus, Category::State);
+}
+
+template <> void
+RetroShell::exec <Token::agnus, Token::inspect, Token::beam> (Arguments &argv, long param)
+{
+    dump(amiga.agnus, Category::Beam);
 }
 
 template <> void

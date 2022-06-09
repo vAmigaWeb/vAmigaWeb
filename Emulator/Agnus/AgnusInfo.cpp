@@ -128,10 +128,6 @@ Agnus::eventName(EventSlot slot, EventID id)
                 case BPL_H4_MOD | DRAW_ODD:     return "BPL_H4*[O]";
                 case BPL_H4_MOD | DRAW_EVEN:    return "BPL_H4*[E]";
                 case BPL_H4_MOD | DRAW_BOTH:    return "BPL_H4*[OE]";
-                case BPL_EOL:                   return "BPL_EOL";
-                case BPL_EOL | DRAW_ODD:        return "BPL_EOL [O]";
-                case BPL_EOL | DRAW_EVEN:       return "BPL_EOL [E]";
-                case BPL_EOL | DRAW_BOTH:       return "BPL_EOL [OE]";
                 default:                        return "*** INVALID ***";
             }
             break;
@@ -166,6 +162,8 @@ Agnus::eventName(EventSlot slot, EventID id)
                 case DAS_S7_2:      return "DAS_S7_2";
                 case DAS_SDMA:      return "DAS_SDMA";
                 case DAS_TICK:      return "DAS_TICK";
+                case DAS_HSYNC:     return "DAS_HSYNC";
+                case DAS_EOL:       return "DAS_EOL";
                 default:            return "*** INVALID ***";
             }
             break;
@@ -321,16 +319,6 @@ Agnus::eventName(EventSlot slot, EventID id)
             }
             break;
             
-        case SLOT_RAS:
-
-            switch (id) {
-
-                case EVENT_NONE:    return "none";
-                case RAS_HSYNC:     return "RAS_HSYNC";
-                default:            return "*** INVALID ***";
-            }
-            break;
-
         case SLOT_TER:
 
             switch (id) {
@@ -442,7 +430,7 @@ Agnus::_dump(Category category, std::ostream& os) const
     using namespace util;
     
     if (category == Category::Config) {
-        
+
         os << tab("Chip Revison");
         os << AgnusRevisionEnum::key(config.revision) << std::endl;
         os << tab("Slow Ram mirror");
@@ -455,16 +443,6 @@ Agnus::_dump(Category category, std::ostream& os) const
         
         os << tab("Clock");
         os << dec(clock) << std::endl;
-        os << tab("Frame");
-        os << dec(frame.nr) << std::endl;
-        os << tab("LOF");
-        os << dec(frame.lof) << std::endl;
-        os << tab("LOF in previous frame");
-        os << dec(frame.prevlof) << std::endl;
-        os << tab("Beam position");
-        os << "(" << dec(pos.v) << "," << dec(pos.h) << ")" << std::endl;
-        os << tab("Latched position");
-        os << "(" << dec(latchedPos.v) << "," << dec(latchedPos.h) << ")" << std::endl;
         os << tab("scrollOdd");
         os << dec(scrollOdd) << std::endl;
         os << tab("scrollEven");
@@ -474,7 +452,25 @@ Agnus::_dump(Category category, std::ostream& os) const
         
         sequencer.dump(Category::State, os);
     }
-    
+
+    if (category == Category::Beam) {
+
+        os << tab("Frame");
+        os << dec(pos.frame) << bol(isPAL(), " (PAL)", " (NTSC)") << std::endl;
+        os << tab("Position");
+        os << "(" << dec(pos.v) << "," << dec(pos.h) << ")" << std::endl;
+        os << tab("Latched");
+        os << "(" << dec(latchedPos.v) << "," << dec(latchedPos.h) << ")" << std::endl;
+        os << tab("LOF");
+        os << dec(pos.lof) << std::endl;
+        os << tab("LOF toggle");
+        os << dec(pos.lofToggle) << std::endl;
+        os << tab("LOL");
+        os << dec(pos.lol) << std::endl;
+        os << tab("LOL toggle");
+        os << dec(pos.lolToggle) << std::endl;
+    }
+
     if (category == Category::Registers) {
         
         sequencer.dump(Category::Registers, os);
@@ -512,9 +508,9 @@ Agnus::_dump(Category category, std::ostream& os) const
     
     if (category == Category::Bus) {
         
-        for (isize i = 0; i < HPOS_CNT; i++) {
+        for (isize i = 0; i < HPOS_CNT_NTSC; i++) {
             
-            isize cycle = (i / 6) + (i % 6) * ((HPOS_CNT + 1) / 6);
+            isize cycle = (i / 6) + (i % 6) * ((HPOS_CNT_NTSC + 1) / 6);
             
             string key = std::to_string(cycle) + ":";
             os << std::left << std::setw(5) << key;
@@ -543,10 +539,10 @@ Agnus::_dump(Category category, std::ostream& os) const
             
             if (info.trigger != NEVER) {
                 
-                if (info.frameRel == -1) {
+                if (info.frameRel < 0) {
                     os << std::left << std::setw(18) << "previous frame";
                 } else if (info.frameRel > 0) {
-                    os << std::left << std::setw(18) << "other frame";
+                    os << std::left << std::setw(18) << "upcoming frame";
                 } else {
                     string vpos = std::to_string(info.vpos);
                     string hpos = std::to_string(info.hpos);
@@ -616,7 +612,7 @@ Agnus::_inspect() const
     eventInfo.dmaClock = agnus.clock;
     eventInfo.ciaAClock = ciaa.getClock();
     eventInfo.ciaBClock  = ciab.getClock();
-    eventInfo.frame = agnus.frame.nr;
+    eventInfo.frame = agnus.pos.frame;
     eventInfo.vpos = agnus.pos.v;
     eventInfo.hpos = agnus.pos.h;
     
@@ -632,33 +628,18 @@ Agnus::inspectSlot(EventSlot nr) const
     
     auto &info = slotInfo[nr];
     auto cycle = trigger[nr];
-    
+
     info.slot = nr;
     info.eventId = id[nr];
     info.trigger = cycle;
     info.triggerRel = cycle - agnus.clock;
-    
-    if (agnus.belongsToCurrentFrame(cycle)) {
-        
-        Beam beam = agnus.cycleToBeam(cycle);
-        info.vpos = beam.v;
-        info.hpos = beam.h;
-        info.frameRel = 0;
-        
-    } else if (agnus.belongsToNextFrame(cycle)) {
-        
-        info.vpos = 0;
-        info.hpos = 0;
-        info.frameRel = 1;
-        
-    } else {
-        
-        assert(agnus.belongsToPreviousFrame(cycle));
-        info.vpos = 0;
-        info.hpos = 0;
-        info.frameRel = -1;
-    }
-    
+
+    auto beam = pos + isize(AS_DMA_CYCLES(cycle - clock));
+
+    info.vpos = beam.v;
+    info.hpos = beam.h;
+    info.frameRel = long(beam.frame - pos.frame);
+
     info.eventName = agnus.eventName((EventSlot)nr, id[nr]);
 }
 

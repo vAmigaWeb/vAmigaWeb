@@ -26,8 +26,9 @@ struct ScreenBuffer : public Buffer<u32> {
 
 class PixelEngine : public SubComponent {
 
-    friend class DmaDebugger;
-    
+    friend class Denise;
+    // friend class DmaDebugger;
+
     // Current configuration
     PixelEngineConfig config = {};
 
@@ -103,7 +104,18 @@ public:
     
     PixelEngine(Amiga& ref);
  
-    
+    // Initializes both frame buffers with a checkerboard pattern
+    void clearAll();
+
+    // Initializes (part of) the current frame buffer with a checkerboard pattern
+    void clear(isize line);
+    void clear(isize line, Pixel pixel);
+
+private:
+
+    void clear(u32 *ptr, isize line, Pixel first = 0, Pixel last = HPOS_MAX);
+
+
     //
     // Methods from AmigaObject
     //
@@ -227,9 +239,11 @@ public:
     
     // Returns a pointer to randon noise
     u32 *getNoise() const;
-    
-    // Returns the frame buffer address of a certain pixel in the current line
-    u32 *pixelAddr(isize pixel) const;
+
+    // Returns the address of the first pixel in a certain frambuffer line
+    u32 *frameBufferAddr() const { return frameBuffer; }
+    u32 *frameBufferAddr(isize v) const { return frameBufferAddr(v, 0); }
+    u32 *frameBufferAddr(isize v, isize h) const;
 
     // Called after each line in the VBLANK area
     void endOfVBlankLine();

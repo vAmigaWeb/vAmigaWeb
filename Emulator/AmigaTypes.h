@@ -16,6 +16,33 @@
 // Enumerations
 //
 
+enum_long(VIDEO_FORMAT)
+{
+    PAL,
+    NTSC
+};
+typedef VIDEO_FORMAT VideoFormat;
+
+#ifdef __cplusplus
+struct VideoFormatEnum : util::Reflection<VideoFormatEnum, VideoFormat>
+{
+    static constexpr long minVal = 0;
+    static constexpr long maxVal = NTSC;
+    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
+
+    static const char *prefix() { return ""; }
+    static const char *key(VideoFormat value)
+    {
+        switch (value) {
+
+            case PAL:   return "PAL";
+            case NTSC:  return "NTSC";
+        }
+        return "???";
+    }
+};
+#endif
+
 enum_long(CONFIG_SCHEME)
 {
     CONFIG_A1000_OCS_1MB,
@@ -254,6 +281,12 @@ struct ChipsetRegEnum : util::Reflection<ChipsetRegEnum, ChipsetReg>
 //
 // Structures
 //
+
+typedef struct
+{
+    VideoFormat type;
+}
+AmigaConfig;
 
 typedef struct
 {
