@@ -673,7 +673,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
     }
  
   }
-  printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
+  //printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
 
   //printf("calib dimensions changed=%d\n",dimensions_changed);
   return dimensions_changed;
@@ -1000,7 +1000,7 @@ class vAmigaWrapper {
     amiga->configure(OPT_AUDVOLL, 100); 
     amiga->configure(OPT_AUDVOLR, 100);
 
-    //SID0 Volumne
+    //Volumne
     amiga->configure(OPT_AUDVOL, 0, 100); 
     amiga->configure(OPT_AUDPAN, 0, 0);
 
