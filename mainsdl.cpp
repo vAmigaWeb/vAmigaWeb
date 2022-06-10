@@ -239,7 +239,7 @@ GLuint initTexture(const GLuint *source) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, HPIXELS, VPIXELS, 0, GL_RGBA, GL_UNSIGNED_BYTE, source);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, HPIXELS, VPOS_MAX, 0, GL_RGBA, GL_UNSIGNED_BYTE, source);
 
   return texture;
 }
@@ -338,7 +338,7 @@ int eat_border_height = 0;
 int xOff = 12 + eat_border_width;
 int yOff = 12 + eat_border_height;
 int clipped_width  = HPIXELS -12 -24 -2*eat_border_width; //392
-int clipped_height = VPIXELS -12 -24 -2*eat_border_height; //248
+int clipped_height = VPOS_MAX -12 -24 -2*eat_border_height; //248
 
 int bFullscreen = false;
 
@@ -806,7 +806,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glActiveTexture(GL_TEXTURE0);
     }  
 
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, GL_RGBA, GL_UNSIGNED_BYTE, stableBuffer.ptr+clip_offset);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPOS_MAX, GL_RGBA, GL_UNSIGNED_BYTE, stableBuffer.ptr+clip_offset);
 
     if (currLOF != prevLOF) {
       // Case 1: Interlace drawing
@@ -1126,7 +1126,7 @@ void create_texture()
   screen_texture = SDL_CreateTexture(renderer,
         /*SDL_PIXELFORMAT_ARGB32*/ SDL_PIXELFORMAT_ABGR8888 
         , SDL_TEXTUREACCESS_STREAMING,
-        HPIXELS, VPIXELS);
+        HPIXELS, VPOS_MAX);
 
   window_surface = SDL_GetWindowSurface(window);
 }
