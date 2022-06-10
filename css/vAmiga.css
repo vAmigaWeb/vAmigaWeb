@@ -22,12 +22,11 @@
     border: 3px dashed var(--blue);
     height: 30px;
     border-radius: 5px;
+    min-width: 64px;
 }
 
 [data-theme="dark"] #drop_zone {
     background-color: var(--darkbg);
-    border: 3px dashed var(--blue);
-    height: 30px;
 }
 
 .scrollx-group > .row {

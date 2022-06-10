@@ -30,10 +30,15 @@ let load_sound = async function(url){
     return audio_buffer;
 } 
 let sound_volumne=0.1;// 10%
+let parallel_playing=0;
 let play_sound = function(audio_buffer){
         if(audio_buffer== null)
         {                 
             load_all_sounds();
+            return;
+        }
+        if(parallel_playing>2 && audio_buffer==audio_df_step)
+        {//not more than 3 stepper sounds at the same time
             return;
         }
         const source = audioContext.createBufferSource();
@@ -43,7 +48,11 @@ let play_sound = function(audio_buffer){
         gain_node.gain.value = sound_volumne; 
         gain_node.connect(audioContext.destination);
 
+        source.addEventListener('ended', () => {
+            parallel_playing--;
+        });
         source.connect(gain_node);
+        parallel_playing++;
         source.start();
 }   
 
@@ -419,7 +428,7 @@ function message_handler(msg, data, data2)
     else if(msg == "MSG_DRIVE_STEP" || msg == "MSG_DRIVE_POLL")
     {
         play_sound(audio_df_step);   
-        $("#drop_zone").html(`df${data} ${data2}`);
+        $("#drop_zone").html(`df${data} ${data2.toString().padStart(2, '0')}`);
     }
     else if(msg == "MSG_DISK_INSERT")
     {
