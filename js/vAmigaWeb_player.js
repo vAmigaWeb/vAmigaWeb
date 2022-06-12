@@ -113,7 +113,7 @@
         }
         else
         {
-            this.loadScript(`${this.vAmigaWeb_url}js/jquery-3.5.0.min.js` , 
+            this.loadScript(`${this.vAmigaWeb_url}js/jquery-3.6.0.min.js` , 
             function(){vAmigaWeb_player.load_into(element,params, address);});
         }
     },
