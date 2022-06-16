@@ -27,42 +27,52 @@ Denise::setDIWSTRT(u16 value)
     if (newDiwHstrt < 2) {
         
         trace(DIW_DEBUG, "newDiwHstrt is too small\n");
-        newDiwHstrt = -1;
+        newDiwHstrt = INT16_MAX;
     }
     
     /* Check if the change takes effect in the current rasterline.
      *
-     *     old: Old trigger coordinate (diwHstrt)
-     *     new: New trigger coordinate (newDiwHstrt)
-     *     cur: Position of the electron beam (derivable from pos.h)
+     *     cur: Current coordinate
+     *     old: Old trigger coordinate
+     *     val: New trigger coordinate
+     */
+    isize cur = 2 * agnus.pos.h;
+    isize old = hflopOn;
+    isize val = newDiwHstrt;
+
+    /* The following cases have to be taken into accout:
      *
-     * The following cases have to be taken into accout:
-     *
-     *    1) cur < old < new : Change takes effect in this rasterline.
-     *    2) cur < new < old : Change takes effect in this rasterline.
-     *    3) new < cur < old : Neither the old nor the new trigger hits.
-     *    4) new < old < cur : Already triggered. Nothing to do in this line.
-     *    5) old < cur < new : Already triggered. Nothing to do in this line.
-     *    6) old < new < cur : Already triggered. Nothing to do in this line.
+     *    1) cur < old < val : Change takes effect in this rasterline
+     *    2) cur < val < old : Change takes effect in this rasterline
+     *    3) val < cur < old : No hit in this line
+     *    4) val < old < cur : Already triggered. Nothing to do
+     *    5) old < cur < val : Already triggered. Nothing to do
+     *    6) old < val < cur : Already triggered. Nothing to do
      */
 
-    isize cur = 2 * agnus.pos.h;
-    
-    // (1) and (2)
-    if (cur < denise.hstrt && cur < newDiwHstrt) {
-        
-        trace(DIW_DEBUG, "Updating DIW hflop immediately at %ld\n", cur);
-        hflopOn = newDiwHstrt;
+    if (cur < old) {
+
+        if (val < cur) {
+
+            // (3)
+            trace(DIW_DEBUG, "Won't trigger in this line\n");
+            hflopOn = INT16_MAX;
+
+        } else {
+
+            // (1) and (2)
+            trace(DIW_DEBUG, "Will trigger at %ld\n", val);
+            hflopOn = val;
+        }
+
+    } else {
+
+        // (4), (5), (6)
+        trace(DIW_DEBUG, "Already triggered at %ld\n", old);
     }
-    
-    // (3)
-    if (newDiwHstrt < cur && cur < hstrt) {
-        
-        trace(DIW_DEBUG, "DIW hflop not switched on in current line\n");
-        hflopOn = -1;
-    }
-    
-    hstrt = newDiwHstrt;
+
+    hstrt = val;
+    trace(DIW_DEBUG, "hstrt = %ld, hflopOn = %ld\n", hstrt, hflopOn);
 
     // Let the debugger know about the register change
     debugger.updateDIW(diwstrt, diwstop);
@@ -81,29 +91,39 @@ Denise::setDIWSTOP(u16 value)
         
     // Invalidate the coordinate if it is out of range
     if (newDiwHstop > 0x1C7) {
+
         trace(DIW_DEBUG, "newDiwHstop is too large\n");
-        newDiwHstop = -1;
+        newDiwHstop = INT16_MAX;
     }
-    
-    // Check if the change already takes effect in the current rasterline.
+
     isize cur = 2 * agnus.pos.h;
-    
-    // (1) and (2) (see setDIWSTRT)
-    if (cur < hstop && cur < newDiwHstop) {
-        
-        trace(DIW_DEBUG, "Updating hFlopOff immediately at %ld\n", cur);
-        hflopOff = newDiwHstop;
+    isize old = hflopOff;
+    isize val = newDiwHstop;
+
+    if (cur < old) {
+
+        if (val < cur) {
+
+            // (3)
+            trace(DIW_DEBUG, "Won't trigger in this line\n");
+            hflopOff = INT16_MAX;
+
+        } else {
+
+            // (1) and (2)
+            trace(DIW_DEBUG, "Will trigger at %ld\n", val);
+            hflopOff = val;
+        }
+
+    } else {
+
+        // (4), (5), (6)
+        trace(DIW_DEBUG, "Already triggered at %ld\n", old);
     }
-    
-    // (3) (see setDIWSTRT)
-    if (newDiwHstop < cur && cur < hstop) {
-        
-        trace(DIW_DEBUG, "hFlop not switched off in current line\n");
-        hflopOff = -1;
-    }
-    
-    hstop = newDiwHstop;
-    
+
+    hstop = val;
+    trace(DIW_DEBUG, "hstop = %ld, hflopOff = %ld\n", hstop, hflopOff);
+
     // Let the debugger know about the register change
     debugger.updateDIW(diwstrt, diwstop);
 }
@@ -160,7 +180,7 @@ Denise::pokeBPLCON0(u16 value)
 void
 Denise::setBPLCON0(u16 oldValue, u16 newValue)
 {
-    trace(BPLREG_DEBUG, "setBPLCON0(%X,%X)\n", oldValue, newValue);
+    trace(BPLREG_DEBUG, "setBPLCON0(%04x,%04x)\n", oldValue, newValue);
 
     // Record the register change
     i64 pixel = std::max(agnus.pos.pixel() - 4, (isize)0);
