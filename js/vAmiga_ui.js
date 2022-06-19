@@ -1834,11 +1834,11 @@ function InitWrappers() {
 
 
     window.addEventListener("orientationchange", function() {
-      setTimeout( scaleVMCanvas, 500);
+        setTimeout(()=>wasm_set_display(""), 250);
     });
 
     window.addEventListener("resize", function() {
-      setTimeout( scaleVMCanvas, 500);
+        setTimeout(()=>wasm_set_display(""), 250);
     });
     
     $('#navbar').on('hide.bs.collapse', function () {
