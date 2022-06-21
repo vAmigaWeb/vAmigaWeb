@@ -22,7 +22,7 @@
 // Snapshot version number
 #define SNP_MAJOR 2
 #define SNP_MINOR 1
-#define SNP_SUBMINOR 0
+#define SNP_SUBMINOR 1
 #define SNP_BETA 2
 
 // Uncomment this setting in a release build
@@ -37,11 +37,6 @@
 #pragma GCC diagnostic ignored "-Wgnu-anonymous-struct"
 #pragma GCC diagnostic ignored "-Wnested-anon-types"
 #endif
-
-// Type alias for the datatype used by the host machine's audio backend
-// struct U16Mono; typedef U16Mono SampleType;
-// struct U16Stereo; typedef U16Stereo SampleType;
-struct FloatStereo; typedef struct FloatStereo SampleType;
 
 
 //
@@ -86,6 +81,17 @@ struct FloatStereo; typedef struct FloatStereo SampleType;
 
 // Add addresses to launch the emulator with preset breakpoints
 #define INITIAL_BREAKPOINTS { }
+
+
+//
+// Audio settings
+//
+
+// Type alias for the datatype used by the host machine's audio backend
+struct FloatStereo; typedef struct FloatStereo SampleType;
+
+// Scaling factor used by the FloatStereo SampleType
+#define AUD_SCALE 0.00002f
 
 
 //

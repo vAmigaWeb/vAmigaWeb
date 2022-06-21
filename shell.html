@@ -355,10 +355,6 @@
             <button id="button_rom_dialog" type="button" class="btn btn-primary mt-2 mb-3">kickstart system roms ...</button>
 
             <div class="custom-control custom-switch mt-1">
-              <input type="checkbox" class="custom-control-input" id="cb_debug_output" />
-              <label class="custom-control-label" for="cb_debug_output">show live debug output</label>
-            </div>
-            <div class="custom-control custom-switch mt-1">
               <input type="checkbox" class="custom-control-input" id="dark_switch" />
               <label class="custom-control-label" for="dark_switch">dark mode</label>
             </div>
@@ -518,8 +514,14 @@ touch screen settings for virtual keyboard
   <span>mix of both</span> tries to mix both worlds... i.e. exact timing and simultaneous presses but also scrolls keyboard when swiping the finger on keycaps. disadvantage: also does a keypress when only scrolling was intended 
 </div>
 </div>
+
+            <div class="custom-control custom-switch mt-5">
+              <input type="checkbox" class="custom-control-input" id="cb_debug_output" />
+              <label class="custom-control-label" for="cb_debug_output">load logging console <span style="font-size:smaller">(after loaded click bottom right button)</span></label>
+            </div>
+
             <hr>
-            <div class="mt-3" style="font-size: small;">
+            <div class="mt-2" style="font-size: small;">
             <p>
               <br>
               <a href="https://vamigaweb.github.io/doc/about.html" style="font-size:x-large">
@@ -857,8 +859,7 @@ goes into edit mode which takes you right back to here ...
           if (outputElement) outputElement.value = ''; // clear browser cache
           return async function(text) {
             console.log(text);
-
-            if(typeof live_debug_output == 'undefined') 
+/*            if(typeof live_debug_output == 'undefined') 
               return;
             if(!live_debug_output)
               return;
@@ -876,6 +877,7 @@ goes into edit mode which takes you right back to here ...
                 //outputElement.scrollTop = outputElement.scrollHeight; // focus on bottom
               }              
             //}, 0);
+*/
           };
         })(),
         printErr: function(text) {
