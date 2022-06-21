@@ -314,52 +314,6 @@ function wait_on_message(msg)
     return new Promise(resolve => fire_on_message(msg, resolve));
 }
 
-function check_ready_to_fire(msg)
-{
-    var execute_stack = [];
-    var new_stack = [];
-    while(msg_callback_stack.length>0)
-    {
-        var next = msg_callback_stack.pop();
-        if(next.message==msg)
-        {
-            execute_stack.push(next.callback_fn);
-        }
-        else
-        {
-            new_stack.push(next);
-        }
-    }
-    msg_callback_stack= new_stack;
-
-    for(callback_fn of execute_stack)
-    {
-        callback_fn();
-    }
-}
-
-async function disk_loading_finished()
-{//await disk_loading_finished() before typing 'run'
-    if(JSON.parse(wasm_rom_info()).drive_rom.startsWith("Patched"))
-    {
-        last_drive_event=wasm_get_cpu_cycles();
-        while (wasm_get_cpu_cycles() < last_drive_event + 982000*1.6)
-        {
-            console.log("wait for disk_loading_finished: "+ wasm_get_cpu_cycles()+" "+last_drive_event);       
-            await sleep(100);  
-        }   
-    }
-    else
-    {
-        await wait_on_message("MSG_IEC_BUS_BUSY");
-        await wait_on_message("MSG_IEC_BUS_IDLE");
-        await wait_on_message("MSG_IEC_BUS_BUSY");
-        await wait_on_message("MSG_IEC_BUS_IDLE");
-    }
-    console.log("detected disk_loading_finished: "+wasm_get_cpu_cycles()+" "+last_drive_event);
-}   
-
-
 function message_handler(msg, data, data2)
 {
     //console.log(`js receives msg:${msg} data:${data}`);
@@ -445,6 +399,15 @@ function message_handler(msg, data, data2)
      //   console.log(`MSG_DRIVE_STEP ${data} ${data2}`);
         $("#drop_zone").html(`dh${data} ${data2}`);
     }
+    else if(msg == "MSG_SNAPSHOT_RESTORED")
+    {
+        let v=wasm_get_config_item("CPU_OVERCLOCKING");
+        $(`#button_OPT_CPU_OVERCLOCKING`).text(`68000 CPU=${Math.round((v==0?1:v)*7.09)} MHz`);
+        v=wasm_get_config_item("AGNUS_REVISION");
+        let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB'];
+        $(`#button_OPT_AGNUS_REVISION`).text(`agnus revision=${agnus_revs[v]}`);
+    }
+
 }
 rs232_message = "";
 //rs232_message=[];
@@ -1365,7 +1328,6 @@ function InitWrappers() {
 
     wasm_create_renderer = Module.cwrap('wasm_create_renderer', 'number', ['string']);
     wasm_set_warp = Module.cwrap('wasm_set_warp', 'undefined', ['number']);
-    wasm_press_play = Module.cwrap('wasm_press_play', 'undefined');
     wasm_sprite_info = Module.cwrap('wasm_sprite_info', 'string');
 
     wasm_cut_layers = Module.cwrap('wasm_cut_layers', 'undefined', ['number']);
@@ -1394,6 +1356,7 @@ function InitWrappers() {
 
     wasm_set_target_fps = Module.cwrap('wasm_set_target_fps', 'undefined', ['number']);
     wasm_get_renderer = Module.cwrap('wasm_get_renderer', 'number');
+    wasm_get_config_item = Module.cwrap('wasm_get_config_item', 'number', ['string']);
 
 
 
