@@ -342,7 +342,6 @@ int clipped_height = VPOS_MAX -12 -24 -2*eat_border_height; //248
 
 int bFullscreen = false;
 
-
 EM_BOOL emscripten_window_resized_callback(int eventType, const void *reserved, void *userData){
 /*
 	double width, height;
@@ -350,7 +349,7 @@ EM_BOOL emscripten_window_resized_callback(int eventType, const void *reserved, 
 	int w = (int)width, h = (int)height;
 */
   // resize SDL window
-    SDL_SetWindowSize(window, clipped_width, clipped_height);
+//    SDL_SetWindowSize(window, clipped_width, clipped_height);
     /*
     SDL_Rect SrcR;
     SrcR.x = 0;
@@ -1423,6 +1422,11 @@ extern "C" void wasm_set_display(const char *name)
       total_executed_frame_count=0;
       ntsc=false;
     }
+  }
+  else if( strcmp(name,"") == 0)
+  {
+    name= display_names[geometry];
+    printf("reset display=%s\n",name);
   }
 
 
