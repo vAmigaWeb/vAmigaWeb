@@ -2139,6 +2139,13 @@ extern "C" void wasm_set_sample_rate(unsigned sample_rate)
 }
 
 
+
+extern "C" i64 wasm_get_config_item(char* item_name)
+{
+  //if(wrapper->amiga->getConfigItem(OPT_VIDEO_FORMAT)!=NTSC)
+  return wrapper->amiga->getConfigItem(util::parseEnum <OptionEnum>(std::string(item_name)));
+}
+
 extern "C" const char* wasm_configure(char* option, char* _value)
 {
   sprintf(config_result,""); 
