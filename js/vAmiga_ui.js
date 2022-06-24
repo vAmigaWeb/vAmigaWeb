@@ -407,8 +407,8 @@ function message_handler(msg, data, data2)
         let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB'];
         $(`#button_OPT_AGNUS_REVISION`).text(`agnus revision=${agnus_revs[v]} (snapshot)`);
         $(`#button_${"OPT_CHIP_RAM"}`).text(`chip ram=${wasm_get_config_item('CHIP_RAM')} KB (snapshot)`);
-        $(`#button_${"OPT_SLOW_RAM"}`).text(`chip ram=${wasm_get_config_item('SLOW_RAM')} KB (snapshot)`);
-        $(`#button_${"OPT_FAST_RAM"}`).text(`chip ram=${wasm_get_config_item('FAST_RAM')} KB (snapshot)`);
+        $(`#button_${"OPT_SLOW_RAM"}`).text(`slow ram=${wasm_get_config_item('SLOW_RAM')} KB (snapshot)`);
+        $(`#button_${"OPT_FAST_RAM"}`).text(`fast ram=${wasm_get_config_item('FAST_RAM')} KB (snapshot)`);
     }
 
 }
