@@ -540,7 +540,9 @@ touch screen settings for virtual keyboard
             <button type="button" id="button_update" class="btn btn-primary"
             data-toggle="tooltip" data-placement="top" title="normally vAmigaWeb should update automatically. iOS does often not..."
             >update installation manually</button>
-            <br><br><br>
+            <br><br>
+            <div class="mt-2" id="version_display"></div>
+            <br>
           </div>
 
 
@@ -813,6 +815,25 @@ goes into edit mode which takes you right back to here ...
     </div>
     <!--file slot modal-->
 
+<!-- toaster -->
+<!-- Position it -->
+<div style="position: absolute; bottom: 0; right: 0;">
+<div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+  <div class="toast-header bg-dark text-white">
+    <img src="img/icon-72x72.png" class="rounded mr-2" style="width:48px;height:48px" alt="vAmigaWeb">
+    <span style="font-size: larger" class="mr-auto">newer version available</span>
+    <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
+      <span aria-hidden="true">&times;</span>
+    </button>
+  </div>
+  <div class="toast-body bg-dark text-white">
+    <div id="update_dialog"></div>
+    <button type="button" onclick="document.getElementById('button_update').click()" class="btn btn-success mt-2">yes upgrade now</button>
+    <button type="button" class="btn btn-secondary mt-2" data-dismiss="toast">stay on the current version</button>
+  </div>
+</div>
+</div>
+<!-- toaster end-->
 
     <script type='text/javascript'>
       let light_mode = false;

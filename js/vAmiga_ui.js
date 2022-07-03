@@ -1360,6 +1360,7 @@ function InitWrappers() {
     wasm_set_target_fps = Module.cwrap('wasm_set_target_fps', 'undefined', ['number']);
     wasm_get_renderer = Module.cwrap('wasm_get_renderer', 'number');
     wasm_get_config_item = Module.cwrap('wasm_get_config_item', 'number', ['string']);
+    wasm_get_core_version = Module.cwrap('wasm_get_core_version', 'string');
 
 
 
@@ -2469,15 +2470,99 @@ $('.layer').change( function(event) {
         $("#modal_settings").focus();
     });
 
+//---------- update dialog --------
+
+    set_settings_cache_value = async function (key, value)
+    {
+        let settings = await caches.open('settings');
+        await settings.put(key, new Response(value) );
+    }
+    get_settings_cache_value= async function (key)
+    {
+        let settings = await caches.open('settings');
+        let response=await settings.match(key)
+        if(response==undefined)
+            return null;
+        return await response.text();
+    }
 
     document.getElementById('button_update').onclick = async function() 
     {
-        let keys = await caches.keys();
+        //1. try to install new files in new cache
+        //2. when done delete all files in cache other then new cache
+        //3. reload app
+
+        let current_version= await get_settings_cache_value('active_version');
+
+/*        let keys = await caches.keys();
         console.log('deleting cache files:'+keys);
         await Promise.all(keys.map(key => caches.delete(key)));
-
+*/
+        set_settings_cache_value('active_version', sw_version.cache_name);        
         window.location.reload(true);
     }
+    show_new_version_toast= ()=>{
+        $(".toast").toast({autohide: false});
+        $('.toast').toast('show');
+    }
+
+    //when the serviceworker talks with us ...  
+    navigator.serviceWorker.addEventListener("message", async (evt) => {
+        //1. version feststellen
+        //open settings lese active_version
+        current_version = await get_settings_cache_value("active_version");
+        
+        let current_ui='unkown';
+        if(current_version != null)
+        {
+            current_ui=current_version.split('@')[1];
+        }
+
+        let version_selector = `
+        <select id="version_selector">
+            <option value="none">${current_version}</option>
+            <option value="keys">sasasas</option>
+        </select>
+        `;
+
+
+        //2. diese vergleichen mit der des Service workers
+        sw_version=evt.data;
+        if(sw_version.cache_name != current_version)
+        {
+            let upgrade_info = `    
+            currently installed:<br>
+            <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span><br><br>
+            new available version: <br>
+            <span class="ml-2 px-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 outlined">ui <i>${sw_version.ui}</i></span><br>
+            <br>
+            Did you know that upgrading the core may break your saved snapshots?`;
+
+            $('#update_dialog').html(upgrade_info);
+            $('#version_display').html(upgrade_info+ version_selector);
+            
+            show_new_version_toast();
+            $("#button_update").attr("class","btn btn-success");
+        }
+        else
+        {
+            $("#version_display").html(`
+            currently installed:<br>
+            <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>`
+            +version_selector);
+            $("#button_update").attr("class","btn btn-secondary");
+        }
+
+    });
+
+    // ask service worker to send us a version message
+    // wait until it is active
+    navigator.serviceWorker.ready
+    .then( (registration) => {
+        if (registration.active) {
+            registration.active.postMessage('version');
+        }
+    });
 
     setup_browser_interface();
 
