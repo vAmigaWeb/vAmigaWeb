@@ -2520,13 +2520,15 @@ $('.layer').change( function(event) {
 
         let cache_names=await caches.keys();
         let version_selector = `
-        <select id="version_selector" style="background-color:var(--darkbg);color:var(--light);border-radius:6px;border-width:2px;border-color:var(--light);">`;
+        <select id="version_selector" class="ml-2" style="background-color:var(--darkbg);color:var(--light);border-radius:6px;border-width:2px;border-color:var(--light);">`;
         for(c_name of cache_names)
         {
+            let core_name= c_name.split('@')[0];
+            let ui_name= c_name.split('@')[1];
             let selected=c_name==current_version?"selected":"";
             if(c_name != "settings")
             {
-                version_selector+=`<option ${selected} value="${c_name}">${c_name}</option>`;
+                version_selector+=`<option ${selected} value="${c_name}">core ${core_name}, ui ${ui_name}</option>`;
             }
         }
         version_selector+=
@@ -2550,7 +2552,7 @@ $('.layer').change( function(event) {
             $('#update_dialog').html(upgrade_info);
             $('#version_display').html(`${upgrade_info} 
             <br><br>
-            installed versions
+            activate an older installed version
             <br>
             ${version_selector}`);
             
@@ -2563,7 +2565,7 @@ $('.layer').change( function(event) {
             currently active:<br>
             <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>
             <br><br>
-            installed versions
+            activate an older installed version
             <br>
             ${version_selector}`
             );
