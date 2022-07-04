@@ -2518,12 +2518,19 @@ $('.layer').change( function(event) {
             current_ui=current_version.split('@')[1];
         }
 
+        let cache_names=await caches.keys();
         let version_selector = `
-        <select id="version_selector">
-            <option value="none">${current_version}</option>
-            <option value="keys">sasasas</option>
-        </select>
-        `;
+        <select id="version_selector" style="background-color:var(--darkbg);color:var(--light);border-radius:6px;border-width:2px;border-color:var(--light);">`;
+        for(c_name of cache_names)
+        {
+            let selected=c_name==current_version?"selected":"";
+            if(c_name != "settings")
+            {
+                version_selector+=`<option ${selected} value="${c_name}">${c_name}</option>`;
+            }
+        }
+        version_selector+=
+        `</select>`;
 
 
         //2. diese vergleichen mit der des Service workers
@@ -2531,15 +2538,21 @@ $('.layer').change( function(event) {
         if(sw_version.cache_name != current_version)
         {
             let upgrade_info = `    
-            currently installed:<br>
+            currently active:<br>
             <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span><br><br>
             new available version: <br>
             <span class="ml-2 px-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 outlined">ui <i>${sw_version.ui}</i></span><br>
             <br>
-            Did you know that upgrading the core may break your saved snapshots?`;
+            Did you know that upgrading the core may break your saved snapshots?<br/>
+            Don't mind you can still select an older installation to load it ...
+            `;
 
             $('#update_dialog').html(upgrade_info);
-            $('#version_display').html(upgrade_info+ version_selector);
+            $('#version_display').html(`${upgrade_info} 
+            <br><br>
+            installed versions
+            <br>
+            ${version_selector}`);
             
             show_new_version_toast();
             $("#button_update").attr("class","btn btn-success");
@@ -2547,13 +2560,22 @@ $('.layer').change( function(event) {
         else
         {
             $("#version_display").html(`
-            currently installed:<br>
-            <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>`
-            +version_selector);
+            currently active:<br>
+            <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>
+            <br><br>
+            installed versions
+            <br>
+            ${version_selector}`
+            );
             $("#button_update").attr("class","btn btn-secondary");
         }
-
+        document.getElementById('version_selector').onchange = function() {
+            let cache_name = document.getElementById('version_selector').value; 
+            set_settings_cache_value("active_version",cache_name);
+            window.location.reload();
+        }
     });
+
 
     // ask service worker to send us a version message
     // wait until it is active
