@@ -2520,7 +2520,7 @@ $('.layer').change( function(event) {
 
         let cache_names=await caches.keys();
         let version_selector = `
-        manage already installed versions
+        manage already installed versions:
         <br>
         <select id="version_selector" class="ml-2" style="background-color:var(--darkbg);color:var(--light);border-radius:6px;border-width:2px;border-color:var(--light);">`;
         for(c_name of cache_names)
@@ -2576,8 +2576,18 @@ $('.layer').change( function(event) {
         //}
         document.getElementById('remove_version').onclick = function() {
             let select = document.getElementById('version_selector');
-            caches.delete(select.value);
+            let cache_name = select.value;
+            caches.delete(cache_name);
             select.options[select.selectedIndex].remove();
+            if(current_version == cache_name)
+            {//when removing the current version, activate latest version
+                set_settings_cache_value("active_version",sw_version.cache_name);    
+            }
+            if(select.options.length==0)
+            {
+                document.getElementById('remove_version').disabled=true;        
+                document.getElementById('activate_version').disabled=true;
+            }
         }
         document.getElementById('activate_version').onclick = function() {
             let cache_name = document.getElementById('version_selector').value; 
