@@ -2520,6 +2520,8 @@ $('.layer').change( function(event) {
 
         let cache_names=await caches.keys();
         let version_selector = `
+        manage already installed versions
+        <br>
         <select id="version_selector" class="ml-2" style="background-color:var(--darkbg);color:var(--light);border-radius:6px;border-width:2px;border-color:var(--light);">`;
         for(c_name of cache_names)
         {
@@ -2532,8 +2534,11 @@ $('.layer').change( function(event) {
             }
         }
         version_selector+=
-        `</select>`;
-
+        `</select>
+        
+        <button type="button" id="remove_version" class="btn btn-danger btn-sm py-0">remove</button>
+        <button type="button" id="activate_version" class="btn btn-primary btn-sm py-0">activate</button>
+        `;
 
         //2. diese vergleichen mit der des Service workers
         sw_version=evt.data;
@@ -2552,8 +2557,6 @@ $('.layer').change( function(event) {
             $('#update_dialog').html(upgrade_info);
             $('#version_display').html(`${upgrade_info} 
             <br><br>
-            activate an older installed version
-            <br>
             ${version_selector}`);
             
             show_new_version_toast();
@@ -2565,13 +2568,18 @@ $('.layer').change( function(event) {
             currently active:<br>
             <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>
             <br><br>
-            activate an older installed version
-            <br>
             ${version_selector}`
             );
             $("#button_update").attr("class","btn btn-secondary");
         }
-        document.getElementById('version_selector').onchange = function() {
+        //document.getElementById('version_selector').onchange = function() {
+        //}
+        document.getElementById('remove_version').onclick = function() {
+            let select = document.getElementById('version_selector');
+            caches.delete(select.value);
+            select.options[select.selectedIndex].remove();
+        }
+        document.getElementById('activate_version').onclick = function() {
             let cache_name = document.getElementById('version_selector').value; 
             set_settings_cache_value("active_version",cache_name);
             window.location.reload();
