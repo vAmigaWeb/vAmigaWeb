@@ -1,5 +1,5 @@
 const core_version  = '2.1b2'; //has to be the same as the version in Emulator/config.h
-const ui_version = '2022_07_5';
+const ui_version = '2022_07_5_b';
 const cache_name = `${core_version}@${ui_version}`;
 const settings_cache = 'settings';
 

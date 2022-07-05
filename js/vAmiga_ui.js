@@ -2493,12 +2493,16 @@ $('.layer').change( function(event) {
         //3. reload app
 
         let current_version= await get_settings_cache_value('active_version');
-
-/*        let keys = await caches.keys();
-        console.log('deleting cache files:'+keys);
-        await Promise.all(keys.map(key => caches.delete(key)));
-*/
-        set_settings_cache_value('active_version', sw_version.cache_name);        
+        if(current_version == null)
+        {//no version management all caches
+            let keys = await caches.keys();
+            console.log('deleting cache files:'+keys);
+            await Promise.all(keys.map(key => caches.delete(key)));
+        }
+        if(typeof sw_version != 'undefined')
+        {
+            set_settings_cache_value('active_version', sw_version.cache_name);        
+        }
         window.location.reload(true);
     }
     show_new_version_toast= ()=>{
