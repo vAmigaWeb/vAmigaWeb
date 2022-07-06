@@ -1,5 +1,5 @@
 const core_version  = '2.1b2'; //has to be the same as the version in Emulator/config.h
-const ui_version = '2022_07_5_b';
+const ui_version = '2022_07_6';
 const cache_name = `${core_version}@${ui_version}`;
 const settings_cache = 'settings';
 
@@ -39,6 +39,7 @@ self.addEventListener("message", async evt => {
 // install event
 self.addEventListener('install', evt => {
   console.log('service worker installed');
+  self.skipWaiting();
 //no preinstall - installation implicit during fetch
 /*  event.waitUntil(
     caches.open(cache_name).then(function(cache) {

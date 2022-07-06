@@ -2488,13 +2488,9 @@ $('.layer').change( function(event) {
 
     document.getElementById('button_update').onclick = async function() 
     {
-        //1. try to install new files in new cache
-        //2. when done delete all files in cache other then new cache
-        //3. reload app
-
         let current_version= await get_settings_cache_value('active_version');
         if(current_version == null)
-        {//no version management all caches
+        {//no version management then clear all caches
             let keys = await caches.keys();
             console.log('deleting cache files:'+keys);
             await Promise.all(keys.map(key => caches.delete(key)));
@@ -2503,7 +2499,7 @@ $('.layer').change( function(event) {
         {
             set_settings_cache_value('active_version', sw_version.cache_name);        
         }
-        window.location.reload(true);
+        window.location.reload();
     }
     show_new_version_toast= ()=>{
         $(".toast").toast({autohide: false});
@@ -2540,8 +2536,9 @@ $('.layer').change( function(event) {
         version_selector+=
         `</select>
         
-        <button type="button" id="remove_version" class="btn btn-danger btn-sm py-0">remove</button>
-        <button type="button" id="activate_version" class="btn btn-primary btn-sm py-0">activate</button>
+        <button type="button" id="activate_version" class="btn btn-primary btn-sm px-1 py-0">activate</button>
+        <button type="button" id="remove_version" class="btn btn-danger btn-sm px-1 py-0"><svg style="width:1.5em;height:1.5em"><use xlink:href="img/sprites.svg#trash"/></svg>
+        </button>
         `;
 
         //2. diese vergleichen mit der des Service workers
@@ -2549,13 +2546,13 @@ $('.layer').change( function(event) {
         if(sw_version.cache_name != current_version)
         {
             let upgrade_info = `    
-            currently active:<br>
+            currently active version:<br>
             <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span><br><br>
             new available version: <br>
             <span class="ml-2 px-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 outlined">ui <i>${sw_version.ui}</i></span><br>
             <br>
             Did you know that upgrading the core may break your saved snapshots?<br/>
-            Don't mind you can still select an older installation to load it ...
+            Don't mind you can still select and activate an older installation to load it ...
             `;
 
             $('#update_dialog').html(upgrade_info);
@@ -2565,16 +2562,18 @@ $('.layer').change( function(event) {
             
             show_new_version_toast();
             $("#button_update").attr("class","btn btn-success");
+            $("#button_update").text(`download new core ${sw_version.core} ui ${sw_version.ui}`)
         }
         else
         {
             $("#version_display").html(`
-            currently active:<br>
+            currently active version:<br>
             <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>
             <br><br>
             ${version_selector}`
             );
             $("#button_update").attr("class","btn btn-secondary");
+            $("#button_update").text(`reload current version (in case you trashed it)`)
         }
         //document.getElementById('version_selector').onchange = function() {
         //}
