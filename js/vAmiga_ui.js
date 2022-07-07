@@ -2506,6 +2506,32 @@ $('.layer').change( function(event) {
         $('.toast').toast('show');
     }
 
+    has_installed_version=function (cache_name){
+        let has_version=false;
+        let select = document.getElementById('version_selector');
+        for(o of select.options)
+        {
+            if(o.value==sw_version.cache_name)
+            {
+                has_version=true;
+            }
+        }
+        return has_version;
+    }
+    check_download_button_visible = function ()
+    {
+        if(has_installed_version(sw_version.cache_name))
+        {
+            $("#button_update").hide();
+        }
+        else
+        {
+            $("#button_update")
+            .attr("class","btn btn-success")
+            .text(`download new core ${sw_version.core} ui ${sw_version.ui}`)
+            .show();    
+        }
+    }
     //when the serviceworker talks with us ...  
     navigator.serviceWorker.addEventListener("message", async (evt) => {
         //1. version feststellen
@@ -2561,8 +2587,7 @@ $('.layer').change( function(event) {
             ${version_selector}`);
             
             show_new_version_toast();
-            $("#button_update").attr("class","btn btn-success");
-            $("#button_update").text(`download new core ${sw_version.core} ui ${sw_version.ui}`)
+            check_download_button_visible();
         }
         else
         {
@@ -2572,8 +2597,7 @@ $('.layer').change( function(event) {
             <br><br>
             ${version_selector}`
             );
-            $("#button_update").attr("class","btn btn-secondary");
-            $("#button_update").text(`reload current version (in case you trashed it)`)
+            check_download_button_visible();
         }
         //document.getElementById('version_selector').onchange = function() {
         //}
@@ -2583,14 +2607,24 @@ $('.layer').change( function(event) {
             caches.delete(cache_name);
             select.options[select.selectedIndex].remove();
             if(current_version == cache_name)
-            {//when removing the current version, activate latest version
-                set_settings_cache_value("active_version",sw_version.cache_name);    
+            {//when removing the current active version, activate another installed version
+                if(select.options.length>0)
+                {
+                    select.selectedIndex=select.options.length-1;
+                    alert("activate "+select.options[select.selectedIndex].value);
+                    set_settings_cache_value("active_version",select.options[select.selectedIndex].value); 
+                }
+                else
+                {
+                    set_settings_cache_value("active_version",sw_version.cache_name); 
+                }   
             }
             if(select.options.length==0)
             {
                 document.getElementById('remove_version').disabled=true;        
                 document.getElementById('activate_version').disabled=true;
             }
+            check_download_button_visible();
         }
         document.getElementById('activate_version').onclick = function() {
             let cache_name = document.getElementById('version_selector').value; 
