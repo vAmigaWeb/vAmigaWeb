@@ -2506,21 +2506,16 @@ $('.layer').change( function(event) {
         $('.toast').toast('show');
     }
 
-    has_installed_version=function (cache_name){
-        let has_version=false;
-        let select = document.getElementById('version_selector');
-        for(o of select.options)
-        {
-            if(o.value==sw_version.cache_name)
-            {
-                has_version=true;
-            }
-        }
-        return has_version;
+    has_installed_version=async function (cache_name){
+        let cache_names=await caches.keys();
+        for(c_name of cache_names)
+            if(c_name == cache_name)
+                return true;        
+        return false;
     }
-    check_download_button_visible = function ()
+    check_download_button_visible = async function ()
     {
-        if(has_installed_version(sw_version.cache_name))
+        if(await has_installed_version(sw_version.cache_name))
         {
             $("#button_update").hide();
         }
@@ -2562,7 +2557,7 @@ $('.layer').change( function(event) {
         version_selector+=
         `</select>
         
-        <button type="button" id="activate_version" class="btn btn-primary btn-sm px-1 py-0">activate</button>
+        <button type="button" id="activate_version" disabled class="btn btn-primary btn-sm px-1 py-0">activate</button>
         <button type="button" id="remove_version" class="btn btn-danger btn-sm px-1 py-0"><svg style="width:1.5em;height:1.5em"><use xlink:href="img/sprites.svg#trash"/></svg>
         </button>
         `;
@@ -2571,22 +2566,29 @@ $('.layer').change( function(event) {
         sw_version=evt.data;
         if(sw_version.cache_name != current_version)
         {
+            let new_version_already_installed=await has_installed_version(sw_version.cache_name);
+            let new_version_installed_or_not = new_version_already_installed ?
+            `latest version already installed`:
+            `new version available`;
+
             let upgrade_info = `    
             currently active version:<br>
             <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span><br><br>
-            new available version: <br>
+            ${new_version_installed_or_not}: <br>
             <span class="ml-2 px-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 outlined">ui <i>${sw_version.ui}</i></span><br>
             <br>
             Did you know that upgrading the core may break your saved snapshots?<br/>
-            Don't mind you can still select and activate an older installation to load it ...
+            In that case you can still select and activate an older compatible installation to run it ...
             `;
 
             $('#update_dialog').html(upgrade_info);
             $('#version_display').html(`${upgrade_info} 
             <br><br>
             ${version_selector}`);
-            
-            show_new_version_toast();
+            if(!new_version_already_installed)
+            {
+                show_new_version_toast();
+            }
             check_download_button_visible();
         }
         else
@@ -2599,8 +2601,11 @@ $('.layer').change( function(event) {
             );
             check_download_button_visible();
         }
-        //document.getElementById('version_selector').onchange = function() {
-        //}
+        document.getElementById('version_selector').onchange = function() {
+            let select = document.getElementById('version_selector');
+            document.getElementById('activate_version').disabled=
+                (select.options[select.selectedIndex].value == current_version);
+        }
         document.getElementById('remove_version').onclick = function() {
             let select = document.getElementById('version_selector');
             let cache_name = select.value;
@@ -2611,7 +2616,6 @@ $('.layer').change( function(event) {
                 if(select.options.length>0)
                 {
                     select.selectedIndex=select.options.length-1;
-                    alert("activate "+select.options[select.selectedIndex].value);
                     set_settings_cache_value("active_version",select.options[select.selectedIndex].value); 
                 }
                 else
@@ -2623,6 +2627,11 @@ $('.layer').change( function(event) {
             {
                 document.getElementById('remove_version').disabled=true;        
                 document.getElementById('activate_version').disabled=true;
+            }
+            else 
+            {
+                document.getElementById('activate_version').disabled=
+                (select.options[select.selectedIndex].value == current_version);
             }
             check_download_button_visible();
         }
