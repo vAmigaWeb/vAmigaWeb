@@ -72,6 +72,9 @@ self.addEventListener('activate', evt => {
       }
       // and set active version
       await set_settings_cache_value("active_version", cache_name);
+      // and reload app
+      const tabs = await self.clients.matchAll({type:'window'});
+      tabs.forEach((tab)=>{ tab.navigate(tab.url) });
     }
   }
   evt.waitUntil( check_and_update());

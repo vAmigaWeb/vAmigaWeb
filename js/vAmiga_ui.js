@@ -2571,11 +2571,18 @@ $('.layer').change( function(event) {
             `newest version (already installed)`:
             `new version available`;
 
+            let activate_or_install = `
+            <button type="button" id="activate_or_install" class="btn btn-${new_version_already_installed ?"primary":"success"} btn-sm px-1 py-0">${
+                new_version_already_installed ? "activate": "install"
+            }</button>`;
+
+
+
             let upgrade_info = `    
             currently active version (old):<br>
             <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span><br><br>
             ${new_version_installed_or_not}: <br>
-            <span class="ml-2 px-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 outlined">ui <i>${sw_version.ui}</i></span><br>
+            <span class="ml-2 px-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 outlined">ui <i>${sw_version.ui}</i></span> ${activate_or_install}<br>
             <br>
             Did you know that upgrading the core may break your saved snapshots?<br/>
             In that case you can still select and activate an older compatible installation to run it ...
@@ -2640,6 +2647,24 @@ $('.layer').change( function(event) {
             set_settings_cache_value("active_version",cache_name);
             window.location.reload();
         }
+        let activate_or_install_btn = document.getElementById('activate_or_install');
+        if(activate_or_install_btn != null)
+        {
+            activate_or_install_btn.onclick = () => {
+                (async ()=>{
+                    let new_version_already_installed=await has_installed_version(sw_version.cache_name); 
+                    if(new_version_already_installed)
+                    {
+                        set_settings_cache_value("active_version",sw_version.cache_name);
+                        window.location.reload();
+                    }
+                    else
+                    {
+                        document.getElementById("button_update").click();
+                    }
+                })();
+            }
+        }        
     });
 
 
