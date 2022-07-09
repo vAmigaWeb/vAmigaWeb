@@ -536,11 +536,8 @@ touch screen settings for virtual keyboard
               <br><a href="https://vc64web.github.io/doc/about.html" style="font-size:medium">take me to vc64web<svg class="ml-1" style="width:1em;height:1em"><use xlink:href="img/sprites.svg#link"/></svg></a>
             </p>
             <div class="mt-3" id="version_display"></div>
-            <br><br>
-            <button type="button" id="button_update" class="btn btn-primary">update latest available version</button>
             <br>
           </div>
-
 
           </div>
           <div class="modal-footer">
@@ -824,7 +821,7 @@ goes into edit mode which takes you right back to here ...
   </div>
   <div class="toast-body bg-dark text-white">
     <div id="update_dialog"></div>
-    <button type="button" onclick="document.getElementById('button_update').click()" class="btn btn-success mt-2">yes upgrade now</button>
+    <button type="button" onclick="execute_update()" class="btn btn-success mt-2">yes upgrade now</button>
     <button type="button" class="btn btn-secondary mt-2" data-dismiss="toast">stay on the current version</button>
   </div>
 </div>

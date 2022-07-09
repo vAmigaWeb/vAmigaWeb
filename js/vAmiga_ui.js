@@ -2486,7 +2486,7 @@ $('.layer').change( function(event) {
         return await response.text();
     }
 
-    document.getElementById('button_update').onclick = async function() 
+    execute_update = async function() 
     {
         let current_version= await get_settings_cache_value('active_version');
         if(current_version == null)
@@ -2512,20 +2512,6 @@ $('.layer').change( function(event) {
             if(c_name == cache_name)
                 return true;        
         return false;
-    }
-    check_download_button_visible = async function ()
-    {
-        if(await has_installed_version(sw_version.cache_name))
-        {
-            $("#button_update").hide();
-        }
-        else
-        {
-            $("#button_update")
-            .attr("class","btn btn-success")
-            .text(`download new core ${sw_version.core} ui ${sw_version.ui}`)
-            .show();    
-        }
     }
     get_current_ui_version = async function (){
         current_version = await get_settings_cache_value("active_version");
@@ -2581,7 +2567,7 @@ $('.layer').change( function(event) {
             let upgrade_info = `    
             currently active version (old):<br>
             <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span><br><br>
-            ${new_version_installed_or_not}: <br>
+            <span id="new_version_installed_or_not">${new_version_installed_or_not}</span>: <br>
             <span class="ml-2 px-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 outlined">ui <i>${sw_version.ui}</i></span> ${activate_or_install}<br>
             <br>
             Did you know that upgrading the core may break your saved snapshots?<br/>
@@ -2589,6 +2575,7 @@ $('.layer').change( function(event) {
             `;
 
             $('#update_dialog').html(upgrade_info);
+            $('#activate_or_install').remove();
             $('#version_display').html(`${upgrade_info} 
             <br><br>
             ${version_selector}`);
@@ -2596,17 +2583,18 @@ $('.layer').change( function(event) {
             {
                 show_new_version_toast();
             }
-            check_download_button_visible();
         }
         else
         {
             $("#version_display").html(`
             currently active version (newest):<br>
             <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>
+            <button type="button" id="activate_or_install" class="btn btn-success btn-sm px-1 py-0">
+            install</button>
             <br><br>
             ${version_selector}`
             );
-            check_download_button_visible();
+            $("#activate_or_install").hide();
         }
         document.getElementById('version_selector').onchange = function() {
             let select = document.getElementById('version_selector');
@@ -2616,6 +2604,11 @@ $('.layer').change( function(event) {
         document.getElementById('remove_version').onclick = function() {
             let select = document.getElementById('version_selector');
             let cache_name = select.value;
+            if(cache_name == sw_version.cache_name)
+            {
+                $("#new_version_installed_or_not").text("new version available");
+                $("#activate_or_install").text("install").attr("class","btn btn-success btn-sm px-1 py-0").show();
+            }
             caches.delete(cache_name);
             select.options[select.selectedIndex].remove();
             if(current_version == cache_name)
@@ -2640,7 +2633,6 @@ $('.layer').change( function(event) {
                 document.getElementById('activate_version').disabled=
                 (select.options[select.selectedIndex].value == current_version);
             }
-            check_download_button_visible();
         }
         document.getElementById('activate_version').onclick = function() {
             let cache_name = document.getElementById('version_selector').value; 
@@ -2660,7 +2652,7 @@ $('.layer').change( function(event) {
                     }
                     else
                     {
-                        document.getElementById("button_update").click();
+                        execute_update();
                     }
                 })();
             }
@@ -2679,7 +2671,6 @@ $('.layer').change( function(event) {
 
     //in the meantime until message from service worker has not yet arrived show this
     let init_version_display= async ()=>{
-        $("#button_update").hide();
         await get_current_ui_version();
         $("#version_display").html(`
         currently active version:<br>
