@@ -2470,7 +2470,7 @@ $('.layer').change( function(event) {
         $("#modal_settings").focus();
     });
 
-//---------- update dialog --------
+//---------- update management --------
 
     set_settings_cache_value = async function (key, value)
     {
@@ -2527,18 +2527,18 @@ $('.layer').change( function(event) {
             .show();    
         }
     }
-    //when the serviceworker talks with us ...  
-    navigator.serviceWorker.addEventListener("message", async (evt) => {
-        //1. version feststellen
-        //open settings lese active_version
+    get_current_ui_version = async function (){
         current_version = await get_settings_cache_value("active_version");
         
-        let current_ui='unkown';
+        current_ui='unkown';
         if(current_version != null)
         {
             current_ui=current_version.split('@')[1];
         }
-
+    }
+    //when the serviceworker talks with us ...  
+    navigator.serviceWorker.addEventListener("message", async (evt) => {
+        await get_current_ui_version();
         let cache_names=await caches.keys();
         let version_selector = `
         manage already installed versions:
@@ -2651,6 +2651,21 @@ $('.layer').change( function(event) {
             registration.active.postMessage('version');
         }
     });
+
+    //in the meantime until message from service worker has not yet arrived show this
+    let init_version_display= async ()=>{
+        $("#button_update").hide();
+        await get_current_ui_version();
+        $("#version_display").html(`
+        currently active version:<br>
+        <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>
+        <br><br>
+        waiting for service worker...`
+        );
+    };
+    init_version_display();
+
+//------- update management end ---
 
     setup_browser_interface();
 
