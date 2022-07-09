@@ -2549,7 +2549,7 @@ $('.layer').change( function(event) {
             let core_name= c_name.split('@')[0];
             let ui_name= c_name.split('@')[1];
             let selected=c_name==current_version?"selected":"";
-            if(c_name != "settings")
+            if(c_name.includes('@'))
             {
                 version_selector+=`<option ${selected} value="${c_name}">core ${core_name}, ui ${ui_name}</option>`;
             }
@@ -2568,11 +2568,11 @@ $('.layer').change( function(event) {
         {
             let new_version_already_installed=await has_installed_version(sw_version.cache_name);
             let new_version_installed_or_not = new_version_already_installed ?
-            `latest version already installed`:
+            `newest version (already installed)`:
             `new version available`;
 
             let upgrade_info = `    
-            currently active version:<br>
+            currently active version (old):<br>
             <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span><br><br>
             ${new_version_installed_or_not}: <br>
             <span class="ml-2 px-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 outlined">ui <i>${sw_version.ui}</i></span><br>
@@ -2594,7 +2594,7 @@ $('.layer').change( function(event) {
         else
         {
             $("#version_display").html(`
-            currently active version:<br>
+            currently active version (newest):<br>
             <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>
             <br><br>
             ${version_selector}`
