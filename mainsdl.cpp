@@ -1979,68 +1979,15 @@ extern "C" const char* wasm_rom_info()
   return json_result;
 }
 
-
-extern "C" void wasm_set_2nd_sid(long address)
+extern "C" const char* wasm_get_core_version()
 {
-  /*
-  if(address == 0)
-  {
-    wrapper->amiga->configure(OPT_AUDVOL, 1, 0);
-    wrapper->amiga->configure(OPT_SID_ENABLE, 1, false);
-  }
-  else
-  {
-    wrapper->amiga->configure(OPT_AUDVOL, 1, 100);
-    wrapper->amiga->configure(OPT_AUDPAN, 1, 50);
-    wrapper->amiga->configure(OPT_SID_ENABLE, 1, true);
-    wrapper->amiga->configure(OPT_SID_ADDRESS, 1, address);
-  }
-  */
+  sprintf(json_result, "%s",
+    wrapper->amiga->version().c_str() 
+  );
+
+  return json_result;
 }
 
-
-extern "C" void wasm_set_sid_engine(char* engine)
-{
-  printf("wasm_set_sid_engine %s\n", engine);
-/*
-  bool wasRunning=false;
-  if(wrapper->amiga->isRunning()){
-    wasRunning= true;
-    wrapper->amiga->pause();
-  }
-
-
-  if( strcmp(engine,"FastSID") == 0)
-  {
-    printf("c64->configure(OPT_SID_ENGINE, ENGINE_FASTSID);\n");
-    wrapper->amiga->configure(OPT_SID_ENGINE, SIDENGINE_FASTSID);
-  }
-  else if( strcmp(engine,"ReSID fast") == 0)
-  { 
-    printf("c64->configure(OPT_SID_SAMPLING, SID_SAMPLE_FAST);\n");
-    wrapper->amiga->configure(OPT_SID_ENGINE, SIDENGINE_RESID);
-    wrapper->amiga->configure(OPT_SID_SAMPLING, reSID::SAMPLE_FAST);
-  }
-  else if( strcmp(engine,"ReSID interpolate") == 0)
-  {
-    printf("c64->configure(OPT_SID_SAMPLING, SID_SAMPLE_INTERPOLATE);\n");
-    wrapper->amiga->configure(OPT_SID_ENGINE, SIDENGINE_RESID);
-    wrapper->amiga->configure(OPT_SID_SAMPLING, reSID::SAMPLE_INTERPOLATE);
-  }
-  else if( strcmp(engine,"ReSID resample") == 0)
-  {
-    printf("c64->configure(OPT_SID_SAMPLING, SID_SAMPLE_RESAMPLE);\n");
-    wrapper->amiga->configure(OPT_SID_ENGINE, SIDENGINE_RESID);
-    wrapper->amiga->configure(OPT_SID_SAMPLING, reSID::SAMPLE_RESAMPLE);
-  }
-
-
-  if(wasRunning)
-  {
-    wrapper->amiga->run();
-  }
-*/
-}
 
 
 extern "C" void wasm_set_color_palette(char* palette)

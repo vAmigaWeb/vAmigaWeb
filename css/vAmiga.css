@@ -409,3 +409,11 @@ button[id^="detail_run"] {
 {
     background-color: var(--green) !important;
 }
+
+
+
+.outlined {
+    border-radius:5px;
+    border-style:solid;
+    border-width: 2px;
+}
