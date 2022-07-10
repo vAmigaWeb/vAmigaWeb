@@ -2529,6 +2529,7 @@ $('.layer').change( function(event) {
         let version_selector = `
         manage already installed versions:
         <br>
+        <div style="display:flex">
         <select id="version_selector" class="ml-2" style="background-color:var(--darkbg);color:var(--light);border-radius:6px;border-width:2px;border-color:var(--light);">`;
         for(c_name of cache_names)
         {
@@ -2543,9 +2544,10 @@ $('.layer').change( function(event) {
         version_selector+=
         `</select>
         
-        <button type="button" id="activate_version" disabled class="btn btn-primary btn-sm px-1 py-0">activate</button>
-        <button type="button" id="remove_version" class="btn btn-danger btn-sm px-1 py-0"><svg style="width:1.5em;height:1.5em"><use xlink:href="img/sprites.svg#trash"/></svg>
+        <button type="button" id="activate_version" disabled class="btn btn-primary btn-sm px-1 mx-1">activate</button>
+        <button type="button" id="remove_version" class="btn btn-danger btn-sm px-1 mx-1"><svg style="width:1.5em;height:1.5em"><use xlink:href="img/sprites.svg#trash"/></svg>
         </button>
+        </div>
         `;
 
         //2. diese vergleichen mit der des Service workers
@@ -2558,7 +2560,7 @@ $('.layer').change( function(event) {
             `new version available`;
 
             let activate_or_install = `
-            <button type="button" id="activate_or_install" class="btn btn-${new_version_already_installed ?"primary":"success"} btn-sm px-1 py-0">${
+            <button type="button" id="activate_or_install" class="btn btn-${new_version_already_installed ?"primary":"success"} btn-sm px-1 mx-1">${
                 new_version_already_installed ? "activate": "install"
             }</button>`;
 
@@ -2566,16 +2568,21 @@ $('.layer').change( function(event) {
 
             let upgrade_info = `    
             currently active version (old):<br>
-            <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span><br><br>
-            <span id="new_version_installed_or_not">${new_version_installed_or_not}</span>: <br>
-            <span class="ml-2 px-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 outlined">ui <i>${sw_version.ui}</i></span> ${activate_or_install}<br>
+            <div style="display:flex">
+            <span class="ml-2 px-1 py-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${current_ui}</i></span>
+            </div><br>
+            <span id="new_version_installed_or_not">${new_version_installed_or_not}</span>:<br> 
+            <div style="display:flex">
+            <span class="ml-2 px-1 py-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${sw_version.ui}</i></span> ${activate_or_install}
+            </div>
             <br>
-            Did you know that upgrading the core may break your saved snapshots?<br/>
+            <span id="install_warning">Did you know that upgrading the core may break your saved snapshots?<br/>
             In that case you can still select and activate an older compatible installation to run it ...
-            `;
+            </span>`;
 
             $('#update_dialog').html(upgrade_info);
             $('#activate_or_install').remove();
+            $('#install_warning').remove();
             $('#version_display').html(`${upgrade_info} 
             <br><br>
             ${version_selector}`);
@@ -2588,9 +2595,11 @@ $('.layer').change( function(event) {
         {
             $("#version_display").html(`
             currently active version (newest):<br>
-            <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>
-            <button type="button" id="activate_or_install" class="btn btn-success btn-sm px-1 py-0">
+            <div style="display:flex">
+            <span class="ml-2 px-1 py-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${current_ui}</i></span>
+            <button type="button" id="activate_or_install" class="btn btn-success btn-sm px-1 py-1">
             install</button>
+            </div>
             <br><br>
             ${version_selector}`
             );
@@ -2607,7 +2616,7 @@ $('.layer').change( function(event) {
             if(cache_name == sw_version.cache_name)
             {
                 $("#new_version_installed_or_not").text("new version available");
-                $("#activate_or_install").text("install").attr("class","btn btn-success btn-sm px-1 py-0").show();
+                $("#activate_or_install").text("install").attr("class","btn btn-success btn-sm px-1 mx-1").show();
             }
             caches.delete(cache_name);
             select.options[select.selectedIndex].remove();
