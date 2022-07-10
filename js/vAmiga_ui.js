@@ -2575,16 +2575,15 @@ $('.layer').change( function(event) {
             <div style="display:flex">
             <span class="ml-2 px-1 py-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${sw_version.ui}</i></span> ${activate_or_install}
             </div>
-            <br>
-            <span id="install_warning">Did you know that upgrading the core may break your saved snapshots?<br/>
+            <div id="install_warning" class="my-1">Did you know that upgrading the core may break your saved snapshots?<br/>
             In that case you can still select and activate an older compatible installation to run it ...
-            </span>`;
+            </div>`;
 
             $('#update_dialog').html(upgrade_info);
             $('#activate_or_install').remove();
             $('#install_warning').remove();
             $('#version_display').html(`${upgrade_info} 
-            <br><br>
+            <br>
             ${version_selector}`);
             if(!new_version_already_installed)
             {
@@ -2600,7 +2599,7 @@ $('.layer').change( function(event) {
             <button type="button" id="activate_or_install" class="btn btn-success btn-sm px-1 py-1">
             install</button>
             </div>
-            <br><br>
+            <br>
             ${version_selector}`
             );
             $("#activate_or_install").hide();
