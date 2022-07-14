@@ -13,30 +13,16 @@
 #include "SubComponent.h"
 #include "ChangeRecorder.h"
 #include "Constants.h"
-#include "Buffer.h"
-
-using util::Buffer;
-
-struct ScreenBuffer : public Buffer<u32> {
-    
-    bool longFrame;
-    
-    ScreenBuffer(); 
-};
+#include "FrameBuffer.h"
 
 class PixelEngine : public SubComponent {
 
     friend class Denise;
-    // friend class DmaDebugger;
 
     // Current configuration
     PixelEngineConfig config = {};
 
 public:
-
-    // RGBA colors used to visualize the HBLANK and VBLANK area in the debugger
-    static const u32 rgbaHBlank = 0xFF444444;
-    static const u32 rgbaVBlank = 0xFF444444;
 
     //
     // Screen buffers
@@ -50,41 +36,43 @@ private:
      * buffer and the GPU reads from the stable buffer. Once a frame has
      * been completed, the working buffer and the stable buffer are swapped.
      */
-    ScreenBuffer emuTexture[2];
+    FrameBuffer emuTexture[2];
 
-    // Pointer to the texture data in the working buffer
-    u32 *frameBuffer = emuTexture[0].ptr;
+    // The currently active buffer
+    isize activeBuffer = 0;
 
     // Mutex for synchronizing access to the stable buffer
     util::Mutex bufferMutex;
         
     // Buffer with background noise (random black and white pixels)
-    Buffer<u32> noise;
+    Buffer <Texel> noise;
 
     
     //
     // Color management
     //
 
-    // The 32 Amiga color registers
-    u16 colreg[32];
+    // Lookup table for all 4096 Amiga colors
+    Texel colorSpace[4096];
 
-    // RGBA values for all possible 4096 Amiga colors
-    u32 rgba[4096];
+    // Color register colors
+    AmigaColor color[32];
 
-    /* The color register values translated to RGBA
-     * Note that the number of elements exceeds the number of color registers:
-     *  0 .. 31 : RGBA values of the 32 color registers
-     * 32 .. 63 : RGBA values of the 32 color registers in halfbright mode
-     *       64 : Pure black (used if the ECS BRDRBLNK bit is set)
-     * 65 .. 72 : Additional colors used for debugging
+    /* Active color palette
+     *
+     *  0 .. 31 : ABGR values of the 32 color registers
+     * 32 .. 63 : ABGR values of the 32 color registers in halfbright mode
+     * 64 .. 95 : ABGR values used in SuperHires mode
+     *       96 : Pure black (used if the ECS BRDRBLNK bit is set)
+     * 97 .. 99 : Additional debug colors
      */
-    static const int rgbaIndexCnt = 32 + 32 + 1 + 8;
-    u32 indexedRgba[rgbaIndexCnt];
+    static const int paletteCnt = 32 + 32 + 32 + 1 + 3;
+    Texel palette[paletteCnt];
     
-    // Indicates whether HAM mode is switched
+    // Indicates whether HAM mode or SHRES mode is enabled
     bool hamMode;
-    
+    bool shresMode;
+
     
     //
     // Register change history buffer
@@ -106,14 +94,6 @@ public:
  
     // Initializes both frame buffers with a checkerboard pattern
     void clearAll();
-
-    // Initializes (part of) the current frame buffer with a checkerboard pattern
-    void clear(isize line);
-    void clear(isize line, Pixel pixel);
-
-private:
-
-    void clear(u32 *ptr, isize line, Pixel first = 0, Pixel last = HPOS_MAX);
 
 
     //
@@ -167,8 +147,9 @@ private:
         worker
 
         >> colChanges
-        << colreg
-        << hamMode;
+        >> color
+        << hamMode
+        << shresMode;
     }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
@@ -193,19 +174,18 @@ private:
 
 public:
 
-    // Performs a consistency check for debugging.
-    static bool isRgbaIndex(isize nr) { return nr < rgbaIndexCnt; }
+    // Performs a consistency check for debugging
+    static bool isPaletteIndex(isize nr) { return nr < paletteCnt; }
     
-    // Changes one of the 32 Amiga color registers.
+    // Changes one of the 32 Amiga color registers
     void setColor(isize reg, u16 value);
+    void setColor(isize reg, AmigaColor value);
 
-    // Returns a color value in Amiga format or RGBA format
-    u16 getColor(isize nr) const { return colreg[nr]; }
-    u32 getRGBA(isize nr) const { return indexedRgba[nr]; }
+    // Returns a color value in Amiga format
+    u16 getColor(isize nr) const { return color[nr].rawValue(); }
 
-    // Returns sprite color in Amiga format or RGBA format
+    // Returns sprite color in Amiga format
     u16 getSpriteColor(isize s, isize nr) const { return getColor(16 + nr + 2 * (s & 6)); }
-    u32 getSpriteRGBA(isize s, isize nr) const { return rgba[getSpriteColor(s,nr)]; }
 
 
     //
@@ -227,23 +207,19 @@ private:
 
 public:
 
-    // Returns the stable frame buffer
-    const ScreenBuffer &getStableBuffer();
+    // Returns the working buffer or the stable buffer
+    FrameBuffer &getWorkingBuffer();
+    const FrameBuffer &getStableBuffer();
 
-    // Locks or unlocks the stable buffer
-    void lockStableBuffer() { bufferMutex.lock(); }
-    void unlockStableBuffer() { bufferMutex.unlock(); }
+    // Return a pointer into the pixel storage
+    Texel *workingPtr(isize row = 0, isize col = 0);
+    Texel *stablePtr(isize row = 0, isize col = 0);
     
     // Swaps the working buffer and the stable buffer
     void swapBuffers();
     
     // Returns a pointer to randon noise
-    u32 *getNoise() const;
-
-    // Returns the address of the first pixel in a certain frambuffer line
-    u32 *frameBufferAddr() const { return frameBuffer; }
-    u32 *frameBufferAddr(isize v) const { return frameBufferAddr(v, 0); }
-    u32 *frameBufferAddr(isize v, isize h) const;
+    Texel *getNoise() const;
 
     // Called after each line in the VBLANK area
     void endOfVBlankLine();
@@ -276,8 +252,9 @@ public:
     
 private:
     
-    void colorize(u32 *dst, Pixel from, Pixel to);
-    void colorizeHAM(u32 *dst, Pixel from, Pixel to, u16& ham);
+    void colorize(Texel *dst, Pixel from, Pixel to);
+    void colorizeSHRES(Texel *dst, Pixel from, Pixel to);
+    void colorizeHAM(Texel *dst, Pixel from, Pixel to, AmigaColor& ham);
     
     /* Hides some graphics layers. This function is an optional stage applied
      * after colorize(). It can be used to hide some layers for debugging.

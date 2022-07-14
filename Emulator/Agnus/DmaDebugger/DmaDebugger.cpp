@@ -323,16 +323,16 @@ DmaDebugger::hsyncHandler(isize vpos)
     if (!config.enabled) return;
 
     // Draw first chunk (data from previous DMA line)
-    u32 *ptr1 = pixelEngine.frameBufferAddr(vpos);
+    auto *ptr1 = pixelEngine.workingPtr(vpos);
     computeOverlay(ptr1, HBLANK_MIN, HPOS_MAX, busOwner, busValue);
 
     // Draw second chunk (data from current DMA line)
-    u32 *ptr2 = ptr1 + agnus.pos.pixel(0);
+    auto *ptr2 = ptr1 + agnus.pos.pixel(0);
     computeOverlay(ptr2, 0, HBLANK_MIN - 1, agnus.busOwner, agnus.busValue);
 }
 
 void
-DmaDebugger::computeOverlay(u32 *ptr, isize first, isize last, BusOwner *own, u16 *val)
+DmaDebugger::computeOverlay(Texel *ptr, isize first, isize last, BusOwner *own, u16 *val)
 {
     double opacity = config.opacity / 100.0;
     double bgWeight = 0;
@@ -366,15 +366,17 @@ DmaDebugger::computeOverlay(u32 *ptr, isize first, isize last, BusOwner *own, u1
     for (isize i = first; i <= last; i++, ptr += 4) {
 
         BusOwner owner = own[i];
+        // u32 *ptr32 = (u32 *)ptr;
 
         // Handle the easy case first: No foreground pixels
         if (!visualize[owner]) {
 
             if (bgWeight != 0.0) {
-                ptr[0] = GpuColor(ptr[0]).shade(bgWeight).rawValue;
-                ptr[1] = GpuColor(ptr[1]).shade(bgWeight).rawValue;
-                ptr[2] = GpuColor(ptr[2]).shade(bgWeight).rawValue;
-                ptr[3] = GpuColor(ptr[3]).shade(bgWeight).rawValue;
+
+                ptr[0] = TEXEL(GpuColor(ptr[0]).shade(bgWeight).rawValue);
+                ptr[1] = TEXEL(GpuColor(ptr[1]).shade(bgWeight).rawValue);
+                ptr[2] = TEXEL(GpuColor(ptr[2]).shade(bgWeight).rawValue);
+                ptr[3] = TEXEL(GpuColor(ptr[3]).shade(bgWeight).rawValue);
             }
             continue;
         }
@@ -386,16 +388,17 @@ DmaDebugger::computeOverlay(u32 *ptr, isize first, isize last, BusOwner *own, u1
         GpuColor col3 = debugColor[owner][(val[i] & 0x000C) >> 2];
 
         if (fgWeight != 0.0) {
+
             col0 = col0.mix(GpuColor(ptr[0]), fgWeight);
-            col1 = col1.mix(GpuColor(ptr[1]), fgWeight);
-            col2 = col2.mix(GpuColor(ptr[2]), fgWeight);
-            col3 = col3.mix(GpuColor(ptr[3]), fgWeight);
+            col1 = col1.mix(GpuColor(ptr[2]), fgWeight);
+            col2 = col2.mix(GpuColor(ptr[4]), fgWeight);
+            col3 = col3.mix(GpuColor(ptr[6]), fgWeight);
         }
 
-        ptr[0] = col0.rawValue;
-        ptr[1] = col1.rawValue;
-        ptr[2] = col2.rawValue;
-        ptr[3] = col3.rawValue;
+        ptr[0] = TEXEL(col0.rawValue);
+        ptr[1] = TEXEL(col1.rawValue);
+        ptr[2] = TEXEL(col2.rawValue);
+        ptr[3] = TEXEL(col3.rawValue);
     }
 }
 
@@ -408,10 +411,10 @@ DmaDebugger::vSyncHandler()
     // Clear old data in the VBLANK area of the next frame
     for (isize row = 0; row < VBLANK_CNT; row++) {
 
-        u32 *ptr = denise.pixelEngine.frameBufferAddr(row);
+        auto *ptr = denise.pixelEngine.workingPtr(row);
         for (isize col = 0; col < HPIXELS; col++) {
 
-            ptr[col] = PixelEngine::rgbaVBlank;
+            ptr[col] = FrameBuffer::vblank;
         }
     }
 }

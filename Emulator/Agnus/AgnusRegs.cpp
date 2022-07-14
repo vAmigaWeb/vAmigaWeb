@@ -316,11 +316,14 @@ Agnus::setBPLCON0(u16 oldValue, u16 newValue)
 {
     trace(DMA_DEBUG | SEQ_DEBUG, "setBPLCON0(%04x,%04x)\n", oldValue, newValue);
 
-    // Check if the hires bit or one of the BPU bits have been modified
-    if ((oldValue ^ newValue) & 0xF000) {
+    // Determine the new bitmap resolution
+    res = resolution(newValue);
+
+    // Check if one of the resolution bits or the BPU bits have been modified
+    if ((oldValue ^ newValue) & 0xF040) {
             
         // Record the change
-        sequencer.sigRecorder.insert(pos.h, SIG_CON | newValue >> 12);
+        sequencer.sigRecorder.insert(pos.h, HI_W_LO_W(newValue, SIG_CON));
         
         if (bpldma()) {
 

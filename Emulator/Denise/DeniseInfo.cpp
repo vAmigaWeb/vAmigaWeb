@@ -17,6 +17,8 @@ void
 Denise::_inspect() const
 {
     {   SYNCHRONIZED
+
+        info.ecs = isECS();
         
         info.bplcon0 = bplcon0;
         info.bplcon1 = bplcon1;
@@ -39,7 +41,7 @@ Denise::_inspect() const
         }
         for (isize i = 0; i < 32; i++) {
             info.colorReg[i] = pixelEngine.getColor(i);
-            info.color[i] = pixelEngine.getRGBA(i);
+            info.color[i] = (u32)pixelEngine.palette[i];
         }
     }
 }
@@ -70,7 +72,14 @@ Denise::_dump(Category category, std::ostream& os) const
         os << tab("clxSprSpr");
         os << bol(config.clxSprSpr) << std::endl;
     }
-    
+
+    if (category == Category::State) {
+
+        os << tab("Resolution");
+        os << ResolutionEnum::key(res) << std::endl;
+
+    }
+
     if (category == Category::Registers) {
         
         os << tab("BPLCON0");

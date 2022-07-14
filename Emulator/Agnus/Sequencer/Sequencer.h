@@ -312,16 +312,17 @@ private:
     template <bool ecs> void computeBplEvents(isize strt, isize stop, DDFState &state);
 
     // Processes a signal change
-    template <bool ecs> void processSignal(u16 signal, DDFState &state);
+    template <bool ecs> void processSignal(u32 signal, DDFState &state);
  
     // Updates the jump table for the bplEvent table
     void updateBplJumpTable(i16 end = HPOS_MAX);
 
     // Computes the layout of a single fetch unit
-    void computeFetchUnit(u8 dmacon);
+    void computeFetchUnit(u16 dmacon);
     template <u8 channels> void computeLoresFetchUnit();
     template <u8 channels> void computeHiresFetchUnit();
-    
+    template <u8 channels> void computeShresFetchUnit();
+
     
     //
     // Managing the disk, audio, sprite time slot table (SequencerDas.cpp)
