@@ -466,9 +466,9 @@ void set_viewport_dimensions()
       {         
         clipped_width = hstop_max-hstart_min;
         clipped_height = vstop_max-vstart_min;
-        SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height*2); 
-        SDL_SetWindowSize(window, clipped_width, clipped_height*2);
-        glViewport(0, 0, clipped_width, clipped_height*2);
+        SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height*2); 
+        SDL_SetWindowSize(window, clipped_width*TPP, clipped_height*2);
+        glViewport(0, 0, clipped_width*TPP, clipped_height*2);
 
         glUseProgram(basic);
         set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
@@ -490,9 +490,9 @@ void set_viewport_dimensions()
         clipped_width = hstop_max-hstart_min;
         clipped_height = vstop_max-vstart_min;
 
-        SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
-        SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
-        SDL_SetWindowSize(window, clipped_width, clipped_height);
+        SDL_SetWindowMinimumSize(window, clipped_width*TPP, clipped_height);
+        SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height); 
+        SDL_SetWindowSize(window, clipped_width*TPP, clipped_height);
       }
     }
     EM_ASM({scaleVMCanvas()});
@@ -589,14 +589,14 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 
   for(int x=hstop_max_tracking;x>hstop_max_calib;x--)
   {
-//     printf("\nrow:%u\n",x);
+//     printf("\ncol:%u\n",x);
     for(int y=vstart_min_calib;y<vstop_max_calib && !pixels_found;y++)
     {
       Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
-//        printf("%u:%u ",x,pixel);
+//      printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
-        x++; //this line has pixels, so put vstop_max to the next line
+        x++; //this line has pixels, so put hstop_max to the next line
 //          printf("\nlast_xpos=%d, hstop_max=%d\n",x, hstop_max);
         hstop_max_calib= x>hstop_max_calib?x:hstop_max_calib;
         break;
@@ -650,7 +650,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
     }
  
   }
-  //printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
+//  printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
 
   //printf("calib dimensions changed=%d\n",dimensions_changed);
   return dimensions_changed;
@@ -758,7 +758,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     if(now-last_time_calibrated >= 700.0)
     {  
       last_time_calibrated=now;
-      bool dimensions_changed=calculate_viewport_dimensions((Uint32 *)stable_ptr - HBLANK_MIN*4);
+      bool dimensions_changed=calculate_viewport_dimensions((Uint32 *)stable_ptr - HBLANK_MIN*4*TPP);
       if(dimensions_changed)
       {
         set_viewport_dimensions(); 

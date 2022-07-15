@@ -3724,10 +3724,6 @@ function scaleVMCanvas() {
         }
 
         $("#canvas").css("top", topPos + 'px');   
-
-        //durchsichtiges div über alles legen zum scrollen
-
-
     };
 
 
