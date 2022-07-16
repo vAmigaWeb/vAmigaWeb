@@ -2088,6 +2088,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
   bool was_powered_on=wrapper->amiga->isPoweredOn();
 
   bool must_be_off= strcmp(option,"AGNUS_REVISION") == 0 || 
+                    strcmp(option,"DENISE_REVISION") == 0 ||
                     strcmp(option,"CHIP_RAM") == 0 ||
                     strcmp(option,"SLOW_RAM") == 0 ||
                     strcmp(option,"FAST_RAM") == 0;
@@ -2101,7 +2102,10 @@ extern "C" const char* wasm_configure(char* option, char* _value)
     if( strcmp(option,"AGNUS_REVISION") == 0)
     {
       wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <AgnusRevisionEnum>(value)); 
-      //wrapper->amiga->agnus.dump();
+    }
+    else if( strcmp(option,"DENISE_REVISION") == 0)
+    {
+      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <DeniseRevisionEnum>(value));
     }
     else if ( strcmp(option,"BLITTER_ACCURACY") == 0 ||
               strcmp(option,"DRIVE_SPEED") == 0  ||
