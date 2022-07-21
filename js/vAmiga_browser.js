@@ -1,6 +1,6 @@
 var vAmigaWeb_version ="2.1.0_beta4"; //minimum requirement for snapshot version to be compatible
 var compatible_snapshot_version_format=/^(2[.]1[.]0_beta4)$/g
-
+var TPP=1;
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 
@@ -413,9 +413,9 @@ var collectors = {
                 {
                     version += `_beta${src_data[9]}`;
                 }
-
                 width=src_data[13]*256+ src_data[12];
-                height=src_data[17]*256+ src_data[16];;
+                width*=TPP;
+                height=src_data[17]*256+ src_data[16];
                 var ctx = teaser_canvas.getContext("2d");
                 teaser_canvas.width = width;
                 teaser_canvas.height = height;
