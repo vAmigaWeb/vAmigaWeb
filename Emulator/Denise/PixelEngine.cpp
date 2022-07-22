@@ -487,7 +487,7 @@ PixelEngine::colorizeSHRES(Texel *dst, Pixel from, Pixel to)
 
         // Melt two super-hires pixels into a single texel
         for (Pixel i = from; i < to; i++) {
-            dst[i] = palette[64 + mbuf[i]];
+            dst[i] = palette[/*64 +*/ mbuf[i]];
         }
 
     } else {

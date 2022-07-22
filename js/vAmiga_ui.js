@@ -401,11 +401,22 @@ function message_handler(msg, data, data2)
     }
     else if(msg == "MSG_SNAPSHOT_RESTORED")
     {
-        let v=wasm_get_config_item("CPU_OVERCLOCKING");
+        let v=wasm_get_config_item("BLITTER_ACCURACY");
+        $(`#button_OPT_BLITTER_ACCURACY`).text(`blitter accuracy=${v} (snapshot)`);
+        
+        v=wasm_get_config_item("DRIVE_SPEED");
+        $(`#button_OPT_DRIVE_SPEED`).text(`drive speed=${v} (snapshot)`);
+
+        v=wasm_get_config_item("CPU_OVERCLOCKING");
         $(`#button_OPT_CPU_OVERCLOCKING`).text(`68000 CPU=${Math.round((v==0?1:v)*7.09)} MHz (snapshot)`);
         v=wasm_get_config_item("AGNUS_REVISION");
         let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB'];
         $(`#button_OPT_AGNUS_REVISION`).text(`agnus revision=${agnus_revs[v]} (snapshot)`);
+
+        v=wasm_get_config_item("DENISE_REVISION");
+        let denise_revs=['OCS','ECS'];
+        $(`#button_OPT_DENISE_REVISION`).text(`denise revision=${denise_revs[v]} (snapshot)`);
+      
         $(`#button_${"OPT_CHIP_RAM"}`).text(`chip ram=${wasm_get_config_item('CHIP_RAM')} KB (snapshot)`);
         $(`#button_${"OPT_SLOW_RAM"}`).text(`slow ram=${wasm_get_config_item('SLOW_RAM')} KB (snapshot)`);
         $(`#button_${"OPT_FAST_RAM"}`).text(`fast ram=${wasm_get_config_item('FAST_RAM')} KB (snapshot)`);
