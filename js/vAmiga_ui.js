@@ -2070,7 +2070,7 @@ bind_config_choice("OPT_DRIVE_SPEED", "drive speed",['-1', '1', '2', '4', '8'],'
 $('#hardware_settings').append(`<div class="mt-4">hardware settings</div><span style="font-size: smaller;">(shuts machine down on agnus model or memory change)</span>`);
 
 bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_OLD','OCS','ECS_1MB','ECS_2MB'],'ECS_2MB');
-bind_config_choice("OPT_DENISE_REVISION", "denise revision",['OCS','ECS'],'ECS');
+bind_config_choice("OPT_DENISE_REVISION", "denise revision",['OCS','ECS'],'OCS');
 bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
 bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0', (v)=>`${v} KB`, t=>parseInt(t));
 bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
@@ -2545,12 +2545,22 @@ $('.layer').change( function(event) {
         <select id="version_selector" class="ml-2" style="background-color:var(--darkbg);color:var(--light);border-radius:6px;border-width:2px;border-color:var(--light);">`;
         for(c_name of cache_names)
         {
-            let core_name= c_name.split('@')[0];
-            let ui_name= c_name.split('@')[1];
+            let name_parts=c_name.split('@');
+            let core_name= name_parts[0];
+            let ui_name= name_parts[1];
             let selected=c_name==current_version?"selected":"";
+
             if(c_name.includes('@'))
-            {
-                version_selector+=`<option ${selected} value="${c_name}">core ${core_name}, ui ${ui_name}</option>`;
+            {   
+                if(//uat version should not show regular versions and vice versa
+                    location.pathname.startsWith("/uat") ?
+                        ui_name.endsWith("uat")
+                    :
+                        !ui_name.endsWith("uat")
+                )
+                {
+                    version_selector+=`<option ${selected} value="${c_name}">core ${core_name}, ui ${ui_name}</option>`;
+                }
             }
         }
         version_selector+=
