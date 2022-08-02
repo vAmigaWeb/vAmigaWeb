@@ -2142,4 +2142,3 @@ extern "C" void wasm_print_error(unsigned exception_ptr)
     printf("uncaught exception %u: %s\n",exception_ptr, s.c_str());
   }
 }
-
