@@ -2298,35 +2298,10 @@ $('.layer').change( function(event) {
         {
             $("#button_run").click();
         }
-        //let kernal_rom=JSON.parse(wasm_rom_info()).kernal;
-        var faster_open_roms_installed = true; //kernal_rom.startsWith("mega") || kernal_rom.startsWith("Patched");
-        
-        //the roms differ from cold-start to ready prompt, orig-roms 3300ms and open-roms 250ms   
-        var time_since_start=wasm_get_cpu_cycles();
-        var time_coldstart_to_ready_prompt = faster_open_roms_installed ? 500000:2700000;
- 
+
         if(reset_before_load == false)
         {
-            if(time_since_start>time_coldstart_to_ready_prompt)
-            {
-//                console.log("direct cycles now ="+time_since_start+ " time_coldstart_to_ready_prompt"+time_coldstart_to_ready_prompt);
-                execute_load();
-            }
-            else
-            {
-//                 console.log("not direct cycles now ="+time_since_start+ " time_coldstart_to_ready_prompt"+time_coldstart_to_ready_prompt);
-
-                var intervall_id = setInterval(() => {  
-                    var cycles_now= wasm_get_cpu_cycles();
-//                    console.log("cycles now ="+cycles_now+ " time_coldstart_to_ready_prompt"+time_coldstart_to_ready_prompt);
-
-                    if(cycles_now > time_coldstart_to_ready_prompt)
-                    {
-                        clearInterval(intervall_id);
-                        execute_load();
-                    }
-                }, 50);
-            }
+            execute_load();
         }
         else
         {
