@@ -1355,6 +1355,7 @@ function InitWrappers() {
     wasm_peek = Module.cwrap('wasm_peek', 'number', ['number']);
     wasm_poke = Module.cwrap('wasm_poke', 'undefined', ['number', 'number']);
     wasm_has_disk = Module.cwrap('wasm_has_disk', 'number', ['string']);
+    wasm_eject_disk = Module.cwrap('wasm_eject_disk', 'undefined', ['string']);
     wasm_export_disk = Module.cwrap('wasm_export_disk', 'string', ['string']);
     wasm_configure = Module.cwrap('wasm_configure', 'string', ['string', 'string']);
     wasm_write_string_to_ser = Module.cwrap('wasm_write_string_to_ser', 'undefined', ['string']);
@@ -2330,6 +2331,27 @@ $('.layer').change( function(event) {
         }
     );
    
+
+    $('#modal_settings').on('shown.bs.modal', function() 
+    {       
+        if(wasm_has_disk("df0"))
+        {
+            $("#button_eject_disk").show();
+        }
+        else
+        {
+            $("#button_eject_disk").hide();
+        }
+        if(wasm_has_disk("dh0"))
+        {
+            $("#button_eject_hdf").show();
+        }
+        else
+        {
+            $("#button_eject_hdf").hide();
+        }
+    });
+
     document.getElementById('button_take_snapshot').onclick = function() 
     {       
         wasm_halt();
@@ -2354,6 +2376,18 @@ $('.layer').change( function(event) {
             $("#button_export_hdf").hide();
         }
     }
+    $("#button_eject_disk").hide();
+    $('#button_eject_disk').click(function() 
+    {
+        wasm_eject_disk("df0");
+        $("#button_eject_disk").hide();
+    });
+    $("#button_eject_hdf").hide();
+    $('#button_eject_hdf').click(function() 
+    {
+        wasm_eject_disk("dh0");
+        $("#button_eject_hdf").hide();
+    });
     $('#button_export_disk').click(function() 
     {
         let d64_json = wasm_export_disk("df0");

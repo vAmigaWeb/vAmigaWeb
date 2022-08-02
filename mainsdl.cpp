@@ -1233,7 +1233,27 @@ extern "C" bool wasm_has_disk(const char *drive_name)
   }
   return false;
 }
- 
+
+extern "C" void wasm_eject_disk(const char *drive_name)
+{
+  if(strcmp(drive_name,"df0") == 0)
+  {
+    if(wrapper->amiga->df0.hasDisk())
+      wrapper->amiga->df0.ejectDisk();
+  }
+  else if (strcmp(drive_name,"dh0") == 0)
+  {
+    if(wrapper->amiga->hd0.hasDisk())
+    {
+      wrapper->amiga->powerOff();
+      wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
+      wrapper->amiga->powerOn();
+    }
+  }
+}
+
+
+
 extern "C" char* wasm_export_disk(const char *drive_name)
 {
   if(strcmp(drive_name,"df0") == 0)
