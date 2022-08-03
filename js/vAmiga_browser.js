@@ -433,9 +433,9 @@ var collectors = {
                     {
                         ctx.translate(50, 0); // translate to rectangle center 
                         ctx.rotate((Math.PI / 180) * 27); // rotate
-                        ctx.font = '36px serif';
+                        ctx.font = '32px serif';
                         ctx.fillStyle = '#DD0000';
-                        ctx.fillText('V'+version+' please delete', 10, 45);
+                        ctx.fillText('compatible core '+version+' ', 10, 45);
                     }
                     else if(version!=vAmigaWeb_version)
                     {
@@ -480,7 +480,7 @@ var collectors = {
 
                         if(!version.match(compatible_snapshot_version_format))
                         {
-                            alert(`This snapshot has been taken with the older vAmiga version ${version} and can not be loaded with the current version ${vAmigaWeb_version}, sorry.`);
+                            alert(`This snapshot has been taken with vAmiga version ${version} and can not be loaded with the current version ${vAmigaWeb_version}, sorry.`);
                             return;
                         }
                         wasm_loadfile(
