@@ -674,7 +674,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   double elapsedTimeInSeconds = (now - start_time)/1000.0;
   int64_t targetFrameCount = (int64_t)(elapsedTimeInSeconds * target_fps);
  
-  int max_gap = 8;
+  int max_gap = 5;
 
 
   Amiga *amiga = (Amiga *)thisAmiga;
