@@ -17,6 +17,8 @@ void
 Denise::_inspect() const
 {
     {   SYNCHRONIZED
+
+        info.ecs = isECS();
         
         info.bplcon0 = bplcon0;
         info.bplcon1 = bplcon1;
@@ -39,7 +41,7 @@ Denise::_inspect() const
         }
         for (isize i = 0; i < 32; i++) {
             info.colorReg[i] = pixelEngine.getColor(i);
-            info.color[i] = pixelEngine.getRGBA(i);
+            info.color[i] = (u32)pixelEngine.palette[i];
         }
     }
 }
@@ -70,7 +72,14 @@ Denise::_dump(Category category, std::ostream& os) const
         os << tab("clxSprSpr");
         os << bol(config.clxSprSpr) << std::endl;
     }
-    
+
+    if (category == Category::State) {
+
+        os << tab("Resolution");
+        os << ResolutionEnum::key(res) << std::endl;
+
+    }
+
     if (category == Category::Registers) {
         
         os << tab("BPLCON0");
@@ -81,6 +90,12 @@ Denise::_dump(Category category, std::ostream& os) const
         os << hex(bplcon2) << std::endl;
         os << tab("BPLCON3");
         os << hex(bplcon3) << std::endl;
+        os << tab("DIWSTART");
+        os << hex(diwstrt) << std::endl;
+        os << tab("DIWSTOP");
+        os << hex(diwstop) << std::endl;
+        os << tab("DIWHIGH");
+        os << hex(diwhigh) << std::endl;
         os << tab("SPRxDATA");
         for (isize i = 0; i < 8; i++) os << hex(sprdata[i]) << ' ';
         os << std::endl;

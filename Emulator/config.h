@@ -17,13 +17,13 @@
 #define VER_MAJOR 2
 #define VER_MINOR 1
 #define VER_SUBMINOR 0
-#define VER_BETA 2
+#define VER_BETA 5
 
 // Snapshot version number
 #define SNP_MAJOR 2
 #define SNP_MINOR 1
-#define SNP_SUBMINOR 1
-#define SNP_BETA 2
+#define SNP_SUBMINOR 0
+#define SNP_BETA 5
 
 // Uncomment this setting in a release build
 #define RELEASEBUILD
@@ -84,6 +84,18 @@
 
 
 //
+// Video settings
+//
+
+/* Texels per pixel. Set to 1 to generate a texture in hires resolution (every
+ * hires pixel is represented by a single texel). Set to 2 to generate a
+ * texture in super-hires resolution (every hires pixel is represented by a
+ * two texels).
+ */
+#define TPP 2
+
+
+//
 // Audio settings
 //
 
@@ -98,7 +110,8 @@ struct FloatStereo; typedef struct FloatStereo SampleType;
 // Execution settings
 //
 
-static const int NO_SEQ_FASTPATH = 0; // Disable sequencer speed optimizations
+static const int NO_SEQ_FASTPATH = 0; // Disable sequencer fast path
+static const int NO_BPL_FASTPATH = 0; // Disable drawing fast path
 static const int DIAG_BOARD      = 0; // Plug in the diagnose board
 
 

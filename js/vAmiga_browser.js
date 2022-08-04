@@ -1,6 +1,6 @@
-var vAmigaWeb_version ="2.1.1_beta2"; //minimum requirement for snapshot version to be compatible
-var compatible_snapshot_version_format=/^(2[.]1[.]1_beta2)$/g
-
+var vAmigaWeb_version ="2.1.0_beta5"; //minimum requirement for snapshot version to be compatible
+var compatible_snapshot_version_format=/^(2[.]1[.]0_beta5)$/g
+var TPP=1;
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 
@@ -413,9 +413,9 @@ var collectors = {
                 {
                     version += `_beta${src_data[9]}`;
                 }
-
                 width=src_data[13]*256+ src_data[12];
-                height=src_data[17]*256+ src_data[16];;
+                width*=TPP;
+                height=src_data[17]*256+ src_data[16];
                 var ctx = teaser_canvas.getContext("2d");
                 teaser_canvas.width = width;
                 teaser_canvas.height = height;
@@ -433,9 +433,9 @@ var collectors = {
                     {
                         ctx.translate(50, 0); // translate to rectangle center 
                         ctx.rotate((Math.PI / 180) * 27); // rotate
-                        ctx.font = '36px serif';
+                        ctx.font = '32px serif';
                         ctx.fillStyle = '#DD0000';
-                        ctx.fillText('V'+version+' please delete', 10, 45);
+                        ctx.fillText('compatible core '+version+' ', 10, 45);
                     }
                     else if(version!=vAmigaWeb_version)
                     {
@@ -480,7 +480,7 @@ var collectors = {
 
                         if(!version.match(compatible_snapshot_version_format))
                         {
-                            alert(`This snapshot has been taken with the older vAmiga version ${version} and can not be loaded with the current version ${vAmigaWeb_version}, sorry.`);
+                            alert(`This snapshot has been taken with vAmiga version ${version} and can not be loaded with the current version ${vAmigaWeb_version}, sorry.`);
                             return;
                         }
                         wasm_loadfile(

@@ -116,7 +116,7 @@ const GLchar *mergeSource =
   "}                                                  \n";
 
 
-int clip_width  = 724;
+int clip_width  = 724 * TPP;
 int clip_height = 568;
 int clip_offset = 0;//HBLANK_MIN*4;//HBLANK_MAX*4; 
 int buffer_size = 4096;
@@ -182,9 +182,9 @@ GLuint compileProgram(const GLchar *source) {
 }
 
 void set_texture_display_window(const GLuint program, float hstart, float hstop, float vstart, float vstop)
-{
-  const float x1 = (hstart-HBLANK_MIN*4) / HPIXELS;
-  const float x2 = (hstop-HBLANK_MIN*4) / HPIXELS;
+{  
+  const float x1 = (hstart-HBLANK_MIN*4) / (HPIXELS);
+  const float x2 = (hstop-HBLANK_MIN*4) / (HPIXELS);
   const float y1 = vstart  / VPOS_MAX;
   const float y2 = vstop / VPOS_MAX;
 
@@ -201,7 +201,7 @@ void set_texture_display_window(const GLuint program, float hstart, float hstop,
   glEnableVertexAttribArray(corAttrib);
   glVertexAttribPointer(corAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
-  glUniform2f(glGetUniformLocation(merge, "u_diw_size"), hstop-hstart, vstop-vstart);
+  glUniform2f(glGetUniformLocation(merge, "u_diw_size"), (hstop-hstart)*TPP, vstop-vstart);
 
   printf("w=%f h=%f\n",hstop-hstart,vstop-vstart);
 
@@ -239,7 +239,7 @@ GLuint initTexture(const GLuint *source) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, HPIXELS, VPOS_MAX, 0, GL_RGBA, GL_UNSIGNED_BYTE, source);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, HPIXELS*TPP, VPOS_MAX, 0, GL_RGBA, GL_UNSIGNED_BYTE, source);
 
   return texture;
 }
@@ -337,7 +337,7 @@ int eat_border_width = 0;
 int eat_border_height = 0;
 int xOff = 12 + eat_border_width;
 int yOff = 12 + eat_border_height;
-int clipped_width  = HPIXELS -12 -24 -2*eat_border_width; //392
+int clipped_width  = HPIXELS*TPP -12 -24 -2*eat_border_width; //392
 int clipped_height = VPOS_MAX -12 -24 -2*eat_border_height; //248
 
 int bFullscreen = false;
@@ -441,28 +441,6 @@ double start_time=emscripten_get_now();
 unsigned int rendered_frame_count=0;
 unsigned int frames=0, seconds=0;
 // The emscripten "main loop" replacement function.
-void draw_one_frame_into_SDL_noise(void *thisAmiga) 
-{
-
-  Amiga *amiga = (Amiga *)thisAmiga;
-
-  Uint8 *texture = (Uint8 *)amiga->denise.pixelEngine.getNoise(); //screenBuffer();
- 
-//  SDL_RenderClear(renderer);
-  SDL_Rect SrcR;
-  SrcR.x = xOff;
-  SrcR.y = yOff;
-  SrcR.w = clipped_width;
-  SrcR.h = clipped_height;
-  SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*HPIXELS*SrcR.y) + SrcR.x*4, 4*HPIXELS);
-
-  SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
-
-  SDL_RenderPresent(renderer);
-
-  return;
-}
-
 
 u16 vstart_min=26;
 u16 vstop_max=256;
@@ -488,9 +466,9 @@ void set_viewport_dimensions()
       {         
         clipped_width = hstop_max-hstart_min;
         clipped_height = vstop_max-vstart_min;
-        SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height*2); 
-        SDL_SetWindowSize(window, clipped_width, clipped_height*2);
-        glViewport(0, 0, clipped_width, clipped_height*2);
+        SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height*2); 
+        SDL_SetWindowSize(window, clipped_width*TPP, clipped_height*2);
+        glViewport(0, 0, clipped_width*TPP, clipped_height*2);
 
         glUseProgram(basic);
         set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
@@ -512,9 +490,9 @@ void set_viewport_dimensions()
         clipped_width = hstop_max-hstart_min;
         clipped_height = vstop_max-vstart_min;
 
-        SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
-        SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
-        SDL_SetWindowSize(window, clipped_width, clipped_height);
+        SDL_SetWindowMinimumSize(window, clipped_width*TPP, clipped_height);
+        SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height); 
+        SDL_SetWindowSize(window, clipped_width*TPP, clipped_height);
       }
     }
     EM_ASM({scaleVMCanvas()});
@@ -543,13 +521,13 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 
   bool pixels_found=false;
   //top border: get vstart_min from texture
-  Uint32 ref_pixel= texture[HPIXELS*vstart_min_tracking + hstart_min_tracking];
+  Uint32 ref_pixel= texture[(HPIXELS*vstart_min_tracking + hstart_min_tracking)*TPP];
 //    printf("refpixel:%u\n",ref_pixel);
   for(int y=vstart_min_tracking;y<vstart_min_calib && !pixels_found;y++)
   {
 //      printf("\nvstart_line:%u\n",y);
     for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
-      Uint32 pixel= texture[HPIXELS*y + x];
+      Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
 //        printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
@@ -562,7 +540,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
   
   //bottom border: get vstop_max from texture
   pixels_found=false;
-  ref_pixel= texture[ HPIXELS*vstop_max_tracking + hstart_min_tracking];
+  ref_pixel= texture[ (HPIXELS*vstop_max_tracking + hstart_min_tracking)*TPP];
 //    printf("refpixel:%u\n",ref_pixel);
 //    printf("hstart:%u,hstop:%u\n",hstart_min,hstop_max);
   
@@ -570,7 +548,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
   {
 //      printf("\nline:%u\n",y);
     for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
-      Uint32 pixel= texture[HPIXELS*y + x];
+      Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
 //        printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
@@ -584,14 +562,14 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 
   //left border: get hstart_min from texture
   pixels_found=false;
-  ref_pixel= texture[ HPIXELS*vstart_min_tracking + hstart_min_tracking];
+  ref_pixel= texture[ (HPIXELS*vstart_min_tracking + hstart_min_tracking)*TPP];
 
   for(int x=hstart_min_tracking;x<hstart_min_calib;x++)
   {
 //      printf("\nrow:%u\n",x);
     for(int y=vstart_min_calib;y<vstop_max_calib && !pixels_found;y++)
     {
-      Uint32 pixel= texture[HPIXELS*y + x];
+      Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
 //        printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
@@ -604,21 +582,21 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 
   //right border: get hstop_max from texture
   pixels_found=false;
-  ref_pixel= texture[ HPIXELS*vstart_min_tracking + hstop_max_tracking];
+  ref_pixel= texture[ (HPIXELS*vstart_min_tracking + hstop_max_tracking)*TPP];
 //  printf("hstop_max_tracking %d\n",hstop_max_tracking);
 //  printf("hstop_max_calib %d\n",hstop_max_calib);
 //  printf("ref_pixel %d\n",ref_pixel);
 
   for(int x=hstop_max_tracking;x>hstop_max_calib;x--)
   {
-//     printf("\nrow:%u\n",x);
+//     printf("\ncol:%u\n",x);
     for(int y=vstart_min_calib;y<vstop_max_calib && !pixels_found;y++)
     {
-      Uint32 pixel= texture[HPIXELS*y + x];
-//        printf("%u:%u ",x,pixel);
+      Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
+//      printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
-        x++; //this line has pixels, so put vstop_max to the next line
+        x++; //this line has pixels, so put hstop_max to the next line
 //          printf("\nlast_xpos=%d, hstop_max=%d\n",x, hstop_max);
         hstop_max_calib= x>hstop_max_calib?x:hstop_max_calib;
         break;
@@ -672,7 +650,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
     }
  
   }
-  //printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
+//  printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
 
   //printf("calib dimensions changed=%d\n",dimensions_changed);
   return dimensions_changed;
@@ -696,7 +674,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   double elapsedTimeInSeconds = (now - start_time)/1000.0;
   int64_t targetFrameCount = (int64_t)(elapsedTimeInSeconds * target_fps);
  
-  int max_gap = 8;
+  int max_gap = 5;
 
 
   Amiga *amiga = (Amiga *)thisAmiga;
@@ -771,6 +749,8 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   });
 
   auto &stableBuffer = amiga->denise.pixelEngine.getStableBuffer();
+  auto stable_ptr = amiga->denise.pixelEngine.stablePtr();
+
 
   if(geometry == DISPLAY_BORDERLESS)
   {
@@ -778,7 +758,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     if(now-last_time_calibrated >= 700.0)
     {  
       last_time_calibrated=now;
-      bool dimensions_changed=calculate_viewport_dimensions((Uint32 *)stableBuffer.ptr - HBLANK_MIN*4);
+      bool dimensions_changed=calculate_viewport_dimensions((Uint32 *)stable_ptr - HBLANK_MIN*4*TPP);
       if(dimensions_changed)
       {
         set_viewport_dimensions(); 
@@ -805,7 +785,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       glActiveTexture(GL_TEXTURE0);
     }  
 
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS, VPOS_MAX, GL_RGBA, GL_UNSIGNED_BYTE, stableBuffer.ptr+clip_offset);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS*TPP, VPOS_MAX, GL_RGBA, GL_UNSIGNED_BYTE, stable_ptr+clip_offset);
 
     if (currLOF != prevLOF) {
       // Case 1: Interlace drawing
@@ -829,17 +809,17 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   else
   {
 
-    Uint8 *texture = (Uint8 *)(stableBuffer.ptr)+clip_offset*4;
+    Uint8 *texture = (Uint8 *)(stable_ptr)+clip_offset*4;
 
   //  SDL_RenderClear(renderer);
     SDL_Rect SrcR;
 
-    SrcR.x = xOff-HBLANK_MIN*4;
+    SrcR.x = (xOff-HBLANK_MIN*4) *TPP;
     SrcR.y = yOff;
-    SrcR.w = clipped_width;
+    SrcR.w = clipped_width * TPP;
     SrcR.h = clipped_height;
 
-    SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*HPIXELS*SrcR.y) + SrcR.x*4, 4*HPIXELS);
+    SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*HPIXELS*TPP*SrcR.y) + SrcR.x*4, 4*HPIXELS*TPP);
 
     SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
 
@@ -944,7 +924,6 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
     hstop_max=  data3;
     vstop_max=  data4;
     
-
     hstart_min *=2;
     hstop_max *=2;
 
@@ -1062,10 +1041,10 @@ bool create_shader()
     initGeometry(basic, 0,0);
     initGeometry(merge, 0,0);
 
-    auto &stable = wrapper->amiga->denise.pixelEngine.getStableBuffer();
+    auto stable_ptr = wrapper->amiga->denise.pixelEngine.stablePtr();
 
-    longf  = initTexture(stable.ptr /*+ clip_offset*/);
-    shortf = initTexture(stable.ptr /*+ clip_offset*/);
+    longf  = initTexture((const GLuint *)stable_ptr /*+ clip_offset*/);
+    shortf = initTexture((const GLuint *)stable_ptr /*+ clip_offset*/);
 
     glUseProgram(merge);
     glActiveTexture(GL_TEXTURE1);
@@ -1125,7 +1104,7 @@ void create_texture()
   screen_texture = SDL_CreateTexture(renderer,
         /*SDL_PIXELFORMAT_ARGB32*/ SDL_PIXELFORMAT_ABGR8888 
         , SDL_TEXTUREACCESS_STREAMING,
-        HPIXELS, VPOS_MAX);
+        HPIXELS*TPP, VPOS_MAX);
 
   window_surface = SDL_GetWindowSurface(window);
 }
@@ -1254,7 +1233,27 @@ extern "C" bool wasm_has_disk(const char *drive_name)
   }
   return false;
 }
- 
+
+extern "C" void wasm_eject_disk(const char *drive_name)
+{
+  if(strcmp(drive_name,"df0") == 0)
+  {
+    if(wrapper->amiga->df0.hasDisk())
+      wrapper->amiga->df0.ejectDisk();
+  }
+  else if (strcmp(drive_name,"dh0") == 0)
+  {
+    if(wrapper->amiga->hd0.hasDisk())
+    {
+      wrapper->amiga->powerOff();
+      wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
+      wrapper->amiga->powerOn();
+    }
+  }
+}
+
+
+
 extern "C" char* wasm_export_disk(const char *drive_name)
 {
   if(strcmp(drive_name,"df0") == 0)
@@ -1503,9 +1502,9 @@ extern "C" void wasm_set_display(const char *name)
   if(render_method==RENDER_SHADER)
   {
 //    SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
-    SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height*2); 
-    SDL_SetWindowSize(window, clipped_width, clipped_height*2);
-    glViewport(0, 0, clipped_width, clipped_height*2);
+    SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height*2); 
+    SDL_SetWindowSize(window, clipped_width*TPP, clipped_height*2);
+    glViewport(0, 0, clipped_width*TPP, clipped_height*2);
 
     glUseProgram(basic); 
     set_texture_display_window(basic, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
@@ -1514,9 +1513,9 @@ extern "C" void wasm_set_display(const char *name)
   }
   else
   {
-    SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
-    SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
-    SDL_SetWindowSize(window, clipped_width, clipped_height);
+    SDL_SetWindowMinimumSize(window, clipped_width*TPP, clipped_height);
+    SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height); 
+    SDL_SetWindowSize(window, clipped_width*TPP, clipped_height);
   }
 
   EM_ASM({scaleVMCanvas()});
@@ -2109,6 +2108,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
   bool was_powered_on=wrapper->amiga->isPoweredOn();
 
   bool must_be_off= strcmp(option,"AGNUS_REVISION") == 0 || 
+                    strcmp(option,"DENISE_REVISION") == 0 ||
                     strcmp(option,"CHIP_RAM") == 0 ||
                     strcmp(option,"SLOW_RAM") == 0 ||
                     strcmp(option,"FAST_RAM") == 0;
@@ -2122,7 +2122,10 @@ extern "C" const char* wasm_configure(char* option, char* _value)
     if( strcmp(option,"AGNUS_REVISION") == 0)
     {
       wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <AgnusRevisionEnum>(value)); 
-      //wrapper->amiga->agnus.dump();
+    }
+    else if( strcmp(option,"DENISE_REVISION") == 0)
+    {
+      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <DeniseRevisionEnum>(value));
     }
     else if ( strcmp(option,"BLITTER_ACCURACY") == 0 ||
               strcmp(option,"DRIVE_SPEED") == 0  ||
@@ -2159,4 +2162,3 @@ extern "C" void wasm_print_error(unsigned exception_ptr)
     printf("uncaught exception %u: %s\n",exception_ptr, s.c_str());
   }
 }
-

@@ -58,6 +58,8 @@ enum RegChangeID : i32
     SET_DIWSTRT_DENISE,
     SET_DIWSTOP_AGNUS,
     SET_DIWSTOP_DENISE,
+    SET_DIWHIGH_AGNUS,
+    SET_DIWHIGH_DENISE,
     SET_DDFSTRT,
     SET_DDFSTOP,
     
@@ -174,7 +176,7 @@ struct RegChangeRecorder : public util::SortedRingBuffer<RegChange, capacity>
 // Signal change recorder
 //
 
-struct SigRecorder : public util::SortedArray<u16, 256>
+struct SigRecorder : public util::SortedArray<u32, 256>
 {
     bool modified = false;
     
@@ -184,7 +186,7 @@ struct SigRecorder : public util::SortedArray<u16, 256>
         worker << this->modified << this->elements << this->w << this->keys;
     }
     
-    void insert(i64 key, u16 signal) {
+    void insert(i64 key, u32 signal) {
     
         modified = true;
         
@@ -199,7 +201,7 @@ struct SigRecorder : public util::SortedArray<u16, 256>
         SortedArray::insert(key, signal);
     }
     
-    void invalidate(i64 key, u16 signal) {
+    void invalidate(i64 key, u32 signal) {
         
         modified = true;
         

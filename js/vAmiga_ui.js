@@ -401,11 +401,22 @@ function message_handler(msg, data, data2)
     }
     else if(msg == "MSG_SNAPSHOT_RESTORED")
     {
-        let v=wasm_get_config_item("CPU_OVERCLOCKING");
+        let v=wasm_get_config_item("BLITTER_ACCURACY");
+        $(`#button_OPT_BLITTER_ACCURACY`).text(`blitter accuracy=${v} (snapshot)`);
+        
+        v=wasm_get_config_item("DRIVE_SPEED");
+        $(`#button_OPT_DRIVE_SPEED`).text(`drive speed=${v} (snapshot)`);
+
+        v=wasm_get_config_item("CPU_OVERCLOCKING");
         $(`#button_OPT_CPU_OVERCLOCKING`).text(`68000 CPU=${Math.round((v==0?1:v)*7.09)} MHz (snapshot)`);
         v=wasm_get_config_item("AGNUS_REVISION");
         let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB'];
         $(`#button_OPT_AGNUS_REVISION`).text(`agnus revision=${agnus_revs[v]} (snapshot)`);
+
+        v=wasm_get_config_item("DENISE_REVISION");
+        let denise_revs=['OCS','ECS'];
+        $(`#button_OPT_DENISE_REVISION`).text(`denise revision=${denise_revs[v]} (snapshot)`);
+      
         $(`#button_${"OPT_CHIP_RAM"}`).text(`chip ram=${wasm_get_config_item('CHIP_RAM')} KB (snapshot)`);
         $(`#button_${"OPT_SLOW_RAM"}`).text(`slow ram=${wasm_get_config_item('SLOW_RAM')} KB (snapshot)`);
         $(`#button_${"OPT_FAST_RAM"}`).text(`fast ram=${wasm_get_config_item('FAST_RAM')} KB (snapshot)`);
@@ -1344,6 +1355,7 @@ function InitWrappers() {
     wasm_peek = Module.cwrap('wasm_peek', 'number', ['number']);
     wasm_poke = Module.cwrap('wasm_poke', 'undefined', ['number', 'number']);
     wasm_has_disk = Module.cwrap('wasm_has_disk', 'number', ['string']);
+    wasm_eject_disk = Module.cwrap('wasm_eject_disk', 'undefined', ['string']);
     wasm_export_disk = Module.cwrap('wasm_export_disk', 'string', ['string']);
     wasm_configure = Module.cwrap('wasm_configure', 'string', ['string', 'string']);
     wasm_write_string_to_ser = Module.cwrap('wasm_write_string_to_ser', 'undefined', ['string']);
@@ -2059,6 +2071,7 @@ bind_config_choice("OPT_DRIVE_SPEED", "drive speed",['-1', '1', '2', '4', '8'],'
 $('#hardware_settings').append(`<div class="mt-4">hardware settings</div><span style="font-size: smaller;">(shuts machine down on agnus model or memory change)</span>`);
 
 bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_OLD','OCS','ECS_1MB','ECS_2MB'],'ECS_2MB');
+bind_config_choice("OPT_DENISE_REVISION", "denise revision",['OCS','ECS'],'OCS');
 bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
 bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0', (v)=>`${v} KB`, t=>parseInt(t));
 bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
@@ -2137,7 +2150,7 @@ $('.layer').change( function(event) {
 });
 
 //------
-    load_console=function () { var script = document.createElement('script'); script.src="//cdn.jsdelivr.net/npm/eruda"; document.body.appendChild(script); script.onload = function () { eruda.init(
+    load_console=function () { var script = document.createElement('script'); script.src="//cdn.jsdelivr.net/npm/eruda@2.4.1"; document.body.appendChild(script); script.onload = function () { eruda.init(
     {
         defaults: {
             displaySize: 50,
@@ -2286,35 +2299,10 @@ $('.layer').change( function(event) {
         {
             $("#button_run").click();
         }
-        //let kernal_rom=JSON.parse(wasm_rom_info()).kernal;
-        var faster_open_roms_installed = true; //kernal_rom.startsWith("mega") || kernal_rom.startsWith("Patched");
-        
-        //the roms differ from cold-start to ready prompt, orig-roms 3300ms and open-roms 250ms   
-        var time_since_start=wasm_get_cpu_cycles();
-        var time_coldstart_to_ready_prompt = faster_open_roms_installed ? 500000:2700000;
- 
+
         if(reset_before_load == false)
         {
-            if(time_since_start>time_coldstart_to_ready_prompt)
-            {
-//                console.log("direct cycles now ="+time_since_start+ " time_coldstart_to_ready_prompt"+time_coldstart_to_ready_prompt);
-                execute_load();
-            }
-            else
-            {
-//                 console.log("not direct cycles now ="+time_since_start+ " time_coldstart_to_ready_prompt"+time_coldstart_to_ready_prompt);
-
-                var intervall_id = setInterval(() => {  
-                    var cycles_now= wasm_get_cpu_cycles();
-//                    console.log("cycles now ="+cycles_now+ " time_coldstart_to_ready_prompt"+time_coldstart_to_ready_prompt);
-
-                    if(cycles_now > time_coldstart_to_ready_prompt)
-                    {
-                        clearInterval(intervall_id);
-                        execute_load();
-                    }
-                }, 50);
-            }
+            execute_load();
         }
         else
         {
@@ -2343,6 +2331,27 @@ $('.layer').change( function(event) {
         }
     );
    
+
+    $('#modal_settings').on('shown.bs.modal', function() 
+    {       
+        if(wasm_has_disk("df0"))
+        {
+            $("#button_eject_disk").show();
+        }
+        else
+        {
+            $("#button_eject_disk").hide();
+        }
+        if(wasm_has_disk("dh0"))
+        {
+            $("#button_eject_hdf").show();
+        }
+        else
+        {
+            $("#button_eject_hdf").hide();
+        }
+    });
+
     document.getElementById('button_take_snapshot').onclick = function() 
     {       
         wasm_halt();
@@ -2367,6 +2376,18 @@ $('.layer').change( function(event) {
             $("#button_export_hdf").hide();
         }
     }
+    $("#button_eject_disk").hide();
+    $('#button_eject_disk').click(function() 
+    {
+        wasm_eject_disk("df0");
+        $("#button_eject_disk").hide();
+    });
+    $("#button_eject_hdf").hide();
+    $('#button_eject_hdf').click(function() 
+    {
+        wasm_eject_disk("dh0");
+        $("#button_eject_hdf").hide();
+    });
     $('#button_export_disk').click(function() 
     {
         let d64_json = wasm_export_disk("df0");
@@ -2533,12 +2554,22 @@ $('.layer').change( function(event) {
         <select id="version_selector" class="ml-2" style="background-color:var(--darkbg);color:var(--light);border-radius:6px;border-width:2px;border-color:var(--light);">`;
         for(c_name of cache_names)
         {
-            let core_name= c_name.split('@')[0];
-            let ui_name= c_name.split('@')[1];
+            let name_parts=c_name.split('@');
+            let core_name= name_parts[0];
+            let ui_name= name_parts[1];
             let selected=c_name==current_version?"selected":"";
+
             if(c_name.includes('@'))
-            {
-                version_selector+=`<option ${selected} value="${c_name}">core ${core_name}, ui ${ui_name}</option>`;
+            {   
+                if(//uat version should not show regular versions and vice versa
+                    location.pathname.startsWith("/uat") ?
+                        ui_name.endsWith("uat")
+                    :
+                        !ui_name.endsWith("uat")
+                )
+                {
+                    version_selector+=`<option ${selected} value="${c_name}">core ${core_name}, ui ${ui_name}</option>`;
+                }
             }
         }
         version_selector+=
@@ -3724,10 +3755,6 @@ function scaleVMCanvas() {
         }
 
         $("#canvas").css("top", topPos + 'px');   
-
-        //durchsichtiges div über alles legen zum scrollen
-
-
     };
 
 

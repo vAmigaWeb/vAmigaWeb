@@ -16,77 +16,34 @@
 
 #include <fstream>
 
-ScreenBuffer::ScreenBuffer()
-{
-    alloc(PIXELS);
-}
-
 PixelEngine::PixelEngine(Amiga& ref) : SubComponent(ref)
 {
     // Create random background noise pattern
-    noise.alloc(2 * VPIXELS * HPIXELS);
+    noise.alloc(2 * PIXELS);
     for (isize i = 0; i < noise.size; i++) {
-        noise[i] = rand() % 2 ? 0xFF000000 : 0xFFFFFFFF;
+        noise[i] = rand() % 2 ? FrameBuffer::black : FrameBuffer::white;
     }
 }
 
 void
 PixelEngine::clearAll()
 {
-    lockStableBuffer();
-
-    for (isize line = 0; line < VPIXELS; line++) {
-        clear(emuTexture[0].ptr, line);
-    }
-    for (isize line = 0; line < VPIXELS; line++) {
-        clear(emuTexture[1].ptr, line);
-    }
-
-    unlockStableBuffer();
-}
-
-void
-PixelEngine::clear(isize line)
-{
-    clear(frameBuffer, line, 0, HPOS_MAX);
-}
-
-void
-PixelEngine::clear(isize line, Pixel pixel)
-{
-    clear(frameBuffer, line, pixel, pixel);
-}
-
-void
-PixelEngine::clear(u32 *ptr, isize line, Pixel first, Pixel last)
-{
-    ptr += line * HPIXELS;
-
-    constexpr u32 col1 = 0xFF222222; // 0xFF662222
-    constexpr u32 col2 = 0xFF444444; // 0xFFAA4444
-
-    for (Pixel i = 4 * first; i < 4 * (last + 1); i++) {
-        ptr[i] = ((line >> 2) & 1) == ((i >> 3) & 1) ? col1 : col2;
-    }
+    emuTexture[0].clear();
+    emuTexture[1].clear();
 }
 
 void
 PixelEngine::_initialize()
 {
     AmigaComponent::_initialize();
-    
+
     // Setup ECS BRDRBLNK color
-    indexedRgba[64] = GpuColor(0x00, 0x00, 0x00).rawValue;
+    palette[64] = TEXEL(GpuColor(0x00, 0x00, 0x00).rawValue);
     
     // Setup some debug colors
-    indexedRgba[65] = GpuColor(0xD0, 0x00, 0x00).rawValue;
-    indexedRgba[66] = GpuColor(0xA0, 0x00, 0x00).rawValue;
-    indexedRgba[67] = GpuColor(0x90, 0x00, 0x00).rawValue;
-    indexedRgba[68] = GpuColor(0x00, 0xFF, 0xFF).rawValue;
-    indexedRgba[69] = GpuColor(0x00, 0xD0, 0xD0).rawValue;
-    indexedRgba[70] = GpuColor(0x00, 0xA0, 0xA0).rawValue;
-    indexedRgba[71] = GpuColor(0x00, 0x90, 0x90).rawValue;
-    indexedRgba[72] = GpuColor(0xFF, 0x00, 0x00).rawValue;    
+    palette[65] = TEXEL(GpuColor(0xD0, 0x00, 0x00).rawValue);
+    palette[66] = TEXEL(GpuColor(0xA0, 0x00, 0x00).rawValue);
+    palette[67] = TEXEL(GpuColor(0x90, 0x00, 0x00).rawValue);
 }
 
 void
@@ -99,8 +56,8 @@ PixelEngine::_reset(bool hard)
         emuTexture[0].longFrame = true;
         emuTexture[1].longFrame = true;
     }
-    
-    frameBuffer = emuTexture[0].ptr;
+
+    activeBuffer = 0;
     updateRGBA();
 }
 
@@ -205,15 +162,15 @@ void
 PixelEngine::setColor(isize reg, u16 value)
 {
     assert(reg < 32);
+    AmigaColor newColor(value);
 
-    colreg[reg] = value & 0xFFF;
+    color[reg] = newColor;
 
-    u8 r = (value & 0xF00) >> 8;
-    u8 g = (value & 0x0F0) >> 4;
-    u8 b = (value & 0x00F);
+    // Update standard palette entry
+    palette[reg] = colorSpace[value];
 
-    indexedRgba[reg] = rgba[value & 0xFFF];
-    indexedRgba[reg + 32] = rgba[((r / 2) << 8) | ((g / 2) << 4) | (b / 2)];
+    // Update halfbright palette entry
+    palette[reg + 32] = colorSpace[newColor.ehb().rawValue()];
 }
 
 void
@@ -222,20 +179,19 @@ PixelEngine::updateRGBA()
     // Iterate through all 4096 colors
     for (u16 col = 0x000; col <= 0xFFF; col++) {
 
-        // Convert the Amiga color into an RGBA value
         u8 r = (col >> 4) & 0xF0;
         u8 g = (col >> 0) & 0xF0;
         u8 b = (col << 4) & 0xF0;
 
-        // Convert the Amiga value to an RGBA value
+        // Adjust the RBG values according to the current video settings
         adjustRGB(r, g, b);
 
         // Write the result into the register lookup table
-        rgba[col] = HI_HI_LO_LO(0xFF, b, g, r);
+        colorSpace[col] = TEXEL(HI_HI_LO_LO(0xFF, b, g, r));
     }
 
-    // Update all RGBA values that are cached in indexedRgba[]
-    for (isize i = 0; i < 32; i++) setColor(i, colreg[i]);
+    // Update all cached RGBA values
+    for (isize i = 0; i < 32; i++) setColor(i, color[i].rawValue());
 }
 
 void
@@ -315,51 +271,47 @@ PixelEngine::adjustRGB(u8 &r, u8 &g, u8 &b)
     b = u8(newB);
 }
 
-const ScreenBuffer &
+const FrameBuffer &
 PixelEngine::getStableBuffer()
 {
-    if (frameBuffer == emuTexture[0].ptr) {
-        return emuTexture[1];
-    } else {
-        return emuTexture[0];
-    }
+    return emuTexture[!activeBuffer];
+}
+
+FrameBuffer &
+PixelEngine::getWorkingBuffer()
+{
+    return emuTexture[activeBuffer];
+}
+
+Texel *
+PixelEngine::workingPtr(isize row, isize col)
+{
+    assert(row >= 0 && row <= VPOS_MAX);
+    assert(col >= 0 && col <= HPOS_MAX);
+
+    return getWorkingBuffer().pixels.ptr + row * HPIXELS + col;
+}
+
+Texel *
+PixelEngine::stablePtr(isize row, isize col)
+{
+    assert(row >= 0 && row <= VPOS_MAX);
+    assert(col >= 0 && col <= HPOS_MAX);
+
+    return getStableBuffer().pixels.ptr + row * HPIXELS + col;
 }
 
 void
 PixelEngine::swapBuffers()
 {
-    lockStableBuffer();
-    
-    if (frameBuffer == emuTexture[0].ptr) {
-
-        frameBuffer = emuTexture[1].ptr;
-        emuTexture[1].longFrame = agnus.pos.lof;
-
-    } else {
-
-        frameBuffer = emuTexture[0].ptr;
-        emuTexture[0].longFrame = agnus.pos.lof;
-    }
-    
-    unlockStableBuffer();
+    activeBuffer = !activeBuffer;
+    emuTexture[activeBuffer].longFrame = agnus.pos.lof;
 }
 
-u32 *
+Texel *
 PixelEngine::getNoise() const
 {
-    static u32 offset = 0;
-    
-    offset = (offset + 100) % PIXELS;
-    return noise.ptr + offset;
-}
-
-u32 *
-PixelEngine::frameBufferAddr(isize v, isize h) const
-{
-    assert(v >= 0 && v <= VPOS_MAX);
-    assert(h >= 0 && h <= HPOS_MAX);
-    
-    return frameBuffer + v * HPIXELS + h;
+    return noise.ptr + (rand() % PIXELS);
 }
 
 void
@@ -389,14 +341,19 @@ PixelEngine::applyRegisterChange(const RegChange &change)
             break;
 
         case 0x100: // BPLCON0
-            
+
             hamMode = Denise::ham(change.value);
+            shresMode = Denise::shres(change.value);
             break;
             
         default: // It must be a color register then
             
-            assert(change.addr >= 0x180 && change.addr <= 0x1BE);
-            setColor((change.addr - 0x180) >> 1, change.value);
+            auto nr = (change.addr - 0x180) >> 1;
+            assert(nr < 32);
+
+            if (color[nr].rawValue() != change.value) {
+                setColor(nr, change.value);
+            }
             break;
     }
 }
@@ -405,11 +362,11 @@ void
 PixelEngine::colorize(isize line)
 {
     // Jump to the first pixel in the specified line in the active frame buffer
-    u32 *dst = frameBufferAddr(line);
+    auto *dst = workingPtr(line);
     Pixel pixel = 0;
 
     // Initialize the HAM mode hold register with the current background color
-    u16 hold = colreg[0];
+    AmigaColor hold = color[0];
 
     // Add a dummy register change to ensure we draw until the line end
     colChanges.insert(HPIXELS, RegChange { SET_NONE, 0 } );
@@ -421,7 +378,9 @@ PixelEngine::colorize(isize line)
         RegChange &change = colChanges.elements[i];
 
         // Colorize a chunk of pixels
-        if (hamMode) {
+        if (shresMode) {
+            colorizeSHRES(dst, pixel, trigger);
+        } else if (hamMode) {
             colorizeHAM(dst, pixel, trigger, hold);
         } else {
             colorize(dst, pixel, trigger);
@@ -438,21 +397,55 @@ PixelEngine::colorize(isize line)
     // Wipe out the HBLANK area
     auto start = agnus.pos.pixel(HBLANK_MIN);
     auto stop  = agnus.pos.pixel(HBLANK_MAX);
-    for (pixel = start; pixel <= stop; pixel++) dst[pixel] = rgbaHBlank;
+    for (pixel = start; pixel <= stop; pixel++) dst[pixel] = FrameBuffer::hblank;
 }
 
 void
-PixelEngine::colorize(u32 *dst, Pixel from, Pixel to)
+PixelEngine::colorize(Texel *dst, Pixel from, Pixel to)
 {
     u8 *mbuf = denise.mBuffer;
 
     for (Pixel i = from; i < to; i++) {
-        dst[i] = indexedRgba[mbuf[i]];
+        dst[i] = palette[mbuf[i]];
     }
 }
 
 void
-PixelEngine::colorizeHAM(u32 *dst, Pixel from, Pixel to, u16& ham)
+PixelEngine::colorizeSHRES(Texel *dst, Pixel from, Pixel to)
+{
+    auto *mbuf = denise.mBuffer;
+    auto *zbuf = denise.zBuffer;
+
+    if constexpr (sizeof(Texel) == 4) {
+
+        // Output two super-hires pixels as a single texel
+        for (Pixel i = from; i < to; i++) {
+            dst[i] = palette[mbuf[i]];
+        }
+
+    } else {
+
+        // Output each super-hires pixel as a seperate texel
+        for (Pixel i = from; i < to; i++) {
+
+            u32 *p = (u32 *)(dst + i);
+
+            if (Denise::isSpritePixel(zbuf[i])) {
+
+                p[0] =
+                p[1] = u32(palette[mbuf[i]]);
+
+            } else {
+
+                p[0] = u32(palette[mbuf[i] >> 2]);
+                p[1] = u32(palette[mbuf[i] & 3]);
+            }
+        }
+    }
+}
+
+void
+PixelEngine::colorizeHAM(Texel *dst, Pixel from, Pixel to, AmigaColor& ham)
 {
     u8 *bbuf = denise.bBuffer;
     u8 *ibuf = denise.iBuffer;
@@ -461,31 +454,28 @@ PixelEngine::colorizeHAM(u32 *dst, Pixel from, Pixel to, u16& ham)
     for (Pixel i = from; i < to; i++) {
 
         u8 index = ibuf[i];
-        assert(isRgbaIndex(index));
+        assert(isPaletteIndex(index));
 
         switch ((bbuf[i] >> 4) & 0b11) {
 
             case 0b00: // Get color from register
 
-                ham = colreg[index];
+                ham = color[index];
                 break;
 
             case 0b01: // Modify blue
 
-                ham &= 0xFF0;
-                ham |= (index & 0b1111);
+                ham.b = index & 0xF;
                 break;
 
             case 0b10: // Modify red
 
-                ham &= 0x0FF;
-                ham |= (index & 0b1111) << 8;
+                ham.r = index & 0xF;
                 break;
 
             case 0b11: // Modify green
 
-                ham &= 0xF0F;
-                ham |= (index & 0b1111) << 4;
+                ham.g = index & 0xF;
                 break;
 
             default:
@@ -494,9 +484,9 @@ PixelEngine::colorizeHAM(u32 *dst, Pixel from, Pixel to, u16& ham)
 
         // Synthesize pixel
         if (denise.spritePixelIsVisible(i)) {
-            dst[i] = rgba[colreg[mbuf[i]]];
+            dst[i] = palette[mbuf[i]];
         } else {
-            dst[i] = rgba[ham];
+            dst[i] = colorSpace[ham.rawValue()];
         }
     }
 }
@@ -504,7 +494,7 @@ PixelEngine::colorizeHAM(u32 *dst, Pixel from, Pixel to, u16& ham)
 void
 PixelEngine::hide(isize line, u16 layers, u8 alpha)
 {
-    u32 *p = frameBuffer + line * HPIXELS;
+    auto *p = workingPtr(line);
 
     for (Pixel i = 0; i < HPIXELS; i++) {
 

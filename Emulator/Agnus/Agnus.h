@@ -136,7 +136,10 @@ public:
     // Derived values
     //
 
-    // Shift values derives from BPLCON1
+    // Bitplane resolution (derived from bplcon0)
+    Resolution res;
+
+    // Bitplane offsets (derived from bplcon1)
     i8 scrollOdd;
     i8 scrollEven;
     
@@ -266,6 +269,7 @@ private:
         << bpl1mod
         << bpl2mod
         << sprpt
+        << res
         << scrollOdd
         << scrollEven
         
@@ -368,10 +372,14 @@ public:
     
 public:
 
-    // Checks whether Hires or Lores mode is selected
-    static bool hires(u16 value) { return GET_BIT(value, 15); }
-    bool hires() { return hires(bplcon0); }
-    
+    // Computes the bitmap resolution from a given BPLCON0 value
+    Resolution resolution(u16 v);
+
+    // Queries the currently set bitmap resolution
+    bool lores() { return res == LORES; }
+    bool hires() { return res == HIRES; }
+    bool shres() { return res == SHRES; }
+
     // Returns the external synchronization bit from BPLCON0
     static bool ersy(u16 value) { return GET_BIT(value, 1); }
     bool ersy() { return ersy(bplcon0); }
@@ -521,6 +529,7 @@ public:
 
     template <Accessor s> void pokeDIWSTRT(u16 value);
     template <Accessor s> void pokeDIWSTOP(u16 value);
+    template <Accessor s> void pokeDIWHIGH(u16 value);
 
     void pokeBPL1MOD(u16 value);
     void setBPL1MOD(u16 value);
@@ -762,8 +771,9 @@ public:
 
     // Services a bitplane event
     void serviceBPLEvent(EventID id);
-    template <isize nr> void serviceBPLEventHires();
     template <isize nr> void serviceBPLEventLores();
+    template <isize nr> void serviceBPLEventHires();
+    template <isize nr> void serviceBPLEventShres();
 
     // Services a vertical blank interrupt
     void serviceVBLEvent(EventID id);

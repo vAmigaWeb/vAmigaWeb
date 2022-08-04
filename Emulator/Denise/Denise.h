@@ -57,10 +57,11 @@ public:
     // Registers
     //
     
-    // Register values as written by pokeDIWSTRT/STOP()
+    // Register values as written by poke[DIWSTRT/STOP/HIGH]
     u16 diwstrt;
     u16 diwstop;
-    
+    u16 diwhigh;
+
     // Display window coordinates (extracted from DIWSTRT and DIWSTOP)
     isize hstrt;
     isize hstop;
@@ -105,6 +106,9 @@ public:
     u16 initialBplcon0;
     u16 initialBplcon1;
     u16 initialBplcon2;
+
+    // Bitplane resolution (derived from bplcon0)
+    Resolution res;
 
     // Extracted from BPLCON1 to emulate horizontal scrolling
     Pixel pixelOffsetOdd;
@@ -165,6 +169,10 @@ public:
     // The position and control registers of all 8 sprites
     u16 sprpos[8];
     u16 sprctl[8];
+
+    // Horizontal (pixel) coordinates of all 8 sprites
+    i16 sprhpos[8];
+    i16 sprhppos[8];
 
     // The serial shift registers of all 8 sprites
     u16 ssra[8];
@@ -351,6 +359,7 @@ private:
         
         << diwstrt
         << diwstop
+        << diwhigh
         << hstrt
         << hstop
         << hflop
@@ -366,6 +375,7 @@ private:
         << initialBplcon0
         << initialBplcon1
         << initialBplcon2
+        << res
         << pixelOffsetOdd
         << pixelOffsetEven
         << borderColor
@@ -383,6 +393,8 @@ private:
         << sprdatb
         << sprpos
         << sprctl
+        << sprhpos
+        << sprhppos
         << ssra
         << ssrb
         << armed
@@ -409,7 +421,17 @@ public:
     i64 getConfigItem(Option option) const;
     void setConfigItem(Option option, i64 value);
     
-    
+
+    //
+    // Querying chip properties
+    //
+
+public:
+
+    bool isOCS() const { return config.revision == DENISE_OCS; }
+    bool isECS() const { return config.revision == DENISE_ECS; }
+
+
     //
     // Analyzing
     //
@@ -442,19 +464,22 @@ public:
 public:
             
     // Wrappers around the core drawing routines
-    void drawHiresOdd();
-    void drawHiresEven();
-    void drawHiresBoth();
     void drawLoresOdd();
     void drawLoresEven();
     void drawLoresBoth();
+    void drawHiresOdd();
+    void drawHiresEven();
+    void drawHiresBoth();
+    void drawShresOdd();
+    void drawShresEven();
+    void drawShresBoth();
 
 private:
     
     // Core drawing routines
-    template <bool hiresMode> void drawOdd(Pixel offset);
-    template <bool hiresMode> void drawEven(Pixel offset);
-    template <bool hiresMode> void drawBoth(Pixel offset);
+    template <Resolution mode> void drawOdd(Pixel offset);
+    template <Resolution mode> void drawEven(Pixel offset);
+    template <Resolution mode> void drawBoth(Pixel offset);
 
     // Data type used by the translation functions
     typedef struct { u16 zpf1; u16 zpf2; bool prio; bool ham; } PFState;
@@ -490,15 +515,14 @@ private:
     //
 
 public:
-    
-    // Returns the horizontal position of a sprite in sprite coordinates
-    template <isize x> Pixel sprhpos() const {
-        return ((sprpos[x] & 0xFF) << 1) | (sprctl[x] & 0x01); }
 
-    // Returns the horizontal position of a sprite in pixel coordinates
-    template <isize x> Pixel sprhppos() const {
-        return 2 * (sprhpos<x>() + 1) - 4 * HBLANK_MIN; }
-    
+    // Setter for SPRxPOS and SPRxCTL
+    void setSPRxPOS(isize x, u16 value) { sprpos[x] = value; updateSprHCoords(x); }
+    void setSPRxCTL(isize x, u16 value) { sprctl[x] = value; updateSprHCoords(x); }
+
+    // Updates the cached values for horizontal coordinates
+    void updateSprHCoords(isize x);
+
     // Checks the z buffer and returns true if a sprite pixel is visible
     bool spritePixelIsVisible(Pixel hpos) const;
 
@@ -506,18 +530,19 @@ private:
     
     // Draws all sprites
     void drawSprites();
-    
+    template <Resolution R> void drawSprites();
+
     // Draws an sprite pair. Called by drawSprites()
-    template <isize pair> void drawSpritePair();
-    template <isize pair> void drawSpritePair(Pixel hstrt, Pixel hstop,
-                                              Pixel strt1, Pixel strt2);
+    template <isize pair, Resolution R> void drawSpritePair();
+    template <isize pair, Resolution R> void drawSpritePair(Pixel hstrt, Pixel hstop,
+                                                            Pixel strt1, Pixel strt2);
     
     // Replays all recorded sprite register changes
     template <isize pair> void replaySpriteRegChanges();
 
     // Draws a single sprite pixel
-    template <isize x> void drawSpritePixel(Pixel hpos);
-    template <isize x> void drawAttachedSpritePixelPair(Pixel hpos);
+    template <isize x, Resolution R> void drawSpritePixel(Pixel hpos);
+    template <isize x, Resolution R> void drawAttachedSpritePixelPair(Pixel hpos);
 
     
     //
@@ -560,6 +585,7 @@ public:
 
     void setDIWSTRT(u16 value);
     void setDIWSTOP(u16 value);
+    void setDIWHIGH(u16 value);
 
     u16 peekJOY0DATR() const;
     u16 peekJOY1DATR() const;
@@ -602,6 +628,8 @@ public:
 public:
     
     // BPLCON0
+    static bool shres(u16 v) { return GET_BIT(v, 6); }
+    bool shres() const { return ham(bplcon0); }
     static bool hires(u16 v) { return GET_BIT(v, 15); }
     bool hires() const { return hires(bplcon0); }
     static bool lores(u16 v) { return !hires(v); }
@@ -640,7 +668,10 @@ public:
     //
 
 private:
-    
+
+    // Computes the bitmap resolution from a given BPLCON0 value
+    Resolution resolution(u16 v);
+
     // Computes the z buffer depth for playfield 1 or 2
     static u16 zPF(u16 prioBits);
     static u16 zPF1(u16 bplcon2) { return zPF(pf1px(bplcon2)); }
@@ -655,7 +686,6 @@ private:
      * BPLxDAT registers at the end of a fetch unit. It is computed out of the
      * three BPU bits stored in BPLCON0, but not identical with them. The value
      * differs if the BPU bits reflect an invalid bit pattern.
-     * Compare with Agnus::bpu() which returns the Agnus view of the BPU bits.
      */
     static u8 bpu(u16 v);
     u8 bpu() const { return bpu(bplcon0); }
