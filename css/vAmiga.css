@@ -105,6 +105,8 @@ background-color: var(--green) !important;
     opacity: 0.7 !important;
     padding-top: 0.05rem;
     padding-bottom: 0.05rem;
+    z-index: 20;
+    user-select: none;
 }
 
 [data-theme="dark"] .custom-select {
