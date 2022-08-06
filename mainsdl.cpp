@@ -918,6 +918,8 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
   }
   if(type == MSG_VIEWPORT)
   {
+    if(data1==0 && data2==0 && data3 == 0 && data4 == 0)
+      return;
     printf("tracking MSG_VIEWPORT=%d, %d, %d, %d\n",data1, data2, data3, data4);
     hstart_min= data1;
     vstart_min= data2;
@@ -1562,9 +1564,11 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
   if (HDFFile::isCompatible(filename)) {
     printf("is hdf\n");
     wrapper->amiga->powerOff();
-    HDFFile hdf{blob, len};  
+    //HDFFile hdf{blob, len};  
+    HDFFile *hdf = new HDFFile(blob, len);
     wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/true);
-    wrapper->amiga->hd0.init(hdf);
+    wrapper->amiga->hd0.init(*hdf);
+    delete hdf;
     wrapper->amiga->powerOn();
     return "";
   }

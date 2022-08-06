@@ -1395,14 +1395,17 @@ function InitWrappers() {
             numberOfOutputs: 1
         });
 
-        let sound_buffer_address = wasm_get_sound_buffer_address();
-        soundbuffer_slots=[];
-        for(slot=0;slot<16;slot++)
-        {
-            soundbuffer_slots.push(
-                new Float32Array(Module.HEAPF32.buffer, sound_buffer_address+(slot*2048)*4, 2048));
+        init_sound_buffer=function(){
+            console.log("get wasm sound buffer adresses");
+            let sound_buffer_address = wasm_get_sound_buffer_address();
+            soundbuffer_slots=[];
+            for(slot=0;slot<16;slot++)
+            {
+                soundbuffer_slots.push(
+                    new Float32Array(Module.HEAPF32.buffer, sound_buffer_address+(slot*2048)*4, 2048));
+            }
         }
-
+        init_sound_buffer();
 /*        samples_consumed=0;
         setInterval(() => {
             console.log("ap_samples_req: "+samples_consumed/30);
@@ -1436,7 +1439,13 @@ function InitWrappers() {
                       return;
                     }
                 }
-                shuttle.set(soundbuffer_slots[slot++]);
+                let wasm_buffer_slot = soundbuffer_slots[slot++];
+                if(wasm_buffer_slot.byteLength==0)
+                {//slot can be detached when wasm had grown memory, adresses are wrong then so lets reinit
+                    init_sound_buffer();
+                    wasm_buffer_slot = soundbuffer_slots[slot-1];
+                }
+                shuttle.set(wasm_buffer_slot);
                 worklet_node.port.postMessage(shuttle, [shuttle.buffer]);
                 shuttle=null;
                 samples-=1024;
