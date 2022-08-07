@@ -946,10 +946,7 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
     hstart_min_tracking = hstart_min;
     hstop_max_tracking = hstop_max;
 
-    if(geometry==DISPLAY_ADAPTIVE)
-    {
-      set_viewport_dimensions();
-    }
+    set_viewport_dimensions();
     reset_calibration=true;
   }
   else if(type == MSG_VIDEO_FORMAT)
