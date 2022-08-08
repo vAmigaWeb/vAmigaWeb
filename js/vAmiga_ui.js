@@ -2275,7 +2275,12 @@ $('.layer').change( function(event) {
         $('#modal_file_slot').modal('hide');
 
         var execute_load = async function(){
-            var filetype = wasm_loadfile(file_slot_file_name, file_slot_file, file_slot_file.byteLength);
+            //var filetype = wasm_loadfile(file_slot_file_name, file_slot_file, file_slot_file.byteLength);
+            //avoid sending parameter via stack
+            var file_slot_wasmbuf = Module._malloc(file_slot_file.length*file_slot_file.BYTES_PER_ELEMENT);
+            Module.HEAPU8.set(file_slot_file, file_slot_wasmbuf);
+            Module.ccall('wasm_loadFile', 'string', ['string','number','number'], [file_slot_file_name,file_slot_wasmbuf,file_slot_file.byteLength]);
+            Module._free(file_slot_wasmbuf);
 
             //if it is a disk from a multi disk zip file, apptitle should be the name of the zip file only
             //instead of disk1, disk2, etc....
