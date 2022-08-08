@@ -2536,10 +2536,16 @@ $('.layer').change( function(event) {
         }
         window.location.reload();
     }
+    
+    $("#div_toast").hide();
     show_new_version_toast= ()=>{
+        $("#div_toast").show();
         $(".toast").toast({autohide: false});
         $('.toast').toast('show');
     }
+    $('.toast').on('hidden.bs.toast', function () {
+        $("#div_toast").hide();
+    });
 
     has_installed_version=async function (cache_name){
         let cache_names=await caches.keys();
