@@ -412,8 +412,7 @@ function execute_joystick_script(cmd_tokens)
         }
         wasm_loadfile(
             snapshot.title+".vAmiga",
-            snapshot.data, 
-            snapshot.data.length);
+            snapshot.data);
         if(!is_running())
         {
             $("#button_run").click();

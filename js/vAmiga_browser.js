@@ -460,8 +460,7 @@ var collectors = {
                 }
                 wasm_loadfile(
                             global_apptitle /*snapshot.title*/+".vAmiga",
-                            snapshot_data, 
-                            snapshot_data.length);
+                            snapshot_data);
                 $('#snapshotModal').modal('hide');
                 if(!is_running())
                 {
@@ -485,8 +484,7 @@ var collectors = {
                         }
                         wasm_loadfile(
                             snapshot.title+".vAmiga",
-                            snapshot.data, 
-                            snapshot.data.length);
+                            snapshot.data);
                         $('#snapshotModal').modal('hide');
                         global_apptitle=snapshot.title;
                         get_custom_buttons(global_apptitle, 
