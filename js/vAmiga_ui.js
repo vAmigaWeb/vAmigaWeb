@@ -434,7 +434,7 @@ async function fetchOpenROMS(){
             var rom_url_path = response.url.split('/');
             var rom_name = rom_url_path[rom_url_path.length-1];
 
-            var romtype = wasm_loadfile(rom_name+suffix, byteArray, byteArray.byteLength);
+            var romtype = wasm_loadfile(rom_name+suffix, byteArray);
             if(romtype != "")
             {
                 localStorage.setItem(romtype, rom_name);
@@ -480,7 +480,7 @@ async function load_roms(install_to_core){
             if(install_to_core)
             {
 
-                romtype = wasm_loadfile(item_name+type, restoredbytearray, restoredbytearray.byteLength);
+                romtype = wasm_loadfile(item_name+type, restoredbytearray);
                 if(!romtype.endsWith("rom") && !romtype.endsWith("rom_ext"))
                 {//in case the core thinks rom is not valid anymore delete it
                     delete_rom(item_name);
@@ -712,7 +712,7 @@ function configure_file_dialog(reset=false)
         {
             var romtype = wasm_loadfile(file_slot_file_name+
                 (file_slot_file_name.indexOf("ext")<0?".rom_file":".rom_ext_file")
-                , file_slot_file, file_slot_file.byteLength);
+                , file_slot_file);
             if(romtype != "")
             {
                 localStorage.setItem(romtype, file_slot_file_name);
@@ -1329,7 +1329,17 @@ function restore_manual_state(port)
 
 
 function InitWrappers() {
-    wasm_loadfile = Module.cwrap('wasm_loadFile', 'string', ['string', 'array', 'number']);
+
+    //wasm_loadfile = Module.cwrap('wasm_loadFile', 'string', ['string', 'array', 'number']);
+    wasm_loadfile = function (file_name, file_buffer) {
+        var file_slot_wasmbuf = Module._malloc(file_buffer.byteLength);
+        Module.HEAPU8.set(file_buffer, file_slot_wasmbuf);
+        var retVal=Module.ccall('wasm_loadFile', 'string', ['string','number','number'], [file_name,file_slot_wasmbuf,file_buffer.byteLength]);
+        Module._free(file_slot_wasmbuf);
+        console.log("retval--"+retVal);
+        return retVal;                    
+    }
+    
     wasm_key = Module.cwrap('wasm_key', 'undefined', ['number', 'number']);
     wasm_toggleFullscreen = Module.cwrap('wasm_toggleFullscreen', 'undefined');
     wasm_joystick = Module.cwrap('wasm_joystick', 'undefined', ['string']);
@@ -1558,28 +1568,28 @@ function InitWrappers() {
             if(event.data.floppy_rom !== undefined)
             {
                 let byteArray = event.data.floppy_rom;
-                let rom_type=wasm_loadfile("1541.rom", byteArray, byteArray.byteLength);
+                let rom_type=wasm_loadfile("1541.rom", byteArray);
                 copy_to_local_storage(rom_type, byteArray);
                 with_reset=true;
             }
             if(event.data.basic_rom !== undefined)
             {
                 let byteArray = event.data.basic_rom;
-                let rom_type=wasm_loadfile("basic.rom", byteArray, byteArray.byteLength);
+                let rom_type=wasm_loadfile("basic.rom", byteArray);
                 copy_to_local_storage(rom_type, byteArray);
                 with_reset=true;
             }
             if(event.data.kernal_rom !== undefined)
             {
                 let byteArray = event.data.kernal_rom;
-                let rom_type=wasm_loadfile("kernal.rom", byteArray, byteArray.byteLength);
+                let rom_type=wasm_loadfile("kernal.rom", byteArray);
                 copy_to_local_storage(rom_type, byteArray);
                 with_reset=true;
             }
             if(event.data.charset_rom !== undefined)
             {
                 let byteArray = event.data.charset_rom;
-                let rom_type=wasm_loadfile("charset.rom", byteArray, byteArray.byteLength);
+                let rom_type=wasm_loadfile("charset.rom", byteArray);
                 copy_to_local_storage(rom_type, byteArray);
                 with_reset=true;
             }
@@ -2275,12 +2285,7 @@ $('.layer').change( function(event) {
         $('#modal_file_slot').modal('hide');
 
         var execute_load = async function(){
-            //var filetype = wasm_loadfile(file_slot_file_name, file_slot_file, file_slot_file.byteLength);
-            //avoid sending parameter via stack
-            var file_slot_wasmbuf = Module._malloc(file_slot_file.length*file_slot_file.BYTES_PER_ELEMENT);
-            Module.HEAPU8.set(file_slot_file, file_slot_wasmbuf);
-            Module.ccall('wasm_loadFile', 'string', ['string','number','number'], [file_slot_file_name,file_slot_wasmbuf,file_slot_file.byteLength]);
-            Module._free(file_slot_wasmbuf);
+            var filetype = wasm_loadfile(file_slot_file_name, file_slot_file);
 
             //if it is a disk from a multi disk zip file, apptitle should be the name of the zip file only
             //instead of disk1, disk2, etc....
