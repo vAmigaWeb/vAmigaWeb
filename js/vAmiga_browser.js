@@ -416,6 +416,12 @@ var collectors = {
                 width=src_data[13]*256+ src_data[12];
                 width*=TPP;
                 height=src_data[17]*256+ src_data[16];
+                if(width==0)
+                {//width is 0 if there is structure padding for 8 byte aligment instead of 4
+                    width=src_data[13+4]*256+ src_data[12+4];
+                    width*=TPP;
+                    height=src_data[17+4]*256+ src_data[16+4];
+                }
                 var ctx = teaser_canvas.getContext("2d");
                 teaser_canvas.width = width;
                 teaser_canvas.height = height;
