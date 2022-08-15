@@ -7,8 +7,10 @@
 // See https://www.gnu.org for license information
 // -----------------------------------------------------------------------------
 
+#include "config.h"
+#include "MoiraConfig.h"
 #include "Moira.h"
-
+#include "MoiraMacros.h"
 #include <cstring>
 #include <cstdio>
 
@@ -22,7 +24,7 @@ bool
 Guard::eval(u32 addr, Size S)
 {
     if (this->addr >= addr && this->addr < addr + S && this->enabled) {
-        
+
         if (!ignore) return true;
         ignore--;
     }
@@ -106,7 +108,7 @@ void
 Guards::replace(long nr, u32 addr)
 {
     if (nr >= count || isSetAt(addr)) return;
-    
+
     guards[nr].addr = addr;
 }
 
@@ -163,9 +165,9 @@ bool
 Guards::eval(u32 addr, Size S)
 {
     for (int i = 0; i < count; i++) {
-        
+
         if (guards[i].eval(addr, S)) {
-            
+
             hit = guards[i];
             return true;
         }
@@ -209,7 +211,7 @@ SoftwareTraps::create(u16 instr)
     // Seek an unsed LINE-A instruction
     u16 key = 0xA000;
     while (traps.contains(key)) key++;
-    
+
     return create(key, instr);
 }
 
@@ -219,7 +221,7 @@ SoftwareTraps::create(u16 key, u16 instr)
     assert(Debugger::isLineAInstr(key));
     assert(traps.size() < 512);
     assert(!traps.contains(key));
-    
+
     traps[key] = SoftwareTrap { .instruction = instr };
     return key;
 }
@@ -256,7 +258,7 @@ bool
 Debugger::softstopMatches(u32 addr)
 {
     if (softStop && (*softStop < 0 || *softStop == addr)) {
-        
+
         // Soft breakpoints are deleted when reached
         softStop = { };
         breakpoints.setNeedsCheck(breakpoints.elements() != 0);
@@ -322,7 +324,7 @@ Debugger::logEntryAbs(int n)
     return logEntryRel(loggedInstructions() - n - 1);
 }
 
-string
+std::string
 Debugger::vectorName(u8 vectorNr)
 {
     if (vectorNr >= 12 && vectorNr <= 14) {
@@ -344,7 +346,7 @@ Debugger::vectorName(u8 vectorNr)
         return "User interrupt vector";
     }
     switch (vectorNr) {
-    
+
         case 0:     return "Reset SP";
         case 1:     return "Reset PC";
         case 2:     return "Bus error";
@@ -369,7 +371,7 @@ void
 Debugger::jump(u32 addr)
 {
     moira.reg.pc = addr;
-    moira.fullPrefetch<POLLIPL>();
+    moira.fullPrefetch<M68000, POLLIPL>();
 }
 
 }

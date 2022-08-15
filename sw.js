@@ -1,6 +1,6 @@
 const url_root_path= self.location.pathname.replace("/sw.js","");
-const core_version  = '2.1b5'; //has to be the same as the version in Emulator/config.h
-const ui_version = '2022_08_10'+url_root_path.replace("/","_");
+const core_version  = '3.0b1'; //has to be the same as the version in Emulator/config.h
+const ui_version = '2022_08_15b'+url_root_path.replace("/","_");
 const cache_name = `${core_version}@${ui_version}`;
 const settings_cache = 'settings';
 

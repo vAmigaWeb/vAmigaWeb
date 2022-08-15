@@ -2034,10 +2034,11 @@ function validate_hardware()
 
 validate_hardware();
 
-function bind_config_choice(key, name, values, default_value, value2text=null, text2value=null){
+function bind_config_choice(key, name, values, default_value, value2text=null, text2value=null, targetElement=null){
     value2text = value2text == null ? (t)=>t: value2text;
     text2value = text2value == null ? (t)=>t: text2value;
-    $('#hardware_settings').append(
+    
+    $(targetElement==null?'#hardware_settings':targetElement).append(
     `
     <div class="dropdown mr-1 mt-3">
         <button id="button_${key}" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -2095,16 +2096,27 @@ bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'20
 bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0', (v)=>`${v} KB`, t=>parseInt(t));
 bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
 
-bind_config_choice("OPT_CPU_OVERCLOCKING", "68000 CPU",[0,2,3,4,5,6,8,12,14], 0, 
+$('#hardware_settings').append("<div id='divCPU' style='display:flex;flex-direction:row'></div>");
+bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2], 0, 
+(v)=>{ return (68000+v*10)},
+(t)=>{
+    let val = t;
+    val = (val-68000)/10;
+    return val;
+}, "#divCPU");
+
+bind_config_choice("OPT_CPU_OVERCLOCKING", "@",[0,2,3,4,5,6,8,12,14], 0, 
 (v)=>{ return Math.round((v==0?1:v)*7.09)+' MHz'},
 (t)=>{
     let val =t.replace(' MHz','');
     val = Math.round(val /7.09);
     return val == 1 ? 0: val;
-});
+},"#divCPU");
 $('#hardware_settings').append(`<div style="font-size: smaller" class="ml-3 vbk_choice_text">
 <span>7.09 Mhz</span> is the original speed of a stock A1000 or A500 machine. For effective overclocking be sure to enable fast ram and disable slow ram otherwise the overclocked CPU will get blocked by chipset DMA. CPU speed is proportional to energy consumption.
 </div>`);
+
+
 
 //------
 

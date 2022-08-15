@@ -785,6 +785,17 @@ Memory::patchExpansionLib()
     }
 }
 
+bool
+Memory::isRelocated()
+{
+    if (rom) {
+        auto addr = HI_HI_LO_LO(rom[4], rom[5], rom[6], rom[7]);
+        return (addr & 0x00F00000) != 0x00F00000;
+    } else {
+        return false;
+    }
+}
+
 template <> MemorySource
 Memory::getMemSrc <ACCESSOR_CPU> (u32 addr)
 {
@@ -908,7 +919,7 @@ Memory::updateCpuMemSrcTable()
 
     // Expansion boards
     zorro.updateMemSrcTables();
-    
+
     msgQueue.put(MSG_MEM_LAYOUT);
 }
 
@@ -1350,7 +1361,7 @@ Memory::peek8 <ACCESSOR_CPU> (u32 addr)
         case MEM_ROM_MIRROR:    return peek8 <ACCESSOR_CPU, MEM_ROM>      (addr);
         case MEM_WOM:           return peek8 <ACCESSOR_CPU, MEM_WOM>      (addr);
         case MEM_EXT:           return peek8 <ACCESSOR_CPU, MEM_EXT>      (addr);
-            
+
         default:
             fatalError;
     }
@@ -1379,7 +1390,7 @@ Memory::peek16 <ACCESSOR_CPU> (u32 addr)
         case MEM_ROM_MIRROR:    return peek16 <ACCESSOR_CPU, MEM_ROM>      (addr);
         case MEM_WOM:           return peek16 <ACCESSOR_CPU, MEM_WOM>      (addr);
         case MEM_EXT:           return peek16 <ACCESSOR_CPU, MEM_EXT>      (addr);
-            
+
         default:
             fatalError;
     }
@@ -1408,7 +1419,7 @@ Memory::spypeek16 <ACCESSOR_CPU> (u32 addr) const
         case MEM_ROM_MIRROR:    return spypeek16 <ACCESSOR_CPU, MEM_ROM>      (addr);
         case MEM_WOM:           return spypeek16 <ACCESSOR_CPU, MEM_WOM>      (addr);
         case MEM_EXT:           return spypeek16 <ACCESSOR_CPU, MEM_EXT>      (addr);
-            
+
         default:
             fatalError;
     }
@@ -1797,7 +1808,7 @@ Memory::poke8 <ACCESSOR_CPU> (u32 addr, u8 value)
         case MEM_ROM_MIRROR:    poke8 <ACCESSOR_CPU, MEM_ROM>      (addr, value); return;
         case MEM_WOM:           poke8 <ACCESSOR_CPU, MEM_WOM>      (addr, value); return;
         case MEM_EXT:           poke8 <ACCESSOR_CPU, MEM_EXT>      (addr, value); return;
-            
+
         default:
             fatalError;
     }
@@ -1826,7 +1837,7 @@ Memory::poke16 <ACCESSOR_CPU> (u32 addr, u16 value)
         case MEM_ROM_MIRROR:    poke16 <ACCESSOR_CPU, MEM_ROM>      (addr, value); return;
         case MEM_WOM:           poke16 <ACCESSOR_CPU, MEM_WOM>      (addr, value); return;
         case MEM_EXT:           poke16 <ACCESSOR_CPU, MEM_EXT>      (addr, value); return;
-            
+
         default:
             fatalError;
     }

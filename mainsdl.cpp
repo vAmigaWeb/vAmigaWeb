@@ -2112,7 +2112,8 @@ extern "C" const char* wasm_configure(char* option, char* _value)
                     strcmp(option,"DENISE_REVISION") == 0 ||
                     strcmp(option,"CHIP_RAM") == 0 ||
                     strcmp(option,"SLOW_RAM") == 0 ||
-                    strcmp(option,"FAST_RAM") == 0;
+                    strcmp(option,"FAST_RAM") == 0 ||
+                    strcmp(option,"CPU_REVISION") == 0;
  
   if(was_powered_on && must_be_off)
   {
@@ -2133,7 +2134,8 @@ extern "C" const char* wasm_configure(char* option, char* _value)
               strcmp(option,"CHIP_RAM") == 0  ||
               strcmp(option,"SLOW_RAM") == 0  ||
               strcmp(option,"FAST_RAM") == 0  ||
-              strcmp(option,"CPU_OVERCLOCKING") == 0 
+              strcmp(option,"CPU_OVERCLOCKING") == 0 ||
+              strcmp(option,"CPU_REVISION") == 0
     )
     {
       wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseNum(value));
