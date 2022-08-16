@@ -407,8 +407,10 @@ function message_handler(msg, data, data2)
         v=wasm_get_config_item("DRIVE_SPEED");
         $(`#button_OPT_DRIVE_SPEED`).text(`drive speed=${v} (snapshot)`);
 
+        v=wasm_get_config_item("CPU_REVISION");
+        $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v}0 (snapshot)`);
         v=wasm_get_config_item("CPU_OVERCLOCKING");
-        $(`#button_OPT_CPU_OVERCLOCKING`).text(`68000 CPU=${Math.round((v==0?1:v)*7.09)} MHz (snapshot)`);
+        $(`#button_OPT_CPU_OVERCLOCKING`).text(`${Math.round((v==0?1:v)*7.09)} MHz (snapshot)`);
         v=wasm_get_config_item("AGNUS_REVISION");
         let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB'];
         $(`#button_OPT_AGNUS_REVISION`).text(`agnus revision=${agnus_revs[v]} (snapshot)`);
@@ -2059,7 +2061,7 @@ function bind_config_choice(key, name, values, default_value, value2text=null, t
     `);
 
     let set_choice = function (choice) {
-        $(`#button_${key}`).text(name+'='+choice);
+        $(`#button_${key}`).text(`${name}${name.length>0?'=':''}${choice}`);
         save_setting(key, text2value(choice));
         validate_hardware();
 
@@ -2105,7 +2107,7 @@ bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2], 0,
     return val;
 }, "#divCPU");
 
-bind_config_choice("OPT_CPU_OVERCLOCKING", "@",[0,2,3,4,5,6,8,12,14], 0, 
+bind_config_choice("OPT_CPU_OVERCLOCKING", "",[0,2,3,4,5,6,8,12,14], 0, 
 (v)=>{ return Math.round((v==0?1:v)*7.09)+' MHz'},
 (t)=>{
     let val =t.replace(' MHz','');
