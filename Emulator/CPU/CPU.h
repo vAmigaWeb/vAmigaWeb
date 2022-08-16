@@ -72,7 +72,6 @@ private:
     void _inspect() const override;
     void _debugOn() override;
     void _debugOff() override;
-    void _inspect(u32 dasmStart) const;
     
     template <class T>
     void applyToPersistentItems(T& worker)
@@ -124,7 +123,7 @@ private:
             
             << ipl
             << fcl
-            // << fcSource  TODO: WRITE THIS INTO SNAPSHOT
+            << fcSource
             << exception
             << cp;
         }
