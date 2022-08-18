@@ -72,23 +72,6 @@ const GLchar *vertexSource =
   "  v_texcoord = a_texcoord;  \n"
   "}                           \n";
 
-
-/*const GLchar *basicSource_PerfectPixel_experiment =
-  "#version 300 es      \n"
-  "precision mediump float;                        \n"
-  "uniform sampler2D u_long;                       \n"
-  "in vec2 v_texcoord;                        \n"
-  "out vec4 color;                                 \n"
-  "void main() {                                   \n"
-  "  vec2 size = vec2(908,314); \n"
-  "  vec2 uv = v_texcoord * size;         \n"
-  "  vec2 duv = fwidth(v_texcoord);        \n"
-  "  uv = floor(uv) + vec2(0.5) + clamp((fract(uv) - vec2(0.5) + duv)/duv, vec2(0,0), vec2(1,1)); \n"
-  "  uv /= size;                                  \n"
-  "  color = texture(u_long, uv);            \n"
-  "}                                               \n";
-*/
-
 const GLchar *basicSource =
   "#version 300 es      \n"
   "precision mediump float;                        \n"

@@ -2099,7 +2099,7 @@ bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0', (v)=>`${v
 bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
 
 $('#hardware_settings').append("<div id='divCPU' style='display:flex;flex-direction:row'></div>");
-bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2], 0, 
+bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2,3], 0, 
 (v)=>{ return (68000+v*10)},
 (t)=>{
     let val = t;
