@@ -2194,13 +2194,13 @@ $('.layer').change( function(event) {
     }
 
     live_debug_output=load_setting('live_debug_output', false);
+    wasm_configure("log_on", live_debug_output.toString());
     $("#cb_debug_output").prop('checked', live_debug_output);
     if(live_debug_output)
     {
         load_console();
      //   $("#output_row").show(); 
         $("#output_row").hide(); 
-    
     }
     else
     {
@@ -2210,6 +2210,7 @@ $('.layer').change( function(event) {
 
     $("#cb_debug_output").change( function() {
         live_debug_output=this.checked;
+        wasm_configure("log_on",live_debug_output.toString());
         save_setting('live_debug_output', this.checked);
         if(this.checked)
         {

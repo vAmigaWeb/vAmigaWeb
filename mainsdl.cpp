@@ -40,6 +40,7 @@ u8 geometry  = DISPLAY_ADAPTIVE;
 const char* display_names[] = {"narrow","standard","wider","overscan",
 "viewport tracking","borderless"}; 
 
+bool log_on=false;
 
 
 
@@ -439,7 +440,7 @@ bool request_to_reset_calibration=false;
 
 void set_viewport_dimensions()
 {
-    printf("calib: set_viewport_dimensions hmin=%d, hmax=%d, vmin=%d, vmax=%d\n",hstart_min,hstop_max,vstart_min, vstop_max);
+    if(log_on) printf("calib: set_viewport_dimensions hmin=%d, hmax=%d, vmin=%d, vmax=%d\n",hstart_min,hstop_max,vstart_min, vstop_max);
     
 //    hstart_min=0; hstop_max=HPIXELS;
     
@@ -664,7 +665,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   bool show_stat=true;
   if(amiga->inWarpMode() == true)
   {
-    printf("warping at least 25 frames at once ...\n");
+    if(log_on) printf("warping at least 25 frames at once ...\n");
     int i=25;
     while(amiga->inWarpMode() == true && i>0)
     {
@@ -672,7 +673,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
       i--;
       if(warp_to_frame>0 && amiga->agnus.pos.frame > warp_to_frame)
       {
-        printf("reached warp_to_frame count\n");
+        if(log_on) printf("reached warp_to_frame count\n");
         amiga->warpOff();
         warp_to_frame=0;
       }
@@ -687,7 +688,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     //lost the sync
     if(targetFrameCount-total_executed_frame_count > max_gap)
     {
-        printf("lost sync target=%lld, total_executed=%lld\n", targetFrameCount, total_executed_frame_count);
+        if(log_on) printf("lost sync target=%lld, total_executed=%lld\n", targetFrameCount, total_executed_frame_count);
         //reset timer
         //because we are out of sync, we do now skip max_gap-1 emulation frames 
         start_time=now;
@@ -702,7 +703,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
 
       seconds += 1; 
       frames += rendered_frame_count;
-      printf("time[ms]=%.0lf, audio_samples=%d, frames [executed=%u, rendered=%u] avg_fps=%u\n", 
+      if(log_on) printf("time[ms]=%.0lf, audio_samples=%d, frames [executed=%u, rendered=%u] avg_fps=%u\n", 
       passed_time, sum_samples, executed_frame_count, rendered_frame_count, frames/seconds);
       sum_samples=0; 
       rendered_frame_count=0;
@@ -726,8 +727,6 @@ void draw_one_frame_into_SDL(void *thisAmiga)
     return;   //in case no execute was called 
 
   EM_ASM({
- //     if (typeof draw_one_frame === 'undefined')
- //         return;
       draw_one_frame(); // to gather joystick information for example 
   });
 
@@ -896,14 +895,14 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
   }
   else
   {
-    printf("vAmiga message=%s, data=%u\n", message_as_string, data1);
+    if(log_on) printf("vAmiga message=%s, data=%u\n", message_as_string, data1);
     send_message_to_js(message_as_string, data1, data2);
   }
   if(type == MSG_VIEWPORT)
   {
     if(data1==0 && data2==0 && data3 == 0 && data4 == 0)
       return;
-    printf("tracking MSG_VIEWPORT=%d, %d, %d, %d\n",data1, data2, data3, data4);
+    if(log_on) printf("tracking MSG_VIEWPORT=%d, %d, %d, %d\n",data1, data2, data3, data4);
     hstart_min= data1;
     vstart_min= data2;
     hstop_max=  data3;
@@ -923,7 +922,7 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
     if(ntsc && vstop_max > VPOS_MAX-PAL_EXTRA_VPIXEL )
       vstop_max = VPOS_MAX-PAL_EXTRA_VPIXEL; 
     
-    printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
+    if(log_on) printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
     vstart_min_tracking = vstart_min;
     vstop_max_tracking = vstop_max;
     hstart_min_tracking = hstart_min;
@@ -934,7 +933,7 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
   }
   else if(type == MSG_VIDEO_FORMAT)
   {
-    printf("video format=%s\n",VideoFormatEnum::key(data1));    
+    if(log_on) printf("video format=%s\n",VideoFormatEnum::key(data1));    
     wasm_set_display(data1?"ntsc":"pal");
     request_to_reset_calibration=true;
   }
@@ -1174,7 +1173,7 @@ extern "C" void wasm_key(int code, int pressed)
 
 extern "C" void wasm_auto_type(int code, int duration, int delay)
 {
-    printf("auto_type ( %d, %d, %d ) \n", code, duration, delay);
+    if(log_on) printf("auto_type ( %d, %d, %d ) \n", code, duration, delay);
     wrapper->amiga->keyboard.autoType(code, MSEC(duration), MSEC(delay));
 }
 
@@ -1282,7 +1281,7 @@ extern "C" void wasm_delete_user_snapshot()
   {
     delete snapshot;
     snapshot=NULL;
-    printf("freed user_snapshot memory\n");
+    if(log_on) printf("freed user_snapshot memory\n");
   }
 }
 
@@ -1367,19 +1366,19 @@ extern "C" void wasm_set_warp(unsigned on)
 
 extern "C" void wasm_set_display(const char *name)
 {
-  printf("wasm_set_display('%s')\n",name);
+  if(log_on) printf("wasm_set_display('%s')\n",name);
 
   if( strcmp(name,"ntsc") == 0)
   {
     name= display_names[geometry];
-    printf("resetting new display %s\n",name);
+    if(log_on) printf("resetting new display %s\n",name);
     if(!ntsc)
     {
-      printf("was not yet ntsc\n");
+      if(log_on) printf("was not yet ntsc\n");
 
       if(wrapper->amiga->getConfigItem(OPT_VIDEO_FORMAT)!=NTSC)
       {
-        printf("was not yet ntsc so we have to configure it\n");
+        if(log_on) printf("was not yet ntsc so we have to configure it\n");
         wrapper->amiga->configure(OPT_VIDEO_FORMAT, NTSC);
       }
       target_fps=60;
@@ -1390,13 +1389,13 @@ extern "C" void wasm_set_display(const char *name)
   else if( strcmp(name,"pal") == 0)
   {
     name= display_names[geometry];
-    printf("resetting  new display %s\n",name);
+    if(log_on) printf("resetting  new display %s\n",name);
     if(ntsc)
     {
-      printf("was not yet PAL\n");
+      if(log_on) printf("was not yet PAL\n");
       if(wrapper->amiga->getConfigItem(OPT_VIDEO_FORMAT)!=PAL)
       {
-        printf("was not yet PAL so we have to configure it\n");
+        if(log_on) printf("was not yet PAL so we have to configure it\n");
         wrapper->amiga->configure(OPT_VIDEO_FORMAT, PAL);
       }
       target_fps=50;
@@ -1407,7 +1406,7 @@ extern "C" void wasm_set_display(const char *name)
   else if( strcmp(name,"") == 0)
   {
     name= display_names[geometry];
-    printf("reset display=%s\n",name);
+    if(log_on) printf("reset display=%s\n",name);
   }
 
 
@@ -1479,7 +1478,7 @@ extern "C" void wasm_set_display(const char *name)
     clipped_height=(3*clipped_width/4 +(ntsc?0:24) /*32 due to PAL?*/)/2 & 0xfffe;
     if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
-  printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);
+  if(log_on) printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);
 
   if(render_method==RENDER_SHADER)
   {
@@ -1558,7 +1557,7 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
   {
     try
     {
-      printf("try to build Snapshot\n");
+      if(log_on) printf("try to build Snapshot\n");
       Snapshot *file = new Snapshot(blob, len);      
       printf("isSnapshot\n");
       wrapper->amiga->loadSnapshot(*file);
@@ -1732,24 +1731,24 @@ extern "C" void wasm_halt()
 
 extern "C" void wasm_run()
 {
-  printf("wasm_run\n");
+  if(log_on) printf("wasm_run\n");
   
-  printf("is running = %u\n",wrapper->amiga->isRunning());
+  if(log_on) printf("is running = %u\n",wrapper->amiga->isRunning());
 
   wrapper->amiga->run();
 
   if(paused_the_emscripten_main_loop || already_run_the_emscripten_main_loop)
   {
-    printf("emscripten_resume_main_loop at MSG_RUN %u, %u\n", paused_the_emscripten_main_loop, already_run_the_emscripten_main_loop);
+    if(log_on) printf("emscripten_resume_main_loop at MSG_RUN %u, %u\n", paused_the_emscripten_main_loop, already_run_the_emscripten_main_loop);
     emscripten_resume_main_loop();
   }
   else
   {
-    printf("emscripten_set_main_loop_arg() at MSG_RUN %u, %u\n", paused_the_emscripten_main_loop, already_run_the_emscripten_main_loop);
+    if(log_on) printf("emscripten_set_main_loop_arg() at MSG_RUN %u, %u\n", paused_the_emscripten_main_loop, already_run_the_emscripten_main_loop);
     already_run_the_emscripten_main_loop=true;
 
-    emscripten_set_main_loop_arg(draw_one_frame_into_SDL, (void *)wrapper->amiga, 0, 1);
-    printf("after emscripten_set_main_loop_arg() at MSG_RUN\n");
+    emscripten_set_main_loop_arg(draw_one_frame_into_SDL, (void *)wrapper->amiga, /* 0 for rAF*/ 0, 1);
+   if(log_on) printf("after emscripten_set_main_loop_arg() at MSG_RUN\n");
   }
 
 }
@@ -2080,7 +2079,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
 {
   sprintf(config_result,""); 
   auto value = std::string(_value);
-  printf("wasm_configure %s = %s\n", option, value.c_str());
+  if(log_on) printf("wasm_configure %s = %s\n", option, value.c_str());
 
   if(strcmp(option,"warp_to_frame") == 0 )
   {
@@ -2088,6 +2087,12 @@ extern "C" const char* wasm_configure(char* option, char* _value)
     wrapper->amiga->warpOn();
     return config_result;
   }
+  if(strcmp(option,"log_on") == 0 )
+  {
+    log_on= util::parseBool(value);
+    return config_result;
+  }
+
 
   bool was_powered_on=wrapper->amiga->isPoweredOn();
 
