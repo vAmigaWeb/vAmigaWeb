@@ -37,11 +37,11 @@ u8 render_method = RENDER_SOFTWARE;
 #define DISPLAY_BORDERLESS 5
 u8 geometry  = DISPLAY_ADAPTIVE;
 
+
 const char* display_names[] = {"narrow","standard","wider","overscan",
 "viewport tracking","borderless"}; 
 
 bool log_on=false;
-
 
 
 //HRM: In NTSC, the fields are 262, then 263 lines and in PAL, 312, then 313 lines.
@@ -175,7 +175,7 @@ void set_texture_display_window(const GLuint program, float hstart, float hstop,
   const GLfloat coords[] = {
     x1,y1, x2,y1, x1,y2, x2,y2
   };
-  printf("%f %f %f %f\n",x1,x2,y1,y2);
+  //if(log_on) printf("%f %f %f %f\n",x1,x2,y1,y2);
   GLuint corBuffer;
   glGenBuffers(1, &corBuffer);
   glBindBuffer(GL_ARRAY_BUFFER, corBuffer);
@@ -187,7 +187,7 @@ void set_texture_display_window(const GLuint program, float hstart, float hstop,
 
   glUniform2f(glGetUniformLocation(merge, "u_diw_size"), (hstop-hstart)*TPP, vstop-vstart);
 
-  printf("w=%f h=%f\n",hstop-hstart,vstop-vstart);
+  //if(log_on) printf("w=%f h=%f\n",hstop-hstart,vstop-vstart);
 
 }
 
@@ -421,7 +421,7 @@ double last_time = 0.0 ;
 double last_time_calibrated = 0.0 ;
 unsigned int executed_frame_count=0;
 int64_t total_executed_frame_count=0;
-double start_time=emscripten_get_now();
+double start_time=0;//emscripten_get_now();
 unsigned int rendered_frame_count=0;
 unsigned int frames=0, seconds=0;
 // The emscripten "main loop" replacement function.
@@ -640,8 +640,10 @@ bool calculate_viewport_dimensions(Uint32 *texture)
   return dimensions_changed;
 }
 
-
-void draw_one_frame_into_SDL(void *thisAmiga) 
+#define MAX_GAP 5
+Amiga *thisAmiga=NULL;
+extern "C" int wasm_draw_one_frame(double now)
+//int draw_one_frame_into_SDL(void *thisAmiga, float now) 
 {
 
   //this method is triggered by
@@ -653,15 +655,12 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   //generally match the display refresh rate in most web browsers as 
   //per W3C recommendation. requestAnimationFrame() 
   
-  double now = emscripten_get_now();  
- 
+  //double now = emscripten_get_now();  
+
   double elapsedTimeInSeconds = (now - start_time)/1000.0;
   int64_t targetFrameCount = (int64_t)(elapsedTimeInSeconds * target_fps);
  
-  int max_gap = 5;
-
-
-  Amiga *amiga = (Amiga *)thisAmiga;
+  Amiga *amiga = /*(Amiga *)*/thisAmiga;
   bool show_stat=true;
   if(amiga->inWarpMode() == true)
   {
@@ -686,7 +685,7 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   if(show_stat)
   {
     //lost the sync
-    if(targetFrameCount-total_executed_frame_count > max_gap)
+    if(targetFrameCount-total_executed_frame_count > MAX_GAP)
     {
         if(log_on) printf("lost sync target=%lld, total_executed=%lld\n", targetFrameCount, total_executed_frame_count);
         //reset timer
@@ -724,12 +723,12 @@ void draw_one_frame_into_SDL(void *thisAmiga)
   rendered_frame_count++;  
   
   if(skipped==-1)
-    return;   //in case no execute was called 
+    return 0;   //in case no execute was called 
 
-  EM_ASM({
+  /*EM_ASM({
       draw_one_frame(); // to gather joystick information for example 
   });
-
+  */
   auto &stableBuffer = amiga->denise.pixelEngine.getStableBuffer();
   auto stable_ptr = amiga->denise.pixelEngine.stablePtr();
 
@@ -807,7 +806,14 @@ void draw_one_frame_into_SDL(void *thisAmiga)
 
     SDL_RenderPresent(renderer);
   }
+  return 1;
 }
+
+
+/*extern "C" int wasm_draw_one_frame(float now)
+{
+  return draw_one_frame_into_SDL(thisAmiga, now);
+}*/
 
 
 int sample_size=0;
@@ -869,7 +875,7 @@ void send_message_to_js(const char * msg, long data1, long data2)
 
 
 
-bool paused_the_emscripten_main_loop=false;
+//bool paused_the_emscripten_main_loop=false;
 bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
 void theListener(const void * amiga, long type,  int data1, int data2, int data3, int data4){
@@ -1722,10 +1728,10 @@ extern "C" void wasm_halt()
   printf("wasm_halt\n");
   wrapper->amiga->pause();
 
-  printf("emscripten_pause_main_loop() at MSG_PAUSE\n");
-  paused_the_emscripten_main_loop=true;
-  emscripten_pause_main_loop();
-  printf("after emscripten_set_main_loop_arg() at MSG_RUN\n");
+//  printf("emscripten_pause_main_loop() at MSG_PAUSE\n");
+//  paused_the_emscripten_main_loop=true;
+  //emscripten_pause_main_loop();
+//  printf("after emscripten_set_main_loop_arg() at MSG_RUN\n");
 
 }
 
@@ -1736,21 +1742,22 @@ extern "C" void wasm_run()
   if(log_on) printf("is running = %u\n",wrapper->amiga->isRunning());
 
   wrapper->amiga->run();
-
+  thisAmiga=wrapper->amiga;
+/*
   if(paused_the_emscripten_main_loop || already_run_the_emscripten_main_loop)
   {
     if(log_on) printf("emscripten_resume_main_loop at MSG_RUN %u, %u\n", paused_the_emscripten_main_loop, already_run_the_emscripten_main_loop);
-    emscripten_resume_main_loop();
+//    emscripten_resume_main_loop();
   }
   else
   {
     if(log_on) printf("emscripten_set_main_loop_arg() at MSG_RUN %u, %u\n", paused_the_emscripten_main_loop, already_run_the_emscripten_main_loop);
     already_run_the_emscripten_main_loop=true;
-
-    emscripten_set_main_loop_arg(draw_one_frame_into_SDL, (void *)wrapper->amiga, /* 0 for rAF*/ 0, 1);
-   if(log_on) printf("after emscripten_set_main_loop_arg() at MSG_RUN\n");
+    thisAmiga=wrapper->amiga;
+    //emscripten_set_main_loop_arg(draw_one_frame_into_SDL, (void *)wrapper->amiga, 0, 1);
+    if(log_on) printf("after emscripten_set_main_loop_arg() at MSG_RUN\n");
   }
-
+*/
 }
 
 
