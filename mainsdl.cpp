@@ -646,8 +646,10 @@ Amiga *thisAmiga=NULL;
 u8 executed_since_last_host_frame=0;
 extern "C" void wasm_execute()
 {
-  executed_since_last_host_frame++;
   thisAmiga->execute();
+  executed_since_last_host_frame++;
+  executed_frame_count++;
+  total_executed_frame_count++;
 }
 
 extern "C" int wasm_draw_one_frame(double now)
@@ -739,8 +741,8 @@ extern "C" int wasm_draw_one_frame(double now)
   }
 */
   int behind=targetFrameCount-total_executed_frame_count;
-  if(behind==0)
-    return 0;   //don't render 
+  if(behind==0 && executed_since_last_host_frame==0)
+    return 0;   //don't render everything is already drawn
   
   if(
     executed_since_last_host_frame%2==0 //when 0, 2, 4, ... execute here directly 
