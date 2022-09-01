@@ -757,10 +757,10 @@ extern "C" int wasm_draw_one_frame(double now)
     executed_frame_count++;
     total_executed_frame_count++;
     behind--;
-    rendered_frame_count++;   
   }
 
   executed_since_last_host_frame=0;
+  rendered_frame_count++;   
 
   /*EM_ASM({
       draw_one_frame(); // to gather joystick information for example 
