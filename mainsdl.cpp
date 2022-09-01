@@ -640,8 +640,16 @@ bool calculate_viewport_dimensions(Uint32 *texture)
   return dimensions_changed;
 }
 
+
 #define MAX_GAP 5
 Amiga *thisAmiga=NULL;
+u8 executed_since_last_host_frame=0;
+extern "C" void wasm_execute()
+{
+  executed_since_last_host_frame++;
+  thisAmiga->execute();
+}
+
 extern "C" int wasm_draw_one_frame(double now)
 //int draw_one_frame_into_SDL(void *thisAmiga, float now) 
 {
@@ -710,20 +718,47 @@ extern "C" int wasm_draw_one_frame(double now)
     }
   }
 
-  int skipped=-1;  // -1, 0, 1 , 2 
+/*  int skipped=-1;  // -1, 0, 1 , 2 
   while(skipped % 2 == 1 //when skip then skip twice because of interlace detection
         || 
         total_executed_frame_count < targetFrameCount) {
     executed_frame_count++;
     total_executed_frame_count++;
-    amiga->execute();
+    
+    if(skipped==-1)
+    {
+      amiga->execute();
+    }
+    else
+    {
+      EM_ASM({
+        setTimeout(Module._wasm_execute);
+      });
+    }
     skipped++;
   }
-
-  rendered_frame_count++;  
+*/
+  int behind=targetFrameCount-total_executed_frame_count;
+  if(behind==0)
+    return 0;   //don't render 
   
-  if(skipped==-1)
-    return 0;   //in case no execute was called 
+  if(
+    executed_since_last_host_frame%2==0 //when 0, 2, 4, ... execute here directly 
+  )
+  {
+    //execute always an odd number of amiga frames
+    //this is needed for correct detection of longframes and shortframes when 
+    //amiga uses interlaced resolution and the host device is to slow to render 
+    //always one amiga frame per host frame i.e. when fps drops below 50 
+    amiga->execute();
+ 
+    executed_frame_count++;
+    total_executed_frame_count++;
+    behind--;
+    rendered_frame_count++;   
+  }
+
+  executed_since_last_host_frame=0;
 
   /*EM_ASM({
       draw_one_frame(); // to gather joystick information for example 
@@ -806,7 +841,7 @@ extern "C" int wasm_draw_one_frame(double now)
 
     SDL_RenderPresent(renderer);
   }
-  return 1;
+  return behind;
 }
 
 

@@ -1338,7 +1338,6 @@ function InitWrappers() {
         Module.HEAPU8.set(file_buffer, file_slot_wasmbuf);
         var retVal=Module.ccall('wasm_loadFile', 'string', ['string','number','number'], [file_name,file_slot_wasmbuf,file_buffer.byteLength]);
         Module._free(file_slot_wasmbuf);
-        console.log("retval--"+retVal);
         return retVal;                    
     }
     
@@ -1355,79 +1354,27 @@ function InitWrappers() {
     wasm_draw_one_frame= Module.cwrap('wasm_draw_one_frame', 'undefined');
 
     do_animation_frame=null;
-    wasm_run_1 = function () {
-        Module._wasm_run();        
-        if(do_animation_frame == null)
-        {
-            do_post_frame_animation=function(){
-                draw_one_frame(); // to gather joystick information for example 
-                if(!stop_request_animation_frame)
-                {
-                    requestAnimationFrame(do_animation_frame);
-                }
-            }
-            do_animation_frame = function(now) {
-                Module._wasm_draw_one_frame(now);
-                requestIdleCallback(do_post_frame_animation);
-            }
-        }  
-        if(stop_request_animation_frame)
-        {
-            stop_request_animation_frame=false;
-            requestAnimationFrame(do_animation_frame);
-        }
-    }
-    wasm_run_2 = function () {
-        Module._wasm_run();        
-        if(do_animation_frame == null)
-        {
-            do_post_frame_animation=function(){
-                //if(executed>0)
-                //{
-                    draw_one_frame(); // to gather joystick information for example 
-                //}
-                // request another frame
-                if(!stop_request_animation_frame)
-                {
-                    requestAnimationFrame(do_animation_frame);
-                }
-            }
-            do_animation_frame = function(now) {
-                //let executed=Module._wasm_draw_one_frame(now);
-                Module._wasm_draw_one_frame(now);
-                setTimeout(do_post_frame_animation);
-            }
-        }  
-        if(stop_request_animation_frame)
-        {
-            stop_request_animation_frame=false;
-            requestAnimationFrame(do_animation_frame);
-        }
-    }
-    wasm_run_3=async function(){
-        Module._wasm_run();
-        stop_request_animation_frame=false;
-        while(!stop_request_animation_frame) {
-            Module._wasm_draw_one_frame(performance.now());
-            draw_one_frame(); // to gather joystick information for example 
-            await new Promise(requestAnimationFrame);// wait until next repaint
-        };
-    }
-
+    queued_executes=0;
     wasm_run = function () {
         Module._wasm_run();       
         if(do_animation_frame == null)
         {
+            execute_amiga_frame=()=>{
+                Module._wasm_execute(); 
+                queued_executes--;
+            };
             do_animation_frame = function(now) {
-                // request another frame
+                let behind = Module._wasm_draw_one_frame(now);
+                draw_one_frame(); // to gather joystick information 
+                while(behind>queued_executes)
+                {
+                    queued_executes++;
+                    setTimeout(execute_amiga_frame);
+                }
+                // request another animation frame
                 if(!stop_request_animation_frame)
                 {
                     requestAnimationFrame(do_animation_frame);   
-                }
-                let executed=Module._wasm_draw_one_frame(now);
-                if(executed>0)
-                {
-                    draw_one_frame(); // to gather joystick information for example 
                 }
             }
         }  
