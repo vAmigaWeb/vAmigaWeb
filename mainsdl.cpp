@@ -740,9 +740,9 @@ extern "C" int wasm_draw_one_frame(double now)
     skipped++;
   }
 */
-  int behind=targetFrameCount-total_executed_frame_count;
-  if(behind==0 && executed_since_last_host_frame==0)
-    return 0;   //don't render everything is already drawn
+  int behind=targetFrameCount-total_executed_frame_count;    
+  if(behind<=0 && executed_since_last_host_frame==0)
+    return behind;   //don't render if ahead of time and everything is already drawn
   
   if(
     executed_since_last_host_frame%2==0 //when 0, 2, 4, ... execute here directly 
