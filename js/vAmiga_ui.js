@@ -439,9 +439,9 @@ async function fetchOpenROMS(){
             var romtype = wasm_loadfile(rom_name+suffix, byteArray);
             if(romtype != "")
             {
-                localStorage.setItem(romtype, rom_name);
-                save_rom(rom_name,romtype, byteArray);
-                load_roms(true);
+                local_storage_set(romtype, rom_name);
+                await save_rom(rom_name,romtype, byteArray);
+                await load_roms(true);
             }
         } catch {
             console.log ("could not install system rom file");
@@ -473,7 +473,7 @@ async function load_roms(install_to_core){
     var loadStoredItem= async function (item_name, type){
         if(item_name==null)
             return null;
-        //var stored_item = localStorage.getItem(item_name); 
+        //var stored_item = local_storage_get(item_name); 
         let stored_item = await load_rom(item_name);
         if(stored_item != null)
         {
@@ -486,7 +486,7 @@ async function load_roms(install_to_core){
                 if(!romtype.endsWith("rom") && !romtype.endsWith("rom_ext"))
                 {//in case the core thinks rom is not valid anymore delete it
                     delete_rom(item_name);
-//                    localStorage.removeItem(item_name);
+//                    local_storage_remove(item_name);
                     return null;
                 }
             }
@@ -504,7 +504,7 @@ async function load_roms(install_to_core){
     
     var all_fine = true;
     try{
-        let selected_rom=localStorage.getItem('rom');
+        let selected_rom=local_storage_get('rom');
         let the_rom=await loadStoredItem(selected_rom, ".rom_file");
         if (the_rom==null){
             all_fine=false;
@@ -552,7 +552,7 @@ async function load_roms(install_to_core){
         console.error(e);
     }
     try{
-        let selected_rom_ext=localStorage.getItem('rom_ext');
+        let selected_rom_ext=local_storage_get('rom_ext');
         let the_rom_ext=await loadStoredItem(selected_rom_ext,".rom_ext_file");
         if (the_rom_ext==null){
             $("#rom_kickstart_ext").attr("src", "img/rom_empty.png");
@@ -717,9 +717,14 @@ function configure_file_dialog(reset=false)
                 , file_slot_file);
             if(romtype != "")
             {
-                localStorage.setItem(romtype, file_slot_file_name);
-                save_rom(file_slot_file_name, romtype, file_slot_file);
-                load_roms(/*false*/ true); // true to load reload an already selected extension, when the rom was just changed
+                setTimeout(async ()=>{
+                    try{
+                        local_storage_set(romtype, file_slot_file_name);
+                        await save_rom(file_slot_file_name, romtype, file_slot_file);
+                        await load_roms(/*false*/ true); // true to load reload an already selected extension, when the rom was just changed
+                    }catch(e){console.error(e.message)}
+                });
+
             }
         }
         else
@@ -759,7 +764,7 @@ function configure_file_dialog(reset=false)
                 $("#button_insert_file").html("insert disk"+return_icon);
                 
                 if (/*!JSON.parse(wasm_rom_info()).has_floppy_rom //is 1541.rom loaded ?*/
-                    localStorage.getItem('vc1541_rom.bin')==null)
+                    local_storage_get('vc1541_rom.bin')==null)
                 {
                     $("#no_disk_rom_msg").show();
                     $("#button_insert_file").attr("disabled", true);
@@ -1436,7 +1441,12 @@ function InitWrappers() {
         }
         audio_connected=true;
         wasm_set_sample_rate(audioContext.sampleRate);
-        console.log("try connecting audioprocessor");           
+        console.log("try connecting audioprocessor...");
+        if(audioContext.audioWorklet==undefined)
+        {
+            console.error("audioContext.audioWorklet == undefined");
+            return;
+        }
         await audioContext.audioWorklet.addModule('js/vAmiga_audioprocessor.js');
         worklet_node = new AudioWorkletNode(audioContext, 'vAmiga_audioprocessor', {
             outputChannelCount: [2],
@@ -1592,13 +1602,16 @@ function InitWrappers() {
         }
         else if(event.data.cmd == "load")
         {
-            function copy_to_local_storage(romtype, byteArray)
+            async function copy_to_local_storage(romtype, byteArray)
             {
                 if(romtype != "")
                 {
-                    localStorage.setItem(romtype+".bin", ToBase64(byteArray));
-                    save_rom(romtype+".bin", romtype,  byteArray);                    
-                    load_roms(false);
+                    try{
+                        local_storage_set(romtype+".bin", ToBase64(byteArray));
+                        await save_rom(romtype+".bin", romtype,  byteArray);                    
+                        await load_roms(false);
+                    }
+                    catch(e){console.error(e.message)}
                 }
             }
 
@@ -2620,183 +2633,187 @@ $('.layer').change( function(event) {
             current_ui=current_version.split('@')[1];
         }
     }
-    //when the serviceworker talks with us ...  
-    navigator.serviceWorker.addEventListener("message", async (evt) => {
-        await get_current_ui_version();
-        let cache_names=await caches.keys();
-        let version_selector = `
-        manage already installed versions:
-        <br>
-        <div style="display:flex">
-        <select id="version_selector" class="ml-2" style="background-color:var(--darkbg);color:var(--light);border-radius:6px;border-width:2px;border-color:var(--light);">`;
-        for(c_name of cache_names)
-        {
-            let name_parts=c_name.split('@');
-            let core_name= name_parts[0];
-            let ui_name= name_parts[1];
-            let selected=c_name==current_version?"selected":"";
-
-            if(c_name.includes('@'))
-            {   
-                if(//uat version should not show regular versions and vice versa
-                    location.pathname.startsWith("/uat") ?
-                        ui_name.endsWith("uat")
-                    :
-                        !ui_name.endsWith("uat")
-                )
-                {
-                    version_selector+=`<option ${selected} value="${c_name}">core ${core_name}, ui ${ui_name}</option>`;
-                }
-            }
-        }
-        version_selector+=
-        `</select>
-        
-        <button type="button" id="activate_version" disabled class="btn btn-primary btn-sm px-1 mx-1">activate</button>
-        <button type="button" id="remove_version" class="btn btn-danger btn-sm px-1 mx-1"><svg style="width:1.5em;height:1.5em"><use xlink:href="img/sprites.svg#trash"/></svg>
-        </button>
-        </div>
-        `;
-
-        //2. diese vergleichen mit der des Service workers
-        sw_version=evt.data;
-        if(sw_version.cache_name != current_version)
-        {
-            let new_version_already_installed=await has_installed_version(sw_version.cache_name);
-            let new_version_installed_or_not = new_version_already_installed ?
-            `newest version (already installed)`:
-            `new version available`;
-
-            let activate_or_install = `
-            <button type="button" id="activate_or_install" class="btn btn-${new_version_already_installed ?"primary":"success"} btn-sm px-1 mx-1">${
-                new_version_already_installed ? "activate": "install"
-            }</button>`;
-
-
-
-            let upgrade_info = `    
-            currently active version (old):<br>
-            <div style="display:flex">
-            <span class="ml-2 px-1 py-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${current_ui}</i></span>
-            </div><br>
-            <span id="new_version_installed_or_not">${new_version_installed_or_not}</span>:<br> 
-            <div style="display:flex">
-            <span class="ml-2 px-1 py-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${sw_version.ui}</i></span> ${activate_or_install}
-            </div>
-            <div id="install_warning" class="my-1">Did you know that upgrading the core may break your saved snapshots?<br/>
-            In that case you can still select and activate an older compatible installation to run it ...
-            </div>`;
-
-            $('#update_dialog').html(upgrade_info);
-            $('#activate_or_install').remove();
-            $('#install_warning').remove();
-            $('#version_display').html(`${upgrade_info} 
+    try{
+        //when the serviceworker talks with us ...  
+        navigator.serviceWorker.addEventListener("message", async (evt) => {
+            await get_current_ui_version();
+            let cache_names=await caches.keys();
+            let version_selector = `
+            manage already installed versions:
             <br>
-            ${version_selector}`);
-            if(!new_version_already_installed)
-            {
-                show_new_version_toast();
-            }
-        }
-        else
-        {
-            $("#version_display").html(`
-            currently active version (newest):<br>
             <div style="display:flex">
-            <span class="ml-2 px-1 py-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${current_ui}</i></span>
-            <button type="button" id="activate_or_install" class="btn btn-success btn-sm px-1 py-1">
-            install</button>
-            </div>
-            <br>
-            ${version_selector}`
-            );
-            $("#activate_or_install").hide();
-        }
-        document.getElementById('version_selector').onchange = function() {
-            let select = document.getElementById('version_selector');
-            document.getElementById('activate_version').disabled=
-                (select.options[select.selectedIndex].value == current_version);
-        }
-        document.getElementById('remove_version').onclick = function() {
-            let select = document.getElementById('version_selector');
-            let cache_name = select.value;
-            if(cache_name == sw_version.cache_name)
+            <select id="version_selector" class="ml-2" style="background-color:var(--darkbg);color:var(--light);border-radius:6px;border-width:2px;border-color:var(--light);">`;
+            for(c_name of cache_names)
             {
-                $("#new_version_installed_or_not").text("new version available");
-                $("#activate_or_install").text("install").attr("class","btn btn-success btn-sm px-1 mx-1").show();
-            }
-            caches.delete(cache_name);
-            select.options[select.selectedIndex].remove();
-            if(current_version == cache_name)
-            {//when removing the current active version, activate another installed version
-                if(select.options.length>0)
-                {
-                    select.selectedIndex=select.options.length-1;
-                    set_settings_cache_value("active_version",select.options[select.selectedIndex].value); 
-                }
-                else
-                {
-                    set_settings_cache_value("active_version",sw_version.cache_name); 
-                }   
-            }
-            if(select.options.length==0)
-            {
-                document.getElementById('remove_version').disabled=true;        
-                document.getElementById('activate_version').disabled=true;
-            }
-            else 
-            {
-                document.getElementById('activate_version').disabled=
-                (select.options[select.selectedIndex].value == current_version);
-            }
-        }
-        document.getElementById('activate_version').onclick = function() {
-            let cache_name = document.getElementById('version_selector').value; 
-            set_settings_cache_value("active_version",cache_name);
-            window.location.reload();
-        }
-        let activate_or_install_btn = document.getElementById('activate_or_install');
-        if(activate_or_install_btn != null)
-        {
-            activate_or_install_btn.onclick = () => {
-                (async ()=>{
-                    let new_version_already_installed=await has_installed_version(sw_version.cache_name); 
-                    if(new_version_already_installed)
+                let name_parts=c_name.split('@');
+                let core_name= name_parts[0];
+                let ui_name= name_parts[1];
+                let selected=c_name==current_version?"selected":"";
+
+                if(c_name.includes('@'))
+                {   
+                    if(//uat version should not show regular versions and vice versa
+                        location.pathname.startsWith("/uat") ?
+                            ui_name.endsWith("uat")
+                        :
+                            !ui_name.endsWith("uat")
+                    )
                     {
-                        set_settings_cache_value("active_version",sw_version.cache_name);
-                        window.location.reload();
+                        version_selector+=`<option ${selected} value="${c_name}">core ${core_name}, ui ${ui_name}</option>`;
+                    }
+                }
+            }
+            version_selector+=
+            `</select>
+            
+            <button type="button" id="activate_version" disabled class="btn btn-primary btn-sm px-1 mx-1">activate</button>
+            <button type="button" id="remove_version" class="btn btn-danger btn-sm px-1 mx-1"><svg style="width:1.5em;height:1.5em"><use xlink:href="img/sprites.svg#trash"/></svg>
+            </button>
+            </div>
+            `;
+
+            //2. diese vergleichen mit der des Service workers
+            sw_version=evt.data;
+            if(sw_version.cache_name != current_version)
+            {
+                let new_version_already_installed=await has_installed_version(sw_version.cache_name);
+                let new_version_installed_or_not = new_version_already_installed ?
+                `newest version (already installed)`:
+                `new version available`;
+
+                let activate_or_install = `
+                <button type="button" id="activate_or_install" class="btn btn-${new_version_already_installed ?"primary":"success"} btn-sm px-1 mx-1">${
+                    new_version_already_installed ? "activate": "install"
+                }</button>`;
+
+
+
+                let upgrade_info = `    
+                currently active version (old):<br>
+                <div style="display:flex">
+                <span class="ml-2 px-1 py-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${current_ui}</i></span>
+                </div><br>
+                <span id="new_version_installed_or_not">${new_version_installed_or_not}</span>:<br> 
+                <div style="display:flex">
+                <span class="ml-2 px-1 py-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${sw_version.ui}</i></span> ${activate_or_install}
+                </div>
+                <div id="install_warning" class="my-1">Did you know that upgrading the core may break your saved snapshots?<br/>
+                In that case you can still select and activate an older compatible installation to run it ...
+                </div>`;
+
+                $('#update_dialog').html(upgrade_info);
+                $('#activate_or_install').remove();
+                $('#install_warning').remove();
+                $('#version_display').html(`${upgrade_info} 
+                <br>
+                ${version_selector}`);
+                if(!new_version_already_installed)
+                {
+                    show_new_version_toast();
+                }
+            }
+            else
+            {
+                $("#version_display").html(`
+                currently active version (newest):<br>
+                <div style="display:flex">
+                <span class="ml-2 px-1 py-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${current_ui}</i></span>
+                <button type="button" id="activate_or_install" class="btn btn-success btn-sm px-1 py-1">
+                install</button>
+                </div>
+                <br>
+                ${version_selector}`
+                );
+                $("#activate_or_install").hide();
+            }
+            document.getElementById('version_selector').onchange = function() {
+                let select = document.getElementById('version_selector');
+                document.getElementById('activate_version').disabled=
+                    (select.options[select.selectedIndex].value == current_version);
+            }
+            document.getElementById('remove_version').onclick = function() {
+                let select = document.getElementById('version_selector');
+                let cache_name = select.value;
+                if(cache_name == sw_version.cache_name)
+                {
+                    $("#new_version_installed_or_not").text("new version available");
+                    $("#activate_or_install").text("install").attr("class","btn btn-success btn-sm px-1 mx-1").show();
+                }
+                caches.delete(cache_name);
+                select.options[select.selectedIndex].remove();
+                if(current_version == cache_name)
+                {//when removing the current active version, activate another installed version
+                    if(select.options.length>0)
+                    {
+                        select.selectedIndex=select.options.length-1;
+                        set_settings_cache_value("active_version",select.options[select.selectedIndex].value); 
                     }
                     else
                     {
-                        execute_update();
-                    }
-                })();
+                        set_settings_cache_value("active_version",sw_version.cache_name); 
+                    }   
+                }
+                if(select.options.length==0)
+                {
+                    document.getElementById('remove_version').disabled=true;        
+                    document.getElementById('activate_version').disabled=true;
+                }
+                else 
+                {
+                    document.getElementById('activate_version').disabled=
+                    (select.options[select.selectedIndex].value == current_version);
+                }
             }
-        }        
-    });
+            document.getElementById('activate_version').onclick = function() {
+                let cache_name = document.getElementById('version_selector').value; 
+                set_settings_cache_value("active_version",cache_name);
+                window.location.reload();
+            }
+            let activate_or_install_btn = document.getElementById('activate_or_install');
+            if(activate_or_install_btn != null)
+            {
+                activate_or_install_btn.onclick = () => {
+                    (async ()=>{
+                        let new_version_already_installed=await has_installed_version(sw_version.cache_name); 
+                        if(new_version_already_installed)
+                        {
+                            set_settings_cache_value("active_version",sw_version.cache_name);
+                            window.location.reload();
+                        }
+                        else
+                        {
+                            execute_update();
+                        }
+                    })();
+                }
+            }        
+        });
 
 
-    // ask service worker to send us a version message
-    // wait until it is active
-    navigator.serviceWorker.ready
-    .then( (registration) => {
-        if (registration.active) {
-            registration.active.postMessage('version');
-        }
-    });
+        // ask service worker to send us a version message
+        // wait until it is active
+        navigator.serviceWorker.ready
+        .then( (registration) => {
+            if (registration.active) {
+                registration.active.postMessage('version');
+            }
+        });
 
-    //in the meantime until message from service worker has not yet arrived show this
-    let init_version_display= async ()=>{
-        await get_current_ui_version();
-        $("#version_display").html(`
-        currently active version:<br>
-        <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>
-        <br><br>
-        waiting for service worker...`
-        );
-    };
-    init_version_display();
-
+        //in the meantime until message from service worker has not yet arrived show this
+        let init_version_display= async ()=>{
+            await get_current_ui_version();
+            $("#version_display").html(`
+            currently active version:<br>
+            <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>
+            <br><br>
+            waiting for service worker...`
+            );
+        };
+        init_version_display();
+    } catch(e)
+    {
+        console.error(e.message);
+    }
 //------- update management end ---
 
     setup_browser_interface();
@@ -2936,7 +2953,7 @@ $('.layer').change( function(event) {
     fill_available_roms=async function (rom_type, select_id){
         let stored_roms=await list_rom_type_entries(rom_type);
         let html_rom_list=`<option value="empty">empty</option>`;
-        let selected_rom=localStorage.getItem(rom_type);
+        let selected_rom=local_storage_get(rom_type);
         for(rom of stored_roms)
         {
             html_rom_list+= `<option value="${rom.id}" ${selected_rom ==rom.id?"selected":""}>${rom.id}</option>`;
@@ -2978,7 +2995,7 @@ $('.layer').change( function(event) {
         }, false);
 
         document.getElementById(id_delete).addEventListener("click", function(e) {
-            let selected_rom=localStorage.getItem(id_local_storage);
+            let selected_rom=local_storage_get(id_local_storage);
             save_setting(id_local_storage, null);
             delete_rom(selected_rom);
             load_roms(true);
