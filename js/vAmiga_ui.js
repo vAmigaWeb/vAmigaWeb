@@ -445,6 +445,8 @@ async function fetchOpenROMS(){
             }
         } catch {
             console.log ("could not install system rom file");
+            fill_rom_icons();
+            fill_ext_icons();
         }  
     }
     
@@ -454,6 +456,75 @@ async function fetchOpenROMS(){
     await installer('.rom_ext_file', response);   
 }
 
+
+function fill_rom_icons(){
+    let rom_infos=JSON.parse(wasm_rom_info());
+    let icon="img/rom.png";
+    if(rom_infos.hasRom == "false")
+    {
+        icon="img/rom_empty.png";
+    }
+    else if(rom_infos.romTitle.toLowerCase().indexOf("aros")>=0)
+    {
+        icon="img/rom_aros.png";
+    }
+    else if(rom_infos.romTitle.toLowerCase().indexOf("unknown")>=0)
+    {
+        icon="img/rom_unknown.png";
+    }
+    else if(rom_infos.romTitle.toLowerCase().indexOf("patched")>=0)
+    {
+        icon="img/rom_patched.png";
+    }
+    else if(rom_infos.romTitle.toLowerCase().indexOf("hyperion")>=0)
+    {
+        icon="img/rom_hyperion.png";
+    }
+    else
+    {
+        icon="img/rom_original.png";
+    }
+
+    $("#rom_kickstart").attr("src", icon);
+    $("#kickstart_title").html(`${rom_infos.romTitle}<br>${rom_infos.romVersion}<br>${rom_infos.romReleased}<br>${rom_infos.romModel}`);
+
+    $("#button_delete_kickstart").show();
+}
+
+function fill_ext_icons()
+{
+    let rom_infos=JSON.parse(wasm_rom_info());
+    let icon="img/rom.png";
+    if(rom_infos.hasExt == "false")
+    {
+        icon="img/rom_empty.png";
+    }
+    else if(rom_infos.extTitle.toLowerCase().indexOf("aros")>=0)
+    {
+        icon="img/rom_aros.png";
+    }
+    else if(rom_infos.extTitle.toLowerCase().indexOf("unknown")>=0)
+    {
+        icon="img/rom_unknown.png";
+    }
+    else if(rom_infos.extTitle.toLowerCase().indexOf("patched")>=0)
+    {
+        icon="img/rom_patched.png";
+    }
+    else if(rom_infos.romTitle.toLowerCase().indexOf("hyperion")>=0)
+    {
+        icon="img/rom_hyperion.png";
+    }
+    else
+    {
+        icon="img/rom_original.png";
+    }
+
+    $("#rom_kickstart_ext").attr("src", icon);
+    $("#kickstart_ext_title").html(`${rom_infos.extTitle}<br>${rom_infos.extVersion}<br>${rom_infos.extReleased}<br>${rom_infos.extModel}`);
+
+    $("#button_delete_kickstart_ext").show();
+}
 
 /**
 * load_roms
@@ -469,6 +540,7 @@ async function fetchOpenROMS(){
  *
  * TODO: maybe split up functionality into load_roms() and refresh_rom_dialog() 
  */
+
 async function load_roms(install_to_core){
     var loadStoredItem= async function (item_name, type){
         if(item_name==null)
@@ -515,37 +587,7 @@ async function load_roms(install_to_core){
         }
         else
         {
-            let rom_infos=JSON.parse(wasm_rom_info());
-            let icon="img/rom.png";
-            if(rom_infos.hasRom == "false")
-            {
-                icon="img/rom_empty.png";
-            }
-            else if(rom_infos.romTitle.toLowerCase().indexOf("aros")>=0)
-            {
-                icon="img/rom_aros.png";
-            }
-            else if(rom_infos.romTitle.toLowerCase().indexOf("unknown")>=0)
-            {
-                icon="img/rom_unknown.png";
-            }
-            else if(rom_infos.romTitle.toLowerCase().indexOf("patched")>=0)
-            {
-                icon="img/rom_patched.png";
-            }
-            else if(rom_infos.romTitle.toLowerCase().indexOf("hyperion")>=0)
-            {
-                icon="img/rom_hyperion.png";
-            }
-            else
-            {
-                icon="img/rom_original.png";
-            }
- 
-            $("#rom_kickstart").attr("src", icon);
-            $("#kickstart_title").html(`${rom_infos.romTitle}<br>${rom_infos.romVersion}<br>${rom_infos.romReleased}<br>${rom_infos.romModel}`);
-
-            $("#button_delete_kickstart").show();
+            fill_rom_icons();
         }
     } catch(e){
         all_fine=false; //maybe it needs a rom extension file
@@ -562,37 +604,7 @@ async function load_roms(install_to_core){
         }
         else
         {
-            let rom_infos=JSON.parse(wasm_rom_info());
-            let icon="img/rom.png";
-            if(rom_infos.hasExt == "false")
-            {
-                icon="img/rom_empty.png";
-            }
-            else if(rom_infos.extTitle.toLowerCase().indexOf("aros")>=0)
-            {
-                icon="img/rom_aros.png";
-            }
-            else if(rom_infos.extTitle.toLowerCase().indexOf("unknown")>=0)
-            {
-                icon="img/rom_unknown.png";
-            }
-            else if(rom_infos.extTitle.toLowerCase().indexOf("patched")>=0)
-            {
-                icon="img/rom_patched.png";
-            }
-            else if(rom_infos.romTitle.toLowerCase().indexOf("hyperion")>=0)
-            {
-                icon="img/rom_hyperion.png";
-            }
-            else
-            {
-                icon="img/rom_original.png";
-            }
-
-            $("#rom_kickstart_ext").attr("src", icon);
-            $("#kickstart_ext_title").html(`${rom_infos.extTitle}<br>${rom_infos.extVersion}<br>${rom_infos.extReleased}<br>${rom_infos.extModel}`);
-
-            $("#button_delete_kickstart_ext").show();
+            fill_ext_icons();
         }
     } catch(e){
         console.error(e);

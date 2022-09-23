@@ -460,19 +460,26 @@ async function save_rom(the_name, extension_or_rom, the_data) {
 async function load_rom(the_id)
 {
   return new Promise(async (resolve, reject) => {
+    try
+    {
+      let transaction = (await db()).transaction("roms"); 
+      let roms = transaction.objectStore("roms");
+  
+      let request = roms.get(the_id);
 
-    let transaction = (await db()).transaction("roms"); 
-    let roms = transaction.objectStore("roms");
- 
-    let request = roms.get(the_id);
-
-    request.onsuccess = function() {
-        resolve(request.result);
-    };
-    request.onerror = function(e){ 
-      console.error("could not read roms: ",  request.error) 
-      reject(request.error);
-    };
+      request.onsuccess = function() {
+          resolve(request.result);
+      };
+      request.onerror = function(e){ 
+        console.error("could not read roms: ",  request.error) 
+        reject(request.error);
+      };
+    }
+    catch(e)
+    {
+      console.error("load_rom: "+e.message);
+      resolve(null);
+    }
   });
 }
 
