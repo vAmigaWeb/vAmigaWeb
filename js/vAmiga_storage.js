@@ -18,7 +18,7 @@ async function db(){
 
       if(_db_retries>2)
       {
-        let msg=`cannot open database... tried ${_db_retries} times`;
+        let msg=`cannot open database... are you using private/incognito browsing? To enable storage use a normal browser window...`;
         _db_retries=0;
         _db_init_called=false;
         throw new Error(msg);
@@ -141,6 +141,7 @@ async function save_snapshot(the_name, the_data) {
 
 async function get_stored_app_titles(callback_fn)
 {
+  try {
     let transaction = (await db()).transaction("apps"); // readonly
     let apps = transaction.objectStore("apps");
 
@@ -152,7 +153,10 @@ async function get_stored_app_titles(callback_fn)
         } else {
             console.log("No titles found");
         }
-    };
+    };    
+  } catch (e) {
+    console.error(`cannot read app titles...${e.message}`);
+  }
 }
 
 function get_snapshots_for_app_title(app_title)

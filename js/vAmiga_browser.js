@@ -385,7 +385,7 @@ var collectors = {
                                 row_renderer(latest_load_query_context, app_title, app_snaps);
                             } catch (error) {
                                 console.error(error);
-                                alert(error.message);    
+                                alert(error.message);
                                 return;
                             }
                         }
@@ -396,6 +396,7 @@ var collectors = {
             }
             finally
             {
+                get_data_collector('snapshots').set_busy(false);
             }
         },
         draw_item_into_canvas: function (app_title, teaser_canvas, item){

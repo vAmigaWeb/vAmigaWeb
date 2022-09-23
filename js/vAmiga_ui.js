@@ -734,7 +734,12 @@ function configure_file_dialog(reset=false)
                         local_storage_set(romtype, file_slot_file_name);
                         await save_rom(file_slot_file_name, romtype, file_slot_file);
                         await load_roms(/*false*/ true); // true to load reload an already selected extension, when the rom was just changed
-                    }catch(e){console.error(e.message)}
+                    }
+                    catch(e){
+                        console.error(e.message);
+                        fill_rom_icons();
+                        fill_ext_icons();
+                    }
                 });
 
             }
@@ -1623,7 +1628,11 @@ function InitWrappers() {
                         await save_rom(romtype+".bin", romtype,  byteArray);                    
                         await load_roms(false);
                     }
-                    catch(e){console.error(e.message)}
+                    catch(e){
+                        console.error(e.message)
+                        fill_rom_icons();
+                        fill_ext_icons();
+                    }
                 }
             }
 
