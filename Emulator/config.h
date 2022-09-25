@@ -14,16 +14,16 @@
 //
 
 // Version number
-#define VER_MAJOR 2
-#define VER_MINOR 1
+#define VER_MAJOR 3
+#define VER_MINOR 0
 #define VER_SUBMINOR 0
-#define VER_BETA 5
+#define VER_BETA 1
 
 // Snapshot version number
-#define SNP_MAJOR 2
-#define SNP_MINOR 1
+#define SNP_MAJOR 3
+#define SNP_MINOR 0
 #define SNP_SUBMINOR 0
-#define SNP_BETA 5
+#define SNP_BETA 1
 
 // Uncomment this setting in a release build
 #define RELEASEBUILD
@@ -56,7 +56,7 @@
 */
 
 // Uncomment to colorize a certain scanline
-// #define LINE_DEBUG (vpos == 0 || vpos == 160 || vpos == 300)
+// #define LINE_DEBUG (vpos == 0 || vpos == 160)
 // #define LINE_DEBUG (vpos == 200)
 
 
@@ -92,7 +92,7 @@
  * texture in super-hires resolution (every hires pixel is represented by a
  * two texels).
  */
-#define TPP 2
+#define TPP 1
 
 
 //

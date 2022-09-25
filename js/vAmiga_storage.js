@@ -16,10 +16,11 @@ async function db(){
       _db_init_called=true;
       me_called_init=true;
 
-      if(_db_retries>3)
+      if(_db_retries>2)
       {
-        let msg=`cannot open database... tried ${_db_retries} times`;
+        let msg=`cannot open database... are you using private/incognito browsing? To enable storage use a normal browser window...`;
         _db_retries=0;
+        _db_init_called=false;
         throw new Error(msg);
       }
       console.error(`opening db ... ${_db_retries+1}.try`);
@@ -83,7 +84,11 @@ function initDB() {
          rom_store.createIndex("type", "type", { unique: false });
       }
   };
-  openReq.onerror = function() { console.error("Error", openReq.error); alert('error while open db: '+openReq.error);}
+  openReq.onerror = function() { 
+    console.error("Error", openReq.error);
+    _db_wait_counter=1600; //flag this wait as unsuccessful 
+    /*alert('error while open db: '+openReq.error);*/
+  }
   openReq.onsuccess = function() {
       _db=openReq.result;
   }  
@@ -136,6 +141,7 @@ async function save_snapshot(the_name, the_data) {
 
 async function get_stored_app_titles(callback_fn)
 {
+  try {
     let transaction = (await db()).transaction("apps"); // readonly
     let apps = transaction.objectStore("apps");
 
@@ -147,7 +153,10 @@ async function get_stored_app_titles(callback_fn)
         } else {
             console.log("No titles found");
         }
-    };
+    };    
+  } catch (e) {
+    console.error(`cannot read app titles...${e.message}`);
+  }
 }
 
 function get_snapshots_for_app_title(app_title)
@@ -205,8 +214,38 @@ function delete_snapshot_per_id(the_id)
 
 //--- local storage API ---
 
+
+function local_storage_get(name) {
+  try{
+    return localStorage.getItem(name);
+  } 
+  catch(e) {
+    console.error(e.message);
+    return null;
+  }  
+}
+function local_storage_set(name, value) {
+  try{
+    localStorage.setItem(name,value);
+  } 
+  catch(e) {
+    console.error(e.message);
+  }  
+}
+function local_storage_remove(name) {
+  try{
+    localStorage.removeItem(name);
+  } 
+  catch(e) {
+    console.error(e.message);
+  }  
+}
+
+
+
+
 function load_setting(name, default_value) {
-    var value = localStorage.getItem(name);
+    var value = local_storage_get(name);
     if(value === null)
     {
         return default_value;
@@ -224,9 +263,9 @@ function load_setting(name, default_value) {
 
 function save_setting(name, value) {
     if (value!= null) {
-      localStorage.setItem(name, value);
+      local_storage_set(name, value);
     } else {
-      localStorage.removeItem(name);
+      local_storage_remove(name);
     }
 }
 
@@ -330,49 +369,60 @@ async function get_custom_buttons_app_scope(the_app_title, callback_fn)
 {
 //  if(_db === undefined)
 //    return;
+  try
+  {
+    let transaction = (await db()).transaction("custom_buttons"); 
+    let custom_buttons = transaction.objectStore("custom_buttons");
 
-  let transaction = (await db()).transaction("custom_buttons"); 
-  let custom_buttons = transaction.objectStore("custom_buttons");
+    let request = custom_buttons.get(the_app_title);
 
-  let request = custom_buttons.get(the_app_title);
-
-  request.onsuccess = function() {
-      if(request.result !== undefined)
-      {
-        for(button_id in request.result.data)
+    request.onsuccess = function() {
+        if(request.result !== undefined)
         {
-          var action_button = request.result.data[button_id];
-          if(action_button.app_scope === undefined)
+          for(button_id in request.result.data)
           {
-            action_button.app_scope= true;
-          }
-          if(action_button.lang === undefined)
-          {
-            //migration of js: prefix to lang property, can be removed in a later version ... 
-            if(action_button.script.startsWith("js:"))
+            var action_button = request.result.data[button_id];
+            if(action_button.app_scope === undefined)
             {
-              action_button.script = action_button.script.substring(3);
-              action_button.lang = "javascript";
+              action_button.app_scope= true;
             }
-            else
+            if(action_button.lang === undefined)
             {
-              action_button.lang = "actionscript";
+              //migration of js: prefix to lang property, can be removed in a later version ... 
+              if(action_button.script.startsWith("js:"))
+              {
+                action_button.script = action_button.script.substring(3);
+                action_button.lang = "javascript";
+              }
+              else
+              {
+                action_button.lang = "actionscript";
+              }
             }
           }
+
+          callback_fn(request.result);
         }
+        else
+        {
+          let empty_custom_buttons = {
+              title: the_app_title,
+              data: [] 
+            };
 
-        callback_fn(request.result);
-      }
-      else
-      {
-        let empty_custom_buttons = {
-            title: the_app_title,
-            data: [] 
-          };
-
-        callback_fn(empty_custom_buttons);
-      }
-  };
+          callback_fn(empty_custom_buttons);
+        }
+    };
+  }
+  catch(e)
+  {
+    console.error(e.message);
+    let empty_custom_buttons = {
+              title: the_app_title,
+              data: [] 
+            };
+    callback_fn(empty_custom_buttons);
+  }
 }
 
 
@@ -414,19 +464,26 @@ async function save_rom(the_name, extension_or_rom, the_data) {
 async function load_rom(the_id)
 {
   return new Promise(async (resolve, reject) => {
+    try
+    {
+      let transaction = (await db()).transaction("roms"); 
+      let roms = transaction.objectStore("roms");
+  
+      let request = roms.get(the_id);
 
-    let transaction = (await db()).transaction("roms"); 
-    let roms = transaction.objectStore("roms");
- 
-    let request = roms.get(the_id);
-
-    request.onsuccess = function() {
-        resolve(request.result);
-    };
-    request.onerror = function(e){ 
-      console.error("could not read roms: ",  request.error) 
-      reject(request.error);
-    };
+      request.onsuccess = function() {
+          resolve(request.result);
+      };
+      request.onerror = function(e){ 
+        console.error("could not read roms: ",  request.error) 
+        reject(request.error);
+      };
+    }
+    catch(e)
+    {
+      console.error("load_rom: "+e.message);
+      resolve(null);
+    }
   });
 }
 
@@ -453,17 +510,22 @@ async function delete_rom(the_id)
 function list_rom_type_entries(rom_type)
 {
     return new Promise(async (resolve, reject) => {
-      let transaction = (await db()).transaction("roms"); 
-      let roms = transaction.objectStore("roms");
-      let typeIndex = roms.index("type");
-      let request = typeIndex.getAll(rom_type);
-
-      request.onsuccess = function() {
-          resolve(request.result);
-      };
-      request.onerror = function(e){ 
-        console.error("could not read snapshots: ",  request.error) 
-        reject(request.error);
-      };
+      try{
+        let transaction = (await db()).transaction("roms"); 
+        let roms = transaction.objectStore("roms");
+        let typeIndex = roms.index("type");
+        let request = typeIndex.getAll(rom_type);
+        request.onsuccess = function() {
+            resolve(request.result);
+        };
+        request.onerror = function(e){ 
+          console.error("could not read snapshots: ",  request.error) 
+          reject(request.error);
+        };
+      }
+      catch(e)
+      {
+        console.error(e.message);
+      }
     });
 }

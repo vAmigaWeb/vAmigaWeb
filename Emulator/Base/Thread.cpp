@@ -244,7 +244,7 @@ Thread::run(bool blocking)
     // Never call this function inside the emulator thread
     assert(!isEmulatorThread());
     
-    printf("**** State %s\n",ExecutionStateEnum::key(state));
+    //printf("**** State %s\n",ExecutionStateEnum::key(state));
 
     // The emulator is expected to be powered on
     if (isPoweredOff()) throw VAError(ERROR_POWERED_OFF);
@@ -258,7 +258,7 @@ Thread::run(bool blocking)
         changeStateTo(EXEC_RUNNING, blocking);
     }
 
-    printf("**** State %s\n",ExecutionStateEnum::key(state));
+    //printf("**** State %s\n",ExecutionStateEnum::key(state));
 }
 
 void
@@ -269,7 +269,7 @@ Thread::pause(bool blocking)
     // Never call this function inside the emulator thread
     assert(!isEmulatorThread());
     
-    printf("**** State %s\n",ExecutionStateEnum::key(state));
+    //printf("**** State %s\n",ExecutionStateEnum::key(state));
 
     if (isRunning()) {
                 
@@ -320,7 +320,7 @@ Thread::changeStateTo(ExecutionState requestedState, bool blocking)
     newState = requestedState;
 //    if (blocking) while (state != newState) { };
 
-    printf("**** State change %s -> %s\n",ExecutionStateEnum::key(state),ExecutionStateEnum::key(newState));
+    //printf("**** State change %s -> %s\n",ExecutionStateEnum::key(state),ExecutionStateEnum::key(newState));
     // Are we requested to change state?
     while (newState != state) {
             if (state == EXEC_OFF && newState == EXEC_PAUSED) {
@@ -384,7 +384,7 @@ Thread::changeWarpTo(u8 value, bool blocking)
 {
     newWarpMode = value;
 //    if (blocking) while (warpMode != newWarpMode) { };
-    printf("**** warp change %u -> %u\n",warpMode,newWarpMode);
+    //printf("**** warp change %u -> %u\n",warpMode,newWarpMode);
         
     // Are we requested to enter or exit warp mode?
     while (newWarpMode != warpMode) {
@@ -400,7 +400,7 @@ Thread::changeDebugTo(u8 value, bool blocking)
 {
     newDebugMode = value;
 //    if (blocking) while (debugMode != newDebugMode) { };
-    printf("**** debug change %u -> %u\n",debugMode,newDebugMode);
+    //printf("**** debug change %u -> %u\n",debugMode,newDebugMode);
 
 
     // Are we requested to enter or exit warp mode?
