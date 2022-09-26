@@ -1001,14 +1001,14 @@ function keydown(e) {
         }
     }
 
-    var c64code = translateKey2(e.code, e.key);
-    if(c64code !== undefined)
+    var key_code = translateKey2(e.code, e.key);
+    if(key_code !== undefined && key_code.raw_key[0] != undefined)
     {
-        if(c64code.modifier != null)
+        if(key_code.modifier != null)
         {
-            wasm_schedule_key(c64code.modifier[0], c64code.modifier[1], 1, 0);
+            wasm_schedule_key(key_code.modifier[0], key_code.modifier[1], 1, 0);
         }
-        wasm_schedule_key(c64code.raw_key[0], c64code.raw_key[1], 1, 0);
+        wasm_schedule_key(key_code.raw_key[0], key_code.raw_key[1], 1, 0);
     }
 }
 
@@ -1037,13 +1037,13 @@ function keyup(e) {
         }
     }
 
-    var c64code = translateKey2(e.code, e.key);
-    if(c64code !== undefined )
+    var key_code = translateKey2(e.code, e.key);
+    if(key_code !== undefined && key_code.raw_key[0] != undefined)
     {
-        wasm_schedule_key(c64code.raw_key[0], c64code.raw_key[1], 0, 1);
-        if(c64code.modifier != null )
+        wasm_schedule_key(key_code.raw_key[0], key_code.raw_key[1], 0, 1);
+        if(key_code.modifier != null )
         {
-            wasm_schedule_key(c64code.modifier[0], c64code.modifier[1], 0, 1);
+            wasm_schedule_key(key_code.modifier[0], key_code.modifier[1], 0, 1);
         }
     }
 }
@@ -3934,14 +3934,14 @@ async function emit_string_autotype(keys_to_emit_array, type_first_key_time=0, r
     }
     for(the_key of keys_to_emit_array)
     {
-        var c64code = translateSymbol(the_key);
-        if(c64code !== undefined)
+        var key_code = translateSymbol(the_key);
+        if(key_code !== undefined)
         {
-            if(c64code.modifier != null)
+            if(key_code.modifier != null)
             {
-                wasm_auto_type(c64code.modifier[0], release_delay, delay);
+                wasm_auto_type(key_code.modifier[0], release_delay, delay);
             }
-            wasm_auto_type(c64code.raw_key[0], release_delay, delay);
+            wasm_auto_type(key_code.raw_key[0], release_delay, delay);
             delay+=release_delay;
         }
     }
@@ -3952,20 +3952,20 @@ async function emit_string(keys_to_emit_array, type_first_key_time=0, release_de
     if(type_first_key_time>0) await sleep(type_first_key_time);
     for(the_key of keys_to_emit_array)
     {
-        var c64code = translateSymbol(the_key);
-        if(c64code !== undefined)
+        var key_code = translateSymbol(the_key);
+        if(key_code !== undefined)
         {
-            if(c64code.modifier != null)
+            if(key_code.modifier != null)
             {
-                wasm_key(c64code.modifier[0], 1);
+                wasm_key(key_code.modifier[0], 1);
             }
-            wasm_key(c64code.raw_key[0], 1);    
+            wasm_key(key_code.raw_key[0], 1);    
             await sleep(release_delay_in_ms);     
-            if(c64code.modifier != null)
+            if(key_code.modifier != null)
             {
-                wasm_key(c64code.modifier[0], 0);
+                wasm_key(key_code.modifier[0], 0);
             }
-            wasm_key(c64code.raw_key[0],0);                
+            wasm_key(key_code.raw_key[0],0);                
         }
     }
 }
