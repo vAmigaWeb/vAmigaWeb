@@ -1032,7 +1032,18 @@ function keyup(e) {
         var joystick_cmd = joystick_keyup_map[e.code];
         if(joystick_cmd !== undefined)
         {
-            emit_joystick_cmd((port1=='keys'?'1':'2')+joystick_cmd);
+            let port_id=port1=='keys'?'1':'2';
+            if( joystick_cmd=='RELEASE_FIRE'
+                ||
+                //only release axis on key_up if the last key_down for that axis was the same direction
+                //see issue #737
+                port_state[port_id+'x'] == joystick_keydown_map[e.code]
+                ||
+                port_state[port_id+'y'] == joystick_keydown_map[e.code]
+            )
+            {
+                emit_joystick_cmd(port_id+joystick_cmd);
+            }
             return;
         }
     }
