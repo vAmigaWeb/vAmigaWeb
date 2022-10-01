@@ -394,8 +394,9 @@ var collectors = {
                 }
                 await get_stored_app_titles(store_renderer);
             }
-            finally
+            catch(e)
             {
+                console.error(`cannot read app titles...${e.message}`);
                 get_data_collector('snapshots').set_busy(false);
             }
         },

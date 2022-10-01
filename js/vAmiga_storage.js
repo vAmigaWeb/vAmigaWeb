@@ -141,22 +141,18 @@ async function save_snapshot(the_name, the_data) {
 
 async function get_stored_app_titles(callback_fn)
 {
-  try {
-    let transaction = (await db()).transaction("apps"); // readonly
-    let apps = transaction.objectStore("apps");
+  let transaction = (await db()).transaction("apps"); // readonly
+  let apps = transaction.objectStore("apps");
 
-    let request = apps.getAllKeys();
+  let request = apps.getAllKeys();
 
-    request.onsuccess = function() {
-        if (request.result !== undefined) {
-            callback_fn(request.result);
-        } else {
-            console.log("No titles found");
-        }
-    };    
-  } catch (e) {
-    console.error(`cannot read app titles...${e.message}`);
-  }
+  request.onsuccess = function() {
+      if (request.result !== undefined) {
+          callback_fn(request.result);
+      } else {
+          console.log("No titles found");
+      }
+  };    
 }
 
 function get_snapshots_for_app_title(app_title)
