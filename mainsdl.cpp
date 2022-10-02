@@ -546,9 +546,9 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 
   //left border: get hstart_min from texture
   pixels_found=false;
-  ref_pixel= texture[ (HPIXELS*vstart_min_tracking + hstart_min_tracking)*TPP];
+  ref_pixel= texture[ (HPIXELS*vstart_min_tracking + hstart_min_tracking-1)*TPP];
 
-  for(int x=hstart_min_tracking;x<hstart_min_calib;x++)
+  for(int x=hstart_min_tracking-1;x<hstart_min_calib;x++)
   {
 //      printf("\nrow:%u\n",x);
     for(int y=vstart_min_calib;y<vstop_max_calib && !pixels_found;y++)
