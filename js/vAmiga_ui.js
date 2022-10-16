@@ -382,7 +382,9 @@ function message_handler(msg, data, data2)
     else if(msg == "MSG_DRIVE_STEP" || msg == "MSG_DRIVE_POLL")
     {
         play_sound(audio_df_step);   
-        $("#drop_zone").html(`df${data} ${data2.toString().padStart(2, '0')}`);
+        if(wasm_has_disk("df0")){
+            $("#drop_zone").html(`df${data} ${data2.toString().padStart(2, '0')}`);
+        }
     }
     else if(msg == "MSG_DISK_INSERT")
     {
@@ -390,13 +392,13 @@ function message_handler(msg, data, data2)
     }
     else if(msg == "MSG_DISK_EJECT")
     {
-        $("#drop_zone").html(`df${data} eject`);
+        $("#drop_zone").html(`file slot`);
         play_sound(audio_df_eject); 
     }
     else if(msg == "MSG_HDR_STEP")
     {
-        play_sound(audio_hd_step); 
-     //   console.log(`MSG_DRIVE_STEP ${data} ${data2}`);
+        play_sound(audio_hd_step);
+        //   console.log(`MSG_DRIVE_STEP ${data} ${data2}`);
         $("#drop_zone").html(`dh${data} ${data2}`);
     }
     else if(msg == "MSG_SNAPSHOT_RESTORED")
@@ -713,6 +715,9 @@ function pushFile(file) {
         file_slot_file_name = file.name;
         file_slot_file = new Uint8Array(this.result);
         configure_file_dialog();
+        //we have to null the file input otherwise when ejecting and inserting the same
+        //file again it would not trigger the onchange/onload event 
+        document.getElementById('filedialog').value=null;
     }
     fileReader.readAsArrayBuffer(file);
 }
@@ -1397,8 +1402,8 @@ function InitWrappers() {
                 queued_executes--;
             };
             do_animation_frame = function(now) {
-                let behind = Module._wasm_draw_one_frame(now);
                 draw_one_frame(); // to gather joystick information 
+                let behind = Module._wasm_draw_one_frame(now);
                 while(behind>queued_executes)
                 {
                     queued_executes++;
