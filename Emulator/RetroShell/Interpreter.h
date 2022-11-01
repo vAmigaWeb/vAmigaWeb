@@ -24,10 +24,10 @@ enum class Token
     copper, cp, cpu, cutout, dc, debug, defaults, delay, del, denise, detach,
     device, devices, dfn, diagboard, down, hdn, disable, disconnect, disk, dma,
     dmadebugger, drive, dsksync, easteregg, eject, enable, esync, events,
-    execbase, extrom, extstart, fast, filename, filesystem, filter, gdb,
+    execbase, extrom, extstart, fast, filename, filesystem, filter, fpu, gdb,
     geometry, help, hide, ignore, init, info, insert, inspect, interrupt,
     interrupts, joystick, jump, keyboard, keyset, layers, left, library,
-    libraries, list, load, lock, mechanics, memory, mode, model, monitor,
+    libraries, list, load, lock, mechanics, memory, mmu, mode, model, monitor,
     mouse, none, ntsc, off, on, opacity, open, os, overclocking, pal, palette,
     pan, partition, path, paula, pause, ptrdrops, poll, port, ports, power,
     press, process, processes, pull, pullup, raminitpattern, refresh,
@@ -36,8 +36,8 @@ enum class Token
     saveroms, screenshot, searchpath, serial, server, set, setup, shakedetector,
     show, slow, slowramdelay, slowrammirror, source, speed, sprites, start,
     state, status, step, stop, swapdelay, swtraps, task, tasks, tod, todbug,
-    tracking, trap, unmappingtype, up, vector, verbose, velocity,volume,
-    volumes, wait, watch, watchpoint, wom, wp, xaxis, yaxis, zorro
+    tracking, translate, trap, unmappingtype, up, vector, verbose, velocity,
+    volume, volumes, wait, watch, watchpoint, wom, wp, xaxis, yaxis, zorro
 };
 
 struct TooFewArgumentsError : public util::ParseError {

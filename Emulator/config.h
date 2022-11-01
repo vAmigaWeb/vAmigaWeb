@@ -134,6 +134,7 @@ static const int SNP_DEBUG       = 0; // Serialization (snapshots)
 
 // CPU
 static const int CPU_DEBUG       = 0; // CPU
+static const int FPU_DEBUG       = 0; // Floating point unit
 static const int CST_DEBUG       = 0; // Call stack recording
 
 // Memory access
@@ -214,6 +215,7 @@ static const int PRT_DEBUG       = 0; // Control ports and connected devices
 static const int SER_DEBUG       = 0; // Serial interface
 static const int POT_DEBUG       = 0; // Potentiometer inputs
 static const int HOLD_MOUSE_L    = 0; // Hold down the left mouse button
+static const int HOLD_MOUSE_M    = 0; // Hold down the middle mouse button
 static const int HOLD_MOUSE_R    = 0; // Hold down the right mouse button
 
 // Expansion boards
@@ -259,6 +261,7 @@ static const int FORCE_HDR_UNSUPPORTED_C        = 0;
 static const int FORCE_HDR_UNSUPPORTED_H        = 0;
 static const int FORCE_HDR_UNSUPPORTED_S        = 0;
 static const int FORCE_HDR_UNSUPPORTED_B        = 0;
+static const int FORCE_HDR_UNKNOWN_GEOMETRY     = 0;
 static const int FORCE_HDR_MODIFIED             = 0;
 static const int FORCE_FS_WRONG_BSIZE           = 0;
 static const int FORCE_FS_WRONG_CAPACITY        = 0;

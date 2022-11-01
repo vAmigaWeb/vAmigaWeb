@@ -1257,17 +1257,35 @@ function handleGamePad(portnr, gamepad)
         emit_joystick_cmd(portnr+"RELEASE_Y");
     }
 
-
-    var bFirePressed=false;
-    for(var i=0; i<gamepad.buttons.length && i<12;i++)
+    let joystick_button_count=3;
+    if(joystick_button_count==1)
     {
-        if(gamepad.buttons[i].pressed)
+        var bFirePressed=false;
+        for(var i=0; i<gamepad.buttons.length && i<12;i++)
         {
-            bFirePressed=true;
+            if(gamepad.buttons[i].pressed)
+            {
+                bFirePressed=true;
+            }
         }
+        emit_joystick_cmd(portnr + (bFirePressed?"PRESS_FIRE":"RELEASE_FIRE"));
+    }
+    else if(joystick_button_count>1)
+    {
+        var bFirePressed=[false,false,false];
+
+        for(var i=0; i<gamepad.buttons.length && i<12;i++)
+        {
+            if(gamepad.buttons[i].pressed)
+            {
+                bFirePressed[i%joystick_button_count]=true;
+            }
+        }
+        emit_joystick_cmd(portnr + (bFirePressed[0]?"PRESS_FIRE":"RELEASE_FIRE"));
+        emit_joystick_cmd(portnr + (bFirePressed[1]?"PRESS_FIRE2":"RELEASE_FIRE2"));
+        emit_joystick_cmd(portnr + (bFirePressed[2]?"PRESS_FIRE3":"RELEASE_FIRE3"));
     }
 
-    emit_joystick_cmd(portnr + (bFirePressed?"PRESS_FIRE":"RELEASE_FIRE"));
 }
 
 var port_state={};
@@ -1312,6 +1330,22 @@ function emit_joystick_cmd(command)
     else if(cmd=="RELEASE_FIRE")
     {
         port_state[port+'fire']= cmd;
+    }
+    else if(cmd=="PRESS_FIRE2")
+    {
+        port_state[port+'fire2']= cmd;
+    }
+    else if(cmd=="RELEASE_FIRE2")
+    {
+        port_state[port+'fire2']= cmd;
+    }
+    else if(cmd=="PRESS_FIRE3")
+    {
+        port_state[port+'fire3']= cmd;
+    }
+    else if(cmd=="RELEASE_FIRE3")
+    {
+        port_state[port+'fire3']= cmd;
     }
 
     send_joystick(PORT_ACCESSOR.MANUAL, port, command);

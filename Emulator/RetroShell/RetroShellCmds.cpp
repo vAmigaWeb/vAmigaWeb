@@ -499,6 +499,28 @@ RetroShell::exec <Token::cpu, Token::jump> (Arguments &argv, long param)
 
 
 //
+// MMU
+//
+
+template <> void
+RetroShell::exec <Token::mmu, Token::inspect> (Arguments& argv, long param)
+{
+    dump(amiga.cpu, Category::Mmu);
+}
+
+
+//
+// FPU
+//
+
+template <> void
+RetroShell::exec <Token::fpu, Token::inspect> (Arguments& argv, long param)
+{
+    dump(amiga.cpu, Category::Fpu);
+}
+
+
+//
 // CIA
 //
 

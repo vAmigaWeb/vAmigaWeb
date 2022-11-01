@@ -14,6 +14,7 @@
 #include "IOUtils.h"
 #include "Memory.h"
 #include "MsgQueue.h"
+#include "softfloat.h"
 
 //
 // Moira
@@ -66,19 +67,19 @@ Moira::sync(int cycles)
 u8
 Moira::read8(u32 addr)
 {
-    return mem.peek8 <ACCESSOR_CPU> (addr);
+    return mem.peek8<ACCESSOR_CPU>(addr);
 }
 
 u16
 Moira::read16(u32 addr)
 {
-    return mem.peek16 <ACCESSOR_CPU> (addr); 
+    return mem.peek16<ACCESSOR_CPU>(addr);
 }
 
 u16
 Moira::read16Dasm(u32 addr)
 {
-    auto result = mem.spypeek16 <ACCESSOR_CPU> (addr);
+    auto result = mem.spypeek16<ACCESSOR_CPU>(addr);
     
     // For LINE-A instructions, check if the opcode is a software trap
     if (Debugger::isLineAInstr(result)) result = debugger.swTraps.resolve(result);
@@ -191,79 +192,11 @@ Moira::didExecute(ExceptionType exc, u16 vector)
 
 }
 
-/*
-void
-Moira::signalResetInstr()
-{
-    xfiles("RESET instruction\n");
-    amiga.softReset();
-}
-
-void
-Moira::signalStopInstr(u16 op)
-{
-    if (!(op & 0x2000)) {
-        xfiles("STOP instruction (%x)\n", op);
-    }
-}
-
-void
-Moira::signalTasInstr()
-{
-    xfiles("TAS instruction\n");
-}
-*/
-
 void
 Moira::signalHalt()
 {
     msgQueue.put(MSG_CPU_HALT);
 }
-
-/*
-void
-Moira::signalAddressError(moira::AEStackFrame &frame)
-{
-    xfiles("Address error exception %x %x %x %x %x\n",
-          frame.code, frame.addr, frame.ird, frame.sr, frame.pc);
-}
-
-void
-Moira::signalLineAException(u16 opcode)
-{
-    xfiles("lineAException(%x)\n", opcode);
-}
-
-void
-Moira::signalLineFException(u16 opcode)
-{
-    xfiles("lineFException(%x)\n", opcode);
-}
-
-void
-Moira::signalIllegalOpcodeException(u16 opcode)
-{
-    xfiles("illegalOpcodeException(%x)\n", opcode);
-}
-
-void
-Moira::signalTraceException()
-{
-
-}
-
-void
-Moira::signalTrapException()
-{
-    xfiles("trapException\n");
-}
-
-void
-Moira::signalPrivilegeViolation()
-{
-    
-}
-*/
 
 void
 Moira::signalInterrupt(u8 level)
@@ -284,22 +217,20 @@ Moira::signalJumpToVector(int nr, u32 addr)
 void
 Moira::signalSoftwareTrap(u16 instr, SoftwareTrap trap)
 {
- 
-}
 
-/*
-void
-Moira::signalBkptInstruction(int nr)
-{
-    xfiles("68010: BKPT instruction executed\n");
 }
 
 void
-Moira::addressErrorHandler()
+Moira::didChangeCACR(u32 value)
 {
-    
+
 }
-*/
+
+void
+Moira::didChangeCAAR(u32 value)
+{
+
+}
 
 void
 Moira::softstopReached(u32 addr)
@@ -331,7 +262,21 @@ Moira::softwareTrapReached(u32 addr)
     amiga.setFlag(RL::SWTRAP_REACHED);
 }
 
+void
+Moira::mmuDidEnable()
+{
+    printf("Enabling MMU\n");
+    // cpu.softstopReached(0);
 }
+
+void
+Moira::mmuDidDisable()
+{
+    printf("Disabling MMU\n");
+}
+
+}
+
 
 //
 // CPU
@@ -372,11 +317,18 @@ CPU::setConfigItem(Option option, i64 value)
             config.revision = CPURevision(value);
 
             switch (value) {
-
+                    
                 case CPU_68000:     setModel(moira::M68000); break;
                 case CPU_68010:     setModel(moira::M68010); break;
                 case CPU_68EC020:   setModel(moira::M68EC020); break;
+                case CPU_68020:     setModel(moira::M68020); break;
+                    /*
                 case CPU_68EC030:   setModel(moira::M68EC030); break;
+                case CPU_68030:     setModel(moira::M68030); break;
+                case CPU_68EC040:   setModel(moira::M68EC040); break;
+                case CPU_68LC040:   setModel(moira::M68LC040); break;
+                case CPU_68040:     setModel(moira::M68040); break;
+                     */
             }
             resume();
             return;
@@ -450,7 +402,7 @@ CPU::_reset(bool hard)
         
         /* "The RESET instruction causes the processor to assert RESET for 124
          *  clock periods toreset the external devices of the system. The
-         *  internal state of the processor is notaffected. Neither the status
+         *  internal state of the processor is not affected. Neither the status
          *  register nor any of the internal registers is affected by an
          *  internal reset operation. All external devices in the system should
          *  be reset at the completion of the RESET instruction."
@@ -553,6 +505,28 @@ CPU::_dump(Category category, std::ostream& os) const
         os << (reg.sr.c ? 'C' : 'c') << std::endl;
     }
 
+    if (category == Category::Fpu) {
+        
+        os << util::tab("FPIAR");
+        os << util::hex(fpu.fpiar) << std::endl;
+        os << util::tab("FPSR");
+        os << util::hex(fpu.fpsr) << std::endl;
+        os << util::tab("FPCR");
+        os << util::hex(fpu.fpcr) << std::endl;
+
+        for (isize i = 0; i < 8; i++) {
+            
+            auto value = softfloat::floatx80_to_float32(fpu.fpr[i].raw);
+            os << util::tab("FP" + std::to_string(i));
+            os << util::flt(value) << std::endl;
+        }
+    }
+
+    if (category == Category::Mmu) {
+
+        os << "No MMU present\n";
+    }
+    
     if (category == Category::Breakpoints) {
         
         for (int i = 0; i < debugger.breakpoints.elements(); i++) {
