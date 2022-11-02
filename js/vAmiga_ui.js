@@ -18,6 +18,7 @@ let call_param_display=null;
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
 let use_wide_screen=false;
 let use_ntsc_pixel=false;
+let joystick_button_count=1;
 
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 const audioContext = new AudioContext();
@@ -1147,14 +1148,21 @@ function handle_touch(portnr)
         {
             new_touch_cmd_y ="RELEASE_Y";
         }
-        var new_fire = (v_fire._pressed?"PRESS_FIRE":"RELEASE_FIRE");
-        var new_touch_cmd = portnr + new_touch_cmd_x + new_touch_cmd_y + new_fire;
+
+        let fire_button_number=Math.round(v_fire._stickY/(window.innerHeight/(joystick_button_count-1)))+1;
+        var new_fire   = 1==fire_button_number&&v_fire._pressed?"PRESS_FIRE":"RELEASE_FIRE";
+        var new_fire_2 = 2==fire_button_number&&v_fire._pressed?"PRESS_FIRE2":"RELEASE_FIRE2";
+        var new_fire_3 = 3==fire_button_number&&v_fire._pressed?"PRESS_FIRE3":"RELEASE_FIRE3";
+        
+        var new_touch_cmd = portnr + new_touch_cmd_x + new_touch_cmd_y + new_fire + new_fire_2 + new_fire_3;
         if( last_touch_cmd != new_touch_cmd)
         {
             last_touch_cmd = new_touch_cmd;
             emit_joystick_cmd(portnr+new_touch_cmd_x);
             emit_joystick_cmd(portnr+new_touch_cmd_y);
             emit_joystick_cmd(portnr+new_fire);
+            emit_joystick_cmd(portnr+new_fire_2);
+            emit_joystick_cmd(portnr+new_fire_3);
         }
     } catch (error) {
         console.error("error while handle_touch: "+ error);        
@@ -1257,7 +1265,6 @@ function handleGamePad(portnr, gamepad)
         emit_joystick_cmd(portnr+"RELEASE_Y");
     }
 
-    let joystick_button_count=3;
     if(joystick_button_count==1)
     {
         var bFirePressed=false;
@@ -2014,6 +2021,27 @@ function InitWrappers() {
         install_custom_keys();
         save_setting('lock_action_button', lock_action_button);
     });
+//----
+let set_game_controller_buttons_choice = function (choice) {
+    $(`#button_game_controller_type_choice`).text('button count='+choice);
+    joystick_button_count=choice;
+    save_setting("game_controller_buttons",choice);   
+
+    for(el of document.querySelectorAll(".gc_choice_text"))
+    {
+        el.style.display="none";
+    }
+    document.getElementById('gc_buttons_'+choice).style.display="inherit";
+}
+joystick_button_count=load_setting("game_controller_buttons", 1);
+set_game_controller_buttons_choice(joystick_button_count);
+
+$(`#choose_game_controller_type a`).click(function () 
+{
+    let choice=$(this).text();
+    set_game_controller_buttons_choice(choice);
+    $("#modal_settings").focus();
+});
 
 //----
     let set_vbk_choice = function (choice) {
