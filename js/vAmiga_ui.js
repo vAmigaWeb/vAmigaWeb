@@ -936,20 +936,32 @@ function configure_file_dialog(reset=false)
 
 var port1 = 'none';
 var port2 = 'none';
-joystick_keydown_map = {
+joystick_keydown_map=[];
+joystick_keydown_map[1]={
     'ArrowUp':'PULL_UP',
     'ArrowDown':'PULL_DOWN',
     'ArrowLeft':'PULL_LEFT',
     'ArrowRight':'PULL_RIGHT',
-    'Space':'PRESS_FIRE'
-}
-joystick_keyup_map = {
+    'Space':'PRESS_FIRE',
+} 
+joystick_keydown_map[2]=Object.assign({}, joystick_keydown_map[1]);
+joystick_keydown_map[2].KeyB='PRESS_FIRE2';
+joystick_keydown_map[3]=Object.assign({}, joystick_keydown_map[2]);
+joystick_keydown_map[3].KeyN='PRESS_FIRE3';
+joystick_keyup_map=[]
+joystick_keyup_map[1] = {
     'ArrowUp':'RELEASE_Y',
     'ArrowDown':'RELEASE_Y',
     'ArrowLeft':'RELEASE_X',
     'ArrowRight':'RELEASE_X',
-    'Space':'RELEASE_FIRE'
+    'Space':'RELEASE_FIRE',
 }
+joystick_keyup_map[2]=Object.assign({}, joystick_keyup_map[1]);
+joystick_keyup_map[2].KeyB='RELEASE_FIRE2';
+joystick_keyup_map[3]=Object.assign({}, joystick_keyup_map[2]);
+joystick_keyup_map[3].KeyN='RELEASE_FIRE3';
+
+
 
 
 function is_any_text_input_active()
@@ -999,7 +1011,7 @@ function keydown(e) {
 
     if(port1=='keys'||port2=='keys')
     {
-        var joystick_cmd = joystick_keydown_map[e.code];
+        var joystick_cmd = joystick_keydown_map[joystick_button_count][e.code];
         if(joystick_cmd !== undefined)
         {
             emit_joystick_cmd((port1=='keys'?'1':'2')+joystick_cmd);
@@ -1035,17 +1047,17 @@ function keyup(e) {
 
     if(port1=='keys'||port2=='keys')
     {
-        var joystick_cmd = joystick_keyup_map[e.code];
+        var joystick_cmd = joystick_keyup_map[joystick_button_count][e.code];
         if(joystick_cmd !== undefined)
         {
             let port_id=port1=='keys'?'1':'2';
-            if( joystick_cmd=='RELEASE_FIRE'
+            if(joystick_cmd.startsWith('RELEASE_FIRE')
                 ||
                 //only release axis on key_up if the last key_down for that axis was the same direction
                 //see issue #737
-                port_state[port_id+'x'] == joystick_keydown_map[e.code]
+                port_state[port_id+'x'] == joystick_keydown_map[joystick_button_count][e.code]
                 ||
-                port_state[port_id+'y'] == joystick_keydown_map[e.code]
+                port_state[port_id+'y'] == joystick_keydown_map[joystick_button_count][e.code]
             )
             {
                 emit_joystick_cmd(port_id+joystick_cmd);
