@@ -48,11 +48,16 @@
         <img style="width:100%" src="https://vc64web.github.io/doc/images/wolfling.gif" 
             ontouchstart="touched=true"
             onclick="
+            vAmigaWeb_player.samesite_file={
+                kickstart_rom_url:'./roms/kick2.rom',
+                url:'./test2.adf',name:'my_demo.adf'
+            };
             vAmigaWeb_player.vAmigaWeb_url='./';  //the emulator files are in the same folder as the run.html
             let touch=(typeof touched!='undefined')?touched:false;touched=false;
             let config={
                 touch:touch,
-                AROS:true,
+                AROS:false,
+                wait_for_kickstart_injection:true,
                 navbar:false,   //you can also enable this and disable the players toolbar (see styles section above)
                 wide:true,
                 border:0.3,
@@ -63,7 +68,8 @@
                 //dark: false,
                 //dialog_on_missing_roms: false,
                 //dialog_on_disk: false,
-                url:'doc/media/Rink_a_Dink-REDUX_by_Lemon-Point_(final).adf'
+                //url:'./test2.adf'
+                //url:'doc/media/Rink_a_Dink-REDUX_by_Lemon-Point_(final).adf'
             }; 
             vAmigaWeb_player.load(this,encodeURIComponent(JSON.stringify(config)));
             return false;"		

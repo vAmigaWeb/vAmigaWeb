@@ -14,6 +14,7 @@ let call_param_mouse=null;
 let call_param_warpto=null;
 let call_param_url=null;
 let call_param_display=null;
+let call_param_wait_for_kickstart_injection=null;
 
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
 let use_wide_screen=false;
@@ -134,7 +135,7 @@ function get_parameter_link()
         call_param_warpto=call_obj.warpto === undefined ? null : call_obj.warpto;
         call_param_mouse=call_obj.mouse === undefined ? null : call_obj.mouse;
         call_param_display=call_obj.display === undefined ? null : call_obj.display;
-
+        call_param_wait_for_kickstart_injection=call_obj.wait_for_kickstart_injection === undefined ? null : call_obj.wait_for_kickstart_injection;
         if(call_obj.touch)
         {
             call_param_touch=true; 
@@ -352,7 +353,12 @@ function message_handler(msg, data, data2)
     {        
         //try to load roms from local storage
         setTimeout(async function() {
-            if(false == await load_roms(true))
+            if(call_param_wait_for_kickstart_injection)
+            {
+                //don't auto load existing kick roms
+                //instead wait for external commands
+            }
+            else if(false == await load_roms(true))
             {
                 get_parameter_link(); //just make sure the parameters are set
                 if(call_param_openROMS==true)
@@ -1707,32 +1713,11 @@ function InitWrappers() {
 
             let with_reset=false;
             //check if any roms should be preloaded first... 
-            if(event.data.floppy_rom !== undefined)
+            if(event.data.kickstart_rom !== undefined)
             {
-                let byteArray = event.data.floppy_rom;
-                let rom_type=wasm_loadfile("1541.rom", byteArray);
-                copy_to_local_storage(rom_type, byteArray);
-                with_reset=true;
-            }
-            if(event.data.basic_rom !== undefined)
-            {
-                let byteArray = event.data.basic_rom;
-                let rom_type=wasm_loadfile("basic.rom", byteArray);
-                copy_to_local_storage(rom_type, byteArray);
-                with_reset=true;
-            }
-            if(event.data.kernal_rom !== undefined)
-            {
-                let byteArray = event.data.kernal_rom;
-                let rom_type=wasm_loadfile("kernal.rom", byteArray);
-                copy_to_local_storage(rom_type, byteArray);
-                with_reset=true;
-            }
-            if(event.data.charset_rom !== undefined)
-            {
-                let byteArray = event.data.charset_rom;
-                let rom_type=wasm_loadfile("charset.rom", byteArray);
-                copy_to_local_storage(rom_type, byteArray);
+                let byteArray = event.data.kickstart_rom;
+                let rom_type=wasm_loadfile("kick.rom_file", byteArray);
+                //copy_to_local_storage(rom_type, byteArray);
                 with_reset=true;
             }
             if(with_reset){
