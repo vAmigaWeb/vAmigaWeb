@@ -105,6 +105,17 @@ Interpreter::registerInstructions()
              "key", "Emulates a NTSC machine",
              &RetroShell::exec <Token::amiga, Token::set, Token::ntsc>, 0);
 
+    root.add({"amiga", "vsync"},
+             "command", "Turns VSYNC on or off");
+
+    root.add({"amiga", "vsync", "on"},
+             "state", "Turns VSYNC on",
+             &RetroShell::exec <Token::amiga, Token::vsync, Token::on>, 0);
+
+    root.add({"amiga", "vsync", "off"},
+             "state", "Turns VSYNC off",
+             &RetroShell::exec <Token::amiga, Token::vsync, Token::off>, 0);
+
     root.add({"amiga", "init"},
              "command", "Initializes the Amiga with a predefined scheme",
              &RetroShell::exec <Token::amiga, Token::init>, 1);
@@ -1041,8 +1052,13 @@ Interpreter::registerInstructions()
                  "command", "Displays the internal state",
                  &RetroShell::exec <Token::joystick, Token::inspect>, 0, i);
 
-        root.add({joystick, ""},
-                 "command", "Presses the Pulls the joystick");
+        root.add({joystick, "press"},
+                 "command", "Presses a joystick button",
+                 &RetroShell::exec <Token::joystick, Token::press>, 1, i);
+
+        root.add({joystick, "unpress"},
+                 "command", "Releases a joystick button",
+                 &RetroShell::exec <Token::joystick, Token::unpress>, 1, i);
 
         root.add({joystick, "pull"},
                  "command", "Pulls the joystick");

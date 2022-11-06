@@ -149,6 +149,9 @@ Agnus::setVideoFormat(VideoFormat newFormat)
     // Clear frame buffers
     denise.pixelEngine.clearAll();
 
+    // Let the audio engine know about the speed change
+    paula.muxer.adjustSpeed();
+
     // Inform the GUI
     msgQueue.put(MSG_VIDEO_FORMAT, newFormat);
 }
@@ -640,13 +643,15 @@ Agnus::eofHandler()
 
     // Run the screen recorder
     denise.screenRecorder.vsyncHandler(clock - 50 * DMA_CYCLES(HPOS_CNT_PAL));
-    
+    denise.eofHandler();
+
     // Synthesize sound samples
-    paula.executeUntil(clock - 50 * DMA_CYCLES(HPOS_CNT_PAL));
+    paula.executeUntil(clock - 50 * DMA_CYCLES(HPOS_CNT_PAL)); // MOVE TO Paula::eofHandler
 
     scheduleStrobe0Event();
 
-    // Let other components do their own VSYNC stuff
+    // Let other components do their own EOF stuff
+    paula.eofHandler();
     sequencer.eofHandler();
     copper.eofHandler();
     controlPort1.joystick.eofHandler();
@@ -656,7 +661,7 @@ Agnus::eofHandler()
     // Update statistics
     updateStats();
     mem.updateStats();
-    
+
     // Let the thread synchronize
     amiga.setFlag(RL::SYNC_THREAD);
 }

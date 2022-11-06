@@ -262,19 +262,6 @@ Moira::softwareTrapReached(u32 addr)
     amiga.setFlag(RL::SWTRAP_REACHED);
 }
 
-void
-Moira::mmuDidEnable()
-{
-    printf("Enabling MMU\n");
-    // cpu.softstopReached(0);
-}
-
-void
-Moira::mmuDidDisable()
-{
-    printf("Disabling MMU\n");
-}
-
 }
 
 
@@ -293,9 +280,10 @@ CPU::getConfigItem(Option option) const
     switch (option) {
 
         case OPT_CPU_REVISION:      return (long)config.revision;
+        case OPT_CPU_DASM_REVISION: return (long)config.dasmRevision;
+        case OPT_CPU_DASM_STYLE:    return (long)style;
         case OPT_CPU_OVERCLOCKING:  return (long)config.overclocking;
         case OPT_CPU_RESET_VAL:     return (long)config.regResetVal;
-        case OPT_CPU_DASM_STYLE:    return (long)style;
 
         default:
             fatalError;
@@ -305,31 +293,32 @@ CPU::getConfigItem(Option option) const
 void
 CPU::setConfigItem(Option option, i64 value)
 {
+    auto model = [&](CPURevision rev) { return moira::Model(rev); };
+
     switch (option) {
 
         case OPT_CPU_REVISION:
+
+            if (value >= CPU_68EC030 && value <= CPU_68040) {
+                throw VAError(ERROR_CPU_UNSUPPORTED, CPURevisionEnum::key(value));
+            }
+            [[fallthrough]];
+
+        case OPT_CPU_DASM_REVISION:
 
             if (!CPURevisionEnum::isValid(value)) {
                 throw VAError(ERROR_OPT_INVARG, CPURevisionEnum::keyList());
             }
 
             suspend();
-            config.revision = CPURevision(value);
 
-            switch (value) {
-                    
-                case CPU_68000:     setModel(moira::M68000); break;
-                case CPU_68010:     setModel(moira::M68010); break;
-                case CPU_68EC020:   setModel(moira::M68EC020); break;
-                case CPU_68020:     setModel(moira::M68020); break;
-                    /*
-                case CPU_68EC030:   setModel(moira::M68EC030); break;
-                case CPU_68030:     setModel(moira::M68030); break;
-                case CPU_68EC040:   setModel(moira::M68EC040); break;
-                case CPU_68LC040:   setModel(moira::M68LC040); break;
-                case CPU_68040:     setModel(moira::M68040); break;
-                     */
+            if (option == OPT_CPU_REVISION) {
+                config.revision = CPURevision(value);
+            } else {
+                config.dasmRevision = CPURevision(value);
             }
+            setModel(model(config.revision), model(config.dasmRevision));
+
             resume();
             return;
 
@@ -446,6 +435,8 @@ CPU::_dump(Category category, std::ostream& os) const
 
         os << util::tab("CPU model");
         os << CPURevisionEnum::key(config.revision) << std::endl;
+        os << util::tab("Disassembler");
+        os << CPURevisionEnum::key(config.dasmRevision) << std::endl;
         os << util::tab("Overclocking");
         os << util::dec(config.overclocking) << std::endl;
         os << util::tab("Register reset value");
@@ -520,11 +511,6 @@ CPU::_dump(Category category, std::ostream& os) const
             os << util::tab("FP" + std::to_string(i));
             os << util::flt(value) << std::endl;
         }
-    }
-
-    if (category == Category::Mmu) {
-
-        os << "No MMU present\n";
     }
     
     if (category == Category::Breakpoints) {
@@ -623,7 +609,7 @@ CPU::_load(const u8 *buffer)
     applyToResetItems(reader);
 
     if (oldModel != config.revision) {
-        createJumpTable();
+        createJumpTable(cpuModel, dasmModel);
     }
 
     return isize(reader.ptr - buffer);
@@ -731,49 +717,6 @@ CPU::jump(u32 addr)
         debugger.jump(addr);
     }
 }
-
-/*
-void
-CPU::signalJsrBsrInstr(u16 opcode, u32 oldPC, u32 newPC)
-{
-    if (amiga.inDebugMode()) {
-        
-        trace(CST_DEBUG, "JSR/BSR: %x -> %x [%ld]\n", oldPC, newPC, callstack.count());
-        
-        if (callstack.isFull()) {
-            
-            debug(CST_DEBUG, "JSR/BSR: Large stack\n");
-            (void)callstack.read();
-        }
-        
-        CallStackEntry entry;
-        entry.opcode = opcode;
-        entry.oldPC = oldPC;
-        entry.newPC = newPC;
-        for (isize i = 0; i < 8; i++) entry.d[i] = reg.d[i];
-        for (isize i = 0; i < 8; i++) entry.a[i] = reg.a[i];
-        
-        callstack.write(entry);
-    }
-}
-
-void
-CPU::signalRtsRtdInstr(const string &instr)
-{
-    if (amiga.inDebugMode()) {
-        
-        trace(CST_DEBUG, "%s [%ld]\n", instr.c_str(), callstack.count());
-        
-        if (callstack.isEmpty()) {
-            
-            trace(CST_DEBUG, "%s: Empty stack\n", instr.c_str());
-            return;
-        }
-        
-        (void)callstack.read();
-    }
-}
-*/
 
 void
 CPU::setBreakpoint(u32 addr)

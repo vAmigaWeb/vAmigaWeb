@@ -1026,7 +1026,7 @@ Denise::drawBorder()
     bool on = hflopOnPrev != INT16_MAX;
     bool off = hflopOffPrev != INT16_MAX;
 
-    if (agnus.sequencer.lineWasBlank || (!flop && !on)) {
+    if (!flop && !on) {
 
         // Draw blank line (2)
         for (Pixel i = 0; i < HPIXELS; i++) {
@@ -1203,7 +1203,7 @@ Denise::hsyncHandler(isize vpos)
         // Perform playfield-playfield collision check (if enabled)
         if (config.clxPlfPlf) checkP2PCollisions();
 
-        // Draw border pixels
+        // Draw horizontal border
         drawBorder();
 
         // Synthesize RGBA values and write the result into the frame buffer
@@ -1262,6 +1262,13 @@ Denise::eolHandler()
     hflop = (hflopOff != INT16_MAX) ? false : (hflopOn != INT16_MAX) ? true : hflop;
     hflopOn = denise.hstrt;
     hflopOff = denise.hstop;
+}
+
+void
+Denise::eofHandler()
+{
+    pixelEngine.eofHandler();
+    debugger.eofHandler();
 }
 
 template void Denise::drawOdd<false>(Pixel offset);

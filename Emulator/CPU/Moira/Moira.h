@@ -38,8 +38,11 @@ public:
 protected:
     
     // The emulated CPU model
-    Model model = M68000;
-    
+    Model cpuModel = M68000;
+
+    // The CPU model used by the disassembler
+    Model dasmModel = M68000;
+
     // The interrupt mode of this CPU
     IrqMode irqMode = IRQ_AUTO;
     
@@ -133,7 +136,6 @@ protected:
 
     // EXPERIMENTAL
     int loopModeDelay = 2;  // Termination delay for 68010 loop mode
-    u8 excfp = 0;           // Function code value for 68010 address error frames
     u16 readBuffer;         // Appears in 68010 exception frame
     u16 writeBuffer;        // Appears in 68010 exception frame
 
@@ -164,8 +166,9 @@ public:
     virtual ~Moira();
     
     // Selects the emulated CPU model
-    void setModel(Model model);
-    
+    void setModel(Model model) { setModel(model, model); }
+    void setModel(Model cpuModel, Model dasmModel);
+
     // Configures the disassembler
     void setDasmStyle(DasmStyle value);
     void setDasmNumberFormat(DasmNumberFormat value);
@@ -175,11 +178,11 @@ public:
 protected:
     
     // Creates the generic jump table
-    void createJumpTable();
+    void createJumpTable(Model cpuModel, Model dasmModel);
     
 private:
     
-    template <Core C> void createJumpTable();
+    template <Core C> void createJumpTable(Model model, bool registerDasm);
 
 
     //
@@ -220,6 +223,10 @@ public:
     bool isHalted() const { return flags & CPU_IS_HALTED; }
     
 private:
+
+    // Processes an exception that was catched in execute()
+    void processException(const std::exception &exception);
+    template <Core C> void processException(const std::exception &exception);
     
     // Called by reset()
     template <Core C> void reset();
@@ -318,10 +325,6 @@ protected:
     virtual void catchpointReached(u8 vector) { }
     virtual void softwareTrapReached(u32 addr) { }
 
-    // MMU delegates
-    virtual void mmuDidEnable() { }
-    virtual void mmuDidDisable() { }
-
 #else
 
     // Advances the clock
@@ -375,10 +378,6 @@ protected:
     void watchpointReached(u32 addr);
     void catchpointReached(u8 vector);
     void softwareTrapReached(u32 addr);
-
-    // MMU delegates
-    void mmuDidEnable();
-    void mmuDidDisable();
 
 #endif
 
@@ -485,10 +484,10 @@ protected:
     u16 availabilityMask(Instr I, Mode M, Size S);
     u16 availabilityMask(Instr I, Mode M, Size S, u16 ext);
 
-    // Checks if the currently selected CPU model supports a given instruction
-    bool isAvailable(Instr I);
-    bool isAvailable(Instr I, Mode M, Size S);
-    bool isAvailable(Instr I, Mode M, Size S, u16 ext);
+    // Checks if a certain CPU model supports a given instruction
+    bool isAvailable(Model model, Instr I);
+    bool isAvailable(Model model, Instr I, Mode M, Size S);
+    bool isAvailable(Model model, Instr I, Mode M, Size S, u16 ext);
 
 private:
 

@@ -10,13 +10,24 @@
 #define DASM_HANDLER(func,I,M,S) &Moira::dasm##func<I,M,S>
 
 // Registers an instruction handler
+#if ENABLE_DASM == true
+#define REGISTER_DASM(id,name,I,M,S) if (regDasm) dasm[id] = DASM_HANDLER(name,I,M,S);
+#else
+#define REGISTER_DASM(id,name,I,M,S) { }
+#endif
+
+#if BUILD_INSTR_INFO_TABLE == true
+#define REGISTER_INFO(id,name,I,M,S) info[id] = InstrInfo {I,M,S};
+#else
+#define REGISTER_INFO(id,name,I,M,S) { }
+#endif
+
 #define CIMS(id,name,I,M,S) { \
 exec[id] = EXEC_HANDLER(name,C,I,M,S); \
-if (dasm) dasm[id] = DASM_HANDLER(name,I,M,S); \
-if (info) info[id] = InstrInfo {I,M,S}; \
+REGISTER_DASM(id,name,I,M,S) \
+REGISTER_INFO(id,name,I,M,S) \
 }
 
-// Registers a special loop-mode instruction handler
 #define CIMSloop(id,name,I,M,S) { \
 assert(loop[id] == nullptr); \
 loop[id] = EXEC_HANDLER(name,C68010,I##_LOOP,M,S); \
@@ -143,42 +154,31 @@ parse(const char *s, int sum = 0)
 }
 
 void
-Moira::createJumpTable()
+Moira::createJumpTable(Model cpuModel, Model dasmModel)
 {
-    switch (model) {
+    auto core = [&](Model model) {
+        return model == M68000 ? C68000 : model == M68010 ? C68010 : C68020;
+    };
 
-        case M68000:
+    Core cpuCore = core(cpuModel);
+    Core dasmCore = core(dasmModel);
 
-            createJumpTable<C68000>();
-            break;
+    // Register handlers based on the dasm model
+    if (dasmCore == C68000) createJumpTable<C68000>(dasmModel, true);
+    if (dasmCore == C68010) createJumpTable<C68010>(dasmModel, true);
+    if (dasmCore == C68020) createJumpTable<C68020>(dasmModel, true);
 
-        case M68010:
+    // If both models differ, reinstall handlers, but leave dasm handlers intact
+    if (cpuModel != dasmModel) {
 
-            createJumpTable<C68010>();
-            break;
-
-        case M68EC020:
-        case M68020:
-        case M68EC030:
-        case M68030:
-
-            createJumpTable<C68020>();
-            break;
-
-        case M68EC040:
-        case M68LC040:
-        case M68040:
-
-            createJumpTable<C68020>();
-            break;
-
-        default:
-            fatalError;
+        if (cpuCore == C68000) createJumpTable<C68000>(cpuModel, false);
+        if (cpuCore == C68010) createJumpTable<C68010>(cpuModel, false);
+        if (cpuCore == C68020) createJumpTable<C68020>(cpuModel, false);
     }
 }
 
 template <Core C> void
-Moira::createJumpTable()
+Moira::createJumpTable(Model model, bool regDasm)
 {
     u16 opcode;
     

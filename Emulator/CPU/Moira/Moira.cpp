@@ -31,7 +31,7 @@ Moira::Moira(Amiga &ref) : SubComponent(ref)
     if (BUILD_INSTR_INFO_TABLE) info = new InstrInfo[65536];
     if (ENABLE_DASM) dasm = new DasmPtr[65536];
     
-    createJumpTable();
+    createJumpTable(cpuModel, dasmModel);
 }
 
 Moira::~Moira()
@@ -41,12 +41,14 @@ Moira::~Moira()
 }
 
 void
-Moira::setModel(Model model)
+Moira::setModel(Model cpuModel, Model dasmModel)
 {
-    if (this->model != model) {
+    if (this->cpuModel != cpuModel || this->dasmModel != dasmModel) {
         
-        this->model = model;
-        createJumpTable();
+        this->cpuModel = cpuModel;
+        this->dasmModel = dasmModel;
+
+        createJumpTable(cpuModel, dasmModel);
 
         reg.cacr &= cacrMask();
         flags &= ~CPU_IS_LOOPING;
@@ -87,7 +89,7 @@ Moira::setIndentation(int value)
 bool
 Moira::hasCPI()
 {
-    switch (model) {
+    switch (cpuModel) {
 
         case M68EC020: case M68020: case M68EC030: case M68030:
             return true;
@@ -100,7 +102,7 @@ Moira::hasCPI()
 bool
 Moira::hasMMU()
 {
-    switch (model) {
+    switch (cpuModel) {
 
         case M68030: case M68LC040: case M68040:
             return true;
@@ -113,7 +115,7 @@ Moira::hasMMU()
 bool
 Moira::hasFPU()
 {
-    switch (model) {
+    switch (cpuModel) {
 
         case M68040:
             return true;
@@ -128,7 +130,7 @@ Moira::addrMask() const
 {
     if constexpr (C == C68020) {
         
-        return model == M68EC020 ? 0x00FFFFFF : 0xFFFFFFFF;
+        return cpuModel == M68EC020 ? 0x00FFFFFF : 0xFFFFFFFF;
     }
 
     return 0x00FFFFFF;
@@ -137,7 +139,7 @@ Moira::addrMask() const
 u32
 Moira::cacrMask() const
 {
-    switch (model) {
+    switch (cpuModel) {
 
         case M68020: case M68EC020: return 0x0003;
         case M68030: case M68EC030: return 0x3F13;
@@ -148,7 +150,7 @@ Moira::cacrMask() const
 void
 Moira::reset()
 {
-    switch (model) {
+    switch (cpuModel) {
 
         case M68000:    reset<C68000>(); break;
         case M68010:    reset<C68010>(); break;
@@ -211,13 +213,10 @@ Moira::execute()
         reg.pc += 2;
         try {
             (this->*exec[queue.ird])(queue.ird);
-        } catch (const BusErrorException &) {
-            // TODO: TRIGGER DOUBLE FAULT IF ANOTHER EXCEPTION OCCURS
-            execException(EXC_BUS_ERROR);
-        } catch (const AddressErrorException &) {
-            // TODO: TRIGGER DOUBLE FAULT IF ANOTHER EXCEPTION OCCURS
+        } catch (const std::exception &exc) {
+            processException(exc);
         }
-        
+
         assert(reg.pc0 == reg.pc);
         return;
     }
@@ -245,9 +244,14 @@ Moira::execute()
     
     // Process pending interrupt (if any)
     if (flags & CPU_CHECK_IRQ) {
-        if (checkForIrq()) goto done;
+
+        try {
+            if (checkForIrq()) goto done;
+        } catch (const std::exception &exc) {
+            processException(exc);
+        }
     }
-    
+
     // If the CPU is stopped, poll the IPL lines and return
     if (flags & CPU_IS_STOPPED) {
         
@@ -286,12 +290,9 @@ Moira::execute()
         reg.pc += 2;
         try {
             (this->*exec[queue.ird])(queue.ird);
-        } catch (const BusErrorException &) {
-            // TODO: TRIGGER DOUBLE FAULT IF ANOTHER EXCEPTION OCCURS
-            execException(EXC_BUS_ERROR);
-        } catch (const AddressErrorException &) {
-            // TODO: TRIGGER DOUBLE FAULT IF ANOTHER EXCEPTION OCCURS
-        } catch (...) { }
+        } catch (const std::exception &exc) {
+            processException(exc);
+        }
 
         assert(reg.pc0 == reg.pc);
     }
@@ -310,6 +311,47 @@ done:
         // Check if a breakpoint has been reached
         if (debugger.breakpointMatches(reg.pc0)) breakpointReached(reg.pc0);
     }
+}
+
+void
+Moira::processException(const std::exception &exception)
+{
+    switch (cpuModel) {
+
+        case M68000:    processException<C68000>(exception); break;
+        case M68010:    processException<C68010>(exception); break;
+        default:        processException<C68020>(exception); break;
+    }
+}
+
+template <Core C> void
+Moira::processException(const std::exception &exception)
+{
+    {
+        auto exc = dynamic_cast<const AddressError *>(&exception);
+        if (exc) {
+
+            execAddressError<C>(exc->stackFrame);
+            return;
+        }
+    }
+    {
+        auto exc = dynamic_cast<const BusErrorException *>(&exception);
+        if (exc) {
+
+            execException(EXC_BUS_ERROR);
+            return;
+        }
+    }
+    {
+        auto exc = dynamic_cast<const DoubleFault *>(&exception);
+        if (exc) {
+
+            halt();
+            return;
+        }
+    }
+    throw exception;
 }
 
 bool
@@ -428,7 +470,7 @@ Moira::setSR(u16 val)
     setCCR((u8)val);
     setSupervisorMode(s);
     
-    if (model > M68010) {
+    if (cpuModel > M68010) {
         
         bool t0 = (val >> 14) & 1;
         bool m = (val >> 12) & 1;
@@ -627,19 +669,19 @@ u16 Moira::availabilityMask(Instr I, Mode M, Size S, u16 ext)
 }
 
 bool
-Moira::isAvailable(Instr I)
+Moira::isAvailable(Model model, Instr I)
 {
     return availabilityMask(I) & (1 << model);
 }
 
 bool
-Moira::isAvailable(Instr I, Mode M, Size S)
+Moira::isAvailable(Model model, Instr I, Mode M, Size S)
 {
     return availabilityMask(I, M, S) & (1 << model);
 }
 
 bool
-Moira::isAvailable(Instr I, Mode M, Size S, u16 ext)
+Moira::isAvailable(Model model, Instr I, Mode M, Size S, u16 ext)
 {
     return availabilityMask(I, M, S, ext) & (1 << model);
 }

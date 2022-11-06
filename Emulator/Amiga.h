@@ -54,7 +54,10 @@ class Amiga : public Thread {
      */
     mutable AmigaInfo info = {};
 
-     
+    // Information about the host system
+    HostInfo host = { .refreshRate = 60 };
+
+
     //
     // Sub components
     //
@@ -207,7 +210,10 @@ private:
     template <class T>
     void applyToPersistentItems(T& worker)
     {
-        worker << config.type;
+        worker
+
+        << config.type
+        << config.vsync;
     }
 
     template <class T>
@@ -235,9 +241,13 @@ private:
     
 public:
     
+    SyncMode getSyncMode() const override;
     void execute() override;
-    util::Time getDelay() override;
+    util::Time getDelay() const override;
 
+
+    i16 refreshRate() const override;
+    i64 masterClockFrequency() const;
 
     //
     // Configuring
@@ -262,6 +272,10 @@ public:
 
     // Reverts to factory settings
     void revertToFactorySettings();
+
+    // Gets or sets host parameters
+    i16 getHostRefreshRate() const { return host.refreshRate; }
+    void setHostRefreshRate(i16 refreshRate);
     
 private:
     

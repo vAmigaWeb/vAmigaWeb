@@ -27,7 +27,7 @@ Thread::~Thread()
 }
 
 template <> void
-Thread::execute <Thread::SyncMode::Periodic> ()
+Thread::execute<Thread::SyncMode::Periodic>()
 {
     loadClock.go();
     execute();
@@ -35,7 +35,7 @@ Thread::execute <Thread::SyncMode::Periodic> ()
 }
 
 template <> void
-Thread::execute <Thread::SyncMode::Pulsed> ()
+Thread::execute<Thread::SyncMode::Pulsed>()
 {
     loadClock.go();
     execute();
@@ -44,7 +44,7 @@ Thread::execute <Thread::SyncMode::Pulsed> ()
 }
 
 template <> void
-Thread::sleep <Thread::SyncMode::Periodic> ()
+Thread::sleep<Thread::SyncMode::Periodic>()
 {
     auto now = util::Time::now();
 
@@ -80,15 +80,18 @@ Thread::sleep <Thread::SyncMode::Periodic> ()
     // Sleep for a while
     // std::cout << "Sleeping... " << targetTime.asMilliseconds() << std::endl;
     // std::cout << "Delay = " << delay.asNanoseconds() << std::endl;
-    targetTime += getDelay();
+    targetTime += util::Time(i64(1000000000 / refreshRate()));
     targetTime.sleepUntil();
 }
 
 template <> void
-Thread::sleep <Thread::SyncMode::Pulsed> ()
+Thread::sleep<Thread::SyncMode::Pulsed>()
 {
+    // Set a timeout to prevent the thread from stalling
+    auto timeout = util::Time(i64(2000000000 / refreshRate()));
+
     // Wait for the next pulse
-    if (!warpMode) waitForWakeUp();
+    if (!warpMode) waitForWakeUp(timeout);
 }
 
 void
@@ -100,7 +103,8 @@ Thread::main()
 
         if (isRunning()) {
                         
-            switch (mode) {
+            switch (getSyncMode()) {
+
                 case SyncMode::Periodic: execute<SyncMode::Periodic>(); break;
                 case SyncMode::Pulsed: execute<SyncMode::Pulsed>(); break;
             }
@@ -108,7 +112,8 @@ Thread::main()
                 
         if (!warpMode || !isRunning()) {
             
-            switch (mode) {
+            switch (getSyncMode()) {
+
                 case SyncMode::Periodic: sleep<SyncMode::Periodic>(); break;
                 case SyncMode::Pulsed: sleep<SyncMode::Pulsed>(); break;
             }
@@ -198,12 +203,6 @@ Thread::main()
         }
     }
 #endif
-}
-
-void
-Thread::setMode(SyncMode newMode)
-{
-    mode = newMode;
 }
 
 void
@@ -415,7 +414,7 @@ Thread::changeDebugTo(u8 value, bool blocking)
 void
 Thread::wakeUp()
 {
-    if (mode == SyncMode::Pulsed) util::Wakeable::wakeUp();
+    if (getSyncMode() == SyncMode::Pulsed) util::Wakeable::wakeUp();
 }
 
 void

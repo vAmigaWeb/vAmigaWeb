@@ -196,7 +196,8 @@ Amiga::resetConfig()
 
     std::vector <Option> options = {
 
-        OPT_VIDEO_FORMAT
+        OPT_VIDEO_FORMAT,
+        OPT_VSYNC
     };
 
     for (auto &option : options) {
@@ -212,6 +213,10 @@ Amiga::getConfigItem(Option option) const
         case OPT_VIDEO_FORMAT:
 
             return config.type;
+
+        case OPT_VSYNC:
+
+            return config.vsync;
 
         case OPT_AGNUS_REVISION:
         case OPT_SLOW_RAM_MIRROR:
@@ -245,9 +250,10 @@ Amiga::getConfigItem(Option option) const
             return agnus.dmaDebugger.getConfigItem(option);
 
         case OPT_CPU_REVISION:
+        case OPT_CPU_DASM_REVISION:
+        case OPT_CPU_DASM_STYLE:
         case OPT_CPU_OVERCLOCKING:
         case OPT_CPU_RESET_VAL:
-        case OPT_CPU_DASM_STYLE:
 
             return cpu.getConfigItem(option);
             
@@ -394,6 +400,17 @@ Amiga::setConfigItem(Option option, i64 value)
             }
             return;
 
+        case OPT_VSYNC:
+
+            if (value != config.vsync) {
+
+                SUSPENDED
+
+                config.vsync = value;
+                paula.muxer.adjustSpeed();
+            }
+            return;
+
         default:
             fatalError;
     }
@@ -430,7 +447,8 @@ Amiga::configure(Option option, i64 value)
     switch (option) {
 
         case OPT_VIDEO_FORMAT:
-
+        case OPT_VSYNC:
+            
             setConfigItem(option, value);
             break;
 
@@ -470,6 +488,7 @@ Amiga::configure(Option option, i64 value)
             break;
 
         case OPT_CPU_REVISION:
+        case OPT_CPU_DASM_REVISION:
         case OPT_CPU_OVERCLOCKING:
         case OPT_CPU_RESET_VAL:
         case OPT_CPU_DASM_STYLE:
@@ -797,6 +816,13 @@ Amiga::revertToFactorySettings()
     initialize();
 }
 
+void
+Amiga::setHostRefreshRate(i16 refreshRate)
+{
+    host.refreshRate = refreshRate;
+    paula.muxer.adjustSpeed();
+}
+
 i64
 Amiga::overrideOption(Option option, i64 value)
 {
@@ -885,7 +911,9 @@ Amiga::_dump(Category category, std::ostream& os) const
     if (category == Category::Config) {
 
         os << tab("Video format");
-        os << VideoFormatEnum::key(config.type);
+        os << VideoFormatEnum::key(config.type) << std::endl;
+        os << tab("VSYNC");
+        os << bol(config.vsync) << std::endl;
     }
 
     if (category == Category::State) {
@@ -894,10 +922,20 @@ Amiga::_dump(Category category, std::ostream& os) const
         os << bol(isPoweredOn()) << std::endl;
         os << tab("Running");
         os << bol(isRunning()) << std::endl;
+        os << tab("Suspended");
+        os << bol(isSuspended()) << std::endl;
         os << tab("Warp mode");
         os << bol(inWarpMode()) << std::endl;
         os << tab("Debug mode");
         os << bol(inDebugMode()) << std::endl;
+        os << tab("Sync mode");
+        os << (getSyncMode() == SyncMode::Periodic ? "PERIODIC" : "PULSED") << std::endl;
+        os << tab("Master clock frequency");
+        os << flt(masterClockFrequency() / float(1000000.0)) << " MHz" << std::endl;
+        os << tab("Amiga refresh rate");
+        os << dec(refreshRate()) << " Hz" << std::endl;
+        os << tab("Host refresh rate");
+        os << dec(host.refreshRate) << " Hz" << std::endl;
     }
     
     if (category == Category::Defaults) {
@@ -1024,6 +1062,12 @@ Amiga::save(u8 *buffer)
     return result;
 }
 
+Amiga::SyncMode
+Amiga::getSyncMode() const
+{
+    return config.vsync ? SyncMode::Pulsed : SyncMode::Periodic;
+}
+
 void
 Amiga::execute()
 {    
@@ -1140,8 +1184,34 @@ Amiga::execute()
     }
 }
 
+i16
+Amiga::refreshRate() const
+{
+    switch (getSyncMode()) {
+
+        case SyncMode::Pulsed:      return host.refreshRate;
+        case SyncMode::Periodic:    return config.type == PAL ? 50 : 60;
+
+        default:
+            fatalError;
+    }
+}
+
+i64
+Amiga::masterClockFrequency() const
+{
+    switch (config.type) {
+
+        case PAL:   return i64(CLK_FREQUENCY_PAL * (refreshRate() / 50.0));
+        case NTSC:  return i64(CLK_FREQUENCY_NTSC * (refreshRate() / 60.0));
+
+        default:
+            fatalError;
+    }
+}
+
 util::Time
-Amiga::getDelay()
+Amiga::getDelay() const
 {
     switch (config.type) {
 

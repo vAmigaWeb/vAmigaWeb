@@ -40,10 +40,14 @@ Moira::writeStackFrame0000(u16 sr, u32 pc, u16 nr)
                 
             } else {
                 
-                reg.sp -= 6;
-                writeMS<C, MEM_DATA, Word>((reg.sp + 4) & ~1, pc & 0xFFFF);
-                writeMS<C, MEM_DATA, Word>((reg.sp + 0) & ~1, sr);
-                writeMS<C, MEM_DATA, Word>((reg.sp + 2) & ~1, pc >> 16);
+                // reg.sp -= 6;
+                // writeMS<C, MEM_DATA, Word>((reg.sp + 4) & ~1, pc & 0xFFFF);
+                // writeMS<C, MEM_DATA, Word>((reg.sp + 0) & ~1, sr);
+                // writeMS<C, MEM_DATA, Word>((reg.sp + 2) & ~1, pc >> 16);
+                U32_DEC(reg.sp, 6);
+                writeMS<C, MEM_DATA, Word>(U32_ADD(reg.sp, 4) & ~1, pc & 0xFFFF);
+                writeMS<C, MEM_DATA, Word>(U32_ADD(reg.sp, 0) & ~1, sr);
+                writeMS<C, MEM_DATA, Word>(U32_ADD(reg.sp, 2) & ~1, pc >> 16);
             }
             break;
             
@@ -58,11 +62,16 @@ Moira::writeStackFrame0000(u16 sr, u32 pc, u16 nr)
                 
             } else {
                 
-                reg.sp -= 8;
-                writeMS<C, MEM_DATA, Word>((reg.sp + 6) & ~1, 4 * nr);
-                writeMS<C, MEM_DATA, Word>((reg.sp + 4) & ~1, pc & 0xFFFF);
-                writeMS<C, MEM_DATA, Word>((reg.sp + 0) & ~1, sr);
-                writeMS<C, MEM_DATA, Word>((reg.sp + 2) & ~1, pc >> 16);
+                // reg.sp -= 8;
+                // writeMS<C, MEM_DATA, Word>((reg.sp + 6) & ~1, 4 * nr);
+                // writeMS<C, MEM_DATA, Word>((reg.sp + 4) & ~1, pc & 0xFFFF);
+                // writeMS<C, MEM_DATA, Word>((reg.sp + 0) & ~1, sr);
+                // writeMS<C, MEM_DATA, Word>((reg.sp + 2) & ~1, pc >> 16);
+                U32_DEC(reg.sp, 8);
+                writeMS<C, MEM_DATA, Word>(U32_ADD(reg.sp, 6) & ~1, 4 * nr);
+                writeMS<C, MEM_DATA, Word>(U32_ADD(reg.sp, 4) & ~1, pc & 0xFFFF);
+                writeMS<C, MEM_DATA, Word>(U32_ADD(reg.sp, 0) & ~1, sr);
+                writeMS<C, MEM_DATA, Word>(U32_ADD(reg.sp, 2) & ~1, pc >> 16);
             }
             break;
     }
@@ -268,8 +277,6 @@ Moira::writeStackFrame1011(u16 sr, u32 pc, u32 ia, u16 nr)
 template <Core C> void
 Moira::execAddressError(StackFrame frame, int delay)
 {
-    // assert(frame.addr & 1);
-
     u16 status = getSR();
 
     // Inform the delegate
@@ -287,28 +294,19 @@ Moira::execAddressError(StackFrame frame, int delay)
     SYNC(8);
     
     // A misaligned stack pointer will cause a double fault
-    bool doubleFault = misaligned<C>(reg.sp);
-    
-    if (!doubleFault) {
+    if (misaligned<C>(reg.sp)) throw DoubleFault();
 
-        // Write stack frame
-        if (C == C68000) {
-
-            writeStackFrameAEBE<C>(frame);
-            SYNC(2);
-            jumpToVector<C>(3);
-
-        } else {
-
-            writeStackFrame1000<C>(frame, status, frame.pc, reg.pc0, 3, frame.addr);
-            SYNC(2);
-            jumpToVector<C>(3);
-        }
+    // Write stack frame
+    if (C == C68000) {
+        writeStackFrameAEBE<C>(frame);
+    } else {
+        writeStackFrame1000<C>(frame, status, frame.pc, reg.pc0, 3, frame.addr);
     }
+    SYNC(2);
 
-    // Halt the CPU if a double fault occurred
-    if (doubleFault) halt();
-    
+    // Jump to exception vector
+    jumpToVector<C>(3);
+
     // Inform the delegate
     didExecute(EXC_ADDRESS_ERROR, 3);
 }
@@ -316,7 +314,7 @@ Moira::execAddressError(StackFrame frame, int delay)
 void
 Moira::execException(ExceptionType exc, int nr)
 {
-    switch (model) {
+    switch (cpuModel) {
 
         case M68000:    execException<C68000>(exc, nr); break;
         case M68010:    execException<C68010>(exc, nr); break;
@@ -469,7 +467,7 @@ Moira::execException(ExceptionType exc, int nr)
 void
 Moira::execInterrupt(u8 level)
 {
-    switch (model) {
+    switch (cpuModel) {
 
         case M68000:    execInterrupt<C68000>(level); break;
         case M68010:    execInterrupt<C68010>(level); break;
