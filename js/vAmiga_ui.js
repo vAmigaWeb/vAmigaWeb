@@ -15,6 +15,7 @@ let call_param_warpto=null;
 let call_param_url=null;
 let call_param_display=null;
 let call_param_wait_for_kickstart_injection=null;
+let call_param_kickstart_rom_url=null;
 
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
 let use_wide_screen=false;
@@ -136,6 +137,8 @@ function get_parameter_link()
         call_param_mouse=call_obj.mouse === undefined ? null : call_obj.mouse;
         call_param_display=call_obj.display === undefined ? null : call_obj.display;
         call_param_wait_for_kickstart_injection=call_obj.wait_for_kickstart_injection === undefined ? null : call_obj.wait_for_kickstart_injection;
+        call_param_kickstart_rom_url=call_obj.kickstart_rom_url === undefined ? null : call_obj.kickstart_rom_url;
+
         if(call_obj.touch)
         {
             call_param_touch=true; 
@@ -358,6 +361,13 @@ function message_handler(msg, data, data2)
                 //don't auto load existing kick roms
                 //instead wait for external commands
             }
+            else if(call_param_kickstart_rom_url != null)
+            {//this needs to be samesite or cross origin with CORS enabled
+                let byteArray=new Uint8Array(await (await fetch(call_param_kickstart_rom_url)).arrayBuffer());
+                let rom_type=wasm_loadfile("kick.rom_file", byteArray);
+                wasm_reset();
+            }
+            //try to load currently user selected kickstart
             else if(false == await load_roms(true))
             {
                 get_parameter_link(); //just make sure the parameters are set
