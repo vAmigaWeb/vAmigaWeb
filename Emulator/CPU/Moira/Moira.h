@@ -2,13 +2,12 @@
 // This file is part of Moira - A Motorola 68k emulator
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
-//
-// See https://www.gnu.org for license information
+// Published under the terms of the MIT License
 // -----------------------------------------------------------------------------
 
 #pragma once
 
+#include "MoiraConfig.h"
 #include "MoiraTypes.h"
 #include "MoiraDebugger.h"
 #include "SubComponent.h"
@@ -39,13 +38,16 @@ public:
 protected:
     
     // The emulated CPU model
-    Model model = M68000;
-    
+    Model cpuModel = M68000;
+
+    // The CPU model used by the disassembler
+    Model dasmModel = M68000;
+
     // The interrupt mode of this CPU
     IrqMode irqMode = IRQ_AUTO;
     
     // The selected disassembler syntax
-    DasmStyle style = DASM_MOIRA;
+    DasmStyle style = DASM_MOIRA_MOT;
 
     // The number format used by the disassembler
     DasmNumberFormat numberFormat { .prefix = "$", .radix = 16 };
@@ -108,11 +110,14 @@ protected:
     // Number of elapsed cycles since powerup
     i64 clock;
     
-    // The egister set
+    // The register set
     Registers reg;
     
     // The prefetch queue
     PrefetchQueue queue;
+
+    // The floating point unit
+    FPU fpu;
     
     // Current value on the IPL pins (Interrupt Priority Level)
     u8 ipl;
@@ -123,12 +128,17 @@ protected:
     // Determines the source of the function code pins
     u8 fcSource;
     
-    // Remembers the number of the last processed exception
+    // Remembers the vector number of the latest exception
     int exception;
     
     // Cycle penalty (needed for 68020+ extended addressing modes)
     int cp;
-    
+
+    // EXPERIMENTAL
+    int loopModeDelay = 2;  // Termination delay for 68010 loop mode
+    u16 readBuffer;         // Appears in 68010 exception frame
+    u16 writeBuffer;        // Appears in 68010 exception frame
+
     // Jump table holding the instruction handlers
     typedef void (Moira::*ExecPtr)(u16);
     ExecPtr exec[65536];
@@ -156,8 +166,9 @@ public:
     virtual ~Moira();
     
     // Selects the emulated CPU model
-    void setModel(Model model);
-    
+    void setModel(Model model) { setModel(model, model); }
+    void setModel(Model cpuModel, Model dasmModel);
+
     // Configures the disassembler
     void setDasmStyle(DasmStyle value);
     void setDasmNumberFormat(DasmNumberFormat value);
@@ -167,11 +178,11 @@ public:
 protected:
     
     // Creates the generic jump table
-    void createJumpTable();
+    void createJumpTable(Model cpuModel, Model dasmModel);
     
 private:
     
-    template <Core C> void createJumpTable();
+    template <Core C> void createJumpTable(Model model, bool registerDasm);
 
 
     //
@@ -180,7 +191,16 @@ private:
 
 public:
 
-    // Returns the memory address mask (address bus width)
+    // Checks if the emulated CPU model has a coprocessor interface
+    bool hasCPI();
+
+    // Checks if the emulated CPU model has a memory managenemt unit
+    bool hasMMU();
+
+    // Checks if the emulated CPU model has a floating point unit
+    bool hasFPU();
+
+    // Returns the address bus mask (bus width)
     template <Core C> u32 addrMask() const;
 
     // Returns the cache register mask (accessible CACR bits)
@@ -203,6 +223,10 @@ public:
     bool isHalted() const { return flags & CPU_IS_HALTED; }
     
 private:
+
+    // Processes an exception that was catched in execute()
+    void processException(const std::exception &exception);
+    template <Core C> void processException(const std::exception &exception);
     
     // Called by reset()
     template <Core C> void reset();
@@ -246,19 +270,84 @@ public:
     //
     
 protected:
+
+#if VIRTUAL_API == true
+
+    // Advances the clock
+    virtual void sync(int cycles) { clock += cycles; }
+
+    // Reads a byte or a word from memory
+    virtual u8 read8(u32 addr) = 0;
+    virtual u16 read16(u32 addr) = 0;
+
+    // Special variants used by the reset routine and the disassembler
+    virtual u16 read16OnReset(u32 addr) { return read16(addr); }
+    virtual u16 read16Dasm(u32 addr) { return read16(addr); }
+
+    // Special variants used by the MMU
+    virtual u32 readMMU32(u32 addr) = 0;
+    virtual u64 readMMU64(u32 addr) = 0;
+    virtual u32 readMMU32Dasm(u32 addr) const = 0;
+    virtual u64 readMMU64Dasm(u32 addr) const = 0;
+
+    // Writes a byte or word into memory
+    virtual void write8(u32 addr, u8 val) = 0;
+    virtual void write16(u32 addr, u16 val) = 0;
+
+    // Provides the interrupt level in IRQ_USER mode
+    virtual u16 readIrqUserVector(u8 level) const { return 0; }
+
+    // State delegates
+    virtual void signalHardReset() { }
+    virtual void signalHalt() { }
+
+    // Instruction delegates
+    virtual void willExecute(const char *func, Instr I, Mode M, Size S, u16 opcode) { }
+    virtual void didExecute(const char *func, Instr I, Mode M, Size S, u16 opcode) { }
     
+    // Exception delegates
+    virtual void willExecute(ExceptionType exc, u16 vector) { }
+    virtual void didExecute(ExceptionType exc, u16 vector) { }
+
+    // Exception delegates
+    virtual void signalInterrupt(u8 level) { }
+    virtual void signalJumpToVector(int nr, u32 addr) { }
+    virtual void signalSoftwareTrap(u16 opcode, SoftwareTrap trap) { }
+
+    // Cache register delegated
+    virtual void didChangeCACR(u32 value) { }
+    virtual void didChangeCAAR(u32 value) { }
+
+    // Called when a debug point is reached
+    virtual void softstopReached(u32 addr) { }
+    virtual void breakpointReached(u32 addr) { }
+    virtual void watchpointReached(u32 addr) { }
+    virtual void catchpointReached(u8 vector) { }
+    virtual void softwareTrapReached(u32 addr) { }
+
+#else
+
+    // Advances the clock
+    void sync(int cycles);
+
     // Reads a byte or a word from memory
     u8 read8(u32 addr);
     u16 read16(u32 addr);
-    
+
     // Special variants used by the reset routine and the disassembler
     u16 read16OnReset(u32 addr);
     u16 read16Dasm(u32 addr);
-    
+
+    // Special variants used by the MMU
+    u32 readMMU32(u32 addr);
+    u64 readMMU64(u32 addr);
+    u32 readMMU32Dasm(u32 addr) const;
+    u64 readMMU64Dasm(u32 addr) const;
+
     // Writes a byte or word into memory
     void write8(u32 addr, u8 val);
     void write16(u32 addr, u16 val);
-    
+
     // Provides the interrupt level in IRQ_USER mode
     u16 readIrqUserVector(u8 level) const;
 
@@ -269,7 +358,7 @@ protected:
     // Instruction delegates
     void willExecute(const char *func, Instr I, Mode M, Size S, u16 opcode);
     void didExecute(const char *func, Instr I, Mode M, Size S, u16 opcode);
-    
+
     // Exception delegates
     void willExecute(ExceptionType exc, u16 vector);
     void didExecute(ExceptionType exc, u16 vector);
@@ -280,8 +369,8 @@ protected:
     void signalSoftwareTrap(u16 opcode, SoftwareTrap trap);
 
     // Cache register delegated
-    void didChangeCACR(u32 value) { };
-    void didChangeCAAR(u32 value) { };
+    void didChangeCACR(u32 value);
+    void didChangeCAAR(u32 value);
 
     // Called when a debug point is reached
     void softstopReached(u32 addr);
@@ -289,8 +378,9 @@ protected:
     void watchpointReached(u32 addr);
     void catchpointReached(u8 vector);
     void softwareTrapReached(u32 addr);
-    
-    
+
+#endif
+
     //
     // Accessing the clock
     //
@@ -299,12 +389,7 @@ public:
     
     i64 getClock() const { return clock; }
     void setClock(i64 val) { clock = val; }
-    
-protected:
-    
-    // Advances the clock (called before each memory access)
-    void sync(int cycles);
-    
+
     
     //
     // Accessing registers
@@ -388,8 +473,33 @@ protected:
     template <Size S = Long> void writeD(int n, u32 v);
     template <Size S = Long> void writeA(int n, u32 v);
     template <Size S = Long> void writeR(int n, u32 v);
-    
-    
+
+
+    //
+    // Analyzing instructions
+    //
+
+    // Returns the availability mask for a given instruction
+    u16 availabilityMask(Instr I);
+    u16 availabilityMask(Instr I, Mode M, Size S);
+    u16 availabilityMask(Instr I, Mode M, Size S, u16 ext);
+
+    // Checks if a certain CPU model supports a given instruction
+    bool isAvailable(Model model, Instr I);
+    bool isAvailable(Model model, Instr I, Mode M, Size S);
+    bool isAvailable(Model model, Instr I, Mode M, Size S, u16 ext);
+
+private:
+
+    // Checks the validity of the extension words
+    bool isValidExt(Instr I, Mode M, u16 op, u32 ext);
+    bool isValidExtMMU(Instr I, Mode M, u16 op, u32 ext);
+    bool isValidExtFPU(Instr I, Mode M, u16 op, u32 ext);
+
+    // Returns an availability string (used by the disassembler)
+    const char *availabilityString(Instr I, Mode M, Size S, u16 ext);
+
+
     //
     // Managing the function code pins
     //
@@ -424,7 +534,9 @@ private:
     
     // Selects the IRQ vector to branch to
     u16 getIrqVector(u8 level) const;
-    
+
+private:
+
 #include "MoiraInit.h"
 #include "MoiraALU.h"
 #include "MoiraDataflow.h"

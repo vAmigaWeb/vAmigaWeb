@@ -25,37 +25,13 @@
         let file_descriptor={
                 cmd: "load"
         }
-        if(ssfile.floppy_rom_base64 !== undefined)
+        if(ssfile.kickstart_rom_base64 !== undefined)
         {
-            file_descriptor.floppy_rom = Uint8Array.from(FromBase64(ssfile.floppy_rom_base64));
+            file_descriptor.kickstart_rom = Uint8Array.from(FromBase64(ssfile.kickstart_rom_base64));
         }
-        if(ssfile.kernal_rom_base64 !== undefined)
+        if(ssfile.kickstart_rom_url !== undefined)
         {
-            file_descriptor.kernal_rom = Uint8Array.from(FromBase64(ssfile.kernal_rom_base64));
-        }
-        if(ssfile.basic_rom_base64 !== undefined)
-        {
-            file_descriptor.basic_rom = Uint8Array.from(FromBase64(ssfile.basic_rom_base64));
-        }
-        if(ssfile.charset_rom_base64 !== undefined)
-        {
-            file_descriptor.charset_rom = Uint8Array.from(FromBase64(ssfile.charset_rom_base64));
-        }
-        if(ssfile.floppy_rom_url !== undefined)
-        {
-            file_descriptor.floppy_rom = new Uint8Array(await (await fetch(ssfile.floppy_rom_url)).arrayBuffer());
-        }
-        if(ssfile.kernal_rom_url !== undefined)
-        {
-            file_descriptor.kernal_rom = new Uint8Array(await (await fetch(ssfile.kernal_rom_url)).arrayBuffer());
-        }
-        if(ssfile.basic_rom_url !== undefined)
-        {
-            file_descriptor.basic_rom = new Uint8Array(await (await fetch(ssfile.basic_rom_url)).arrayBuffer());
-        }
-        if(ssfile.charset_rom_url !== undefined)
-        {
-            file_descriptor.charset_rom = new Uint8Array(await (await fetch(ssfile.charset_rom_url)).arrayBuffer());
+            file_descriptor.kickstart_rom = new Uint8Array(await (await fetch(ssfile.kickstart_rom_url)).arrayBuffer());
         }
 
         if(ssfile.name !== undefined)

@@ -61,6 +61,12 @@ Muxer::_dump(Category category, std::ostream& os) const
         os << tab("Right master volume");
         os << dec(config.volR) << std::endl;
     }
+
+    if (category == Category::State) {
+
+        os << tab("Fill level");
+        os << fillLevelAsString(stream.fillLevel()) << std::endl;
+    }
 }
 
 void
@@ -252,10 +258,17 @@ Muxer::setSampleRate(double hz)
     trace(AUD_DEBUG, "setSampleRate(%f)\n", hz);
 
     sampleRate = hz;
-    cyclesPerSample = CLK_FREQUENCY_PAL / hz;
+    adjustSpeed();
 
     filterL.setSampleRate(hz);
     filterR.setSampleRate(hz);
+}
+
+void
+Muxer::adjustSpeed()
+{
+    cyclesPerSample = double(amiga.masterClockFrequency()) / sampleRate;
+    assert(cyclesPerSample > 0);
 }
 
 isize
@@ -304,17 +317,17 @@ Muxer::synthesize(Cycle clock, Cycle target, long count)
             
         case SMP_NONE:
             
-            synthesize <SMP_NONE> (clock, count, cyclesPerSample);
+            synthesize<SMP_NONE>(clock, count, cyclesPerSample);
             break;
             
         case SMP_NEAREST:
             
-            synthesize <SMP_NEAREST> (clock, count, cyclesPerSample);
+            synthesize<SMP_NEAREST>(clock, count, cyclesPerSample);
             break;
             
         case SMP_LINEAR:
             
-            synthesize<SMP_LINEAR> (clock, count, cyclesPerSample);
+            synthesize<SMP_LINEAR>(clock, count, cyclesPerSample);
             break;
             
         default:
@@ -336,17 +349,17 @@ Muxer::synthesize(Cycle clock, Cycle target)
     switch (config.samplingMethod) {
         case SMP_NONE:
             
-            synthesize <SMP_NONE> (clock, count, cyclesPerSample);
+            synthesize<SMP_NONE>(clock, count, cyclesPerSample);
             break;
             
         case SMP_NEAREST:
             
-            synthesize <SMP_NEAREST> (clock, count, cyclesPerSample);
+            synthesize<SMP_NEAREST>(clock, count, cyclesPerSample);
             break;
             
         case SMP_LINEAR:
             
-            synthesize <SMP_LINEAR> (clock, count, cyclesPerSample);
+            synthesize<SMP_LINEAR>(clock, count, cyclesPerSample);
             break;
             
         default:

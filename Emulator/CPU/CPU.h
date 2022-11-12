@@ -79,6 +79,7 @@ private:
         worker
 
         << config.revision
+        << config.dasmRevision
         << config.overclocking
         << config.regResetVal;
     }
@@ -120,7 +121,7 @@ private:
 
             << queue.irc
             << queue.ird
-            
+
             << ipl
             << fcl
             << fcSource
@@ -214,13 +215,7 @@ public:
     void willExecute(moira::ExceptionType exc, u16 vector);
     void didExecute(moira::ExceptionType exc, u16 vector);
 
-    /*
-    virtual void signalJsrBsrInstr(u16 opcode, u32 oldPC, u32 newPC) override;
-    virtual void signalRtsInstr() override { signalRtsRtdInstr("RTS"); }
-    virtual void signalRtdInstr() override { signalRtsRtdInstr("RTD"); }
-    void signalRtsRtdInstr(const string &instr);
-    */
-
+    
     //
     // Debugging
     //

@@ -150,6 +150,18 @@ RetroShell::exec <Token::amiga, Token::set, Token::ntsc> (Arguments& argv, long 
 }
 
 template <> void
+RetroShell::exec <Token::amiga, Token::vsync, Token::on> (Arguments &argv, long param)
+{
+    amiga.configure(OPT_VSYNC, true);
+}
+
+template <> void
+RetroShell::exec <Token::amiga, Token::vsync, Token::off> (Arguments &argv, long param)
+{
+    amiga.configure(OPT_VSYNC, false);
+}
+
+template <> void
 RetroShell::exec <Token::amiga, Token::power, Token::on> (Arguments &argv, long param)
 {
     amiga.powerOn();
@@ -495,6 +507,17 @@ RetroShell::exec <Token::cpu, Token::jump> (Arguments &argv, long param)
 {
     auto value = util::parseNum(argv.front());
     amiga.cpu.jump((u32)value);
+}
+
+
+//
+// FPU
+//
+
+template <> void
+RetroShell::exec <Token::fpu, Token::inspect> (Arguments& argv, long param)
+{
+    dump(amiga.cpu, Category::Fpu);
 }
 
 
@@ -1203,6 +1226,40 @@ RetroShell::exec <Token::joystick, Token::inspect> (Arguments& argv, long param)
 {
     auto &port = (param == 0) ? amiga.controlPort1 : amiga.controlPort2;
     dump(port.joystick, Category::State);
+}
+
+template <> void
+RetroShell::exec <Token::joystick, Token::press> (Arguments& argv, long param)
+{
+    auto &port = (param == 0) ? amiga.controlPort1 : amiga.controlPort2;
+    auto nr = util::parseNum(argv.front());
+
+    switch (nr) {
+
+        case 1: port.joystick.trigger(PRESS_FIRE); break;
+        case 2: port.joystick.trigger(PRESS_FIRE2); break;
+        case 3: port.joystick.trigger(PRESS_FIRE3); break;
+
+        default:
+            throw VAError(ERROR_OPT_INVARG, "1...3");
+    }
+}
+
+template <> void
+RetroShell::exec <Token::joystick, Token::unpress> (Arguments& argv, long param)
+{
+    auto &port = (param == 0) ? amiga.controlPort1 : amiga.controlPort2;
+    auto nr = util::parseNum(argv.front());
+
+    switch (nr) {
+
+        case 1: port.joystick.trigger(RELEASE_FIRE); break;
+        case 2: port.joystick.trigger(RELEASE_FIRE2); break;
+        case 3: port.joystick.trigger(RELEASE_FIRE3); break;
+
+        default:
+            throw VAError(ERROR_OPT_INVARG, "1...3");
+    }
 }
 
 template <> void

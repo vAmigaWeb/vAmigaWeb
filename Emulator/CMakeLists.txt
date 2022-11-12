@@ -16,14 +16,9 @@ endif()
 # Add emulator library
 add_library(vAmigaCore Amiga.cpp)
 
-# Add the console app (vAmiga Headless)
-if(NOT WIN32)
-add_executable(vAmigaConsole Headless.cpp)
-target_link_libraries(vAmigaConsole vAmigaCore)
-endif()
-
 # Specify compile options
 target_compile_definitions(vAmigaCore PUBLIC _USE_MATH_DEFINES)
+
 if(MSVC)
   target_compile_options(vAmigaCore PUBLIC /W4 /WX)
   target_compile_options(vAmigaCore PUBLIC /wd4100 /wd4201 /wd4324 /wd4458)
@@ -36,9 +31,11 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 else()
   target_compile_options(vAmigaCore PRIVATE -Wall -Werror)
   target_compile_options(vAmigaCore PRIVATE -Wno-unused-parameter -Wno-unused-but-set-variable)
-  target_compile_options(vAmigaCore PRIVATE -O3)
-  target_compile_options(vAmigaCore PRIVATE -Wfatal-errors -fexceptions)
+#  target_compile_options(vAmigaCore PRIVATE -O3 -fexceptions)
+  target_compile_options(vAmigaCore PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions)
+  target_compile_options(vAmigaCore PRIVATE -Wfatal-errors)
 #  target_compile_options(vAmigaCore PRIVATE -g) 
+  set_target_properties(vAmigaCore PROPERTIES LINK_FLAGS "-O3 -mnontrapping-fptoint -fwasm-exceptions" )
 endif()
 
 # Add include paths

@@ -2,9 +2,7 @@
 // This file is part of Moira - A Motorola 68k emulator
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
-//
-// See https://www.gnu.org for license information
+// Published under the terms of the MIT License
 // -----------------------------------------------------------------------------
 
 // Sanitizer friendly macros for adding signed offsets to u32 values
@@ -464,6 +462,7 @@ Moira::bcd(u32 op1, u32 op2)
     switch (I) {
             
         case ABCD:
+        case ABCD_LOOP:
         {
             // Add digits
             u16 lo = lo1 + lo2 + reg.sr.x;
@@ -493,6 +492,7 @@ Moira::bcd(u32 op1, u32 op2)
             break;
         }
         case SBCD:
+        case SBCD_LOOP:
         {
             // Subtract digits
             u16 lo = lo2 - lo1 - reg.sr.x;
@@ -807,40 +807,50 @@ Moira::cyclesBit(u8 bit) const
 template <Core C, Instr I> int
 Moira::cyclesMul(u16 data) const
 {
-    int mcycles = 17;
-    
-    switch (I)
-    {
-        case MULU:
-            
-            for (; data; data >>= 1) if (data & 1) mcycles++;
-            return 2 * mcycles;
-            
-        case MULS:
-            
-            data = ((data << 1) ^ data) & 0xFFFF;
-            for (; data; data >>= 1) if (data & 1) mcycles++;
-            return 2 * mcycles;
-            
-        default:
-            fatalError;
+    int mcycles = 0;
+
+    if constexpr (C == C68000 && I == MULU) {
+
+        mcycles = 17;
+        for (; data; data >>= 1) if (data & 1) mcycles++;
+        mcycles *= 2;
     }
+
+    if constexpr (C == C68000 && I == MULS) {
+
+        mcycles = 17;
+        data = ((data << 1) ^ data) & 0xFFFF;
+        for (; data; data >>= 1) if (data & 1) mcycles++;
+        mcycles *= 2;
+    }
+
+    if constexpr (C == C68010 && I == MULU) {
+
+        mcycles = 36;
+    }
+
+    if constexpr (C == C68010 && I == MULS) {
+
+        mcycles = (data & 0x8000) ? 38 : 36;
+    }
+
+    return mcycles;
 }
 
 template <Core C, Instr I> int
 Moira::cyclesDiv(u32 op1, u16 op2) const
 {
-    int result;
+    int result = 0;
     
-    if constexpr (I == DIVU) {
+    if constexpr (C == C68000 && I == DIVU) {
         
         u32 dividend = op1;
         u16 divisor  = op2;
         int mcycles  = 38;
-        
+
+        // Check if quotient is larger than 16 bit
         if ((dividend >> 16) >= divisor) {
             
-            // Quotient is larger than 16 bit
             result = 10;
             
         } else {
@@ -864,8 +874,8 @@ Moira::cyclesDiv(u32 op1, u16 op2) const
             result = 2 * mcycles;
         }
     }
-    
-    if constexpr (I == DIVS) {
+
+    if constexpr (C == C68000 && I == DIVS) {
         
         i32 dividend = (i32)op1;
         i16 divisor  = (i16)op2;
@@ -892,71 +902,57 @@ Moira::cyclesDiv(u32 op1, u16 op2) const
             result = 2 * mcycles;
         }
     }
-    
-    return result;
-}
 
-template <Core C, Instr I> u32
-Moira::mulMusashi(u32 op1, u32 op2)
-{
-    u32 result;
-    
-    if constexpr (I == MULS) result = (i16)op1 * (i16)op2;
-    if constexpr (I == MULU) result = op1 * op2;
-    
-    reg.sr.n = NBIT<Long>(result);
-    reg.sr.z = ZERO<Long>(result);
-    reg.sr.v = 0;
-    reg.sr.c = 0;
-    
-    return result;
-}
+    if constexpr (C == C68010 && I == DIVU) {
 
-template <Size S> u64
-Moira::mullsMusashi(u32 op1, u32 op2)
-{
-    u64 result = u64(i64(i32(op1)) * i64(i32(op2)));
-    
-    if constexpr (S == Word) {
-        
-        reg.sr.n = NBIT<Long>(result);
-        reg.sr.z = ZERO<Long>(result);
-        reg.sr.v = result != u64(i32(result));
-        reg.sr.c = 0;
-    }
-    
-    if constexpr (S == Long) {
-        
-        reg.sr.n = NBIT<Long>(result >> 32);
-        reg.sr.z = result == 0;
-        reg.sr.v = 0;
-        reg.sr.c = 0;
-    }
-    
-    return result;
-}
+        u32 dividend = op1;
+        u16 divisor  = op2;
+        int mcycles  = 78;
 
-template <Size S> u64
-Moira::mulluMusashi(u32 op1, u32 op2)
-{
-    u64 result = u64(op1) * u64(op2);
-    
-    if constexpr (S == Word) {
-        
-        reg.sr.n = NBIT<Long>(result);
-        reg.sr.z = ZERO<Long>(result);
-        reg.sr.v = (result >> 32) != 0;
-        reg.sr.c = 0;
+        // Check if quotient is larger than 16 bit
+        if ((dividend >> 16) >= divisor) {
+
+            result = 8;
+
+        } else {
+
+            u32 hdivisor = divisor << 16;
+
+            for (int i = 0; i < 15; i++) {
+                if ((i32)dividend < 0) {
+                    dividend = (u32)((u64)dividend << 1);
+                    dividend = U32_SUB(dividend, hdivisor);
+                } else {
+                    dividend = (u32)((u64)dividend << 1);
+                    if (dividend >= hdivisor) {
+                        dividend = U32_SUB(dividend, hdivisor);
+                        mcycles += 2;
+                    } else {
+                        mcycles += 2;
+                    }
+                }
+            }
+            result = mcycles;
+        }
     }
-    
-    if constexpr (S == Long) {
-        
-        reg.sr.n = NBIT<Long>(result >> 32);
-        reg.sr.z = result == 0;
-        reg.sr.v = 0;
-        reg.sr.c = 0;
+
+    if constexpr (C == C68010 && I == DIVS) {
+
+        i32 dividend = (i32)op1;
+        i16 divisor  = (i16)op2;
+        int mcycles  = (dividend < 0) ? 120 : 118;
+
+        // Check if quotient is larger than 16 bit
+        if ((abs(dividend) >> 16) >= abs(divisor)) {
+
+            result = 16;
+
+        } else {
+
+            result = mcycles;
+        }
     }
-    
+
     return result;
 }
 

@@ -1813,6 +1813,8 @@ extern "C" void wasm_mouse_button(int port, int button_id, int pressed)
   {
     if(button_id==1)
       wrapper->amiga->controlPort1.mouse.setLeftButton(pressed==1);
+    else if(button_id==2)
+      wrapper->amiga->controlPort1.mouse.setMiddleButton(pressed==1);
     else if(button_id==3)
       wrapper->amiga->controlPort1.mouse.setRightButton(pressed==1);
   }
@@ -1820,6 +1822,8 @@ extern "C" void wasm_mouse_button(int port, int button_id, int pressed)
   {
     if(button_id==1)
       wrapper->amiga->controlPort2.mouse.setLeftButton(pressed==1);
+    else if(button_id==2)
+      wrapper->amiga->controlPort2.mouse.setMiddleButton(pressed==1);
     else if(button_id==3)
       wrapper->amiga->controlPort2.mouse.setRightButton(pressed==1);
   }
@@ -1868,6 +1872,14 @@ RELEASE_FIRE
   {
     code = PRESS_FIRE;
   }
+  else if( strcmp(event,"PRESS_FIRE2") == 0)
+  {
+    code = PRESS_FIRE2;
+  }
+  else if( strcmp(event,"PRESS_FIRE3") == 0)
+  {
+    code = PRESS_FIRE3;
+  }
   else if( strcmp(event,"RELEASE_XY") == 0)
   {
     code = RELEASE_XY;
@@ -1884,8 +1896,14 @@ RELEASE_FIRE
   {
     code = RELEASE_FIRE;
   }
-
-
+  else if( strcmp(event,"RELEASE_FIRE2") == 0)
+  {
+    code = RELEASE_FIRE2;
+  }
+  else if( strcmp(event,"RELEASE_FIRE3") == 0)
+  {
+    code = RELEASE_FIRE3;
+  }
   else
   {
     return;    

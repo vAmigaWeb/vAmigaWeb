@@ -287,6 +287,7 @@ struct ChipsetRegEnum : util::Reflection<ChipsetRegEnum, ChipsetReg>
 typedef struct
 {
     VideoFormat type;
+    bool vsync;
 }
 AmigaConfig;
 
@@ -301,6 +302,12 @@ typedef struct
     long hpos;
 }
 AmigaInfo;
+
+typedef struct
+{
+    i16 refreshRate;
+}
+HostInfo;
 
 
 //

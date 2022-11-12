@@ -101,9 +101,20 @@ Interpreter::registerInstructions()
              "key", "Emulates a PAL machine",
              &RetroShell::exec <Token::amiga, Token::set, Token::pal>, 0);
 
-    root.add({"amiga", "set", "pal"},
+    root.add({"amiga", "set", "ntsc"},
              "key", "Emulates a NTSC machine",
              &RetroShell::exec <Token::amiga, Token::set, Token::ntsc>, 0);
+
+    root.add({"amiga", "vsync"},
+             "command", "Turns VSYNC on or off");
+
+    root.add({"amiga", "vsync", "on"},
+             "state", "Turns VSYNC on",
+             &RetroShell::exec <Token::amiga, Token::vsync, Token::on>, 0);
+
+    root.add({"amiga", "vsync", "off"},
+             "state", "Turns VSYNC off",
+             &RetroShell::exec <Token::amiga, Token::vsync, Token::off>, 0);
 
     root.add({"amiga", "init"},
              "command", "Initializes the Amiga with a predefined scheme",
@@ -370,7 +381,33 @@ Interpreter::registerInstructions()
              "command", "Jumps to the specified address",
              &RetroShell::exec <Token::cpu, Token::jump>, 1);
 
-    
+
+    //
+    // MMU
+    //
+
+    /*
+    root.add({"mmu"},
+             "component", "Memory management unit");
+
+    root.add({"mmu", "inspect"},
+             "command", "Displays the component state",
+             &RetroShell::exec <Token::mmu, Token::inspect>, 0);
+    */
+
+    //
+    // FPU
+    //
+
+    /*
+    root.add({"fpu"},
+             "component", "Floating point unit");
+
+    root.add({"fpu", "inspect"},
+             "command", "Displays the component state",
+             &RetroShell::exec <Token::fpu, Token::inspect>, 0);
+    */
+
     //
     // CIA
     //
@@ -1015,8 +1052,13 @@ Interpreter::registerInstructions()
                  "command", "Displays the internal state",
                  &RetroShell::exec <Token::joystick, Token::inspect>, 0, i);
 
-        root.add({joystick, ""},
-                 "command", "Presses the Pulls the joystick");
+        root.add({joystick, "press"},
+                 "command", "Presses a joystick button",
+                 &RetroShell::exec <Token::joystick, Token::press>, 1, i);
+
+        root.add({joystick, "unpress"},
+                 "command", "Releases a joystick button",
+                 &RetroShell::exec <Token::joystick, Token::unpress>, 1, i);
 
         root.add({joystick, "pull"},
                  "command", "Pulls the joystick");

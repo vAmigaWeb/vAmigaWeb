@@ -14,10 +14,13 @@ let call_param_mouse=null;
 let call_param_warpto=null;
 let call_param_url=null;
 let call_param_display=null;
+let call_param_wait_for_kickstart_injection=null;
+let call_param_kickstart_rom_url=null;
 
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
 let use_wide_screen=false;
 let use_ntsc_pixel=false;
+let joystick_button_count=1;
 
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 const audioContext = new AudioContext();
@@ -133,6 +136,8 @@ function get_parameter_link()
         call_param_warpto=call_obj.warpto === undefined ? null : call_obj.warpto;
         call_param_mouse=call_obj.mouse === undefined ? null : call_obj.mouse;
         call_param_display=call_obj.display === undefined ? null : call_obj.display;
+        call_param_wait_for_kickstart_injection=call_obj.wait_for_kickstart_injection === undefined ? null : call_obj.wait_for_kickstart_injection;
+        call_param_kickstart_rom_url=call_obj.kickstart_rom_url === undefined ? null : call_obj.kickstart_rom_url;
 
         if(call_obj.touch)
         {
@@ -351,7 +356,19 @@ function message_handler(msg, data, data2)
     {        
         //try to load roms from local storage
         setTimeout(async function() {
-            if(false == await load_roms(true))
+            if(call_param_wait_for_kickstart_injection)
+            {
+                //don't auto load existing kick roms
+                //instead wait for external commands
+            }
+            else if(call_param_kickstart_rom_url != null)
+            {//this needs to be samesite or cross origin with CORS enabled
+                let byteArray=new Uint8Array(await (await fetch(call_param_kickstart_rom_url)).arrayBuffer());
+                let rom_type=wasm_loadfile("kick.rom_file", byteArray);
+                wasm_reset();
+            }
+            //try to load currently user selected kickstart
+            else if(false == await load_roms(true))
             {
                 get_parameter_link(); //just make sure the parameters are set
                 if(call_param_openROMS==true)
@@ -935,20 +952,32 @@ function configure_file_dialog(reset=false)
 
 var port1 = 'none';
 var port2 = 'none';
-joystick_keydown_map = {
+joystick_keydown_map=[];
+joystick_keydown_map[1]={
     'ArrowUp':'PULL_UP',
     'ArrowDown':'PULL_DOWN',
     'ArrowLeft':'PULL_LEFT',
     'ArrowRight':'PULL_RIGHT',
-    'Space':'PRESS_FIRE'
-}
-joystick_keyup_map = {
+    'Space':'PRESS_FIRE',
+} 
+joystick_keydown_map[2]=Object.assign({}, joystick_keydown_map[1]);
+joystick_keydown_map[2].KeyB='PRESS_FIRE2';
+joystick_keydown_map[3]=Object.assign({}, joystick_keydown_map[2]);
+joystick_keydown_map[3].KeyN='PRESS_FIRE3';
+joystick_keyup_map=[]
+joystick_keyup_map[1] = {
     'ArrowUp':'RELEASE_Y',
     'ArrowDown':'RELEASE_Y',
     'ArrowLeft':'RELEASE_X',
     'ArrowRight':'RELEASE_X',
-    'Space':'RELEASE_FIRE'
+    'Space':'RELEASE_FIRE',
 }
+joystick_keyup_map[2]=Object.assign({}, joystick_keyup_map[1]);
+joystick_keyup_map[2].KeyB='RELEASE_FIRE2';
+joystick_keyup_map[3]=Object.assign({}, joystick_keyup_map[2]);
+joystick_keyup_map[3].KeyN='RELEASE_FIRE3';
+
+
 
 
 function is_any_text_input_active()
@@ -998,7 +1027,7 @@ function keydown(e) {
 
     if(port1=='keys'||port2=='keys')
     {
-        var joystick_cmd = joystick_keydown_map[e.code];
+        var joystick_cmd = joystick_keydown_map[joystick_button_count][e.code];
         if(joystick_cmd !== undefined)
         {
             emit_joystick_cmd((port1=='keys'?'1':'2')+joystick_cmd);
@@ -1034,17 +1063,17 @@ function keyup(e) {
 
     if(port1=='keys'||port2=='keys')
     {
-        var joystick_cmd = joystick_keyup_map[e.code];
+        var joystick_cmd = joystick_keyup_map[joystick_button_count][e.code];
         if(joystick_cmd !== undefined)
         {
             let port_id=port1=='keys'?'1':'2';
-            if( joystick_cmd=='RELEASE_FIRE'
+            if(joystick_cmd.startsWith('RELEASE_FIRE')
                 ||
                 //only release axis on key_up if the last key_down for that axis was the same direction
                 //see issue #737
-                port_state[port_id+'x'] == joystick_keydown_map[e.code]
+                port_state[port_id+'x'] == joystick_keydown_map[joystick_button_count][e.code]
                 ||
-                port_state[port_id+'y'] == joystick_keydown_map[e.code]
+                port_state[port_id+'y'] == joystick_keydown_map[joystick_button_count][e.code]
             )
             {
                 emit_joystick_cmd(port_id+joystick_cmd);
@@ -1147,14 +1176,21 @@ function handle_touch(portnr)
         {
             new_touch_cmd_y ="RELEASE_Y";
         }
-        var new_fire = (v_fire._pressed?"PRESS_FIRE":"RELEASE_FIRE");
-        var new_touch_cmd = portnr + new_touch_cmd_x + new_touch_cmd_y + new_fire;
+
+        let fire_button_number=Math.round(v_fire._stickY/(window.innerHeight/(joystick_button_count-1)))+1;
+        var new_fire   = 1==fire_button_number&&v_fire._pressed?"PRESS_FIRE":"RELEASE_FIRE";
+        var new_fire_2 = 2==fire_button_number&&v_fire._pressed?"PRESS_FIRE2":"RELEASE_FIRE2";
+        var new_fire_3 = 3==fire_button_number&&v_fire._pressed?"PRESS_FIRE3":"RELEASE_FIRE3";
+        
+        var new_touch_cmd = portnr + new_touch_cmd_x + new_touch_cmd_y + new_fire + new_fire_2 + new_fire_3;
         if( last_touch_cmd != new_touch_cmd)
         {
             last_touch_cmd = new_touch_cmd;
             emit_joystick_cmd(portnr+new_touch_cmd_x);
             emit_joystick_cmd(portnr+new_touch_cmd_y);
             emit_joystick_cmd(portnr+new_fire);
+            emit_joystick_cmd(portnr+new_fire_2);
+            emit_joystick_cmd(portnr+new_fire_3);
         }
     } catch (error) {
         console.error("error while handle_touch: "+ error);        
@@ -1257,17 +1293,34 @@ function handleGamePad(portnr, gamepad)
         emit_joystick_cmd(portnr+"RELEASE_Y");
     }
 
-
-    var bFirePressed=false;
-    for(var i=0; i<gamepad.buttons.length && i<12;i++)
+    if(joystick_button_count==1)
     {
-        if(gamepad.buttons[i].pressed)
+        var bFirePressed=false;
+        for(var i=0; i<gamepad.buttons.length && i<12;i++)
         {
-            bFirePressed=true;
+            if(gamepad.buttons[i].pressed)
+            {
+                bFirePressed=true;
+            }
         }
+        emit_joystick_cmd(portnr + (bFirePressed?"PRESS_FIRE":"RELEASE_FIRE"));
+    }
+    else if(joystick_button_count>1)
+    {
+        var bFirePressed=[false,false,false];
+
+        for(var i=0; i<gamepad.buttons.length && i<12;i++)
+        {
+            if(gamepad.buttons[i].pressed)
+            {
+                bFirePressed[i%joystick_button_count]=true;
+            }
+        }
+        emit_joystick_cmd(portnr + (bFirePressed[0]?"PRESS_FIRE":"RELEASE_FIRE"));
+        emit_joystick_cmd(portnr + (bFirePressed[1]?"PRESS_FIRE2":"RELEASE_FIRE2"));
+        emit_joystick_cmd(portnr + (bFirePressed[2]?"PRESS_FIRE3":"RELEASE_FIRE3"));
     }
 
-    emit_joystick_cmd(portnr + (bFirePressed?"PRESS_FIRE":"RELEASE_FIRE"));
 }
 
 var port_state={};
@@ -1312,6 +1365,22 @@ function emit_joystick_cmd(command)
     else if(cmd=="RELEASE_FIRE")
     {
         port_state[port+'fire']= cmd;
+    }
+    else if(cmd=="PRESS_FIRE2")
+    {
+        port_state[port+'fire2']= cmd;
+    }
+    else if(cmd=="RELEASE_FIRE2")
+    {
+        port_state[port+'fire2']= cmd;
+    }
+    else if(cmd=="PRESS_FIRE3")
+    {
+        port_state[port+'fire3']= cmd;
+    }
+    else if(cmd=="RELEASE_FIRE3")
+    {
+        port_state[port+'fire3']= cmd;
     }
 
     send_joystick(PORT_ACCESSOR.MANUAL, port, command);
@@ -1654,32 +1723,11 @@ function InitWrappers() {
 
             let with_reset=false;
             //check if any roms should be preloaded first... 
-            if(event.data.floppy_rom !== undefined)
+            if(event.data.kickstart_rom !== undefined)
             {
-                let byteArray = event.data.floppy_rom;
-                let rom_type=wasm_loadfile("1541.rom", byteArray);
-                copy_to_local_storage(rom_type, byteArray);
-                with_reset=true;
-            }
-            if(event.data.basic_rom !== undefined)
-            {
-                let byteArray = event.data.basic_rom;
-                let rom_type=wasm_loadfile("basic.rom", byteArray);
-                copy_to_local_storage(rom_type, byteArray);
-                with_reset=true;
-            }
-            if(event.data.kernal_rom !== undefined)
-            {
-                let byteArray = event.data.kernal_rom;
-                let rom_type=wasm_loadfile("kernal.rom", byteArray);
-                copy_to_local_storage(rom_type, byteArray);
-                with_reset=true;
-            }
-            if(event.data.charset_rom !== undefined)
-            {
-                let byteArray = event.data.charset_rom;
-                let rom_type=wasm_loadfile("charset.rom", byteArray);
-                copy_to_local_storage(rom_type, byteArray);
+                let byteArray = event.data.kickstart_rom;
+                let rom_type=wasm_loadfile("kick.rom_file", byteArray);
+                //copy_to_local_storage(rom_type, byteArray);
                 with_reset=true;
             }
             if(with_reset){
@@ -1980,6 +2028,27 @@ function InitWrappers() {
         install_custom_keys();
         save_setting('lock_action_button', lock_action_button);
     });
+//----
+let set_game_controller_buttons_choice = function (choice) {
+    $(`#button_game_controller_type_choice`).text('button count='+choice);
+    joystick_button_count=choice;
+    save_setting("game_controller_buttons",choice);   
+
+    for(el of document.querySelectorAll(".gc_choice_text"))
+    {
+        el.style.display="none";
+    }
+    document.getElementById('gc_buttons_'+choice).style.display="inherit";
+}
+joystick_button_count=load_setting("game_controller_buttons", 1);
+set_game_controller_buttons_choice(joystick_button_count);
+
+$(`#choose_game_controller_type a`).click(function () 
+{
+    let choice=$(this).text();
+    set_game_controller_buttons_choice(choice);
+    $("#modal_settings").focus();
+});
 
 //----
     let set_vbk_choice = function (choice) {
@@ -2186,7 +2255,7 @@ bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0', (v)=>`${v
 bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
 
 $('#hardware_settings').append("<div id='divCPU' style='display:flex;flex-direction:row'></div>");
-bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2,3], 0, 
+bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2], 0, 
 (v)=>{ return (68000+v*10)},
 (t)=>{
     let val = t;

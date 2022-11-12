@@ -2,9 +2,7 @@
 // This file is part of Moira - A Motorola 68k emulator
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
-//
-// See https://www.gnu.org for license information
+// Published under the terms of the MIT License
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -12,6 +10,7 @@
 #include <cstdint>
 #include <string>
 #include <optional>
+#include "softfloat-types.h"
 
 #if defined(__clang__)
 #pragma GCC diagnostic ignored "-Wgnu-anonymous-struct"
@@ -19,6 +18,11 @@
 #endif
 
 namespace moira {
+
+
+//
+// Datatypes
+//
 
 typedef int8_t             i8;
 typedef int16_t            i16;
@@ -29,31 +33,52 @@ typedef uint16_t           u16;
 typedef uint32_t           u32;
 typedef unsigned long long u64;
 
+
+//
+// CPU types
+//
+
 typedef enum
 {
-    M68000,             // Full supported
-    M68010,             // Work in progress
+    M68000,             // Fully supported
+    M68010,             // Fully supported
     M68EC020,           // Work in progress
     M68020,             // Work in progress
     M68EC030,           // Work in progress
-    M68030              // Work in progress
+    M68030,             // Work in progress
+    M68EC040,           // Work in progress
+    M68LC040,           // Work in progress
+    M68040              // Work in progress
 }
 Model;
+
+// Availabilty masks
+constexpr u16 AV_68040    = 1 << M68EC040 | 1 << M68LC040 | 1 << M68040;
+constexpr u16 AV_68030    = 1 << M68EC030 | 1 << M68030;
+constexpr u16 AV_68020    = 1 << M68EC020 | 1 << M68020;
+constexpr u16 AV_68030_UP = AV_68030 | AV_68040;
+constexpr u16 AV_68020_UP = AV_68020 | AV_68030_UP;
+constexpr u16 AV_68010_UP = 1 << M68010 | AV_68020_UP;
+constexpr u16 AV_68000_UP = 1 << M68000 | AV_68010_UP;
+constexpr u16 AV_MMU      = 1 << M68030 | 1 << M68LC040 | 1 << M68040;
+constexpr u16 AV_FPU      = 1 << M68040;
 
 typedef enum
 {
     C68000,             // Used by M68000
     C68010,             // Used by M68010
-    C68020              // Used by M68EC020, M68020, M68EC030, and M68030
+    C68020              // Used by all others
 }
 Core;
 
 typedef enum
 {
-    DASM_MOIRA,         // Default disassembler style
-    DASM_MUSASHI,       // Musashi style
-    DASM_VDA68K_MOT,    // Vda68k style (Motorola)
-    DASM_VDA68K_MIT     // Vda68k style (MIT)
+    DASM_MOIRA_MOT,     // Official syntax styles
+    DASM_MOIRA_MIT,
+
+    DASM_GNU,           // Legacy styles (for unit testing)
+    DASM_GNU_MIT,
+    DASM_MUSASHI,
 }
 DasmStyle;
 
@@ -67,10 +92,10 @@ DasmLetterCase;
 
 typedef struct
 {
-    const char *prefix;     // Prefix for hexidecimal numbers
-    u8 radix;               // 10 or 16
-    bool upperCase;         // Lettercase for hexadecimal digits A...F
-    bool plainZero;         // Determines if 0 is printed with or without prefix
+    const char *prefix; // Prefix for hexidecimal numbers
+    u8 radix;           // 10 or 16
+    bool upperCase;     // Lettercase for hexadecimal digits A...F
+    bool plainZero;     // Determines if 0 is printed with or without prefix
 }
 DasmNumberFormat;
 
@@ -111,21 +136,56 @@ typedef enum
     RTM,        TRAPCC,     TRAPCS,     TRAPEQ,     TRAPGE,     TRAPGT,
     TRAPHI,     TRAPLE,     TRAPLS,     TRAPLT,     TRAPMI,     TRAPNE,
     TRAPPL,     TRAPVC,     TRAPVS,     TRAPF,      TRAPT,      UNPK,
+
+    // 68040+ instructions
+    CINV,       CPUSH,      MOVE16,
     
+    // MMU instructions
+    PFLUSH,     PFLUSHA,    PFLUSHAN,   PFLUSHN,
+    PLOAD,      PMOVE,      PTEST,
+
+    // FPU instructions (68040 and 6888x)
+    FABS,       FADD,       FBcc,       FCMP,       FDBcc,      FDIV,
+    FMOVE,      FMOVEM,     FMUL,       FNEG,       FNOP,       FRESTORE,
+    FSAVE,      FScc,       FSQRT,      FSUB,       FTRAPcc,    FTST,
+
+    // FPU instructions (68040 only)
+    FSABS,      FDABS,      FSADD,      FDADD,      FSDIV,      FDDIV,
+    FSMOVE,     FDMOVE,     FSMUL,      FDMUL,      FSNEG,      FDNEG,
+    FSSQRT,     FDSQRT,     FSSUB,      FDSUB,
+
+    // FPU instructions (6888x only)
+    FACOS,      FASIN,      FATAN,      FATANH,     FCOS,       FCOSH,
+    FETOX,      FETOXM1,    FGETEXP,    FGETMAN,    FINT,       FINTRZ,
+    FLOG10,     FLOG2,      FLOGN,      FLOGNP1,    FMOD,       FMOVECR,
+    FREM,       FSCAL,      FSGLDIV,    FSGLMUL,    FSIN,       FSINCOS,
+    FSINH,      FTAN,       FTANH,      FTENTOX,    FTWOTOX,
+
     // Loop mode variants (68010)
     ABCD_LOOP,  ADD_LOOP,   ADDA_LOOP,  ADDX_LOOP,  AND_LOOP,   ASL_LOOP,
-    ASR_LOOP,   CLR_LOOP,   CMP_LOOP,   CMPA_LOOP,  DBCC_LOOP,  DBCS_LOOP,
-    DBEQ_LOOP,  DBGE_LOOP,  DBGT_LOOP,  DBHI_LOOP,  DBLE_LOOP,  DBLS_LOOP,
-    DBLT_LOOP,  DBMI_LOOP,  DBNE_LOOP,  DBPL_LOOP,  DBVC_LOOP,  DBVS_LOOP,
-    DBF_LOOP,   DBT_LOOP,   EOR_LOOP,   LSL_LOOP,   LSR_LOOP,   MOVE_LOOP,
-    NBCD_LOOP,  NEG_LOOP,   NEGX_LOOP,  NOT_LOOP,   OR_LOOP,    ROL_LOOP,
-    ROR_LOOP,   ROXL_LOOP,  ROXR_LOOP,  SBCD_LOOP,  SUB_LOOP,   SUBA_LOOP,
-    SUBX_LOOP,  TST_LOOP
+    ASR_LOOP,   CLR_LOOP,   CMP_LOOP,   CMPA_LOOP,  CMPM_LOOP,  DBCC_LOOP,
+    DBCS_LOOP,  DBEQ_LOOP,  DBGE_LOOP,  DBGT_LOOP,  DBHI_LOOP,  DBLE_LOOP,
+    DBLS_LOOP,  DBLT_LOOP,  DBMI_LOOP,  DBNE_LOOP,  DBPL_LOOP,  DBVC_LOOP,
+    DBVS_LOOP,  DBF_LOOP,   DBT_LOOP,   EOR_LOOP,   LSL_LOOP,   LSR_LOOP,
+    MOVE_LOOP,  NBCD_LOOP,  NEG_LOOP,   NEGX_LOOP,  NOT_LOOP,   OR_LOOP,
+    ROL_LOOP,   ROR_LOOP,   ROXL_LOOP,  ROXR_LOOP,  SBCD_LOOP,  SUB_LOOP,
+    SUBA_LOOP,  SUBX_LOOP,  TST_LOOP
 }
 Instr;
 
+typedef enum
+{
+    REG_TT0,
+    REG_TT1,
+    REG_MMUSR,
+    REG_CRP,
+    REG_SRP,
+    REG_TC
+}
+RegName;
+
 template <Instr I>
-constexpr bool looping() { return I >= ABCD_LOOP; }
+constexpr bool looping() { return I >= ABCD_LOOP && I <= TST_LOOP; }
 
 typedef enum
 {
@@ -161,6 +221,14 @@ typedef enum
     Long    = 4             // .l : Long word addressing
 }
 Size;
+
+/* TODO:
+
+ typedef enum
+ {
+ }
+ FSize;
+*/
 
 typedef enum
 {
@@ -223,14 +291,11 @@ typedef enum
 }
 IrqMode;
 
-typedef enum
-{
-    FC_USER_DATA            = 1,
-    FC_USER_PROG            = 2,
-    FC_SUPERVISOR_DATA      = 5,
-    FC_SUPERVISOR_PROG      = 6
-}
-FunctionCode;
+typedef u8 FunctionCode;
+static constexpr u8 FC_USER_DATA = 1;
+static constexpr u8 FC_USER_PROG = 2;
+static constexpr u8 FC_SUPERVISOR_DATA = 5;
+static constexpr u8 FC_SUPERVISOR_PROG = 6;
 
 typedef enum
 {
@@ -246,6 +311,9 @@ typedef struct
     u16 ird;
     u16 sr;
     u32 pc;
+
+    u16 fc;                 // Function code
+    u16 ssw;                // Special status word (68010)
 }
 StackFrame;
 
@@ -332,8 +400,49 @@ constexpr u64 AE_DEC_PC     (1 << 7);   // Decrement PC by 2 in stack frame
 constexpr u64 AE_INC_A      (1 << 8);   // Increment ADDR by 2 in stack frame
 constexpr u64 AE_DEC_A      (1 << 9);   // Decrement ADDR by 2 in stack frame
 constexpr u64 AE_SET_CB3    (1 << 10);  // Set bit 3 in CODE segment
+constexpr u64 AE_SET_RW     (1 << 11);   // Set bit 8 in the special status word (68010)
+constexpr u64 AE_SET_DF     (1 << 12);  // Set bit 12 in the special status word (68010)
+constexpr u64 AE_SET_IF     (1 << 13);  // Set bit 13 in the special status word (68010)
+// constexpr u64 AE_NO_FRAME   (1 << 14);  // Experimental. TODO: DELETE ASAP
 
 // Timing flags
-constexpr u64 IMPL_DEC      (1 << 11);  // Omit 2 cycle delay in -(An) mode
+constexpr u64 IMPL_DEC      (1 << 15);  // Omit 2 cycle delay in -(An) mode
+constexpr u64 SKIP_READ     (1 << 16);
+constexpr u64 SKIP_READ2    (1 << 17);
+constexpr u64 SKIP_WRITE    (1 << 18);
+
+
+//
+// FPU types
+//
+
+struct Float80 {
+
+    softfloat::floatx80 raw;
+};
+
+struct FPU {
+
+    Float80 fpr[8];
+    u32 fpiar;
+    u32 fpsr;
+    u32 fpcr;
+};
+
+
+//
+// Exceptions
+//
+
+// class AddressErrorException : public std::exception { }; // DEPRECATED
+class BusErrorException : public std::exception { };
+
+struct AddressError : public std::exception {
+
+    StackFrame stackFrame;
+    AddressError(const StackFrame frame) { stackFrame = frame; }
+};
+
+struct DoubleFault : public std::exception { };
 
 }

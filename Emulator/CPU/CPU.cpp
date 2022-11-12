@@ -14,6 +14,7 @@
 #include "IOUtils.h"
 #include "Memory.h"
 #include "MsgQueue.h"
+#include "softfloat.h"
 
 //
 // Moira
@@ -66,19 +67,19 @@ Moira::sync(int cycles)
 u8
 Moira::read8(u32 addr)
 {
-    return mem.peek8 <ACCESSOR_CPU> (addr);
+    return mem.peek8<ACCESSOR_CPU>(addr);
 }
 
 u16
 Moira::read16(u32 addr)
 {
-    return mem.peek16 <ACCESSOR_CPU> (addr); 
+    return mem.peek16<ACCESSOR_CPU>(addr);
 }
 
 u16
 Moira::read16Dasm(u32 addr)
 {
-    auto result = mem.spypeek16 <ACCESSOR_CPU> (addr);
+    auto result = mem.spypeek16<ACCESSOR_CPU>(addr);
     
     // For LINE-A instructions, check if the opcode is a software trap
     if (Debugger::isLineAInstr(result)) result = debugger.swTraps.resolve(result);
@@ -191,79 +192,11 @@ Moira::didExecute(ExceptionType exc, u16 vector)
 
 }
 
-/*
-void
-Moira::signalResetInstr()
-{
-    xfiles("RESET instruction\n");
-    amiga.softReset();
-}
-
-void
-Moira::signalStopInstr(u16 op)
-{
-    if (!(op & 0x2000)) {
-        xfiles("STOP instruction (%x)\n", op);
-    }
-}
-
-void
-Moira::signalTasInstr()
-{
-    xfiles("TAS instruction\n");
-}
-*/
-
 void
 Moira::signalHalt()
 {
     msgQueue.put(MSG_CPU_HALT);
 }
-
-/*
-void
-Moira::signalAddressError(moira::AEStackFrame &frame)
-{
-    xfiles("Address error exception %x %x %x %x %x\n",
-          frame.code, frame.addr, frame.ird, frame.sr, frame.pc);
-}
-
-void
-Moira::signalLineAException(u16 opcode)
-{
-    xfiles("lineAException(%x)\n", opcode);
-}
-
-void
-Moira::signalLineFException(u16 opcode)
-{
-    xfiles("lineFException(%x)\n", opcode);
-}
-
-void
-Moira::signalIllegalOpcodeException(u16 opcode)
-{
-    xfiles("illegalOpcodeException(%x)\n", opcode);
-}
-
-void
-Moira::signalTraceException()
-{
-
-}
-
-void
-Moira::signalTrapException()
-{
-    xfiles("trapException\n");
-}
-
-void
-Moira::signalPrivilegeViolation()
-{
-    
-}
-*/
 
 void
 Moira::signalInterrupt(u8 level)
@@ -284,22 +217,20 @@ Moira::signalJumpToVector(int nr, u32 addr)
 void
 Moira::signalSoftwareTrap(u16 instr, SoftwareTrap trap)
 {
- 
-}
 
-/*
-void
-Moira::signalBkptInstruction(int nr)
-{
-    xfiles("68010: BKPT instruction executed\n");
 }
 
 void
-Moira::addressErrorHandler()
+Moira::didChangeCACR(u32 value)
 {
-    
+
 }
-*/
+
+void
+Moira::didChangeCAAR(u32 value)
+{
+
+}
 
 void
 Moira::softstopReached(u32 addr)
@@ -333,6 +264,7 @@ Moira::softwareTrapReached(u32 addr)
 
 }
 
+
 //
 // CPU
 //
@@ -348,9 +280,10 @@ CPU::getConfigItem(Option option) const
     switch (option) {
 
         case OPT_CPU_REVISION:      return (long)config.revision;
+        case OPT_CPU_DASM_REVISION: return (long)config.dasmRevision;
+        case OPT_CPU_DASM_STYLE:    return (long)style;
         case OPT_CPU_OVERCLOCKING:  return (long)config.overclocking;
         case OPT_CPU_RESET_VAL:     return (long)config.regResetVal;
-        case OPT_CPU_DASM_STYLE:    return (long)style;
 
         default:
             fatalError;
@@ -360,24 +293,32 @@ CPU::getConfigItem(Option option) const
 void
 CPU::setConfigItem(Option option, i64 value)
 {
+    auto model = [&](CPURevision rev) { return moira::Model(rev); };
+
     switch (option) {
 
         case OPT_CPU_REVISION:
+
+            if (value >= CPU_68EC030 && value <= CPU_68040) {
+                throw VAError(ERROR_CPU_UNSUPPORTED, CPURevisionEnum::key(value));
+            }
+            [[fallthrough]];
+
+        case OPT_CPU_DASM_REVISION:
 
             if (!CPURevisionEnum::isValid(value)) {
                 throw VAError(ERROR_OPT_INVARG, CPURevisionEnum::keyList());
             }
 
             suspend();
-            config.revision = CPURevision(value);
 
-            switch (value) {
-
-                case CPU_68000:     setModel(moira::M68000); break;
-                case CPU_68010:     setModel(moira::M68010); break;
-                case CPU_68EC020:   setModel(moira::M68EC020); break;
-                case CPU_68EC030:   setModel(moira::M68EC030); break;
+            if (option == OPT_CPU_REVISION) {
+                config.revision = CPURevision(value);
+            } else {
+                config.dasmRevision = CPURevision(value);
             }
+            setModel(model(config.revision), model(config.dasmRevision));
+
             resume();
             return;
 
@@ -450,7 +391,7 @@ CPU::_reset(bool hard)
         
         /* "The RESET instruction causes the processor to assert RESET for 124
          *  clock periods toreset the external devices of the system. The
-         *  internal state of the processor is notaffected. Neither the status
+         *  internal state of the processor is not affected. Neither the status
          *  register nor any of the internal registers is affected by an
          *  internal reset operation. All external devices in the system should
          *  be reset at the completion of the RESET instruction."
@@ -494,6 +435,8 @@ CPU::_dump(Category category, std::ostream& os) const
 
         os << util::tab("CPU model");
         os << CPURevisionEnum::key(config.revision) << std::endl;
+        os << util::tab("Disassembler");
+        os << CPURevisionEnum::key(config.dasmRevision) << std::endl;
         os << util::tab("Overclocking");
         os << util::dec(config.overclocking) << std::endl;
         os << util::tab("Register reset value");
@@ -553,6 +496,23 @@ CPU::_dump(Category category, std::ostream& os) const
         os << (reg.sr.c ? 'C' : 'c') << std::endl;
     }
 
+    if (category == Category::Fpu) {
+        
+        os << util::tab("FPIAR");
+        os << util::hex(fpu.fpiar) << std::endl;
+        os << util::tab("FPSR");
+        os << util::hex(fpu.fpsr) << std::endl;
+        os << util::tab("FPCR");
+        os << util::hex(fpu.fpcr) << std::endl;
+
+        for (isize i = 0; i < 8; i++) {
+            
+            auto value = softfloat::floatx80_to_float32(fpu.fpr[i].raw);
+            os << util::tab("FP" + std::to_string(i));
+            os << util::flt(value) << std::endl;
+        }
+    }
+    
     if (category == Category::Breakpoints) {
         
         for (int i = 0; i < debugger.breakpoints.elements(); i++) {
@@ -649,7 +609,7 @@ CPU::_load(const u8 *buffer)
     applyToResetItems(reader);
 
     if (oldModel != config.revision) {
-        createJumpTable();
+        createJumpTable(cpuModel, dasmModel);
     }
 
     return isize(reader.ptr - buffer);
@@ -757,49 +717,6 @@ CPU::jump(u32 addr)
         debugger.jump(addr);
     }
 }
-
-/*
-void
-CPU::signalJsrBsrInstr(u16 opcode, u32 oldPC, u32 newPC)
-{
-    if (amiga.inDebugMode()) {
-        
-        trace(CST_DEBUG, "JSR/BSR: %x -> %x [%ld]\n", oldPC, newPC, callstack.count());
-        
-        if (callstack.isFull()) {
-            
-            debug(CST_DEBUG, "JSR/BSR: Large stack\n");
-            (void)callstack.read();
-        }
-        
-        CallStackEntry entry;
-        entry.opcode = opcode;
-        entry.oldPC = oldPC;
-        entry.newPC = newPC;
-        for (isize i = 0; i < 8; i++) entry.d[i] = reg.d[i];
-        for (isize i = 0; i < 8; i++) entry.a[i] = reg.a[i];
-        
-        callstack.write(entry);
-    }
-}
-
-void
-CPU::signalRtsRtdInstr(const string &instr)
-{
-    if (amiga.inDebugMode()) {
-        
-        trace(CST_DEBUG, "%s [%ld]\n", instr.c_str(), callstack.count());
-        
-        if (callstack.isEmpty()) {
-            
-            trace(CST_DEBUG, "%s: Empty stack\n", instr.c_str());
-            return;
-        }
-        
-        (void)callstack.read();
-    }
-}
-*/
 
 void
 CPU::setBreakpoint(u32 addr)
