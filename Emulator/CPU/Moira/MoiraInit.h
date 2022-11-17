@@ -16,7 +16,7 @@
 template <Core C, Instr I, Mode M, Size S> void exec##x(u16);
 
 #define MOIRA_DECLARE_DASM(x) \
-template <Instr I, Mode M, Size S> void dasm##x(StrWriter &, u32 &, u16);
+template <Instr I, Mode M, Size S> void dasm##x(StrWriter &, u32 &, u16) const;
 
 #define MOIRA_DECLARE(x) \
 MOIRA_DECLARE_EXEC(x) \
@@ -110,11 +110,11 @@ MOIRA_DECLARE(MovemRgEa)
 MOIRA_DECLARE(MovepDxEa)
 MOIRA_DECLARE(MovepEaDx)
 MOIRA_DECLARE(Moveq)
-MOIRA_DECLARE(MoveFromCcrRg)
-MOIRA_DECLARE(MoveFromCcrEa)
+MOIRA_DECLARE(MoveCcrRg)
+MOIRA_DECLARE(MoveCcrEa)
 MOIRA_DECLARE(MoveToCcr)
-MOIRA_DECLARE(MoveFromSrRg)
-MOIRA_DECLARE(MoveFromSrEa)
+MOIRA_DECLARE(MoveSrRg)
+MOIRA_DECLARE(MoveSrEa)
 MOIRA_DECLARE(Moves)
 MOIRA_DECLARE(MoveToSr)
 MOIRA_DECLARE(MoveUspAn)
@@ -202,7 +202,7 @@ MOIRA_DECLARE(Move16AlPi)
 MOIRA_DECLARE(Move16AiAl)
 MOIRA_DECLARE(Move16AlAi)
 
-// Sub handlers 
+// Sub handlers
 template <Core C, Instr I, Mode M, Size S> void execMulsMoira(u16);
 template <Core C, Instr I, Mode M, Size S> void execMuluMoira(u16);
 template <Core C, Instr I, Mode M, Size S> void execMullMoira(u16);
