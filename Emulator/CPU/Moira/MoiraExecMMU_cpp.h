@@ -6,7 +6,7 @@
 // -----------------------------------------------------------------------------
 
 bool
-Moira::isValidExtMMU(Instr I, Mode M, u16 op, u32 ext)
+Moira::isValidExtMMU(Instr I, Mode M, u16 op, u32 ext) const
 {
     auto preg  = [ext]() { return ext >> 10 & 0b111;   };
     auto a     = [ext]() { return ext >>  8 & 0b1;     };
@@ -14,11 +14,11 @@ Moira::isValidExtMMU(Instr I, Mode M, u16 op, u32 ext)
     auto mask  = [ext]() { return ext >>  5 & 0b1111;  }; // 68851 mask is 4 bit
     auto reg   = [ext]() { return ext >>  5 & 0b111;   };
     auto fc    = [ext]() { return ext       & 0b11111; };
-    
+
     auto validFC = [&]() {
-            return fc() <= 1 || (fc() >= 8); // Binutils checks M68851
+        return fc() <= 1 || (fc() >= 8); // Binutils checks M68851
     };
-    
+
     switch (I) {
 
         case PFLUSHA:

@@ -200,7 +200,7 @@ public:
     
     // void setMode(SyncMode newMode);
 
-    
+
     //
     // Analyzing
     //

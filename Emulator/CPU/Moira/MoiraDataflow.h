@@ -5,7 +5,7 @@
 // Published under the terms of the MIT License
 // -----------------------------------------------------------------------------
 
-/* Moira utilizes a three layer design to model dataflow inside the processor.
+/* Moira utilizes three layers to model dataflow inside the processor.
  *
  * Layer 1: Main entry points. Most instruction execution handlers call a
  *          layer 1 function to read or write their operands.
@@ -32,13 +32,10 @@
  *                 /        |       computeEA -----------                \
  *                /         |           |               |                 \
  * - - - - - - - -|- - - - -|- - - - - -|- - - - - - - -|- - - - - - - - -|- - -
- * Layer 2:       |         |           |               V                 |
- *                |         |           |            readExt              |
- *                V         V           V                                 V
- *              readD     readA      readM -----> addressError          readI
+ * Layer 2:       |         |           |               |                 |
+ *                V         V           V               V                 V
+ *              readD     readA      readM           readExt            readI
  *             (writeD)  (writeA)   (writeM)
- *                                      |
- *                                  updateAn()
  *                                      |
  * - - - - - - - - - - - - - - - - - - -|- - - - - - - - - - - - - - - - - - - -
  * Layer 3:                             |
@@ -49,6 +46,12 @@
  *                       (write8)    (write8)  (2 x write16)
  *
  */
+
+/* Computes an effective address
+ */
+template <Core C, Mode M, Size S, Flags F = 0> u32 computeEA(u32 n);
+template <Core C, Mode M, Size S, Flags F = 0> u32 computeEAbrief(u32 an);
+template <Core C, Mode M, Size S, Flags F = 0> u32 computeEAfull(u32 an);
 
 /* Reads an operand
  *
@@ -63,34 +66,30 @@ void readOp(int n, u32 *ea, u32 *result);
 /* Writes an operand
  *
  * If parameter ea is omitted, the destination of the operand is determined
- * by the addressing mode M. Parameter 'last' indicates if this function is
- * initiates the last memory bus cycle of an instruction.
+ * by the addressing mode M.
  */
 template <Core C, Mode M, Size S, Flags F = 0> void writeOp(int n, u32 val);
 template <Core C, Mode M, Size S, Flags F = 0> void writeOp(int n, u32 ea, u32 val);
 
-// Computes an effective address
-template <Core C, Mode M, Size S, Flags F = 0> u32 computeEA(u32 n);
-template <Core C, Mode M, Size S, Flags F = 0> u32 computeEAbrief(u32 an);
-template <Core C, Mode M, Size S, Flags F = 0> u32 computeEAfull(u32 an);
-
 // Emulates the address register modification for modes (An)+, (An)-
 template <Mode M, Size S> void updateAn(int n);
-template <Mode M, Size S> void updateAnPD(int n);
-template <Mode M, Size S> void undoAnPD(int n);
 template <Mode M, Size S> void updateAnPI(int n);
+template <Mode M, Size S> void updateAnPD(int n);
+template <Mode M, Size S> void undoAn(int n);
+template <Mode M, Size S> void undoAnPI(int n);
+template <Mode M, Size S> void undoAnPD(int n);
 
 // Reads a value from program or data space, depending on the addressing mode
 template <Core C, Mode M, Size S, Flags F = 0> u32 readM(u32 addr);
 
 // Reads a value from a specific memory space
-template <Core C, MemSpace MS, Size S, Flags F = 0> u32 readMS(u32 addr);
+template <Core C, MemSpace MS, Size S, Flags F = 0> u32 read(u32 addr);
 
 // Writes an operand to memory (without or with address error checking)
 template <Core C, Mode M, Size S, Flags F = 0> void writeM(u32 addr, u32 val);
 
 // Writes a value to a specific memory space
-template <Core C, MemSpace MS, Size S, Flags F = 0> void writeMS(u32 addr, u32 val);
+template <Core C, MemSpace MS, Size S, Flags F = 0> void write(u32 addr, u32 val);
 
 // Reads an immediate value from memory
 template <Core C, Size S> u32 readI();
@@ -126,8 +125,8 @@ template <Core C, Size S> u32 readExt();
 template <Core C, Flags F = 0> void jumpToVector(int nr);
 
 // Computes the number of extension words provided in full extension format
-int baseDispWords(u16 ext);
-int outerDispWords(u16 ext);
+int baseDispWords(u16 ext) const;
+int outerDispWords(u16 ext) const;
 
 // Computes the cycle penalty for extended 68020 addressing modes
-template <Core C, Mode M, Size S> int penaltyCycles(u16 ext);
+template <Core C, Mode M, Size S> int penaltyCycles(u16 ext) const;

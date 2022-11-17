@@ -9,12 +9,14 @@
 
 #include "config.h"
 #include "MoiraConfig.h"
+#include "MoiraTypes.h"
 #include "Moira.h"
 #include "MoiraMacros.h"
 #include <cstring>
 #include <cstdio>
 
 namespace moira {
+
 
 //
 // Guard
@@ -24,7 +26,7 @@ bool
 Guard::eval(u32 addr, Size S)
 {
     if (this->addr >= addr && this->addr < addr + u32(S) && this->enabled) {
-        
+
         if (!ignore) return true;
         ignore--;
     }
@@ -54,7 +56,7 @@ Guards::guardAt(u32 addr) const
     for (int i = 0; i < count; i++) {
         if (guards[i].addr == addr) return &guards[i];
     }
-    
+
     return nullptr;
 }
 
@@ -69,16 +71,16 @@ void
 Guards::setAt(u32 addr)
 {
     if (isSetAt(addr)) return;
-    
+
     if (count >= capacity) {
-        
+
         Guard *newguards = new Guard[2 * capacity];
         for (long i = 0; i < capacity; i++) newguards[i] = guards[i];
         delete [] guards;
         guards = newguards;
         capacity *= 2;
     }
-    
+
     guards[count++].addr = addr;
     setNeedsCheck(true);
 }
@@ -93,9 +95,9 @@ void
 Guards::removeAt(u32 addr)
 {
     for (int i = 0; i < count; i++) {
-        
+
         if (guards[i].addr == addr) {
-            
+
             for (int j = i; j + 1 < count; j++) guards[j] = guards[j + 1];
             count--;
             break;
@@ -108,7 +110,7 @@ void
 Guards::replace(long nr, u32 addr)
 {
     if (nr >= count || isSetAt(addr)) return;
-    
+
     guards[nr].addr = addr;
 }
 
@@ -165,9 +167,9 @@ bool
 Guards::eval(u32 addr, Size S)
 {
     for (int i = 0; i < count; i++) {
-        
+
         if (guards[i].eval(addr, S)) {
-            
+
             hit = guards[i];
             return true;
         }
@@ -179,9 +181,9 @@ void
 Breakpoints::setNeedsCheck(bool value)
 {
     if (value) {
-        moira.flags |= Moira::CPU_CHECK_BP;
+        moira.flags |= CPU_CHECK_BP;
     } else {
-        moira.flags &= ~Moira::CPU_CHECK_BP;
+        moira.flags &= ~CPU_CHECK_BP;
     }
 }
 
@@ -189,9 +191,9 @@ void
 Watchpoints::setNeedsCheck(bool value)
 {
     if (value) {
-        moira.flags |= Moira::CPU_CHECK_WP;
+        moira.flags |= CPU_CHECK_WP;
     } else {
-        moira.flags &= ~Moira::CPU_CHECK_WP;
+        moira.flags &= ~CPU_CHECK_WP;
     }
 }
 
@@ -199,9 +201,9 @@ void
 Catchpoints::setNeedsCheck(bool value)
 {
     if (value) {
-        moira.flags |= Moira::CPU_CHECK_CP;
+        moira.flags |= CPU_CHECK_CP;
     } else {
-        moira.flags &= ~Moira::CPU_CHECK_CP;
+        moira.flags &= ~CPU_CHECK_CP;
     }
 }
 
@@ -211,7 +213,7 @@ SoftwareTraps::create(u16 instr)
     // Seek an unsed LINE-A instruction
     u16 key = 0xA000;
     while (traps.contains(key)) key++;
-    
+
     return create(key, instr);
 }
 
@@ -221,15 +223,15 @@ SoftwareTraps::create(u16 key, u16 instr)
     assert(Debugger::isLineAInstr(key));
     assert(traps.size() < 512);
     assert(!traps.contains(key));
-    
+
     traps[key] = SoftwareTrap { .instruction = instr };
     return key;
 }
 
 u16
-SoftwareTraps::resolve(u16 instr)
+SoftwareTraps::resolve(u16 instr) const
 {
-    return traps.contains(instr) ? traps[instr].instruction : instr;
+    return traps.contains(instr) ? traps.at(instr).instruction : instr;
 }
 
 void
@@ -258,7 +260,7 @@ bool
 Debugger::softstopMatches(u32 addr)
 {
     if (softStop && (*softStop < 0 || *softStop == addr)) {
-        
+
         // Soft breakpoints are deleted when reached
         softStop = { };
         breakpoints.setNeedsCheck(breakpoints.elements() != 0);
@@ -288,13 +290,13 @@ Debugger::catchpointMatches(u32 vectorNr)
 void
 Debugger::enableLogging()
 {
-    moira.flags |= Moira::CPU_LOG_INSTRUCTION;
+    moira.flags |= CPU_LOG_INSTRUCTION;
 }
 
 void
 Debugger::disableLogging()
 {
-    moira.flags &= ~Moira::CPU_LOG_INSTRUCTION;
+    moira.flags &= ~CPU_LOG_INSTRUCTION;
 }
 
 int
@@ -346,7 +348,7 @@ Debugger::vectorName(u8 vectorNr)
         return "User interrupt vector";
     }
     switch (vectorNr) {
-            
+
         case 0:     return "Reset SP";
         case 1:     return "Reset PC";
         case 2:     return "Bus error";
@@ -361,7 +363,7 @@ Debugger::vectorName(u8 vectorNr)
         case 11:    return "Line F instruction";
         case 15:    return "Uninitialized IRQ vector";
         case 24:    return "Spurious interrupt";
-            
+
         default:
             fatalError;
     }
@@ -371,8 +373,7 @@ void
 Debugger::jump(u32 addr)
 {
     moira.reg.pc = addr;
-    moira.fullPrefetch<C68000, POLLIPL>();
-    // moira.fullPrefetch<C68000>();
+    moira.fullPrefetch<C68000, POLL>();
 }
 
 }

@@ -65,19 +65,19 @@ Moira::sync(int cycles)
 }
 
 u8
-Moira::read8(u32 addr)
+Moira::read8(u32 addr) const
 {
     return mem.peek8<ACCESSOR_CPU>(addr);
 }
 
 u16
-Moira::read16(u32 addr)
+Moira::read16(u32 addr) const
 {
     return mem.peek16<ACCESSOR_CPU>(addr);
 }
 
 u16
-Moira::read16Dasm(u32 addr)
+Moira::read16Dasm(u32 addr) const
 {
     auto result = mem.spypeek16<ACCESSOR_CPU>(addr);
     
@@ -88,13 +88,13 @@ Moira::read16Dasm(u32 addr)
 }
 
 u16
-Moira::read16OnReset(u32 addr)
+Moira::read16OnReset(u32 addr) const
 {
     return mem.chip ? read16(addr) : 0;
 }
 
 void
-Moira::write8(u32 addr, u8 val)
+Moira::write8(u32 addr, u8 val) const
 {
     if constexpr (XFILES) {
         if (addr - reg.pc < 5) xfiles("write8 close to PC %x\n", reg.pc);
@@ -103,7 +103,7 @@ Moira::write8(u32 addr, u8 val)
 }
 
 void
-Moira::write16(u32 addr, u16 val)
+Moira::write16(u32 addr, u16 val) const
 {
     if constexpr (XFILES) {
         if (addr - reg.pc < 5) xfiles("write16 close to PC %x\n", reg.pc);
@@ -193,31 +193,31 @@ Moira::didExecute(ExceptionType exc, u16 vector)
 }
 
 void
-Moira::signalHalt()
+Moira::didReset()
+{
+
+}
+
+void
+Moira::didHalt()
 {
     msgQueue.put(MSG_CPU_HALT);
 }
 
 void
-Moira::signalInterrupt(u8 level)
+Moira::willInterrupt(u8 level)
 {
     debug(INT_DEBUG, "Executing level %d IRQ\n", level);
 }
 
 void
-Moira::signalJumpToVector(int nr, u32 addr)
+Moira::didJumpToVector(int nr, u32 addr)
 {
     bool isIrqException = nr >= 24 && nr <= 31;
 
     if (isIrqException) {
         trace(INT_DEBUG, "Exception %d: Changing PC to %x\n", nr, addr);
     }
-}
-
-void
-Moira::signalSoftwareTrap(u16 instr, SoftwareTrap trap)
-{
-
 }
 
 void
@@ -281,7 +281,7 @@ CPU::getConfigItem(Option option) const
 
         case OPT_CPU_REVISION:      return (long)config.revision;
         case OPT_CPU_DASM_REVISION: return (long)config.dasmRevision;
-        case OPT_CPU_DASM_STYLE:    return (long)style;
+        case OPT_CPU_DASM_SYNTAX:   return (long)config.dasmSyntax;
         case OPT_CPU_OVERCLOCKING:  return (long)config.overclocking;
         case OPT_CPU_RESET_VAL:     return (long)config.regResetVal;
 
@@ -293,32 +293,45 @@ CPU::getConfigItem(Option option) const
 void
 CPU::setConfigItem(Option option, i64 value)
 {
-    auto model = [&](CPURevision rev) { return moira::Model(rev); };
+    auto cpuModel = [&](CPURevision rev) { return moira::Model(rev); };
+    auto dasmModel = [&](DasmRevision rev) { return moira::Model(rev); };
+    auto syntax = [&](DasmSyntax rev) { return moira::DasmSyntax(rev); };
 
     switch (option) {
 
         case OPT_CPU_REVISION:
-
-            if (value >= CPU_68EC030 && value <= CPU_68040) {
-                throw VAError(ERROR_CPU_UNSUPPORTED, CPURevisionEnum::key(value));
-            }
-            [[fallthrough]];
-
-        case OPT_CPU_DASM_REVISION:
 
             if (!CPURevisionEnum::isValid(value)) {
                 throw VAError(ERROR_OPT_INVARG, CPURevisionEnum::keyList());
             }
 
             suspend();
+            config.revision = CPURevision(value);
+            setModel(cpuModel(config.revision), dasmModel(config.dasmRevision));
+            resume();
+            return;
 
-            if (option == OPT_CPU_REVISION) {
-                config.revision = CPURevision(value);
-            } else {
-                config.dasmRevision = CPURevision(value);
+        case OPT_CPU_DASM_REVISION:
+
+            if (!DasmRevisionEnum::isValid(value)) {
+                throw VAError(ERROR_OPT_INVARG, DasmRevisionEnum::keyList());
             }
-            setModel(model(config.revision), model(config.dasmRevision));
 
+            suspend();
+            config.dasmRevision = DasmRevision(value);
+            setModel(cpuModel(config.revision), dasmModel(config.dasmRevision));
+            resume();
+            return;
+
+        case OPT_CPU_DASM_SYNTAX:
+
+            if (!DasmSyntaxEnum::isValid(value)) {
+                throw VAError(ERROR_OPT_INVARG, DasmSyntaxEnum::keyList());
+            }
+
+            suspend();
+            config.dasmSyntax = DasmSyntax(value);
+            setDasmSyntax(syntax(config.dasmSyntax));
             resume();
             return;
 
@@ -333,11 +346,6 @@ CPU::setConfigItem(Option option, i64 value)
         case OPT_CPU_RESET_VAL:
 
             config.regResetVal = u32(value);
-            return;
-
-        case OPT_CPU_DASM_STYLE:
-
-            setDasmStyle(moira::DasmStyle(value));
             return;
 
         default:
@@ -505,12 +513,14 @@ CPU::_dump(Category category, std::ostream& os) const
         os << util::tab("FPCR");
         os << util::hex(fpu.fpcr) << std::endl;
 
+        /*
         for (isize i = 0; i < 8; i++) {
             
             auto value = softfloat::floatx80_to_float32(fpu.fpr[i].raw);
             os << util::tab("FP" + std::to_string(i));
-            os << util::flt(value) << std::endl;
+            os << util::hex(u32(value)) << std::endl;
         }
+        */
     }
     
     if (category == Category::Breakpoints) {
