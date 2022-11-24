@@ -2433,6 +2433,7 @@ $('.layer').change( function(event) {
 
     $('#modal_file_slot').on('hidden.bs.modal', function () {
         $("#filedialog").val(''); //clear file slot after file has been loaded
+        document.getElementById('modal_file_slot').blur(); //needed for safari issue#136
     });
 
     $( "#modal_file_slot" ).keydown(event => {
@@ -2690,11 +2691,17 @@ $('.layer').change( function(event) {
     }
     get_settings_cache_value= async function (key)
     {
-        let settings = await caches.open('settings');
-        let response=await settings.match(key)
-        if(response==undefined)
-            return null;
-        return await response.text();
+        try {
+            let settings = await caches.open('settings');
+            let response=await settings.match(key)
+            if(response==undefined)
+                return null;
+            return await response.text();    
+        }
+        catch(e){
+            console.error(e);
+            return "can't read version";
+        }
     }
 
     execute_update = async function() 
@@ -2743,7 +2750,15 @@ $('.layer').change( function(event) {
         //when the serviceworker talks with us ...  
         navigator.serviceWorker.addEventListener("message", async (evt) => {
             await get_current_ui_version();
-            let cache_names=await caches.keys();
+            let cache_names=null;
+            try{
+                cache_names=await caches.keys();
+            }
+            catch(e)
+            {
+                console.error(e);
+                return;
+            }
             let version_selector = `
             manage already installed versions:
             <br>
