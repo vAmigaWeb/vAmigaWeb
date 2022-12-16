@@ -17,6 +17,9 @@ let call_param_display=null;
 let call_param_wait_for_kickstart_injection=null;
 let call_param_kickstart_rom_url=null;
 
+let df_mount_list=[];//to auto mount disks from zip e.g. ["Batman_Rises_disk1.adf","Batman_Rises_disk2.adf"];
+let hd_mount_list=[];
+
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
 let use_wide_screen=false;
 let use_ntsc_pixel=false;
@@ -782,50 +785,8 @@ function configure_file_dialog(reset=false)
 
             var return_icon=`&nbsp;<svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-return-left" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M14.5 1.5a.5.5 0 0 1 .5.5v4.8a2.5 2.5 0 0 1-2.5 2.5H2.707l3.347 3.346a.5.5 0 0 1-.708.708l-4.2-4.2a.5.5 0 0 1 0-.708l4-4a.5.5 0 1 1 .708.708L2.707 8.3H12.5A1.5 1.5 0 0 0 14 6.8V2a.5.5 0 0 1 .5-.5z"/></svg>`;
 
-            if(file_slot_file_name.match(/[.](prg|t64)$/i)) 
+            if(file_slot_file_name.match(/[.](zip)$/i)) 
             {
-                auto_run = true;
-                reset_before_load = true; //when flashing a prg always reset
-            }
-            else if(file_slot_file_name.match(/[.]tap$/i)) 
-            {
-                $("#div_auto_load").show(); auto_load = true;
-                $("#div_auto_press_play").show(); auto_press_play = true;
-                $("#div_auto_run").hide(); auto_run = false;
-                $("#button_insert_file").html("insert tape"+return_icon);
-                $("#modal_file_slot").modal();
-            }
-            else if(file_slot_file_name.match(/[.](d64|g64)$/i)) 
-            {
-                $("#div_auto_load").show();  auto_load = true;
-                $("#div_auto_press_play").hide();
-                $("#div_auto_run").show(); auto_run = true;
-                $("#button_insert_file").html("insert disk"+return_icon);
-                
-                if (/*!JSON.parse(wasm_rom_info()).has_floppy_rom //is 1541.rom loaded ?*/
-                    local_storage_get('vc1541_rom.bin')==null)
-                {
-                    $("#no_disk_rom_msg").show();
-                    $("#button_insert_file").attr("disabled", true);
-                }
-                if(call_param_dialog_on_disk == false)
-                {
-                    insert_file();
-                }
-                else
-                {
-                    $("#modal_file_slot").modal();
-                }
-            }
-            else if(file_slot_file_name.match(/[.](crt)$/i)) 
-            {
-            }
-            else if(file_slot_file_name.match(/[.](zip)$/i)) 
-            {
-                $("#div_auto_load").hide();
-                $("#div_auto_press_play").hide();
-                $("#div_auto_run").hide();
-
                 $("#div_zip_content").show();
 
                 $("#button_eject_zip").show();
@@ -888,7 +849,7 @@ function configure_file_dialog(reset=false)
                                 if(mountable_count==1)
                                 {//in case that there was only one mountable file in the zip, auto mount it
                                     configure_file_dialog(false);
-                                }        
+                                }
                                 else
                                 {//file is ready to insert
                                     $("#button_insert_file").html("mount file"+return_icon);
@@ -907,7 +868,7 @@ function configure_file_dialog(reset=false)
                     }
                     else
                     {
-                         $("#drop_zone").html("file slot");
+                        $("#drop_zone").html("file slot");
                         $("#drop_zone").css("border", "");
 
                         last_zip_archive_name = null;
@@ -920,6 +881,24 @@ function configure_file_dialog(reset=false)
                     }
                     if(mountable_count>1)
                     {
+                        (async ()=>{
+                            for(var i=0; i<mountable_count;i++)
+                            {
+                                var path = $("#li_fileselect"+i).text();
+                                if(df_mount_list.includes(path) || hd_mount_list.includes(path))
+                                {
+                                    let drive_number= df_mount_list.indexOf(path);
+                                    if(drive_number<0)
+                                        hd_mount_list.indexOf(path);
+                                    file_slot_file_name=path;
+                                    file_slot_file = await zip.file(path).async("uint8array");
+                                    insert_file(drive_number);
+                                } 
+                            }
+                            df_mount_list=[];//reset the direct call lists
+                            hd_mount_list=[];
+                        })();
+
                         $("#modal_file_slot").modal();
                     }
                 });
@@ -1438,12 +1417,10 @@ function restore_manual_state(port)
 
 
 function InitWrappers() {
-
-    //wasm_loadfile = Module.cwrap('wasm_loadFile', 'string', ['string', 'array', 'number']);
-    wasm_loadfile = function (file_name, file_buffer) {
+    wasm_loadfile = function (file_name, file_buffer, drv_number=0) {
         var file_slot_wasmbuf = Module._malloc(file_buffer.byteLength);
         Module.HEAPU8.set(file_buffer, file_slot_wasmbuf);
-        var retVal=Module.ccall('wasm_loadFile', 'string', ['string','number','number'], [file_name,file_slot_wasmbuf,file_buffer.byteLength]);
+        var retVal=Module.ccall('wasm_loadFile', 'string', ['string','number','number', 'number'], [file_name,file_slot_wasmbuf,file_buffer.byteLength, drv_number]);
         Module._free(file_slot_wasmbuf);
         return retVal;                    
     }
@@ -2446,7 +2423,7 @@ $('.layer').change( function(event) {
     );
 
     reset_before_load=false;
-    insert_file = function() 
+    insert_file = function(drive=0) 
     {   
         if($('#div_zip_content').is(':visible'))
         {
@@ -2456,8 +2433,8 @@ $('.layer').change( function(event) {
         
         $('#modal_file_slot').modal('hide');
 
-        var execute_load = async function(){
-            var filetype = wasm_loadfile(file_slot_file_name, file_slot_file);
+        var execute_load = async function(drive){
+            var filetype = wasm_loadfile(file_slot_file_name, file_slot_file, drive);
 
             //if it is a disk from a multi disk zip file, apptitle should be the name of the zip file only
             //instead of disk1, disk2, etc....
@@ -2493,7 +2470,7 @@ $('.layer').change( function(event) {
 
         if(reset_before_load == false)
         {
-            execute_load();
+            execute_load(drive);
         }
         else
         {

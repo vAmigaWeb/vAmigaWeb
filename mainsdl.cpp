@@ -15,6 +15,7 @@
 #include "EXEFile.h"
 #include "HDFFile.h"
 #include "Snapshot.h"
+#include "EXTFile.h"
 
 #include "MemUtils.h"
 
@@ -1013,6 +1014,8 @@ class vAmigaWrapper {
 
     //turn automatic hd mounting off because kick1.2 makes trouble
     amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
+
+    amiga->configure(OPT_DRIVE_CONNECT,/*df1*/ 1, /*enable*/true);
   }
   ~vAmigaWrapper()
   {
@@ -1563,23 +1566,32 @@ std::unique_ptr<FloppyDisk> load_disk(const char* filename, Uint8 *blob, long le
       EXEFile exe{blob, len};
       return std::make_unique<FloppyDisk>(exe);
     }
+    if (EXTFile::isCompatible(filename)) {
+      printf("%s - Loading EXT file\n", filename);
+      EXTFile ext{blob, len};
+      return std::make_unique<FloppyDisk>(ext);
+    }
   } catch (const VAError& e) {
     printf("Error loading %s - %s\n", filename, e.what());
   }
   return {};
 }
 
-extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len)
+extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len, Uint8 drive_number)
 {
-  printf("load file=%s len=%ld, header bytes= %x, %x, %x\n", name, len, blob[0],blob[1],blob[2]);
+  printf("load drive=%d, file=%s len=%ld, header bytes= %x, %x, %x\n", drive_number, name, len, blob[0],blob[1],blob[2]);
   filename=name;
   if(wrapper == NULL)
   {
     return "";
   }
   if (auto disk = load_disk(name, blob, len)) {
-    //wrapper->amiga->paula.diskController.insertDisk(std::move(disk), 0, (Cycle)SEC(1.8));
-    wrapper->amiga->df0.swapDisk(std::move(disk));
+    if(drive_number==0)
+      wrapper->amiga->df0.swapDisk(std::move(disk));
+    else
+    {
+      wrapper->amiga->df1.swapDisk(std::move(disk));
+    }
     return "";
   }
 
