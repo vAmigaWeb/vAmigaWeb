@@ -1558,18 +1558,20 @@ std::unique_ptr<FloppyDisk> load_disk(const char* filename, Uint8 *blob, long le
     }
     if (ADFFile::isCompatible(filename)) {
       printf("%s - Loading ADF file\n", filename);
-      ADFFile adf{blob, len};
-      return std::make_unique<FloppyDisk>(adf);
+      try {
+        ADFFile adf{blob, len};
+        return std::make_unique<FloppyDisk>(adf);
+      } catch (const VAError& e) {
+        // Maybe it's an extended ADF?
+        printf("Error loading %s - %s. Trying to load as extended ADF\n", filename, e.what());
+        EXTFile ext{blob, len};
+        return std::make_unique<FloppyDisk>(ext);
+      }
     }
     if (EXEFile::isCompatible(filename)) {
       printf("%s - Loading EXE file\n", filename);
       EXEFile exe{blob, len};
       return std::make_unique<FloppyDisk>(exe);
-    }
-    if (EXTFile::isCompatible(filename)) {
-      printf("%s - Loading EXT file\n", filename);
-      EXTFile ext{blob, len};
-      return std::make_unique<FloppyDisk>(ext);
     }
   } catch (const VAError& e) {
     printf("Error loading %s - %s\n", filename, e.what());
