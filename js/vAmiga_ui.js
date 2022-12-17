@@ -1,6 +1,6 @@
 let global_apptitle="vAmiga - start screen"
 let call_param_openROMS=false;
-let call_param_2ndSID=null;
+let call_param_gpu=null;
 let call_param_navbar=null;
 let call_param_wide=null;
 let call_param_border=null;
@@ -9,7 +9,6 @@ let call_param_dark=null;
 let call_param_buttons=[];
 let call_param_dialog_on_missing_roms=null;
 let call_param_dialog_on_disk=null;
-let call_param_SID=null;
 let call_param_mouse=null;
 let call_param_warpto=null;
 let call_param_url=null;
@@ -141,6 +140,7 @@ function get_parameter_link()
         call_param_display=call_obj.display === undefined ? null : call_obj.display;
         call_param_wait_for_kickstart_injection=call_obj.wait_for_kickstart_injection === undefined ? null : call_obj.wait_for_kickstart_injection;
         call_param_kickstart_rom_url=call_obj.kickstart_rom_url === undefined ? null : call_obj.kickstart_rom_url;
+        call_param_gpu = call_obj.gpu === undefined ? null : call_obj.gpu;
 
         if(call_obj.touch)
         {
@@ -2064,6 +2064,10 @@ $(`#choose_game_controller_type a`).click(function ()
         $("#modal_settings").focus();
     });
 
+    if(call_param_gpu==true)
+    {
+        current_renderer="gpu shader";
+    }
     let got_renderer=false;
     try{ 
         got_renderer=wasm_create_renderer(current_renderer); 
