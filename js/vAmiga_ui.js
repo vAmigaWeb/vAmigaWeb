@@ -1,6 +1,6 @@
 let global_apptitle="vAmiga - start screen"
 let call_param_openROMS=false;
-let call_param_2ndSID=null;
+let call_param_gpu=null;
 let call_param_navbar=null;
 let call_param_wide=null;
 let call_param_border=null;
@@ -9,13 +9,15 @@ let call_param_dark=null;
 let call_param_buttons=[];
 let call_param_dialog_on_missing_roms=null;
 let call_param_dialog_on_disk=null;
-let call_param_SID=null;
 let call_param_mouse=null;
 let call_param_warpto=null;
 let call_param_url=null;
 let call_param_display=null;
 let call_param_wait_for_kickstart_injection=null;
 let call_param_kickstart_rom_url=null;
+
+let df_mount_list=[];//to auto mount disks from zip e.g. ["Batman_Rises_disk1.adf","Batman_Rises_disk2.adf"];
+let hd_mount_list=[];
 
 let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
 let use_wide_screen=false;
@@ -138,6 +140,7 @@ function get_parameter_link()
         call_param_display=call_obj.display === undefined ? null : call_obj.display;
         call_param_wait_for_kickstart_injection=call_obj.wait_for_kickstart_injection === undefined ? null : call_obj.wait_for_kickstart_injection;
         call_param_kickstart_rom_url=call_obj.kickstart_rom_url === undefined ? null : call_obj.kickstart_rom_url;
+        call_param_gpu = call_obj.gpu === undefined ? null : call_obj.gpu;
 
         if(call_obj.touch)
         {
@@ -769,12 +772,7 @@ function configure_file_dialog(reset=false)
         else
         {
             $("#file_slot_dialog_label").html(" "+file_slot_file_name);
-            //configure file_slot
-
-            var auto_load = false;
-            var auto_press_play = false;
-            var auto_run = false;
-            
+            //configure file_slot  
             $("#button_insert_file").removeAttr("disabled");
             $("#div_zip_content").hide();
             $("#button_eject_zip").hide();
@@ -782,50 +780,8 @@ function configure_file_dialog(reset=false)
 
             var return_icon=`&nbsp;<svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-return-left" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M14.5 1.5a.5.5 0 0 1 .5.5v4.8a2.5 2.5 0 0 1-2.5 2.5H2.707l3.347 3.346a.5.5 0 0 1-.708.708l-4.2-4.2a.5.5 0 0 1 0-.708l4-4a.5.5 0 1 1 .708.708L2.707 8.3H12.5A1.5 1.5 0 0 0 14 6.8V2a.5.5 0 0 1 .5-.5z"/></svg>`;
 
-            if(file_slot_file_name.match(/[.](prg|t64)$/i)) 
+            if(file_slot_file_name.match(/[.](zip)$/i)) 
             {
-                auto_run = true;
-                reset_before_load = true; //when flashing a prg always reset
-            }
-            else if(file_slot_file_name.match(/[.]tap$/i)) 
-            {
-                $("#div_auto_load").show(); auto_load = true;
-                $("#div_auto_press_play").show(); auto_press_play = true;
-                $("#div_auto_run").hide(); auto_run = false;
-                $("#button_insert_file").html("insert tape"+return_icon);
-                $("#modal_file_slot").modal();
-            }
-            else if(file_slot_file_name.match(/[.](d64|g64)$/i)) 
-            {
-                $("#div_auto_load").show();  auto_load = true;
-                $("#div_auto_press_play").hide();
-                $("#div_auto_run").show(); auto_run = true;
-                $("#button_insert_file").html("insert disk"+return_icon);
-                
-                if (/*!JSON.parse(wasm_rom_info()).has_floppy_rom //is 1541.rom loaded ?*/
-                    local_storage_get('vc1541_rom.bin')==null)
-                {
-                    $("#no_disk_rom_msg").show();
-                    $("#button_insert_file").attr("disabled", true);
-                }
-                if(call_param_dialog_on_disk == false)
-                {
-                    insert_file();
-                }
-                else
-                {
-                    $("#modal_file_slot").modal();
-                }
-            }
-            else if(file_slot_file_name.match(/[.](crt)$/i)) 
-            {
-            }
-            else if(file_slot_file_name.match(/[.](zip)$/i)) 
-            {
-                $("#div_auto_load").hide();
-                $("#div_auto_press_play").hide();
-                $("#div_auto_run").hide();
-
                 $("#div_zip_content").show();
 
                 $("#button_eject_zip").show();
@@ -888,7 +844,7 @@ function configure_file_dialog(reset=false)
                                 if(mountable_count==1)
                                 {//in case that there was only one mountable file in the zip, auto mount it
                                     configure_file_dialog(false);
-                                }        
+                                }
                                 else
                                 {//file is ready to insert
                                     $("#button_insert_file").html("mount file"+return_icon);
@@ -907,7 +863,7 @@ function configure_file_dialog(reset=false)
                     }
                     else
                     {
-                         $("#drop_zone").html("file slot");
+                        $("#drop_zone").html("file slot");
                         $("#drop_zone").css("border", "");
 
                         last_zip_archive_name = null;
@@ -920,6 +876,24 @@ function configure_file_dialog(reset=false)
                     }
                     if(mountable_count>1)
                     {
+                        (async ()=>{
+                            for(var i=0; i<mountable_count;i++)
+                            {
+                                var path = $("#li_fileselect"+i).text();
+                                if(df_mount_list.includes(path) || hd_mount_list.includes(path))
+                                {
+                                    let drive_number= df_mount_list.indexOf(path);
+                                    if(drive_number<0)
+                                        drive_number=hd_mount_list.indexOf(path);
+                                    file_slot_file_name=path;
+                                    file_slot_file = await zip.file(path).async("uint8array");
+                                    insert_file(drive_number);
+                                } 
+                            }
+                            df_mount_list=[];//reset the direct call lists
+                            hd_mount_list=[];
+                        })();
+
                         $("#modal_file_slot").modal();
                     }
                 });
@@ -927,12 +901,7 @@ function configure_file_dialog(reset=false)
                 $("#button_insert_file").html("mount file"+return_icon);
                 $("#button_insert_file").attr("disabled", true);
             }
-
-            $("#auto_load").prop('checked', auto_load);
-            $("#auto_press_play").prop('checked', auto_press_play);
-            $("#auto_run").prop('checked', auto_run);    
-
-            if(file_slot_file_name.match(/[.](adf|hdf|dms|exe|vAmiga)$/i))
+            else if(file_slot_file_name.match(/[.](adf|hdf|dms|exe|vAmiga)$/i))
             {
                 insert_file();
             }
@@ -1438,12 +1407,10 @@ function restore_manual_state(port)
 
 
 function InitWrappers() {
-
-    //wasm_loadfile = Module.cwrap('wasm_loadFile', 'string', ['string', 'array', 'number']);
-    wasm_loadfile = function (file_name, file_buffer) {
+    wasm_loadfile = function (file_name, file_buffer, drv_number=0) {
         var file_slot_wasmbuf = Module._malloc(file_buffer.byteLength);
         Module.HEAPU8.set(file_buffer, file_slot_wasmbuf);
-        var retVal=Module.ccall('wasm_loadFile', 'string', ['string','number','number'], [file_name,file_slot_wasmbuf,file_buffer.byteLength]);
+        var retVal=Module.ccall('wasm_loadFile', 'string', ['string','number','number', 'number'], [file_name,file_slot_wasmbuf,file_buffer.byteLength, drv_number]);
         Module._free(file_slot_wasmbuf);
         return retVal;                    
     }
@@ -2087,6 +2054,10 @@ $(`#choose_game_controller_type a`).click(function ()
         $("#modal_settings").focus();
     });
 
+    if(call_param_gpu==true)
+    {
+        current_renderer="gpu shader";
+    }
     let got_renderer=false;
     try{ 
         got_renderer=wasm_create_renderer(current_renderer); 
@@ -2446,18 +2417,12 @@ $('.layer').change( function(event) {
     );
 
     reset_before_load=false;
-    insert_file = function() 
+    insert_file = function(drive=0) 
     {   
-        if($('#div_zip_content').is(':visible'))
-        {
-            configure_file_dialog(reset_before_load);
-            return;
-        }
-        
         $('#modal_file_slot').modal('hide');
 
-        var execute_load = async function(){
-            var filetype = wasm_loadfile(file_slot_file_name, file_slot_file);
+        var execute_load = async function(drive){
+            var filetype = wasm_loadfile(file_slot_file_name, file_slot_file, drive);
 
             //if it is a disk from a multi disk zip file, apptitle should be the name of the zip file only
             //instead of disk1, disk2, etc....
@@ -2493,12 +2458,12 @@ $('.layer').change( function(event) {
 
         if(reset_before_load == false)
         {
-            execute_load();
+            execute_load(drive);
         }
         else
         {
             setTimeout(async ()=> {
-                await execute_load();
+                await execute_load(drive);
                 wasm_reset();
                 if(call_param_warpto !=null){
                     wasm_configure("warp_to_frame", `${call_param_warpto}`);

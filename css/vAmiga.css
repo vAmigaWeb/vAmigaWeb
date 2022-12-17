@@ -186,8 +186,10 @@ color: #aaa !important;
 [data-theme="dark"] #navbar {
     background-color:var(--darkbg);
 }
-    
-    
+
+#div_toast {
+    z-index:2000;
+}   
 
 .icon {
     fill: var(--dark);
