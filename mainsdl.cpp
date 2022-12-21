@@ -1254,6 +1254,10 @@ extern "C" bool wasm_has_disk(const char *drive_name)
   {
     return wrapper->amiga->df0.hasDisk();
   }
+  else if(strcmp(drive_name,"df1") == 0)
+  {
+    return wrapper->amiga->df1.hasDisk();
+  }
   else if (strcmp(drive_name,"dh0") == 0)
   {
     return wrapper->amiga->hd0.hasDisk();
