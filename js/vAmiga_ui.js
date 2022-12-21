@@ -401,9 +401,13 @@ function message_handler(msg, data, data2)
     }
     else if(msg == "MSG_DRIVE_STEP" || msg == "MSG_DRIVE_POLL")
     {
-        play_sound(audio_df_step);   
-        if(wasm_has_disk("df0")){
+        if(wasm_has_disk("df"+data)){
+            play_sound(audio_df_step);
             $("#drop_zone").html(`df${data} ${data2.toString().padStart(2, '0')}`);
+        }
+        else if (data==0)
+        {//only for df0: play stepper sound in case of no disk
+            play_sound(audio_df_step);
         }
     }
     else if(msg == "MSG_DISK_INSERT")
