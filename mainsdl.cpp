@@ -1262,6 +1262,11 @@ extern "C" bool wasm_has_disk(const char *drive_name)
   {
     return wrapper->amiga->hd0.hasDisk();
   }
+  else if (strcmp(drive_name,"dh1") == 0)
+  {
+    return wrapper->amiga->hd1.hasDisk();
+  }
+
   return false;
 }
 
@@ -1272,12 +1277,26 @@ extern "C" void wasm_eject_disk(const char *drive_name)
     if(wrapper->amiga->df0.hasDisk())
       wrapper->amiga->df0.ejectDisk();
   }
+  else if(strcmp(drive_name,"df1") == 0)
+  {
+    if(wrapper->amiga->df1.hasDisk())
+      wrapper->amiga->df1.ejectDisk();
+  }
   else if (strcmp(drive_name,"dh0") == 0)
   {
     if(wrapper->amiga->hd0.hasDisk())
     {
       wrapper->amiga->powerOff();
       wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
+      wrapper->amiga->powerOn();
+    }
+  }
+  else if (strcmp(drive_name,"dh1") == 0)
+  {
+    if(wrapper->amiga->hd1.hasDisk())
+    {
+      wrapper->amiga->powerOff();
+      wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 1, /*enable*/false);
       wrapper->amiga->powerOn();
     }
   }
@@ -1594,10 +1613,8 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len, Uint8 dr
   if (auto disk = load_disk(name, blob, len)) {
     if(drive_number==0)
       wrapper->amiga->df0.swapDisk(std::move(disk));
-    else
-    {
+    else if(drive_number==1)
       wrapper->amiga->df1.swapDisk(std::move(disk));
-    }
     return "";
   }
 
@@ -1606,8 +1623,18 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len, Uint8 dr
     wrapper->amiga->powerOff();
     //HDFFile hdf{blob, len};  
     HDFFile *hdf = new HDFFile(blob, len);
-    wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/true);
-    wrapper->amiga->hd0.init(*hdf);
+
+    wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ drive_number, /*enable*/true);
+
+    if(drive_number==0)
+    {
+      wrapper->amiga->hd0.init(*hdf);
+    }
+    else if(drive_number==1)
+    {
+      wrapper->amiga->hd1.init(*hdf);
+    }
+
     delete hdf;
     wrapper->amiga->powerOn();
     return "";
