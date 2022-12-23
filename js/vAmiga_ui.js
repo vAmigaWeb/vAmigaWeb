@@ -907,47 +907,51 @@ function configure_file_dialog(reset=false)
             }
             else if(file_slot_file_name.match(/[.](adf|hdf|dms|exe|vAmiga)$/i))
             {
- //               let drive = prompt("df0 or df1", "0");
-                let cancel=`<div style="position:absolute;top:0;right:0;cursor:pointer" onclick="$('#div_drive_select').hide();"><svg style="width:1.8em;height:1.8em;color:gray"><use xlink:href="img/sprites.svg#x"></use></svg></div>`;
-
-                if(file_slot_file_name.match(/[.](adf|dms|exe)$/i))
-                {
-                    $("#div_drive_select").html(`${cancel}
-                    <div style="padding:0.5em;background-color:var(--dark);color:white;display:flex;justify-content:center;">insert <span class="mx-2 px-2" style="border-radius:7px;background-color: var(--secondary);">${file_slot_file_name}</span> into</div>
-                    <div style="padding-top: 0.5em;display:flex;width:100%;flex-direction:row;justify-content:center;background-color: var(--dark);">
-                        <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);$('#div_drive_select').hide();">df0:</button>
-                        <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);$('#div_drive_select').hide();">df1:</button>
-                    </div>`).show();
-                }
-                else if(file_slot_file_name.match(/[.]hdf$/i))
-                {
-                    $("#div_drive_select").html(`${cancel}
-                    <div style="padding:0.5em;background-color:var(--dark);color:white;display:flex;justify-content:center;">reset amiga and mount <span class="mx-2 px-2" style="border-radius:7px;background-color: var(--secondary);">${file_slot_file_name}</span> into</div>
-                    <div style="padding-top: 0.5em;display:flex;width:100%;flex-direction:row;justify-content:center;background-color: var(--dark);">
-                        <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);$('#div_drive_select').hide();">dh0:</button>
-                        <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);$('#div_drive_select').hide();">dh1:</button>
-                        <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);$('#div_drive_select').hide();">dh2:</button>
-                        <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);$('#div_drive_select').hide();">dh3:</button>
-                    </div>`).show();
-                }
-                else
-                {
-                    insert_file(0);
-                }
+                prompt_for_drive();
             }
         }    
-
     } catch(e) {
         console.log(e);
     }
 }
 
+function prompt_for_drive()
+{
+    let cancel=`<div style="position:absolute;top:0;right:0;cursor:pointer" onclick="show_drive_select(false)"><svg style="width:1.8em;height:1.8em;color:gray"><use xlink:href="img/sprites.svg#x"></use></svg></div>`;
 
+    show_drive_select=(show)=>{
+        document.getElementById("div_drive_select").setAttribute('class', `slide-${show?"in":"out"}`);
+    }
 
+    if(file_slot_file_name.match(/[.](adf|dms|exe)$/i))
+    {
+        $("#div_drive_select").html(`${cancel}
+        <div id="drive_select_file">insert <span class="mx-2 px-2" style="border-radius:7px;background-color: var(--secondary);">${file_slot_file_name}</span> into</div>
+        <div id="drive_select_choice">
+            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);show_drive_select(false);">df0:</button>
+            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);show_drive_select(false);">df1:</button>
+        </div>`);
+        show_drive_select(true);
+    }
+    else if(file_slot_file_name.match(/[.]hdf$/i))
+    {
+        $("#div_drive_select").html(`${cancel}
+        <div id="drive_select_file">reset amiga and mount <span class="mx-2 px-2" style="border-radius:7px;background-color: var(--secondary);">${file_slot_file_name}</span> into</div>
+        <div id="drive_select_choice">
+            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);show_drive_select(false);">dh0:</button>
+            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);show_drive_select(false);">dh1:</button>
+            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);show_drive_select(false);">dh2:</button>
+            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);show_drive_select(false);">dh3:</button>
+        </div>`);
+        show_drive_select(true);
+    }
+    else
+    {
+        show_drive_select(false);
+        insert_file(0);
+    }
 
-
-
-
+}
 
 var port1 = 'none';
 var port2 = 'none';
@@ -2502,8 +2506,7 @@ $('.layer').change( function(event) {
         }
     }
     $("#button_insert_file").click(()=>{
-        let drive = prompt("df0 or df1", "0");
-        insert_file(drive);
+         prompt_for_drive();
     });
     
     $('#modal_take_snapshot').on('hidden.bs.modal', function () {
