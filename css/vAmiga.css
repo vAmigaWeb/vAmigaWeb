@@ -191,6 +191,14 @@ color: #aaa !important;
 #div_toast {
     z-index:2000;
 }   
+#toast_body, #toast_header  {
+    background-color:var(--lightbg);
+}
+[data-theme="dark"] #toast_body, [data-theme="dark"] #toast_header  {
+    background-color:var(--dark);
+    color:white;
+}
+
 
 .icon {
     fill: var(--dark);
@@ -436,26 +444,37 @@ button[id^="detail_run"] {
     transform: translateY(100%);
     border-top-left-radius: 8px; 
     border-top-right-radius: 8px; 
+    background-color: var(--lightbg);
+}
+[data-theme="dark"] #div_drive_select {
     background-color:var(--dark);
 }
+
 #drive_select_file {
     padding:0.5em;
     margin-top: 1.4em;
-    background-color:var(--dark);
-    color:white;
+    background-color: var(--lightbg);
     display:flex;
     justify-content:center;
 }
+[data-theme="dark"] #drive_select_file {
+    background-color:var(--dark);
+}
+
+
 #drive_select_choice {
     padding-top: 0.5em;
     display:flex;width:100%;
     flex-direction:row;
     justify-content:center;
-    background-color: var(--dark);
+    background-color: var(--lightbg);
+}
+[data-theme="dark"] #drive_select_choice {
+    background-color:var(--dark);
 }
 
 .slide-in {
-    animation: slide-in 0.7s forwards;
+    animation: slide-in 0.5s forwards;
 }
 
 .slide-out {

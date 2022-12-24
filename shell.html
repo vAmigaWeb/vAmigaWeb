@@ -852,14 +852,14 @@ goes into edit mode which takes you right back to here ...
 <!-- Position it -->
 <div id="div_toast" style="position: absolute; bottom: 0; right: 0">
 <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-  <div class="toast-header bg-dark text-white">
+  <div id="toast_header" class="toast-header">
     <img src="img/icon-72x72.png" class="rounded mr-2" style="width:48px;height:48px" alt="vAmigaWeb">
     <span style="font-size: larger" class="mr-auto">newer version available</span>
     <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
       <span aria-hidden="true">&times;</span>
     </button>
   </div>
-  <div class="toast-body bg-dark text-white">
+  <div id="toast_body" class="toast-body">
     <div id="update_dialog"></div>
     <div class="mt-3">
       <button type="button" onclick="execute_update()" class="btn btn-success mt-1">upgrade</button>

@@ -926,7 +926,7 @@ function prompt_for_drive()
     if(file_slot_file_name.match(/[.](adf|dms|exe)$/i))
     {
         $("#div_drive_select").html(`${cancel}
-        <div id="drive_select_file">insert <span class="mx-2 px-2" style="border-radius:7px;background-color: var(--secondary);">${file_slot_file_name}</span> into</div>
+        <div id="drive_select_file" class="gc_choice_text">insert <span class="mx-2 px-2">${file_slot_file_name}</span> into</div>
         <div id="drive_select_choice">
             <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);show_drive_select(false);">df0:</button>
             <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);show_drive_select(false);">df1:</button>
@@ -936,7 +936,7 @@ function prompt_for_drive()
     else if(file_slot_file_name.match(/[.]hdf$/i))
     {
         $("#div_drive_select").html(`${cancel}
-        <div id="drive_select_file">reset amiga and mount <span class="mx-2 px-2" style="border-radius:7px;background-color: var(--secondary);">${file_slot_file_name}</span> into</div>
+        <div id="drive_select_file" class="gc_choice_text">reset amiga and mount <span class="mx-2 px-2">${file_slot_file_name}</span> into</div>
         <div id="drive_select_choice">
             <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);show_drive_select(false);">dh0:</button>
             <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);show_drive_select(false);">dh1:</button>
