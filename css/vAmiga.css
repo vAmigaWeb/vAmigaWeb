@@ -434,15 +434,17 @@ button[id^="detail_run"] {
     flex-direction:column;
     justify-content:center;
     transform: translateY(100%);
+    border-top-left-radius: 8px; 
+    border-top-right-radius: 8px; 
+    background-color:var(--dark);
 }
 #drive_select_file {
     padding:0.5em;
+    margin-top: 1.4em;
     background-color:var(--dark);
     color:white;
     display:flex;
     justify-content:center;
-    border-top-left-radius: 8px; 
-    border-top-right-radius: 8px; 
 }
 #drive_select_choice {
     padding-top: 0.5em;

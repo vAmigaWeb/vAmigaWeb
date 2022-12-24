@@ -917,7 +917,7 @@ function configure_file_dialog(reset=false)
 
 function prompt_for_drive()
 {
-    let cancel=`<div style="position:absolute;top:0;right:0;cursor:pointer" onclick="show_drive_select(false)"><svg style="width:1.8em;height:1.8em;color:gray"><use xlink:href="img/sprites.svg#x"></use></svg></div>`;
+    let cancel=`<div class="close" style="position:absolute;top:0.2em;right:0.4em;cursor:pointer" onclick="show_drive_select(false)">×</div>`;
 
     show_drive_select=(show)=>{
         document.getElementById("div_drive_select").setAttribute('class', `slide-${show?"in":"out"}`);
@@ -2524,24 +2524,27 @@ $('.layer').change( function(event) {
     );
    
 
-    $('#modal_settings').on('shown.bs.modal', function() 
-    {       
-        if(wasm_has_disk("df0"))
+    $('#modal_settings').on('show.bs.modal', function() 
+    {    
+        for(var dn=0; dn<4; dn++)
         {
-            $("#button_eject_disk").show();
-        }
-        else
-        {
-            $("#button_eject_disk").hide();
-        }
-        if(wasm_has_disk("dh0"))
-        {
-            $("#button_eject_hdf").show();
-        }
-        else
-        {
-            $("#button_eject_hdf").hide();
-        }
+            if(wasm_has_disk("df"+dn))
+            {
+                $("#button_eject_df"+dn).show();
+            }
+            else
+            {
+                $("#button_eject_df"+dn).hide();
+            }
+            if(wasm_has_disk("dh"+dn))
+            {
+                $("#button_eject_hd"+dn).show();
+            }
+            else
+            {
+                $("#button_eject_hd"+dn).hide();
+            }
+        }   
     });
 
     document.getElementById('button_take_snapshot').onclick = function() 
@@ -2551,21 +2554,24 @@ $('.layer').change( function(event) {
         $("#input_app_title").val(global_apptitle);
         $("#input_app_title").focus();
 
-        if(wasm_has_disk("df0"))
+        for(var dfn=0; dfn<4; dfn++)
         {
-            $("#button_export_disk").show();
-        }
-        else
-        {
-            $("#button_export_disk").hide();
-        }
-        if(wasm_has_disk("dh0"))
-        {
-            $("#button_export_hdf").show();
-        }
-        else
-        {
-            $("#button_export_hdf").hide();
+            if(wasm_has_disk("df"+dfn))
+            {
+                $("#button_export_disk"+dfn).show();
+            }
+            else
+            {
+                $("#button_export_disk"+dfn).hide();
+            }
+            if(wasm_has_disk("dh"+dfn))
+            {
+                $("#button_export_hd"+dfn).show();
+            }
+            else
+            {
+                $("#button_export_hd"+dfn).hide();
+            }
         }
     }
     $("#button_eject_disk").hide();
@@ -2718,7 +2724,7 @@ $('.layer').change( function(event) {
         {
             set_settings_cache_value('active_version', sw_version.cache_name);        
         }
-        window.location.reload();
+        try{window.location.reload();} catch(e){console.error(e)}
     }
     
     $("#div_toast").hide();
@@ -2889,7 +2895,7 @@ $('.layer').change( function(event) {
             document.getElementById('activate_version').onclick = function() {
                 let cache_name = document.getElementById('version_selector').value; 
                 set_settings_cache_value("active_version",cache_name);
-                window.location.reload();
+                try{window.location.reload();} catch(e){console.error(e)}
             }
             let activate_or_install_btn = document.getElementById('activate_or_install');
             if(activate_or_install_btn != null)
@@ -2900,7 +2906,7 @@ $('.layer').change( function(event) {
                         if(new_version_already_installed)
                         {
                             set_settings_cache_value("active_version",sw_version.cache_name);
-                            window.location.reload();
+                            try{window.location.reload();} catch(e){console.error(e)}
                         }
                         else
                         {

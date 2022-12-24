@@ -353,10 +353,23 @@
             <p class="mb-2">most settings are permanent and will be saved to your local browser storage</p>    
 
             <button id="button_rom_dialog" type="button" class="btn btn-primary mr-1 mb-3">kickstart roms ...</button>
-            <button id="button_eject_disk" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="eject disk in df0">
+            <button id="button_eject_df0" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="eject disk in df0">
                 <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> df0</button>
-            <button id="button_eject_hdf" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="disconnect hard drive">
+            <button id="button_eject_df1" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="eject disk in df1">
+                <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> df1</button>
+            <button id="button_eject_df2" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="eject disk in df2">
+                <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> df2</button>
+            <button id="button_eject_df3" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="eject disk in df3">
+                <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> df3</button>
+
+            <button id="button_eject_hd0" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="disconnect hard drive 0">
                 <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> dh0</button>
+            <button id="button_eject_hd1" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="disconnect hard drive 1">
+                <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> dh1</button>
+            <button id="button_eject_hd2" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="disconnect hard drive 2">
+                <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> dh2</button>
+            <button id="button_eject_hd3" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="disconnect hard drive 3">
+                <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> dh3</button>
 
             <div class="custom-control custom-switch mt-1">
               <input type="checkbox" class="custom-control-input" id="dark_switch" />
@@ -599,11 +612,23 @@ touch screen settings for virtual keyboard
           <div class="modal-footer" style="align-items: flex-start;">
             <div class="justify-start">
 <div style="display:flex; flex-direction: column">
-              <button id="button_export_disk" type="button" style="text-align:start" class="btn btn-success ml-2" data-toggle="tooltip" data-placement="top" title="export the current state of disk in df0">
+              <button id="button_export_disk0" type="button" style="text-align:start" class="btn btn-success ml-2" data-toggle="tooltip" data-placement="top" title="export the current state of disk in df0">
                 <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> disk in df0</button>
+              <button id="button_export_disk1" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of disk in df0">
+                              <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> disk in df1</button>
+              <button id="button_export_disk2" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of disk in df0">
+                              <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> disk in df2</button>
+              <button id="button_export_disk3" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of disk in df0">
+                              <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> disk in df3</button>
 
-              <button id="button_export_hdf" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of hard drive">
+              <button id="button_export_hd0" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of hard drive">
                 <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> hd in dh0</button>                
+              <button id="button_export_hd1" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of hard drive">
+                <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> hd in dh1</button>                
+              <button id="button_export_hd2" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of hard drive">
+                <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> hd in dh2</button>                
+              <button id="button_export_hd3" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of hard drive">
+                <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> hd in dh3</button>
 </div>
             </div>
 

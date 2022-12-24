@@ -1258,6 +1258,14 @@ extern "C" bool wasm_has_disk(const char *drive_name)
   {
     return wrapper->amiga->df1.hasDisk();
   }
+  else if(strcmp(drive_name,"df2") == 0)
+  {
+    return wrapper->amiga->df2.hasDisk();
+  }
+  else if(strcmp(drive_name,"df3") == 0)
+  {
+    return wrapper->amiga->df3.hasDisk();
+  }
   else if (strcmp(drive_name,"dh0") == 0)
   {
     return wrapper->amiga->hd0.hasDisk();
@@ -1265,6 +1273,14 @@ extern "C" bool wasm_has_disk(const char *drive_name)
   else if (strcmp(drive_name,"dh1") == 0)
   {
     return wrapper->amiga->hd1.hasDisk();
+  }
+  else if (strcmp(drive_name,"dh2") == 0)
+  {
+    return wrapper->amiga->hd2.hasDisk();
+  }
+  else if (strcmp(drive_name,"dh3") == 0)
+  {
+    return wrapper->amiga->hd3.hasDisk();
   }
 
   return false;
@@ -1306,36 +1322,90 @@ extern "C" void wasm_eject_disk(const char *drive_name)
 
 extern "C" char* wasm_export_disk(const char *drive_name)
 {
+  Buffer<u8> *data=NULL;
+  sprintf(wasm_pull_user_snapshot_file_json_result, "{\"size\": 0 }");
+
   if(strcmp(drive_name,"df0") == 0)
   {
     if(!wrapper->amiga->df0.hasDisk())
     {
-      printf("no disk in df0\n");
-      sprintf(wasm_pull_user_snapshot_file_json_result, "{\"size\": 0 }");
       return wasm_pull_user_snapshot_file_json_result;
     }
 
     ADFFile *adf = new ADFFile(wrapper->amiga->df0);
-    sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",
-    (unsigned long)adf->data.ptr, 
-    adf->data.size
-    );
+    data=&(adf->data);
+  }
+  else if(strcmp(drive_name,"df1") == 0)
+  {
+    if(!wrapper->amiga->df1.hasDisk())
+    {
+      return wasm_pull_user_snapshot_file_json_result;
+    }
+    ADFFile *adf = new ADFFile(wrapper->amiga->df1);
+    data=&(adf->data);
+  }
+  else if(strcmp(drive_name,"df2") == 0)
+  {
+    if(!wrapper->amiga->df2.hasDisk())
+    {
+      return wasm_pull_user_snapshot_file_json_result;
+    }
+    ADFFile *adf = new ADFFile(wrapper->amiga->df2);
+    data=&(adf->data);
+  }
+  else if(strcmp(drive_name,"df3") == 0)
+  {
+    if(!wrapper->amiga->df3.hasDisk())
+    {
+      return wasm_pull_user_snapshot_file_json_result;
+    }
+    ADFFile *adf = new ADFFile(wrapper->amiga->df3);
+    data=&(adf->data);
   }
   else if (strcmp(drive_name,"dh0") == 0)
   {
     if(!wrapper->amiga->hd0.hasDisk())
     {
-      printf("no disk in dh0\n");
-      sprintf(wasm_pull_user_snapshot_file_json_result, "{\"size\": 0 }");
       return wasm_pull_user_snapshot_file_json_result;
     }
 
     HDFFile *hdf = new HDFFile(wrapper->amiga->hd0);
-    sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",
-    (unsigned long)hdf->data.ptr, 
-    hdf->data.size
-    );
+    data=&(hdf->data);
   }
+  else if (strcmp(drive_name,"dh1") == 0)
+  {
+    if(!wrapper->amiga->hd1.hasDisk())
+    {
+      return wasm_pull_user_snapshot_file_json_result;
+    }
+
+    HDFFile *hdf = new HDFFile(wrapper->amiga->hd1);
+    data=&(hdf->data);
+  }
+  else if (strcmp(drive_name,"dh2") == 0)
+  {
+    if(!wrapper->amiga->hd2.hasDisk())
+    {
+      return wasm_pull_user_snapshot_file_json_result;
+    }
+
+    HDFFile *hdf = new HDFFile(wrapper->amiga->hd2);
+    data=&(hdf->data);
+  }
+  else if (strcmp(drive_name,"dh3") == 0)
+  {
+    if(!wrapper->amiga->hd3.hasDisk())
+    {
+      return wasm_pull_user_snapshot_file_json_result;
+    }
+
+    HDFFile *hdf = new HDFFile(wrapper->amiga->hd3);
+    data=&(hdf->data);
+  }
+  
+  sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",
+    (unsigned long)data->ptr, data->size);
+
   printf("return => %s\n",wasm_pull_user_snapshot_file_json_result);
 
   return wasm_pull_user_snapshot_file_json_result;
@@ -1615,6 +1685,11 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len, Uint8 dr
       wrapper->amiga->df0.swapDisk(std::move(disk));
     else if(drive_number==1)
       wrapper->amiga->df1.swapDisk(std::move(disk));
+    else if(drive_number==2)
+      wrapper->amiga->df2.swapDisk(std::move(disk));
+    else if(drive_number==3)
+      wrapper->amiga->df3.swapDisk(std::move(disk));
+
     return "";
   }
 
@@ -1633,6 +1708,14 @@ extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len, Uint8 dr
     else if(drive_number==1)
     {
       wrapper->amiga->hd1.init(*hdf);
+    }
+    else if(drive_number==2)
+    {
+      wrapper->amiga->hd2.init(*hdf);
+    }
+    else if(drive_number==3)
+    {
+      wrapper->amiga->hd3.init(*hdf);
     }
 
     delete hdf;
