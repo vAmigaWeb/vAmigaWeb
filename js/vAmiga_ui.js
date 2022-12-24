@@ -2536,6 +2536,11 @@ $('.layer').change( function(event) {
             {
                 $("#button_eject_df"+dn).hide();
             }
+            $('#button_eject_df'+dn).click(function() 
+            {
+                wasm_eject_disk("df"+this.id.at(-1));
+                $("#button_eject_df"+this.id.at(-1)).hide();
+            });
             if(wasm_has_disk("dh"+dn))
             {
                 $("#button_eject_hd"+dn).show();
@@ -2544,6 +2549,11 @@ $('.layer').change( function(event) {
             {
                 $("#button_eject_hd"+dn).hide();
             }
+            $('#button_eject_hd'+dn).click(function() 
+            {
+                wasm_eject_disk("dh"+this.id.at(-1));
+                $("#button_eject_hd"+this.id.at(-1)).hide();
+            });
         }   
     });
 
@@ -2558,11 +2568,11 @@ $('.layer').change( function(event) {
         {
             if(wasm_has_disk("df"+dfn))
             {
-                $("#button_export_disk"+dfn).show();
+                $("#button_export_df"+dfn).show();
             }
             else
             {
-                $("#button_export_disk"+dfn).hide();
+                $("#button_export_df"+dfn).hide();
             }
             if(wasm_has_disk("dh"+dfn))
             {
@@ -2574,65 +2584,55 @@ $('.layer').change( function(event) {
             }
         }
     }
-    $("#button_eject_disk").hide();
-    $('#button_eject_disk').click(function() 
+    for(var dn=0; dn<4; dn++)
     {
-        wasm_eject_disk("df0");
-        $("#button_eject_disk").hide();
-    });
-    $("#button_eject_hdf").hide();
-    $('#button_eject_hdf').click(function() 
-    {
-        wasm_eject_disk("dh0");
-        $("#button_eject_hdf").hide();
-    });
-    $('#button_export_disk').click(function() 
-    {
-        let d64_json = wasm_export_disk("df0");
-        let d64_obj = JSON.parse(d64_json);
-        let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
-        let filebuffer = d64_buffer.slice(0,d64_obj.size);
-        let blob_data = new Blob([filebuffer], {type: 'application/octet-binary'});
-        const url = window.URL.createObjectURL(blob_data);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-
-        let app_name = $("#input_app_title").val();
-        let extension_pos = app_name.indexOf(".");
-        if(extension_pos >=0)
+        $('#button_export_df'+dn).click(function() 
         {
-            app_name = app_name.substring(0,extension_pos);
-        }
-        a.download = app_name+'.adf';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-    });
-    $('#button_export_hdf').click(function() 
-    {
-        let d64_json = wasm_export_disk("dh0");
-        let d64_obj = JSON.parse(d64_json);
-        let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
-        let filebuffer = d64_buffer.slice(0,d64_obj.size);
-        let blob_data = new Blob([filebuffer], {type: 'application/octet-binary'});
-        const url = window.URL.createObjectURL(blob_data);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
+            let d64_json = wasm_export_disk("df"+this.id.at(-1));
+            let d64_obj = JSON.parse(d64_json);
+            let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
+            let filebuffer = d64_buffer.slice(0,d64_obj.size);
+            let blob_data = new Blob([filebuffer], {type: 'application/octet-binary'});
+            const url = window.URL.createObjectURL(blob_data);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
 
-        let app_name = $("#input_app_title").val();
-        let extension_pos = app_name.indexOf(".");
-        if(extension_pos >=0)
+            let app_name = $("#input_app_title").val();
+            let extension_pos = app_name.indexOf(".");
+            if(extension_pos >=0)
+            {
+                app_name = app_name.substring(0,extension_pos);
+            }
+            a.download = app_name+'.adf';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        });
+        $('#button_export_hd'+dn).click(function() 
         {
-            app_name = app_name.substring(0,extension_pos);
-        }
-        a.download = app_name+'.hdf';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-    });
+            let d64_json = wasm_export_disk("dh"+this.id.at(-1));
+            let d64_obj = JSON.parse(d64_json);
+            let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
+            let filebuffer = d64_buffer.slice(0,d64_obj.size);
+            let blob_data = new Blob([filebuffer], {type: 'application/octet-binary'});
+            const url = window.URL.createObjectURL(blob_data);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
 
+            let app_name = $("#input_app_title").val();
+            let extension_pos = app_name.indexOf(".");
+            if(extension_pos >=0)
+            {
+                app_name = app_name.substring(0,extension_pos);
+            }
+            a.download = app_name+'.hdf';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        });
+    }
     $('#button_save_snapshot').click(async function() 
     {       
         let app_name = $("#input_app_title").val();
