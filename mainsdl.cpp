@@ -1298,6 +1298,16 @@ extern "C" void wasm_eject_disk(const char *drive_name)
     if(wrapper->amiga->df1.hasDisk())
       wrapper->amiga->df1.ejectDisk();
   }
+  else if(strcmp(drive_name,"df2") == 0)
+  {
+    if(wrapper->amiga->df2.hasDisk())
+      wrapper->amiga->df2.ejectDisk();
+  }
+  else if(strcmp(drive_name,"df3") == 0)
+  {
+    if(wrapper->amiga->df3.hasDisk())
+      wrapper->amiga->df3.ejectDisk();
+  }
   else if (strcmp(drive_name,"dh0") == 0)
   {
     if(wrapper->amiga->hd0.hasDisk())
@@ -1316,6 +1326,25 @@ extern "C" void wasm_eject_disk(const char *drive_name)
       wrapper->amiga->powerOn();
     }
   }
+  else if (strcmp(drive_name,"dh2") == 0)
+  {
+    if(wrapper->amiga->hd2.hasDisk())
+    {
+      wrapper->amiga->powerOff();
+      wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 2, /*enable*/false);
+      wrapper->amiga->powerOn();
+    }
+  }
+  else if (strcmp(drive_name,"dh3") == 0)
+  {
+    if(wrapper->amiga->hd3.hasDisk())
+    {
+      wrapper->amiga->powerOff();
+      wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 3, /*enable*/false);
+      wrapper->amiga->powerOn();
+    }
+  }
+
 }
 
 
@@ -2259,10 +2288,10 @@ extern "C" void wasm_set_sample_rate(unsigned sample_rate)
 
 
 
-extern "C" i64 wasm_get_config_item(char* item_name)
+extern "C" i64 wasm_get_config_item(char* item_name, unsigned data)
 {
   //if(wrapper->amiga->getConfigItem(OPT_VIDEO_FORMAT)!=NTSC)
-  return wrapper->amiga->getConfigItem(util::parseEnum <OptionEnum>(std::string(item_name)));
+  return wrapper->amiga->getConfigItem(util::parseEnum <OptionEnum>(std::string(item_name)),data);
 }
 
 extern "C" const char* wasm_configure(char* option, char* _value)
@@ -2277,12 +2306,27 @@ extern "C" const char* wasm_configure(char* option, char* _value)
     wrapper->amiga->warpOn();
     return config_result;
   }
-  if(strcmp(option,"log_on") == 0 )
+  else if(strcmp(option,"log_on") == 0 )
   {
     log_on= util::parseBool(value);
     return config_result;
   }
-
+  else if(strcmp(option,"floppy_drive_count") == 0 )
+  {
+    auto df_count= util::parseNum(value);
+    int i=0;
+    while(i<df_count)
+    {
+      wrapper->amiga->configure(OPT_DRIVE_CONNECT,/*dfn*/ i, /*enable*/true);
+      i++;
+    }
+    while(i<4)
+    {
+      wrapper->amiga->configure(OPT_DRIVE_CONNECT,/*dfn*/ i, /*enable*/false);
+      i++;
+    }
+    return config_result;
+  }
 
   bool was_powered_on=wrapper->amiga->isPoweredOn();
 

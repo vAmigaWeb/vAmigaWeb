@@ -925,13 +925,28 @@ function prompt_for_drive()
 
     if(file_slot_file_name.match(/[.](adf|dms|exe)$/i))
     {
-        $("#div_drive_select").html(`${cancel}
-        <div id="drive_select_file" class="gc_choice_text">insert <span class="mx-2 px-2">${file_slot_file_name}</span> into</div>
-        <div id="drive_select_choice">
-            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);show_drive_select(false);">df0:</button>
-            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);show_drive_select(false);">df1:</button>
-        </div>`);
-        show_drive_select(true);
+        let df_count=0;
+        for(let i = 0; i<4;i++)
+            df_count+=wasm_get_config_item("DRIVE_CONNECT",i);
+
+        if(df_count==1)
+        {
+            show_drive_select(false);
+            insert_file(0);
+        }
+        else
+        {
+            let drv_html=`${cancel}
+            <div id="drive_select_file" class="gc_choice_text">insert <span class="mx-2 px-2">${file_slot_file_name}</span> into</div>
+            <div id="drive_select_choice">`;
+            for(var dn=0;dn<df_count;dn++)
+            {
+                drv_html+=`<button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(${dn});show_drive_select(false);">df${dn}:</button>`;
+            }
+            drv_html+=`</div>`;
+            $("#div_drive_select").html(drv_html);
+            show_drive_select(true);
+        }
     }
     else if(file_slot_file_name.match(/[.]hdf$/i))
     {
@@ -2197,7 +2212,7 @@ function validate_hardware()
 
 validate_hardware();
 
-function bind_config_choice(key, name, values, default_value, value2text=null, text2value=null, targetElement=null){
+function bind_config_choice(key, name, values, default_value, value2text=null, text2value=null, targetElement=null, updated_func=null){
     value2text = value2text == null ? (t)=>t: value2text;
     text2value = text2value == null ? (t)=>t: text2value;
     
@@ -2234,6 +2249,8 @@ function bind_config_choice(key, name, values, default_value, value2text=null, t
             wasm_power_on(1);
             return;
         }
+        if(updated_func!=null)
+            updated_func(choice);
     }
     set_choice(value2text(load_setting(key, default_value)));
 
@@ -2247,9 +2264,23 @@ function bind_config_choice(key, name, values, default_value, value2text=null, t
 
 
 bind_config_choice("OPT_BLITTER_ACCURACY", "blitter accuracy",['0','1','2'],'2');
-bind_config_choice("OPT_DRIVE_SPEED", "drive speed",['-1', '1', '2', '4', '8'],'1');
 
+show_drive_config = (c)=>{
+    $('#div_drives').html(`
+    ${wasm_get_config_item("DRIVE_CONNECT",0)==1?"<span>df0</span>":""} 
+    ${wasm_get_config_item("DRIVE_CONNECT",1)==1?"<span>df1</span>":""} 
+    ${wasm_get_config_item("DRIVE_CONNECT",2)==1?"<span>df2</span>":""} 
+    ${wasm_get_config_item("DRIVE_CONNECT",3)==1?"<span>df3</span>":""}
+    <br>(kickstart needs a reset to recognize new connected drives)
+    `);
+}
 
+bind_config_choice("OPT_floppy_drive_count", "floppy drives",['1', '2', '3', '4'],'2',
+null,null,null,show_drive_config);
+$('#hardware_settings').append(`<div id="div_drives"style="font-size: smaller" class="ml-3 vbk_choice_text"></div>`);
+show_drive_config();
+
+bind_config_choice("OPT_DRIVE_SPEED", "floppy drive speed",['-1', '1', '2', '4', '8'],'1');
 
 $('#hardware_settings').append(`<div class="mt-4">hardware settings</div><span style="font-size: smaller;">(shuts machine down on agnus model or memory change)</span>`);
 
