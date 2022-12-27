@@ -27,6 +27,8 @@
 #include "RemoteManagerTypes.h"
 #include "RemoteServerTypes.h"
 
+namespace vamiga {
+
 Defaults::Defaults()
 {
     setFallback(OPT_VIDEO_FORMAT, PAL);
@@ -80,10 +82,8 @@ Defaults::Defaults()
     setFallback(OPT_LOCK_DSKSYNC, false);
     setFallback(OPT_AUTO_DSKSYNC, false);
     setFallback(OPT_DRIVE_TYPE, { 0, 1, 2, 3 }, DRIVE_DD_35);
-    setFallback(OPT_EMULATE_MECHANICS, { 0, 1, 2, 3 }, true);
-    setFallback(OPT_START_DELAY, { 0, 1, 2, 3 }, MSEC(380));
-    setFallback(OPT_STOP_DELAY, { 0, 1, 2, 3 }, MSEC(80));
-    setFallback(OPT_STEP_DELAY, { 0, 1, 2, 3 }, USEC(8000));
+    setFallback(OPT_DRIVE_MECHANICS, { 0, 1, 2, 3 }, MECHANICS_A1010);
+    setFallback(OPT_DRIVE_RPM, { 0, 1, 2, 3 }, 300);
     setFallback(OPT_DISK_SWAP_DELAY, { 0, 1, 2, 3 }, SEC(1.8));
     setFallback(OPT_DRIVE_PAN, { 0, 2 }, 100);
     setFallback(OPT_DRIVE_PAN, { 1, 3 }, 300);
@@ -118,7 +118,7 @@ Defaults::Defaults()
     setFallback(OPT_AUTOFIRE_DELAY, 125);
     setFallback(OPT_SAMPLING_METHOD, SMP_NONE);
     setFallback(OPT_FILTER_TYPE, FILTER_BUTTERWORTH);
-    setFallback(OPT_FILTER_ALWAYS_ON, false);
+    setFallback(OPT_FILTER_ACTIVATION, FILTER_AUTO_ENABLE);
     setFallback(OPT_AUDPAN, { 0, 3 }, 50);
     setFallback(OPT_AUDPAN, { 1, 2 }, 350);
     setFallback(OPT_AUDVOL, { 0, 1, 2, 3 }, 100);
@@ -319,7 +319,7 @@ Defaults::save(std::stringstream &stream)
             stream << std::endl << "[" << group << "]" << std::endl;
 
             for (const auto &[key, value]: values) {
-            
+
                 stream << key << "=" << value << std::endl;
             }
         }
@@ -497,7 +497,7 @@ void
 Defaults::remove(Option option)
 {
     remove(string(OptionEnum::key(option)));
-    }
+}
 
 void
 Defaults::remove(Option option, isize nr)
@@ -509,4 +509,6 @@ void
 Defaults::remove(Option option, std::vector <isize> nrs)
 {
     for (auto &nr : nrs) remove(option, nr);
+}
+
 }

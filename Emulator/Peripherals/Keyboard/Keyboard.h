@@ -14,6 +14,8 @@
 #include "SubComponent.h"
 #include "RingBuffer.h"
 
+namespace vamiga {
+
 class Keyboard : public SubComponent {
 
     // Current configuration
@@ -33,7 +35,7 @@ class Keyboard : public SubComponent {
 
     // The keycode type-ahead buffer. The Amiga can hold up to 10 keycodes
     util::RingBuffer<KeyCode, 10> queue;
-        
+
     // Remebers the keys that are currently held down
     bool keyDown[128];
 
@@ -60,7 +62,7 @@ private:
     //
     // Methods from AmigaComponent
     //
-        
+
 private:
     
     void _reset(bool hard) override;
@@ -159,3 +161,5 @@ private:
     // Sends a sync pulse to the Amiga
     void sendSyncPulse();
 };
+
+}

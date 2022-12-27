@@ -12,6 +12,8 @@
 #include "Amiga.h"
 #include "Memory.h"
 
+namespace vamiga {
+
 ZorroManager::ZorroManager(Amiga& ref) : SubComponent(ref)
 {
 
@@ -22,7 +24,7 @@ ZorroManager::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
     
-    if (category == Category::State) {
+    if (category == Category::Debug) {
         
         for (isize i = 0; i < slotCount; i++) {
             
@@ -125,4 +127,6 @@ ZorroManager::mappedInDevice(u32 addr) const
         if (slots[i]->mappedIn(addr)) return slots[i];
     }
     fatalError;
+}
+
 }

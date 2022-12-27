@@ -8,9 +8,16 @@
 // -----------------------------------------------------------------------------
 
 #include "config.h"
-#include "Interpreter.h"
-#include "RetroShell.h"
+#include "Amiga.h"
 #include <sstream>
+
+namespace vamiga {
+
+Interpreter::Interpreter(Amiga &ref) : SubComponent(ref)
+{
+    initCommandShell(commandShellRoot);
+    initDebugShell(debugShellRoot);
+}
 
 Arguments
 Interpreter::split(const string& userInput)
@@ -28,7 +35,7 @@ Interpreter::split(const string& userInput)
         
         // Check for escape mode
         if (c == '\\') { esc = true; continue; }
-            
+
         // Switch between string mode and non-string mode if '"' is detected
         if (c == '"' && !esc) { str = !str; continue; }
         
@@ -48,7 +55,7 @@ Interpreter::split(const string& userInput)
     
     return result;
 }
-    
+
 string
 Interpreter::autoComplete(const string& userInput)
 {
@@ -64,7 +71,7 @@ Interpreter::autoComplete(const string& userInput)
     for (const auto &it : tokens) { result += (result == "" ? "" : " ") + it; }
 
     // Add a space if the command has been fully completed
-    if (!tokens.empty() && root.seek(tokens)) result += " ";
+    if (!tokens.empty() && getRoot().seek(tokens)) result += " ";
     
     return result;
 }
@@ -72,7 +79,7 @@ Interpreter::autoComplete(const string& userInput)
 void
 Interpreter::autoComplete(Arguments &argv)
 {
-    Command *current = &root;
+    Command *current = &getRoot();
     string prefix, token;
 
     for (auto it = argv.begin(); current && it != argv.end(); it++) {
@@ -82,12 +89,41 @@ Interpreter::autoComplete(Arguments &argv)
     }
 }
 
+Command &
+Interpreter::getRoot()
+{
+    switch (shell) {
+
+        case Shell::Command: return commandShellRoot;
+        case Shell::Debug: return debugShellRoot;
+
+        default:
+            fatalError;
+    }
+}
+
+void
+Interpreter::switchInterpreter()
+{
+    if (inCommandShell()) {
+
+        shell = Shell::Debug;
+        amiga.debugOn();
+
+    } else {
+
+        shell = Shell::Command;
+    }
+
+    retroShell.updatePrompt();
+}
+
 void
 Interpreter::exec(const string& userInput, bool verbose)
 {
     // Split the command string
     Arguments tokens = split(userInput);
-        
+
     // Skip empty lines
     if (tokens.empty()) return;
     
@@ -96,7 +132,7 @@ Interpreter::exec(const string& userInput, bool verbose)
     
     // Auto complete the token list
     autoComplete(tokens);
-            
+
     // Process the command
     exec(tokens, verbose);
 }
@@ -114,7 +150,7 @@ Interpreter::exec(const Arguments &argv, bool verbose)
     if (argv.empty()) return;
     
     // Seek the command in the command tree
-    Command *current = &root, *next;
+    Command *current = &getRoot(), *next;
     Arguments args = argv;
 
     while (!args.empty() && ((next = current->seek(args.front())) != nullptr)) {
@@ -122,18 +158,18 @@ Interpreter::exec(const Arguments &argv, bool verbose)
         current = current->seek(args.front());
         args.erase(args.begin());
     }
-                
+
     // Error out if no command handler is present
     if (current->action == nullptr && !args.empty()) {
         throw util::ParseError(args.front());
     }
     if (current->action == nullptr && args.empty()) {
-        throw TooFewArgumentsError(current->tokens());
+        throw TooFewArgumentsError(current->fullName);
     }
     
     // Check the argument count
-    if ((isize)args.size() < current->minArgs) throw TooFewArgumentsError(current->tokens());
-    if ((isize)args.size() > current->maxArgs) throw TooManyArgumentsError(current->tokens());
+    if ((isize)args.size() < current->minArgs()) throw TooFewArgumentsError(current->fullName);
+    if ((isize)args.size() > current->maxArgs()) throw TooManyArgumentsError(current->fullName);
     
     // Call the command handler
     (retroShell.*(current->action))(args, current->param);
@@ -142,7 +178,7 @@ Interpreter::exec(const Arguments &argv, bool verbose)
 void
 Interpreter::usage(const Command& current)
 {
-    retroShell << "Usage: " << current.usage() << '\n' << '\n';
+    retroShell << "Usage: " << current.usage() << '\n';
 }
 
 void
@@ -150,10 +186,10 @@ Interpreter::help(const string& userInput)
 {    
     // Split the command string
     Arguments tokens = split(userInput);
-        
+
     // Auto complete the token list
     autoComplete(tokens);
-                
+
     // Process the command
     help(tokens);
 }
@@ -161,9 +197,9 @@ Interpreter::help(const string& userInput)
 void
 Interpreter::help(const Arguments &argv)
 {
-    Command *current = &root;
+    Command *current = &getRoot();
     string prefix, token;
-                
+
     for (auto &it : argv) {
         if (current->seek(it) != nullptr) current = current->seek(it);
     }
@@ -174,41 +210,48 @@ Interpreter::help(const Arguments &argv)
 void
 Interpreter::help(const Command& current)
 {
-    retroShell << '\n';
-    
+    // auto tokens = current.tokens();
+    // auto length = tokens.size();
+    auto indent = string("    ");
+
     // Print the usage string
     usage(current);
     
-    // Collect all argument types
-    auto types = current.types();
-
     // Determine tabular positions to align the output
     isize tab = 0;
-    for (auto &it : current.args) {
-        tab = std::max(tab, (isize)it.token.length());
-        tab = std::max(tab, 2 + (isize)it.type.length());
+    for (auto &it : current.subCommands) {
+        tab = std::max(tab, (isize)it.fullName.length());
     }
-    tab += 5;
-    
-    for (auto &it : types) {
-        
-        auto opts = current.filterType(it);
-        int size = (int)it.length();
+    tab += indent.size();
 
-        retroShell.tab(tab - size);
-        retroShell << "<" << it << "> : ";
-        retroShell << (isize)opts.size() << (opts.size() == 1 ? " choice" : " choices");
-        retroShell << '\n' << '\n';
-        
-        for (auto &opt : opts) {
+    isize group = -1;
 
-            string name = opt->token == "" ? "<>" : opt->token;
-            retroShell.tab(tab + 2 - (isize)name.length());
-            retroShell << name;
-            retroShell << " : ";
-            retroShell << opt->info;
+    for (auto &it : current.subCommands) {
+
+        // Only proceed if the command is visible
+        if (it.hidden) continue;
+
+        // Print group description (when a new group begins)
+        if (group != it.group) {
+
+            group = it.group;
             retroShell << '\n';
+
+            if (!Command::groups[group].empty()) {
+                retroShell << Command::groups[group] << '\n' << '\n';
+            }
         }
+
+        // Print command descriptioon
+        retroShell << indent;
+        retroShell << it.fullName;
+        retroShell.tab(tab);
+        retroShell << " : ";
+        retroShell << it.help;
         retroShell << '\n';
     }
+
+    retroShell << '\n';
+}
+
 }

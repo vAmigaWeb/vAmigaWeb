@@ -11,9 +11,9 @@
 #include "Mouse.h"
 #include "Amiga.h"
 #include "Chrono.h"
-// #include "ControlPort.h"
 #include "IOUtils.h"
-// #include "MsgQueue.h"
+
+namespace vamiga {
 
 Mouse::Mouse(Amiga& ref, ControlPort& pref) : SubComponent(ref), port(pref)
 {
@@ -82,7 +82,7 @@ Mouse::setConfigItem(Option option, i64 value)
             
             config.pullUpResistors = value;
             return;
- 
+
         case OPT_SHAKE_DETECTION:
             
             config.shakeDetection = value;
@@ -123,9 +123,9 @@ Mouse::_dump(Category category, std::ostream& os) const
         os << tab("Velocity");
         os << dec(config.velocity) << std::endl;
     }
-    
-    if (category == Category::State) {
-        
+
+    if (category == Category::Inspection) {
+
         os << tab("leftButton");
         os << bol(leftButton) << std::endl;
         os << tab("middleButton");
@@ -136,6 +136,10 @@ Mouse::_dump(Category category, std::ostream& os) const
         os << mouseX << std::endl;
         os << tab("mouseY");
         os << mouseY << std::endl;
+    }
+
+    if (category == Category::Debug) {
+        
         os << tab("oldMouseX");
         os << oldMouseX << std::endl;
         os << tab("oldMouseY");
@@ -326,14 +330,14 @@ ShakeDetector::isShakingRel(double dx) {
     
     // Check for a direction reversal
     if (dx * dxsign < 0) {
-    
+
         u64 dt = util::Time::now().asNanoseconds() - lastTurn;
         dxsign = -dxsign;
 
         // A direction reversal is considered part of a shake, if the
         // previous reversal happened a short while ago.
         if (dt < 400 * 1000 * 1000) {
-  
+
             // Eliminate jitter by demanding that the mouse has travelled
             // a long enough distance.
             if (dxsum > 400) {
@@ -436,3 +440,5 @@ Mouse::serviceMouseEvent()
 
 template void Mouse::serviceMouseEvent<SLOT_MSE1>();
 template void Mouse::serviceMouseEvent<SLOT_MSE2>();
+
+}

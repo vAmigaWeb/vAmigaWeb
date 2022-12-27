@@ -14,6 +14,8 @@
 #include "IOUtils.h"
 #include "OSDescriptors.h"
 
+namespace vamiga {
+
 bool
 EXEFile::isCompatible(const string &path)
 {
@@ -25,7 +27,7 @@ bool
 EXEFile::isCompatible(std::istream &stream)
 {
     u8 signature[] = { 0x00, 0x00, 0x03, 0xF3 };
-                                                                                            
+
     // Only accept the file if it fits onto a HD disk
     if (util::streamLength(stream) > 1710000) return false;
 
@@ -36,22 +38,22 @@ void
 EXEFile::finalizeRead()
 {
     // REMOVE ASAP
-    ProgramUnitDescriptor descr(data.ptr, data.size);
-    descr.dump(Category::Sections);
+    // ProgramUnitDescriptor descr(data.ptr, data.size);
+    // descr.dump(Category::Sections);
 
     /*
-    auto offset = descr.seek(HUNK_CODE);
-    if (offset) {
-    
-        // Replace first instruction by TRAP #8 (0x4E48)
-        data[*offset + 8] = 0x4E;
-        data[*offset + 9] = 0x48;
-    }
-    */
+     auto offset = descr.seek(HUNK_CODE);
+     if (offset) {
+
+     // Replace first instruction by TRAP #8 (0x4E48)
+     data[*offset + 8] = 0x4E;
+     data[*offset + 9] = 0x48;
+     }
+     */
     
     // Check if this file requires a high-density disk
     bool hd = data.size > 853000;
-        
+
     // Create a new file system
     MutableFileSystem volume(INCH_35, hd ? DENSITY_HD : DENSITY_DD, FS_OFS);
     volume.setName(FSName("Disk"));
@@ -79,7 +81,7 @@ EXEFile::finalizeRead()
 
     // Print some debug information about the volume
     if constexpr (FS_DEBUG) {
-        volume.dump(Category::Summary);
+        volume.dump(Category::Inspection);
         volume.printDirectory(true);
     }
     
@@ -89,7 +91,9 @@ EXEFile::finalizeRead()
         warn("Found %ld corrupted blocks\n", report.corruptedBlocks);
         if constexpr (FS_DEBUG) volume.dump(Category::Blocks);
     }
-        
+
     // Convert the volume into an ADF
     adf.init(volume);
+}
+
 }

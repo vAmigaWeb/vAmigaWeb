@@ -12,6 +12,8 @@
 #include "Chrono.h"
 #include <iostream>
 
+namespace vamiga {
+
 Thread::Thread()
 {
 
@@ -50,13 +52,13 @@ Thread::sleep<Thread::SyncMode::Periodic>()
 
     // Only proceed if we're not running in warp mode
     if (warpMode) return;
-        
+
     // Check if we're running too slow...
     if (now > targetTime) {
         
         // Check if we're completely out of sync...
         if ((now - targetTime).asMilliseconds() > 200) {
-                        
+
             warn("Emulation is way too slow: %f\n",(now - targetTime).asSeconds());
 
             // Restart the sync timer
@@ -76,11 +78,9 @@ Thread::sleep<Thread::SyncMode::Periodic>()
             targetTime = util::Time::now();
         }
     }
-        
+
     // Sleep for a while
-    // std::cout << "Sleeping... " << targetTime.asMilliseconds() << std::endl;
-    // std::cout << "Delay = " << delay.asNanoseconds() << std::endl;
-    targetTime += util::Time(i64(1000000000 / refreshRate()));
+    targetTime += util::Time(i64(1000000000.0 / refreshRate()));
     targetTime.sleepUntil();
 }
 
@@ -88,7 +88,7 @@ template <> void
 Thread::sleep<Thread::SyncMode::Pulsed>()
 {
     // Set a timeout to prevent the thread from stalling
-    auto timeout = util::Time(i64(2000000000 / refreshRate()));
+    auto timeout = util::Time(i64(2000000000.0 / refreshRate()));
 
     // Wait for the next pulse
     if (!warpMode) waitForWakeUp(timeout);
@@ -102,14 +102,14 @@ Thread::main()
     while (++loopCounter) {
 
         if (isRunning()) {
-                        
+
             switch (getSyncMode()) {
 
                 case SyncMode::Periodic: execute<SyncMode::Periodic>(); break;
                 case SyncMode::Pulsed: execute<SyncMode::Pulsed>(); break;
             }
         }
-                
+
         if (!warpMode || !isRunning()) {
             
             switch (getSyncMode()) {
@@ -150,21 +150,21 @@ Thread::main()
                 
                 AmigaComponent::powerOff();
                 state = EXEC_OFF;
-            
+
             } else if (state == EXEC_PAUSED && newState == EXEC_RUNNING) {
                 
                 AmigaComponent::run();
                 state = EXEC_RUNNING;
-            
+
             } else if (state == EXEC_RUNNING && newState == EXEC_OFF) {
                 
-                AmigaComponent::pause();
                 state = EXEC_PAUSED;
-            
+                AmigaComponent::pause();
+
             } else if (state == EXEC_RUNNING && newState == EXEC_PAUSED) {
                 
-                AmigaComponent::pause();
                 state = EXEC_PAUSED;
+                AmigaComponent::pause();
 
             } else if (state == EXEC_RUNNING && newState == EXEC_SUSPENDED) {
                 
@@ -229,7 +229,7 @@ Thread::powerOff(bool blocking)
     assert(!isEmulatorThread());
     
     if (!isPoweredOff()) {
-                
+
         // Request a state change and wait until the new state has been reached
         changeStateTo(EXEC_OFF, blocking);
     }
@@ -441,4 +441,6 @@ Thread::resume()
         changeStateTo(EXEC_RUNNING, true);
         run();
     }
+}
+
 }

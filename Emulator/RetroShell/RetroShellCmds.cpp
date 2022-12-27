@@ -17,9 +17,19 @@
 #include <fstream>
 #include <sstream>
 
+namespace vamiga {
+
 //
 // Top-level commands
 //
+
+template <> void
+RetroShell::exec <Token::debug> (Arguments &argv, long param)
+{
+    clear();
+    interpreter.switchInterpreter();
+    welcome();
+}
 
 template <> void
 RetroShell::exec <Token::clear> (Arguments &argv, long param)
@@ -123,6 +133,24 @@ RetroShell::exec <Token::screenshot, Token::save> (Arguments &argv, long param)
 //
 
 template <> void
+RetroShell::exec <Token::amiga, Token::config> (Arguments& argv, long param)
+{
+    dumpConfig(amiga);
+}
+
+template <> void
+RetroShell::exec <Token::amiga, Token::set, Token::type> (Arguments& argv, long param)
+{
+    amiga.configure(OPT_VIDEO_FORMAT, util::parseEnum <VideoFormatEnum> (argv.front()));
+}
+
+template <> void
+RetroShell::exec <Token::amiga, Token::vsync> (Arguments &argv, long param)
+{
+    amiga.configure(OPT_VSYNC, util::parseOnOff(argv.front()));
+}
+
+template <> void
 RetroShell::exec <Token::amiga, Token::init> (Arguments &argv, long param)
 {
     auto scheme = util::parseEnum <ConfigSchemeEnum> (argv.front());
@@ -132,70 +160,17 @@ RetroShell::exec <Token::amiga, Token::init> (Arguments &argv, long param)
 }
 
 template <> void
-RetroShell::exec <Token::amiga, Token::config> (Arguments& argv, long param)
+RetroShell::exec <Token::amiga, Token::power> (Arguments &argv, long param)
 {
-    dump(amiga, Category::Config);
-}
+    if (util::parseOnOff(argv.front())) {
 
-template <> void
-RetroShell::exec <Token::amiga, Token::set, Token::pal> (Arguments& argv, long param)
-{
-    amiga.configure(OPT_VIDEO_FORMAT, PAL);
-}
+        amiga.powerOn();
+        amiga.run();
 
-template <> void
-RetroShell::exec <Token::amiga, Token::set, Token::ntsc> (Arguments& argv, long param)
-{
-    amiga.configure(OPT_VIDEO_FORMAT, NTSC);
-}
+    } else {
 
-template <> void
-RetroShell::exec <Token::amiga, Token::vsync, Token::on> (Arguments &argv, long param)
-{
-    amiga.configure(OPT_VSYNC, true);
-}
-
-template <> void
-RetroShell::exec <Token::amiga, Token::vsync, Token::off> (Arguments &argv, long param)
-{
-    amiga.configure(OPT_VSYNC, false);
-}
-
-template <> void
-RetroShell::exec <Token::amiga, Token::power, Token::on> (Arguments &argv, long param)
-{
-    amiga.powerOn();
-    amiga.run();
-}
-
-template <> void
-RetroShell::exec <Token::amiga, Token::power, Token::off> (Arguments &argv, long param)
-{
-    amiga.powerOff();
-}
-
-template <> void
-RetroShell::exec <Token::amiga, Token::debug, Token::on> (Arguments &argv, long param)
-{
-    amiga.debugOn();
-}
-
-template <> void
-RetroShell::exec <Token::amiga, Token::debug, Token::off> (Arguments &argv, long param)
-{
-    amiga.debugOff();
-}
-
-template <> void
-RetroShell::exec <Token::amiga, Token::run> (Arguments &argv, long param)
-{
-    amiga.run();
-}
-
-template <> void
-RetroShell::exec <Token::amiga, Token::pause> (Arguments &argv, long param)
-{
-    amiga.pause();
+        amiga.powerOff();
+    }
 }
 
 template <> void
@@ -205,13 +180,7 @@ RetroShell::exec <Token::amiga, Token::reset> (Arguments &argv, long param)
 }
 
 template <> void
-RetroShell::exec <Token::amiga, Token::inspect, Token::state> (Arguments &argv, long param)
-{
-    dump(amiga, Category::State);
-}
-
-template <> void
-RetroShell::exec <Token::amiga, Token::inspect, Token::defaults> (Arguments &argv, long param)
+RetroShell::exec <Token::amiga, Token::defaults> (Arguments &argv, long param)
 {
     dump(amiga, Category::Defaults);
 }
@@ -224,21 +193,7 @@ RetroShell::exec <Token::amiga, Token::inspect, Token::defaults> (Arguments &arg
 template <> void
 RetroShell::exec <Token::memory, Token::config> (Arguments& argv, long param)
 {
-    dump(amiga.mem, Category::Config);
-}
-
-template <> void
-RetroShell::exec <Token::memory, Token::load, Token::rom> (Arguments& argv, long param)
-{
-    auto path = argv.front();
-    amiga.mem.loadRom(path.c_str());
-}
-
-template <> void
-RetroShell::exec <Token::memory, Token::load, Token::extrom> (Arguments& argv, long param)
-{
-    auto path = argv.front();
-    amiga.mem.loadExt(path.c_str());
+    dumpConfig(amiga.mem);
 }
 
 template <> void
@@ -296,21 +251,17 @@ RetroShell::exec <Token::memory, Token::set, Token::raminitpattern> (Arguments& 
 }
 
 template <> void
-RetroShell::exec <Token::memory, Token::inspect, Token::state> (Arguments& argv, long param)
+RetroShell::exec <Token::memory, Token::load, Token::rom> (Arguments& argv, long param)
 {
-    dump(amiga.mem, Category::State);
+    auto path = argv.front();
+    amiga.mem.loadRom(path.c_str());
 }
 
 template <> void
-RetroShell::exec <Token::memory, Token::inspect, Token::bankmap> (Arguments& argv, long param)
+RetroShell::exec <Token::memory, Token::load, Token::extrom> (Arguments& argv, long param)
 {
-    dump(amiga.mem, Category::BankMap);
-}
-
-template <> void
-RetroShell::exec <Token::memory, Token::inspect, Token::checksums> (Arguments& argv, long param)
-{
-    dump(amiga.mem, Category::Checksums);
+    auto path = argv.front();
+    amiga.mem.loadExt(path.c_str());
 }
 
 
@@ -321,7 +272,7 @@ RetroShell::exec <Token::memory, Token::inspect, Token::checksums> (Arguments& a
 template <> void
 RetroShell::exec <Token::cpu, Token::config> (Arguments &argv, long param)
 {
-    dump(amiga.cpu, Category::Config);
+    dumpConfig(amiga.cpu);
 }
 
 template <> void
@@ -329,6 +280,20 @@ RetroShell::exec <Token::cpu, Token::set, Token::revision> (Arguments &argv, lon
 {
     auto value = util::parseEnum <CPURevisionEnum> (argv.front());
     amiga.configure(OPT_CPU_REVISION, value);
+}
+
+template <> void
+RetroShell::exec <Token::cpu, Token::set, Token::dasm, Token::revision> (Arguments &argv, long param)
+{
+    auto value = util::parseEnum <DasmRevisionEnum> (argv.front());
+    amiga.configure(OPT_CPU_DASM_REVISION, value);
+}
+
+template <> void
+RetroShell::exec <Token::cpu, Token::set, Token::dasm, Token::syntax> (Arguments &argv, long param)
+{
+    auto value = util::parseEnum <DasmSyntaxEnum> (argv.front());
+    amiga.configure(OPT_CPU_DASM_SYNTAX, value);
 }
 
 template <> void
@@ -345,181 +310,6 @@ RetroShell::exec <Token::cpu, Token::set, Token::regreset> (Arguments &argv, lon
     amiga.configure(OPT_CPU_RESET_VAL, value);
 }
 
-template <> void
-RetroShell::exec <Token::cpu, Token::inspect, Token::state> (Arguments& argv, long param)
-{
-    dump(amiga.cpu, Category::State);
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::inspect, Token::registers> (Arguments& argv, long param)
-{
-    dump(amiga.cpu, Category::Registers);
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::callstack> (Arguments &argv, long param)
-{
-    if (!amiga.inDebugMode()) throw VAError(ERROR_DEBUG_OFF);
-    dump(amiga.cpu, Category::Callstack);
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::bp, Token::info> (Arguments& argv, long param)
-{
-    dump(amiga.cpu, Category::Breakpoints);
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::bp, Token::at> (Arguments& argv, long param)
-{
-    amiga.cpu.setBreakpoint(u32(util::parseNum(argv.front())));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::bp, Token::del> (Arguments& argv, long param)
-{
-    amiga.cpu.deleteBreakpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::bp, Token::enable> (Arguments& argv, long param)
-{
-    amiga.cpu.enableBreakpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::bp, Token::disable> (Arguments& argv, long param)
-{
-    amiga.cpu.disableBreakpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::bp, Token::ignore> (Arguments& argv, long param)
-{
-    amiga.cpu.ignoreBreakpoint(util::parseNum(argv[0]), util::parseNum(argv[1]));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::wp, Token::info> (Arguments& argv, long param)
-{
-    dump(amiga.cpu, Category::Watchpoints);
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::wp, Token::at> (Arguments& argv, long param)
-{
-    amiga.cpu.setWatchpoint(u32(util::parseNum(argv.front())));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::wp, Token::del> (Arguments& argv, long param)
-{
-    amiga.cpu.deleteWatchpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::wp, Token::enable> (Arguments& argv, long param)
-{
-    amiga.cpu.enableWatchpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::wp, Token::disable> (Arguments& argv, long param)
-{
-    amiga.cpu.disableWatchpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::wp, Token::ignore> (Arguments& argv, long param)
-{
-    amiga.cpu.ignoreWatchpoint(util::parseNum(argv[0]), util::parseNum(argv[1]));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::cp, Token::info> (Arguments& argv, long param)
-{
-    dump(amiga.cpu, Category::Catchpoints);
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::cp, Token::vector> (Arguments& argv, long param)
-{
-    auto nr = util::parseNum(argv.front());
-    if (nr < 0 || nr > 255) throw VAError(ERROR_OPT_INVARG, "0...255");
-    amiga.cpu.setCatchpoint(u8(nr));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::cp, Token::interrupt> (Arguments& argv, long param)
-{
-    auto nr = util::parseNum(argv.front());
-    if (nr < 1 || nr > 7) throw VAError(ERROR_OPT_INVARG, "1...7");
-    amiga.cpu.setCatchpoint(u8(nr + 24));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::cp, Token::trap> (Arguments& argv, long param)
-{
-    auto nr = util::parseNum(argv.front());
-    if (nr < 0 || nr > 15) throw VAError(ERROR_OPT_INVARG, "0...15");
-    amiga.cpu.setCatchpoint(u8(nr + 32));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::cp, Token::del> (Arguments& argv, long param)
-{
-    amiga.cpu.deleteCatchpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::cp, Token::enable> (Arguments& argv, long param)
-{
-    amiga.cpu.enableCatchpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::cp, Token::disable> (Arguments& argv, long param)
-{
-    amiga.cpu.disableCatchpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::cp, Token::ignore> (Arguments& argv, long param)
-{
-    amiga.cpu.ignoreCatchpoint(util::parseNum(argv[0]), util::parseNum(argv[1]));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::cp> (Arguments& argv, long param)
-{
-    amiga.cpu.ignoreCatchpoint(util::parseNum(argv[0]), util::parseNum(argv[1]));
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::swtraps> (Arguments &argv, long param)
-{
-    dump(amiga.cpu, Category::SwTraps);
-}
-
-template <> void
-RetroShell::exec <Token::cpu, Token::jump> (Arguments &argv, long param)
-{
-    auto value = util::parseNum(argv.front());
-    amiga.cpu.jump((u32)value);
-}
-
-
-//
-// FPU
-//
-
-template <> void
-RetroShell::exec <Token::fpu, Token::inspect> (Arguments& argv, long param)
-{
-    dump(amiga.cpu, Category::Fpu);
-}
-
 
 //
 // CIA
@@ -528,11 +318,7 @@ RetroShell::exec <Token::fpu, Token::inspect> (Arguments& argv, long param)
 template <> void
 RetroShell::exec <Token::cia, Token::config> (Arguments &argv, long param)
 {
-    if (param == 0) {
-        dump(amiga.ciaA, Category::Config);
-    } else {
-        dump(amiga.ciaB, Category::Config);
-    }
+    param == 0 ? dumpConfig(amiga.ciaA) : dumpConfig(amiga.ciaB);
 }
 
 template <> void
@@ -556,36 +342,6 @@ RetroShell::exec <Token::cia, Token::set, Token::esync> (Arguments &argv, long p
     amiga.configure(OPT_ECLOCK_SYNCING, param, value);
 }
 
-template <> void
-RetroShell::exec <Token::cia, Token::inspect, Token::state> (Arguments& argv, long param)
-{
-    if (param == 0) {
-        dump(amiga.ciaA, Category::State);
-    } else {
-        dump(amiga.ciaB, Category::State);
-    }
-}
-
-template <> void
-RetroShell::exec <Token::cia, Token::inspect, Token::registers> (Arguments& argv, long param)
-{
-    if (param == 0) {
-        dump(amiga.ciaA, Category::Registers);
-    } else {
-        dump(amiga.ciaB, Category::Registers);
-    }
-}
-
-template <> void
-RetroShell::exec <Token::cia, Token::inspect, Token::tod> (Arguments& argv, long param)
-{
-    if (param == 0) {
-        dump(amiga.ciaA, Category::Tod);
-    } else {
-        dump(amiga.ciaB, Category::Tod);
-    }
-}
-
 
 //
 // Agnus
@@ -594,7 +350,7 @@ RetroShell::exec <Token::cia, Token::inspect, Token::tod> (Arguments& argv, long
 template <> void
 RetroShell::exec <Token::agnus, Token::config> (Arguments &argv, long param)
 {
-    dump(amiga.agnus, Category::Config);
+    dumpConfig(amiga.agnus);
 }
 
 template <> void
@@ -616,10 +372,11 @@ RetroShell::exec <Token::agnus, Token::set, Token::ptrdrops> (Arguments &argv, l
     amiga.configure(OPT_PTR_DROPS, value);
 }
 
+/*
 template <> void
 RetroShell::exec <Token::agnus, Token::inspect, Token::state> (Arguments &argv, long param)
 {
-    dump(amiga.agnus, Category::State);
+    dump(amiga.agnus, Category::Debug);
 }
 
 template <> void
@@ -645,6 +402,7 @@ RetroShell::exec <Token::agnus, Token::inspect, Token::events> (Arguments &argv,
 {
     dump(amiga.agnus, Category::Events);
 }
+*/
 
 
 //
@@ -654,7 +412,7 @@ RetroShell::exec <Token::agnus, Token::inspect, Token::events> (Arguments &argv,
 template <> void
 RetroShell::exec <Token::blitter, Token::config> (Arguments& argv, long param)
 {
-    dump(amiga.agnus.blitter, Category::Config);
+    dumpConfig(amiga.agnus.blitter);
 }
 
 template <> void
@@ -663,10 +421,11 @@ RetroShell::exec <Token::blitter, Token::set, Token::accuracy> (Arguments &argv,
     amiga.configure(OPT_BLITTER_ACCURACY, util::parseNum(argv.front()));
 }
 
+/*
 template <> void
 RetroShell::exec <Token::blitter, Token::inspect, Token::state> (Arguments& argv, long param)
 {
-    dump(amiga.agnus.blitter, Category::State);
+    dump(amiga.agnus.blitter, Category::Debug);
 }
 
 template <> void
@@ -674,16 +433,18 @@ RetroShell::exec <Token::blitter, Token::inspect, Token::registers> (Arguments& 
 {
     dump(amiga.agnus.blitter, Category::Registers);
 }
+*/
 
 
 //
 // Copper
 //
 
+/*
 template <> void
 RetroShell::exec <Token::copper, Token::inspect, Token::state> (Arguments& argv, long param)
 {
-    dump(amiga.agnus.copper, Category::State);
+    dump(amiga.agnus.copper, Category::Debug);
 }
 
 template <> void
@@ -703,78 +464,7 @@ RetroShell::exec <Token::copper, Token::list> (Arguments& argv, long param)
         default: throw VAError(ERROR_OPT_INVARG, "1 or 2");
     }
 }
-
-template <> void
-RetroShell::exec <Token::copper, Token::bp, Token::info> (Arguments& argv, long param)
-{
-    dump(copper.debugger, Category::Breakpoints);
-}
-
-template <> void
-RetroShell::exec <Token::copper, Token::bp, Token::at> (Arguments& argv, long param)
-{
-    copper.debugger.setBreakpoint(u32(util::parseNum(argv.front())));
-}
-
-template <> void
-RetroShell::exec <Token::copper, Token::bp, Token::del> (Arguments& argv, long param)
-{
-    copper.debugger.deleteBreakpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::copper, Token::bp, Token::enable> (Arguments& argv, long param)
-{
-    copper.debugger.enableBreakpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::copper, Token::bp, Token::disable> (Arguments& argv, long param)
-{
-    copper.debugger.disableBreakpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::copper, Token::bp, Token::ignore> (Arguments& argv, long param)
-{
-    copper.debugger.ignoreBreakpoint(util::parseNum(argv[0]), util::parseNum(argv[1]));
-}
-
-template <> void
-RetroShell::exec <Token::copper, Token::wp, Token::info> (Arguments& argv, long param)
-{
-    dump(copper.debugger, Category::Watchpoints);
-}
-
-template <> void
-RetroShell::exec <Token::copper, Token::wp, Token::at> (Arguments& argv, long param)
-{
-    copper.debugger.setWatchpoint(u32(util::parseNum(argv.front())));
-}
-
-template <> void
-RetroShell::exec <Token::copper, Token::wp, Token::del> (Arguments& argv, long param)
-{
-    copper.debugger.deleteWatchpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::copper, Token::wp, Token::enable> (Arguments& argv, long param)
-{
-    copper.debugger.enableWatchpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::copper, Token::wp, Token::disable> (Arguments& argv, long param)
-{
-    copper.debugger.disableWatchpoint(util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::copper, Token::wp, Token::ignore> (Arguments& argv, long param)
-{
-    copper.debugger.ignoreWatchpoint(util::parseNum(argv[0]), util::parseNum(argv[1]));
-}
+*/
 
 
 //
@@ -784,7 +474,7 @@ RetroShell::exec <Token::copper, Token::wp, Token::ignore> (Arguments& argv, lon
 template <> void
 RetroShell::exec <Token::denise, Token::config> (Arguments& argv, long param)
 {
-    dump(amiga.denise, Category::Config);
+    dumpConfig(amiga.denise);
 }
 
 template <> void
@@ -818,33 +508,21 @@ RetroShell::exec <Token::denise, Token::set, Token::clxplfplf> (Arguments &argv,
 }
 
 template <> void
-RetroShell::exec <Token::denise, Token::hide, Token::bitplanes> (Arguments &argv, long param)
+RetroShell::exec <Token::denise, Token::set, Token::hide, Token::bitplanes> (Arguments &argv, long param)
 {
     amiga.configure(OPT_HIDDEN_BITPLANES, util::parseNum(argv.front()));
 }
 
 template <> void
-RetroShell::exec <Token::denise, Token::hide, Token::sprites> (Arguments &argv, long param)
+RetroShell::exec <Token::denise, Token::set, Token::hide, Token::sprites> (Arguments &argv, long param)
 {
     amiga.configure(OPT_HIDDEN_SPRITES, util::parseNum(argv.front()));
 }
 
 template <> void
-RetroShell::exec <Token::denise, Token::hide, Token::layers> (Arguments &argv, long param)
+RetroShell::exec <Token::denise, Token::set, Token::hide, Token::layers> (Arguments &argv, long param)
 {
     amiga.configure(OPT_HIDDEN_LAYERS, util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::denise, Token::inspect, Token::state> (Arguments& argv, long param)
-{
-    dump(amiga.denise, Category::State);
-}
-
-template <> void
-RetroShell::exec <Token::denise, Token::inspect, Token::registers> (Arguments& argv, long param)
-{
-    dump(amiga.denise, Category::Registers);
 }
 
 
@@ -865,105 +543,63 @@ RetroShell::exec <Token::dmadebugger, Token::close> (Arguments& argv, long param
 }
 
 template <> void
-RetroShell::exec <Token::dmadebugger, Token::show, Token::copper> (Arguments& argv, long param)
+RetroShell::exec <Token::dmadebugger, Token::copper> (Arguments& argv, long param)
 {
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_COPPER, true);
+    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_COPPER, util::parseBool(argv.front()));
 }
 
 template <> void
-RetroShell::exec <Token::dmadebugger, Token::show, Token::blitter> (Arguments& argv, long param)
+RetroShell::exec <Token::dmadebugger, Token::blitter> (Arguments& argv, long param)
 {
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_BLITTER, true);
+    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_BLITTER, util::parseBool(argv.front()));
 }
 
 template <> void
-RetroShell::exec <Token::dmadebugger, Token::show, Token::disk> (Arguments& argv, long param)
+RetroShell::exec <Token::dmadebugger, Token::disk> (Arguments& argv, long param)
 {
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_DISK, true);
+    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_DISK, util::parseBool(argv.front()));
 }
 
 template <> void
-RetroShell::exec <Token::dmadebugger, Token::show, Token::audio> (Arguments& argv, long param)
+RetroShell::exec <Token::dmadebugger, Token::audio> (Arguments& argv, long param)
 {
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_AUDIO, true);
+    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_AUDIO, util::parseBool(argv.front()));
 }
 
 template <> void
-RetroShell::exec <Token::dmadebugger, Token::show, Token::sprites> (Arguments& argv, long param)
+RetroShell::exec <Token::dmadebugger, Token::sprites> (Arguments& argv, long param)
 {
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_SPRITE, true);
+    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_SPRITE, util::parseBool(argv.front()));
 }
 
 template <> void
-RetroShell::exec <Token::dmadebugger, Token::show, Token::bitplanes> (Arguments& argv, long param)
+RetroShell::exec <Token::dmadebugger, Token::bitplanes> (Arguments& argv, long param)
 {
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_BITPLANE, true);
+    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_BITPLANE, util::parseBool(argv.front()));
 }
 
 template <> void
-RetroShell::exec <Token::dmadebugger, Token::show, Token::cpu> (Arguments& argv, long param)
+RetroShell::exec <Token::dmadebugger, Token::cpu> (Arguments& argv, long param)
 {
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_CPU, true);
+    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_CPU, util::parseBool(argv.front()));
 }
 
 template <> void
-RetroShell::exec <Token::dmadebugger, Token::show, Token::refresh> (Arguments& argv, long param)
+RetroShell::exec <Token::dmadebugger, Token::refresh> (Arguments& argv, long param)
 {
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_REFRESH, true);
-}
-
-template <> void
-RetroShell::exec <Token::dmadebugger, Token::hide, Token::copper> (Arguments& argv, long param)
-{
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_COPPER, false);
-}
-
-template <> void
-RetroShell::exec <Token::dmadebugger, Token::hide, Token::blitter> (Arguments& argv, long param)
-{
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_BLITTER, false);
-}
-
-template <> void
-RetroShell::exec <Token::dmadebugger, Token::hide, Token::disk> (Arguments& argv, long param)
-{
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_DISK, false);
-}
-
-template <> void
-RetroShell::exec <Token::dmadebugger, Token::hide, Token::audio> (Arguments& argv, long param)
-{
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_AUDIO, false);
-}
-
-template <> void
-RetroShell::exec <Token::dmadebugger, Token::hide, Token::sprites> (Arguments& argv, long param)
-{
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_SPRITE, false);
-}
-
-template <> void
-RetroShell::exec <Token::dmadebugger, Token::hide, Token::bitplanes> (Arguments& argv, long param)
-{
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_BITPLANE, false);
-}
-
-template <> void
-RetroShell::exec <Token::dmadebugger, Token::hide, Token::cpu> (Arguments& argv, long param)
-{
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_CPU, false);
-}
-
-template <> void
-RetroShell::exec <Token::dmadebugger, Token::hide, Token::refresh> (Arguments& argv, long param)
-{
-    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_REFRESH, false);
+    amiga.configure(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_REFRESH, util::parseBool(argv.front()));
 }
 
 
 //
 // Monitor
 //
+
+template <> void
+RetroShell::exec <Token::monitor, Token::config> (Arguments& argv, long param)
+{
+    dumpConfig(amiga.denise.pixelEngine);
+}
 
 template <> void
 RetroShell::exec <Token::monitor, Token::set, Token::palette> (Arguments& argv, long param)
@@ -997,7 +633,19 @@ RetroShell::exec <Token::monitor, Token::set, Token::saturation> (Arguments& arg
 template <> void
 RetroShell::exec <Token::audio, Token::config> (Arguments& argv, long param)
 {
-    dump(amiga.paula.muxer, Category::Config);
+    dumpConfig(amiga.paula.muxer);
+}
+
+template <> void
+RetroShell::exec <Token::audio, Token::filter, Token::config> (Arguments& argv, long param)
+{
+    *this << '\n';
+
+    *this << "Left channel:" << '\n';
+    dumpConfig(paula.muxer.filterL);
+
+    *this << "Right channel:" << '\n';
+    dumpConfig(paula.muxer.filterR);
 }
 
 template <> void
@@ -1007,9 +655,15 @@ RetroShell::exec <Token::audio, Token::set, Token::sampling> (Arguments& argv, l
 }
 
 template <> void
-RetroShell::exec <Token::audio, Token::set, Token::filter> (Arguments& argv, long param)
+RetroShell::exec <Token::audio, Token::filter, Token::set, Token::type> (Arguments& argv, long param)
 {
     amiga.configure(OPT_FILTER_TYPE, util::parseEnum <FilterTypeEnum> (argv.front()));
+}
+
+template <> void
+RetroShell::exec <Token::audio, Token::filter, Token::set, Token::activation> (Arguments& argv, long param)
+{
+    amiga.configure(OPT_FILTER_ACTIVATION, util::parseEnum <FilterActivationEnum> (argv.front()));
 }
 
 template <> void
@@ -1035,27 +689,16 @@ RetroShell::exec <Token::audio, Token::set, Token::pan> (Arguments& argv, long p
     amiga.configure(OPT_AUDPAN, param, util::parseNum(argv.front()));
 }
 
-template <> void
-RetroShell::exec <Token::audio, Token::inspect, Token::state> (Arguments& argv, long param)
-{
-    dump(amiga.paula.muxer, Category::State);
-}
-
-template <> void
-RetroShell::exec <Token::audio, Token::inspect, Token::registers> (Arguments& argv, long param)
-{
-    dump(amiga.paula.muxer, Category::Registers);
-}
-
 
 //
 // Paula
 //
 
+/*
 template <> void
 RetroShell::exec <Token::paula, Token::inspect, Token::state> (Arguments& argv, long param)
 {
-    dump(amiga.paula, Category::State);
+    dumpDetails(amiga.paula);
 }
 
 template <> void
@@ -1063,6 +706,7 @@ RetroShell::exec <Token::paula, Token::inspect, Token::registers> (Arguments& ar
 {
     dump(amiga.paula, Category::Registers);
 }
+*/
 
 
 //
@@ -1072,13 +716,7 @@ RetroShell::exec <Token::paula, Token::inspect, Token::registers> (Arguments& ar
 template <> void
 RetroShell::exec <Token::rtc, Token::config> (Arguments& argv, long param)
 {
-    dump(amiga.rtc, Category::Config);
-}
-
-template <> void
-RetroShell::exec <Token::rtc, Token::inspect, Token::registers> (Arguments& argv, long param)
-{
-    dump(amiga.rtc, Category::Registers);
+    dumpConfig(amiga.rtc);
 }
 
 template <> void
@@ -1089,42 +727,19 @@ RetroShell::exec <Token::rtc, Token::set, Token::revision> (Arguments &argv, lon
 
 
 //
-// Control port
-//
-
-template <> void
-RetroShell::exec <Token::controlport, Token::config> (Arguments& argv, long param)
-{
-    dump(param == 0 ? amiga.controlPort1 : amiga.controlPort2, Category::Config);
-}
-
-template <> void
-RetroShell::exec <Token::controlport, Token::inspect> (Arguments& argv, long param)
-{
-    dump(param == 0 ? amiga.controlPort1 : amiga.controlPort2, Category::State);
-}
-
-
-//
 // Keyboard
 //
 
 template <> void
 RetroShell::exec <Token::keyboard, Token::config> (Arguments& argv, long param)
 {
-    dump(amiga.keyboard, Category::Config);
+    dumpConfig(amiga.keyboard);
 }
 
 template <> void
 RetroShell::exec <Token::keyboard, Token::set, Token::accuracy> (Arguments &argv, long param)
 {
     amiga.configure(OPT_ACCURATE_KEYBOARD, util::parseBool(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::keyboard, Token::inspect> (Arguments& argv, long param)
-{
-    dump(amiga.keyboard, Category::State);
 }
 
 template <> void
@@ -1143,36 +758,38 @@ template <> void
 RetroShell::exec <Token::mouse, Token::config> (Arguments& argv, long param)
 {
     auto &port = (param == 0) ? amiga.controlPort1 : amiga.controlPort2;
-    dump(port.mouse, Category::Config);
+    dumpConfig(port.mouse);
 }
 
 template <> void
 RetroShell::exec <Token::mouse, Token::set, Token::pullup> (Arguments &argv, long param)
 {
-    auto port = (param == 0) ? PORT_1 : PORT_2;
+    auto port = (param == 0) ? ControlPort::PORT1 : ControlPort::PORT2;
     amiga.configure(OPT_PULLUP_RESISTORS, port, util::parseBool(argv.front()));
 }
 
 template <> void
 RetroShell::exec <Token::mouse, Token::set, Token::shakedetector> (Arguments &argv, long param)
 {
-    auto port = (param == 0) ? PORT_1 : PORT_2;
+    auto port = (param == 0) ? ControlPort::PORT1 : ControlPort::PORT2;
     amiga.configure(OPT_SHAKE_DETECTION, port, util::parseBool(argv.front()));
 }
 
 template <> void
 RetroShell::exec <Token::mouse, Token::set, Token::velocity> (Arguments &argv, long param)
 {
-    auto port = (param == 0) ? PORT_1 : PORT_2;
+    auto port = (param == 0) ? ControlPort::PORT1 : ControlPort::PORT2;
     amiga.configure(OPT_MOUSE_VELOCITY, port, util::parseNum(argv.front()));
 }
 
+/*
 template <> void
 RetroShell::exec <Token::mouse, Token::inspect> (Arguments& argv, long param)
 {
     auto &port = (param == 0) ? amiga.controlPort1 : amiga.controlPort2;
-    dump(port.mouse, Category::State);
+    dumpDetails(port.mouse);
 }
+*/
 
 template <> void
 RetroShell::exec <Token::mouse, Token::press, Token::left> (Arguments& argv, long param)
@@ -1197,35 +814,28 @@ template <> void
 RetroShell::exec <Token::joystick, Token::config> (Arguments& argv, long param)
 {
     auto &port = (param == 0) ? amiga.controlPort1 : amiga.controlPort2;
-    dump(port.joystick, Category::Config);
+    dumpConfig(port.joystick);
 }
 
 template <> void
 RetroShell::exec <Token::joystick, Token::set, Token::autofire> (Arguments &argv, long param)
 {
-    auto port = (param == 0) ? PORT_1 : PORT_2;
+    auto port = (param == 0) ? ControlPort::PORT1 : ControlPort::PORT2;
     amiga.configure(OPT_AUTOFIRE, port, util::parseBool(argv.front()));
 }
 
 template <> void
 RetroShell::exec <Token::joystick, Token::set, Token::bullets> (Arguments &argv, long param)
 {
-    auto port = (param == 0) ? PORT_1 : PORT_2;
+    auto port = (param == 0) ? ControlPort::PORT1 : ControlPort::PORT2;
     amiga.configure(OPT_AUTOFIRE_BULLETS, port, util::parseNum(argv.front()));
 }
 
 template <> void
 RetroShell::exec <Token::joystick, Token::set, Token::delay> (Arguments &argv, long param)
 {
-    auto port = (param == 0) ? PORT_1 : PORT_2;
+    auto port = (param == 0) ? ControlPort::PORT1 : ControlPort::PORT2;
     amiga.configure(OPT_AUTOFIRE_DELAY, port, util::parseNum(argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::joystick, Token::inspect> (Arguments& argv, long param)
-{
-    auto &port = (param == 0) ? amiga.controlPort1 : amiga.controlPort2;
-    dump(port.joystick, Category::State);
 }
 
 template <> void
@@ -1312,19 +922,13 @@ RetroShell::exec <Token::joystick, Token::release, Token::yaxis> (Arguments& arg
 template <> void
 RetroShell::exec <Token::serial, Token::config> (Arguments& argv, long param)
 {
-    dump(amiga.serialPort, Category::Config);
+    dumpConfig(amiga.serialPort);
 }
 
 template <> void
 RetroShell::exec <Token::serial, Token::set, Token::device> (Arguments &argv, long param)
 {
     amiga.configure(OPT_SERIAL_DEVICE, util::parseEnum <SerialPortDeviceEnum> (argv.front()));
-}
-
-template <> void
-RetroShell::exec <Token::serial, Token::inspect> (Arguments& argv, long param)
-{
-    dump(amiga.serialPort, Category::State);
 }
 
 
@@ -1335,13 +939,7 @@ RetroShell::exec <Token::serial, Token::inspect> (Arguments& argv, long param)
 template <> void
 RetroShell::exec <Token::dc, Token::config> (Arguments& argv, long param)
 {
-    dump(amiga.paula.diskController, Category::Config);
-}
-
-template <> void
-RetroShell::exec <Token::dc, Token::inspect> (Arguments& argv, long param)
-{
-    dump(amiga.paula.diskController, Category::State);
+    dumpConfig(amiga.paula.diskController);
 }
 
 template <> void
@@ -1370,7 +968,7 @@ RetroShell::exec <Token::dc, Token::dsksync, Token::lock> (Arguments& argv, long
 template <> void
 RetroShell::exec <Token::dfn, Token::config> (Arguments& argv, long param)
 {
-    dump(*amiga.df[param], Category::Config);
+    dumpConfig(*amiga.df[param]);
 }
 
 template <> void
@@ -1461,6 +1059,18 @@ RetroShell::exec <Token::dfn, Token::set, Token::model> (Arguments& argv, long p
 }
 
 template <> void
+RetroShell::exec <Token::dc, Token::set, Token::rpm> (Arguments& argv, long param)
+{
+    long num = util::parseNum(argv.front());
+
+    if (param >= 0 && param <= 3) {
+        amiga.configure(OPT_DRIVE_RPM, param, num);
+    } else {
+        amiga.configure(OPT_DRIVE_RPM, num);
+    }
+}
+
+template <> void
 RetroShell::exec <Token::dfn, Token::set, Token::pan> (Arguments& argv, long param)
 {
     long num = util::parseNum(argv.front());
@@ -1475,12 +1085,12 @@ RetroShell::exec <Token::dfn, Token::set, Token::pan> (Arguments& argv, long par
 template <> void
 RetroShell::exec <Token::dfn, Token::set, Token::mechanics> (Arguments& argv, long param)
 {
-    long num = util::parseBool(argv.front());
-    
+    auto scheme = util::parseEnum<DriveMechanicsEnum>(argv[0]);
+
     if (param >= 0 && param <= 3) {
-        amiga.configure(OPT_EMULATE_MECHANICS, param, num);
+        amiga.configure(OPT_DRIVE_MECHANICS, param, scheme);
     } else {
-        amiga.configure(OPT_EMULATE_MECHANICS, num);
+        amiga.configure(OPT_DRIVE_MECHANICS, scheme);
     }
 }
 
@@ -1488,7 +1098,7 @@ template <> void
 RetroShell::exec <Token::dfn, Token::set, Token::searchpath> (Arguments& argv, long param)
 {
     string path = argv.front();
-        
+
     if (param == 0 || param > 3) df0.setSearchPath(path);
     if (param == 1 || param > 3) df1.setSearchPath(path);
     if (param == 2 || param > 3) df2.setSearchPath(path);
@@ -1507,19 +1117,6 @@ RetroShell::exec <Token::dfn, Token::set, Token::swapdelay> (Arguments& argv, lo
     }
 }
 
-template <> void
-RetroShell::exec <Token::dfn, Token::inspect> (Arguments& argv, long param)
-{
-    dump(*amiga.df[param], Category::State);
-}
-
-template <> void
-RetroShell::exec <Token::dfn, Token::cp> (Arguments& argv, long param)
-{
-    assert(param >= 0 && param <= 3);
-    df[param]->catchFile(argv.front());
-}
-
 
 //
 // Hd0, Hd1, Hd2, Hd3
@@ -1528,7 +1125,7 @@ RetroShell::exec <Token::dfn, Token::cp> (Arguments& argv, long param)
 template <> void
 RetroShell::exec <Token::hdn, Token::config> (Arguments& argv, long param)
 {
-    dump(*amiga.hd[param], Category::Config);
+    dumpConfig(*amiga.hd[param]);
 }
 
 template <> void
@@ -1556,30 +1153,6 @@ RetroShell::exec <Token::hdn, Token::audiate, Token::step> (Arguments& argv, lon
 }
 
 template <> void
-RetroShell::exec <Token::hdn, Token::inspect, Token::drive> (Arguments& argv, long param)
-{
-    dump(*amiga.hd[param], Category::Drive);
-}
-
-template <> void
-RetroShell::exec <Token::hdn, Token::inspect, Token::volumes> (Arguments& argv, long param)
-{
-    dump(*amiga.hd[param], Category::Volumes);
-}
-
-template <> void
-RetroShell::exec <Token::hdn, Token::inspect, Token::partition> (Arguments& argv, long param)
-{
-    dump(*amiga.hd[param], Category::Partitions);
-}
-
-template <> void
-RetroShell::exec <Token::hdn, Token::inspect, Token::state> (Arguments& argv, long param)
-{
-    dump(*amiga.hd[param], Category::State);
-}
-
-template <> void
 RetroShell::exec <Token::hdn, Token::geometry> (Arguments& argv, long param)
 {
     auto c = util::parseNum(argv[0]);
@@ -1596,7 +1169,7 @@ RetroShell::exec <Token::hdn, Token::geometry> (Arguments& argv, long param)
 template <> void
 RetroShell::exec <Token::zorro, Token::list> (Arguments& argv, long param)
 {
-    dump(zorro, Category::State);
+    dumpDetails(zorro);
 }
 
 template <> void
@@ -1607,144 +1180,21 @@ RetroShell::exec <Token::zorro, Token::inspect> (Arguments& argv, long param)
     if (auto board = zorro.getBoard(value); board != nullptr) {
 
         dump(*board, Category::Properties);
-        dump(*board, Category::State);
+        dumpDetails(*board);
         dump(*board, Category::Stats);
     }
-}
-
-//
-// OSDebugger
-//
-
-template <> void
-RetroShell::exec <Token::os, Token::info> (Arguments& argv, long param)
-{
-    std::stringstream ss;
-    osDebugger.dumpInfo(ss);
-
-    *this << ss;
-}
-
-template <> void
-RetroShell::exec <Token::os, Token::execbase> (Arguments& argv, long param)
-{
-    std::stringstream ss;
-    osDebugger.dumpExecBase(ss);
-
-    *this << ss;
-}
-
-template <> void
-RetroShell::exec <Token::os, Token::interrupts> (Arguments& argv, long param)
-{
-    std::stringstream ss;
-    osDebugger.dumpIntVectors(ss);
-
-    *this << ss;
-}
-
-template <> void
-RetroShell::exec <Token::os, Token::libraries> (Arguments& argv, long param)
-{
-    std::stringstream ss;
-    isize num;
-    
-    if (argv.empty()) {
-        osDebugger.dumpLibraries(ss);
-    } else if (util::parseHex(argv.front(), &num)) {
-        osDebugger.dumpLibrary(ss, (u32)num);
-    } else {
-        osDebugger.dumpLibrary(ss, argv.front());
-    }
-    
-    *this << ss;
-}
-
-template <> void
-RetroShell::exec <Token::os, Token::devices> (Arguments& argv, long param)
-{
-    std::stringstream ss;
-    isize num;
-    
-    if (argv.empty()) {
-        osDebugger.dumpDevices(ss);
-    } else if (util::parseHex(argv.front(), &num)) {
-        osDebugger.dumpDevice(ss, (u32)num);
-    } else {
-        osDebugger.dumpDevice(ss, argv.front());
-    }
-    
-    *this << ss;
-}
-
-template <> void
-RetroShell::exec <Token::os, Token::resources> (Arguments& argv, long param)
-{
-    std::stringstream ss;
-    isize num;
-    
-    if (argv.empty()) {
-        osDebugger.dumpResources(ss);
-    } else if (util::parseHex(argv.front(), &num)) {
-        osDebugger.dumpResource(ss, (u32)num);
-    } else {
-        osDebugger.dumpResource(ss, argv.front());
-    }
-    
-    *this << ss;
-}
-
-template <> void
-RetroShell::exec <Token::os, Token::tasks> (Arguments& argv, long param)
-{
-    std::stringstream ss;
-    isize num;
-    
-    if (argv.empty()) {
-        osDebugger.dumpTasks(ss);
-    } else if (util::parseHex(argv.front(), &num)) {
-        osDebugger.dumpTask(ss, (u32)num);
-    } else {
-        osDebugger.dumpTask(ss, argv.front());
-    }
-    
-    *this << ss;
-}
-
-template <> void
-RetroShell::exec <Token::os, Token::processes> (Arguments& argv, long param)
-{
-    std::stringstream ss;
-    isize num;
-    
-    if (argv.empty()) {
-        osDebugger.dumpProcesses(ss);
-    } else if (util::parseHex(argv.front(), &num)) {
-        osDebugger.dumpProcess(ss, (u32)num);
-    } else {
-        osDebugger.dumpProcess(ss, argv.front());
-    }
-    
-    *this << ss;
-}
-
-template <> void
-RetroShell::exec <Token::os, Token::cp> (Arguments& argv, long param)
-{
-    diagBoard.catchTask(argv.back());
-    *this << "Waiting for task '" << argv.back() << "' to start...\n";
-}
-
-template <> void
-RetroShell::exec <Token::os, Token::set, Token::diagboard> (Arguments& argv, long param)
-{
-    diagBoard.setConfigItem(OPT_DIAG_BOARD, util::parseBool(argv.front()));
 }
 
 
 //
 // Remote servers
 //
+
+template <> void
+RetroShell::exec <Token::server> (Arguments& argv, long param)
+{
+    dump(remoteManager, Category::Status);
+}
 
 template <> void
 RetroShell::exec <Token::server, Token::serial, Token::set, Token::port> (Arguments& argv, long param)
@@ -1761,13 +1211,13 @@ RetroShell::exec <Token::server, Token::serial, Token::set, Token::verbose> (Arg
 template <> void
 RetroShell::exec <Token::server, Token::serial, Token::config> (Arguments& argv, long param)
 {
-    dump(remoteManager.serServer, Category::Config);
+    dumpConfig(remoteManager.serServer);
 }
 
 template <> void
 RetroShell::exec <Token::server, Token::serial, Token::inspect> (Arguments& argv, long param)
 {
-    dump(remoteManager.serServer, Category::State);
+    dumpDetails(remoteManager.serServer);
 }
 
 template <> void
@@ -1803,13 +1253,13 @@ RetroShell::exec <Token::server, Token::rshell, Token::set, Token::verbose> (Arg
 template <> void
 RetroShell::exec <Token::server, Token::rshell, Token::config> (Arguments& argv, long param)
 {
-    dump(remoteManager.rshServer, Category::Config);
+    dumpConfig(remoteManager.rshServer);
 }
 
 template <> void
 RetroShell::exec <Token::server, Token::rshell, Token::inspect> (Arguments& argv, long param)
 {
-    dump(remoteManager.rshServer, Category::State);
+    dumpDetails(remoteManager.rshServer);
 }
 
 template <> void
@@ -1839,17 +1289,13 @@ RetroShell::exec <Token::server, Token::gdb, Token::set, Token::verbose> (Argume
 template <> void
 RetroShell::exec <Token::server, Token::gdb, Token::config> (Arguments& argv, long param)
 {
-    dump(remoteManager.gdbServer, Category::Config);
+    dumpConfig(remoteManager.gdbServer);
 }
 
 template <> void
 RetroShell::exec <Token::server, Token::gdb, Token::inspect> (Arguments& argv, long param)
 {
-    dump(remoteManager.gdbServer, Category::State);
+    dumpDetails(remoteManager.gdbServer);
 }
 
-template <> void
-RetroShell::exec <Token::server, Token::list> (Arguments& argv, long param)
-{
-    dump(remoteManager, Category::State);
 }

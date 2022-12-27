@@ -13,13 +13,15 @@
 #include "SubComponent.h"
 #include "IOUtils.h"
 
+namespace vamiga {
+
 class Drive : public SubComponent {
 
 protected:
     
     // Drive number (0 = df0 or hd0, 1 = df1 or hd1, etc.)
     const isize nr;
-        
+
     
     //
     // Initializing
@@ -28,7 +30,7 @@ protected:
 public:
 
     Drive(Amiga& ref, isize nr);
-        
+
     isize getNr() { return nr; }
 
     
@@ -43,7 +45,7 @@ public:
     virtual string getControllerProduct() const { return ""; }
     virtual string getControllerRevision() const { return ""; }
     
- 
+
     //
     // Analyzing
     //
@@ -62,7 +64,7 @@ public:
     //
     
     // Returns a fingerprint for the current disk or 0 if there is none
-    virtual u64 fnv() const = 0;
+    // virtual u64 fnv() const = 0;
 
     // Checks whether the drive contains a disk of a certain kind
     virtual bool hasDisk() const = 0;
@@ -78,3 +80,5 @@ public:
     void markDiskAsModified() { setModificationFlag(true); }
     void markDiskAsUnmodified() { setModificationFlag(false); }
 };
+
+}

@@ -18,7 +18,16 @@ parseBool(string& token)
     if (token == "1" || token == "true" || token == "yes") return true;
     if (token == "0" || token == "false" || token == "no") return false;
 
-    throw ParseBoolError("");
+    throw ParseBoolError(token);
+}
+
+bool
+parseOnOff(string& token)
+{
+    if (token == "on") return true;
+    if (token == "off") return false;
+
+    throw ParseOnOffError(token);
 }
 
 long

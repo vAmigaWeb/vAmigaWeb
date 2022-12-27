@@ -17,6 +17,8 @@
 #include "MsgQueue.h"
 #include "RetroShell.h"
 
+namespace vamiga {
+
 RemoteServer::RemoteServer(Amiga& ref) : SubComponent(ref)
 {
 
@@ -46,7 +48,7 @@ RemoteServer::_dump(Category category, std::ostream& os) const
         os << bol(config.verbose) << std::endl;
     }
     
-    if (category == Category::State) {
+    if (category == Category::Debug) {
         
         os << tab("State");
         os << SrvStateEnum::key(state) << std::endl;
@@ -89,7 +91,7 @@ void
 RemoteServer::setConfigItem(Option option, i64 value)
 {
     switch (option) {
-                                    
+
         case OPT_SRV_PORT:
             
             if (config.port != (u16)value) {
@@ -270,7 +272,7 @@ void
 RemoteServer::mainLoop()
 {
     switchState(SRV_STATE_LISTENING);
-            
+
     while (isListening()) {
         
         try {
@@ -321,12 +323,12 @@ RemoteServer::sessionLoop()
     numSent = 0;
 
     try {
-                
+
         // Receive and process packets
         while (1) { process(receive()); }
         
     } catch (std::exception &err) {
-                     
+
         debug(SRV_DEBUG, "Session loop interrupted\n");
 
         // Handle error if we haven't been interrupted purposely
@@ -367,3 +369,4 @@ RemoteServer::didSwitch(SrvState from, SrvState to)
     }
 }
 
+}

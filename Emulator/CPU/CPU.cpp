@@ -20,7 +20,8 @@
 // Moira
 //
 
-namespace moira {
+
+namespace vamiga::moira {
 
 void
 Moira::sync(int cycles)
@@ -43,15 +44,15 @@ Moira::sync(int cycles)
         // Execute some cycles at normal speed if required
         while (cpu->slowCycles && cycles) {
 
-            cpu->penalty += microCyclesPerCycle;
+            cpu->debt += microCyclesPerCycle;
             cycles--;
             cpu->slowCycles--;
         }
 
         // Execute all other cycles
-        cpu->penalty += cycles;
+        cpu->debt += cycles;
 
-        while (cpu->penalty >= microCyclesPerCycle) {
+        while (cpu->debt >= microCyclesPerCycle) {
 
             // Advance the CPU clock by one DMA cycle
             clock += 2;
@@ -59,7 +60,7 @@ Moira::sync(int cycles)
             // Emulate Agnus for one DMA cycle
             agnus.execute();
 
-            cpu->penalty -= microCyclesPerCycle;
+            cpu->debt -= microCyclesPerCycle;
         }
     }
 }
@@ -269,6 +270,8 @@ Moira::softwareTrapReached(u32 addr)
 // CPU
 //
 
+namespace vamiga {
+
 CPU::CPU(Amiga& ref) : moira::Moira(ref)
 {
     
@@ -385,7 +388,7 @@ CPU::_reset(bool hard)
     RESET_SNAPSHOT_ITEMS(hard)
 
     if (hard) {
-                
+
         // Reset the Moira core
         Moira::reset();
         
@@ -404,7 +407,7 @@ CPU::_reset(bool hard)
          *  internal reset operation. All external devices in the system should
          *  be reset at the completion of the RESET instruction."
          *  [Motorola M68000 User Manual]
-         */            
+         */
     }
 }
 
@@ -441,27 +444,19 @@ CPU::_dump(Category category, std::ostream& os) const
 {
     if (category == Category::Config) {
 
-        os << util::tab("CPU model");
+        os << util::tab("CPU revision");
         os << CPURevisionEnum::key(config.revision) << std::endl;
-        os << util::tab("Disassembler");
-        os << CPURevisionEnum::key(config.dasmRevision) << std::endl;
+        os << util::tab("DASM revision");
+        os << DasmRevisionEnum::key(config.dasmRevision) << std::endl;
+        os << util::tab("DASM syntax");
+        os << DasmSyntaxEnum::key(config.dasmSyntax) << std::endl;
         os << util::tab("Overclocking");
         os << util::dec(config.overclocking) << std::endl;
         os << util::tab("Register reset value");
         os << util::hex(config.regResetVal) << std::endl;
     }
-    
-    if (category == Category::State) {
-        
-        os << util::tab("Clock");
-        os << util::dec(clock) << std::endl;
-        os << util::tab("Control flags");
-        os << util::hex((u16)flags) << std::endl;
-        os << util::tab("Last exception");
-        os << util::dec(exception);
-    }
 
-    if (category == Category::Registers) {
+    if (category == Category::Inspection) {
         
         os << util::tab("PC");
         os << util::hex(reg.pc0) << std::endl;
@@ -504,6 +499,37 @@ CPU::_dump(Category category, std::ostream& os) const
         os << (reg.sr.c ? 'C' : 'c') << std::endl;
     }
 
+    if (category == Category::Debug) {
+
+        os << util::tab("Clock");
+        os << util::dec(clock) << std::endl;
+        os << util::tab("Flags");
+        os << util::hex((u16)flags) << std::endl;
+
+        if (flags) {
+
+            os << std::endl;
+            if (flags & moira::CPU_IS_HALTED) os << util::tab("") << "CPU_IS_HALTED" << std::endl;
+            if (flags & moira::CPU_IS_STOPPED) os << util::tab("") << "CPU_IS_STOPPED" << std::endl;
+            if (flags & moira::CPU_IS_LOOPING) os << util::tab("") << "CPU_IS_LOOPING" << std::endl;
+            if (flags & moira::CPU_LOG_INSTRUCTION) os << util::tab("") << "CPU_LOG_INSTRUCTION" << std::endl;
+            if (flags & moira::CPU_CHECK_IRQ) os << util::tab("") << "CPU_CHECK_IRQ" << std::endl;
+            if (flags & moira::CPU_TRACE_EXCEPTION) os << util::tab("") << "CPU_TRACE_EXCEPTION" << std::endl;
+            if (flags & moira::CPU_TRACE_FLAG) os << util::tab("") << "CPU_TRACE_FLAG" << std::endl;
+            if (flags & moira::CPU_CHECK_BP) os << util::tab("") << "CPU_CHECK_BP" << std::endl;
+            if (flags & moira::CPU_CHECK_WP) os << util::tab("") << "CPU_CHECK_WP" << std::endl;
+            if (flags & moira::CPU_CHECK_CP) os << util::tab("") << "CPU_CHECK_CP" << std::endl;
+            os << std::endl;
+        }
+
+        os << util::tab("Read buffer");
+        os << util::hex(readBuffer) << std::endl;
+        os << util::tab("Write buffer");
+        os << util::hex(readBuffer) << std::endl;
+        os << util::tab("Last exception");
+        os << util::dec(exception);
+    }
+
     if (category == Category::Fpu) {
         
         os << util::tab("FPIAR");
@@ -514,83 +540,97 @@ CPU::_dump(Category category, std::ostream& os) const
         os << util::hex(fpu.fpcr) << std::endl;
 
         /*
-        for (isize i = 0; i < 8; i++) {
-            
-            auto value = softfloat::floatx80_to_float32(fpu.fpr[i].raw);
-            os << util::tab("FP" + std::to_string(i));
-            os << util::hex(u32(value)) << std::endl;
-        }
-        */
+         for (isize i = 0; i < 8; i++) {
+
+         auto value = softfloat::floatx80_to_float32(fpu.fpr[i].raw);
+         os << util::tab("FP" + std::to_string(i));
+         os << util::hex(u32(value)) << std::endl;
+         }
+         */
     }
     
     if (category == Category::Breakpoints) {
-        
-        for (int i = 0; i < debugger.breakpoints.elements(); i++) {
-            
-            auto bp = debugger.breakpoints.guardNr(i);
-            auto nr = "Breakpoint " + std::to_string(i);
-            
-            os << util::tab(nr);
-            os << util::hex(bp->addr);
 
-            if (!bp->enabled) os << " (Disabled)";
-            else if (bp->ignore) os << " (Disabled for " << bp->ignore << " hits)";
-            os << std::endl;
+        if (debugger.breakpoints.elements()) {
+
+            for (int i = 0; i < debugger.breakpoints.elements(); i++) {
+
+                auto bp = debugger.breakpoints.guardNr(i);
+                auto nr = "Breakpoint " + std::to_string(i);
+
+                os << util::tab(nr);
+                os << util::hex(bp->addr);
+
+                if (!bp->enabled) os << " (Disabled)";
+                else if (bp->ignore) os << " (Disabled for " << bp->ignore << " hits)";
+                os << std::endl;
+            }
+
+        } else {
+
+            os << "No breakpoints set" << std::endl;
         }
     }
-    
+
     if (category == Category::Watchpoints) {
-        
-        for (int i = 0; i < debugger.watchpoints.elements(); i++) {
-            
-            auto wp = debugger.watchpoints.guardNr(i);
-            auto nr = "Watchpoint " + std::to_string(i);
-            
-            os << util::tab(nr);
-            os << util::hex(wp->addr);
-            if (!wp->enabled) os << " (Disabled)";
-            else if (wp->ignore) os << " (Disabled for " << wp->ignore << " hits)";
-            os << std::endl;
+
+        if (debugger.watchpoints.elements()) {
+
+            for (int i = 0; i < debugger.watchpoints.elements(); i++) {
+
+                auto wp = debugger.watchpoints.guardNr(i);
+                auto nr = "Watchpoint " + std::to_string(i);
+
+                os << util::tab(nr);
+                os << util::hex(wp->addr);
+                if (!wp->enabled) os << " (Disabled)";
+                else if (wp->ignore) os << " (Disabled for " << wp->ignore << " hits)";
+                os << std::endl;
+            }
+
+        } else {
+
+            os << "No watchpoints set" << std::endl;
         }
     }
     
     if (category == Category::Catchpoints) {
-        
-        for (int i = 0; i < debugger.catchpoints.elements(); i++) {
-            
-            auto wp = debugger.catchpoints.guardNr(i);
-            auto nr = "Catchpoint " + std::to_string(i);
 
-            os << util::tab(nr);
-            os << "Vector " << util::dec(wp->addr);
-            os << " (" << cpu.debugger.vectorName(u8(wp->addr)) << ")";
-            if (!wp->enabled) os << " (Disabled)";
-            else if (wp->ignore) os << " (Disabled for " << wp->ignore << " hits)";
-            os << std::endl;
+        if (debugger.catchpoints.elements()) {
+
+            for (int i = 0; i < debugger.catchpoints.elements(); i++) {
+
+                auto wp = debugger.catchpoints.guardNr(i);
+                auto nr = "Catchpoint " + std::to_string(i);
+
+                os << util::tab(nr);
+                os << "Vector " << util::dec(wp->addr);
+                os << " (" << cpu.debugger.vectorName(u8(wp->addr)) << ")";
+                if (!wp->enabled) os << " (Disabled)";
+                else if (wp->ignore) os << " (Disabled for " << wp->ignore << " hits)";
+                os << std::endl;
+            }
+
+        } else {
+
+            os << "No catchpoints set" << std::endl;
         }
     }
 
     if (category == Category::SwTraps) {
-                
-        for (auto &trap : debugger.swTraps.traps) {
 
-            os << util::tab("0x" + util::hexstr <4> (trap.first));
-            os << "Replaced by 0x" << util::hexstr <4> (trap.second.instruction);
-            os << std::endl;
-        }
-    }
+        if (!debugger.swTraps.traps.empty()) {
 
-    if (category == Category::Callstack) {
-               
-        isize nr = 0;
-        for (isize i = callstack.begin(); i != callstack.end(); i = callstack.next(i)) {
+            for (auto &trap : debugger.swTraps.traps) {
 
-            auto &entry = callstack.elements[i];
-            string instr = HI_BYTE(entry.opcode) == 0b01100001 ? "BSR " : "JSR ";
-            
-            os << util::tab("#" + std::to_string(nr++));
-            os << util::hex(entry.oldPC) << ": " << instr << util::hex(entry.newPC);
-            os << std::endl;
+                os << util::tab("0x" + util::hexstr <4> (trap.first));
+                os << "Replaced by 0x" << util::hexstr <4> (trap.second.instruction);
+                os << std::endl;
+            }
+
+        } else {
+
+            os << "No software traps set" << std::endl;
         }
     }
 }
@@ -641,11 +681,11 @@ CPU::didLoadFromBuffer(const u8 *buffer)
 void
 CPU::resyncOverclockedCpu()
 {
-    if (penalty) {
+    if (debt) {
 
         clock += 2;
         agnus.execute();
-        penalty = 0;
+        debt = 0;
     }
 }
 
@@ -717,6 +757,72 @@ const char *
 CPU::disassembleWords(isize len)
 {
     return disassembleWords(reg.pc0, len);
+}
+
+void
+CPU::dumpLogBuffer(std::ostream& os, isize count)
+{
+    isize numBytes = 0;
+    isize num = debugger.loggedInstructions();
+
+    for (isize i = num - count; i < num ; i++) {
+
+        if (i >= 0) {
+
+            auto pc = disassembleRecordedPC(i);
+            auto instr = disassembleRecordedInstr(i, &numBytes);
+            auto flags = disassembleRecordedFlags(i);
+
+            os << std::setfill('0');
+            os << "   ";
+            os << std::right << std::setw(6) << pc;
+            os << "  ";
+            os << flags;
+            os << "  ";
+            os << instr;
+            os << std::endl;
+        }
+    }
+}
+
+void
+CPU::disassembleRange(std::ostream& os, u32 addr, isize count)
+{
+    disassembleRange(os, std::pair<u32, u32>(addr, UINT32_MAX), count);
+}
+
+void
+CPU::disassembleRange(std::ostream& os, std::pair<u32, u32> range, isize max)
+{
+    u32 addr = range.first;
+    isize numBytes = 0;
+    auto pc = cpu.getPC0();
+
+    for (isize i = 0; i < max && addr <= range.second; i++, addr += numBytes) {
+
+        // auto pc = disassembleAddr(addr);
+        auto instr = disassembleInstr(addr, &numBytes);
+        auto data = disassembleWords(addr, numBytes / 2);
+
+        os << std::setfill(' ');
+
+        os << (addr == pc ? "->" : "  ");
+
+        if (debugger.breakpoints.isDisabledAt(addr)) {
+            os << "b";
+        } else if (debugger.breakpoints.isSetAt(addr)) {
+            os << "B";
+        } else {
+            os << " ";
+        }
+
+        os << std::right << std::setw(6) << disassembleAddr(addr);
+        os << "  ";
+        os << std::left << std::setw(15) << data;
+        os << "   ";
+        os << instr;
+        os << std::endl;
+    }
 }
 
 void
@@ -861,4 +967,6 @@ CPU::ignoreCatchpoint(isize nr, isize count)
 
     debugger.catchpoints.ignore(nr, count);
     msgQueue.put(MSG_CATCHPOINT_UPDATED);
+}
+
 }

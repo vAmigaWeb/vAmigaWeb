@@ -13,6 +13,8 @@
 #include "ADFFile.h"
 #include <algorithm>
 
+namespace vamiga {
+
 // Perform some consistency checks
 static_assert(sizeof(i8)  == 1, "i8  size mismatch");
 static_assert(sizeof(i16) == 2, "i16 size mismatch");
@@ -125,7 +127,7 @@ Amiga::Amiga()
         msg("            Volume : %zu bytes\n", sizeof(Volume));
         msg("             Zorro : %zu bytes\n", sizeof(ZorroManager));
         msg("\n");
-    }    
+    }
 }
 
 Amiga::~Amiga()
@@ -274,8 +276,6 @@ Amiga::getConfigItem(Option option) const
             return mem.getConfigItem(option);
             
         case OPT_SAMPLING_METHOD:
-        case OPT_FILTER_TYPE:
-        case OPT_FILTER_ALWAYS_ON:
         case OPT_AUDVOLL:
         case OPT_AUDVOLR:
             
@@ -295,7 +295,7 @@ Amiga::getConfigItem(Option option) const
 
             return serialPort.getConfigItem(option);
 
-        case OPT_CIA_REVISION: 
+        case OPT_CIA_REVISION:
         case OPT_TODBUG:
         case OPT_ECLOCK_SYNCING:
             
@@ -326,7 +326,9 @@ Amiga::getConfigItem(Option option, long id) const
 
         case OPT_AUDPAN:
         case OPT_AUDVOL:
-            
+        case OPT_FILTER_TYPE:
+        case OPT_FILTER_ACTIVATION:
+
             return paula.muxer.getConfigItem(option, id);
 
         case OPT_DRIVE_CONNECT:
@@ -334,10 +336,8 @@ Amiga::getConfigItem(Option option, long id) const
             return paula.diskController.getConfigItem(option, id);
             
         case OPT_DRIVE_TYPE:
-        case OPT_EMULATE_MECHANICS:
-        case OPT_START_DELAY:
-        case OPT_STOP_DELAY:
-        case OPT_STEP_DELAY:
+        case OPT_DRIVE_MECHANICS:
+        case OPT_DRIVE_RPM:
         case OPT_DISK_SWAP_DELAY:
         case OPT_DRIVE_PAN:
         case OPT_STEP_VOLUME:
@@ -360,16 +360,16 @@ Amiga::getConfigItem(Option option, long id) const
         case OPT_PULLUP_RESISTORS:
         case OPT_MOUSE_VELOCITY:
             
-            if (id == PORT_1) return controlPort1.mouse.getConfigItem(option);
-            if (id == PORT_2) return controlPort2.mouse.getConfigItem(option);
+            if (id == ControlPort::PORT1) return controlPort1.mouse.getConfigItem(option);
+            if (id == ControlPort::PORT2) return controlPort2.mouse.getConfigItem(option);
             fatalError;
             
         case OPT_AUTOFIRE:
         case OPT_AUTOFIRE_BULLETS:
         case OPT_AUTOFIRE_DELAY:
             
-            if (id == PORT_1) return controlPort1.joystick.getConfigItem(option);
-            if (id == PORT_2) return controlPort2.joystick.getConfigItem(option);
+            if (id == ControlPort::PORT1) return controlPort1.joystick.getConfigItem(option);
+            if (id == ControlPort::PORT2) return controlPort2.joystick.getConfigItem(option);
             fatalError;
             
         case OPT_SRV_PORT:
@@ -381,7 +381,7 @@ Amiga::getConfigItem(Option option, long id) const
             
         default:
             fatalError;
-    }    
+    }
 }
 
 void
@@ -515,10 +515,8 @@ Amiga::configure(Option option, i64 value)
             break;
 
         case OPT_DRIVE_TYPE:
-        case OPT_EMULATE_MECHANICS:
-        case OPT_START_DELAY:
-        case OPT_STOP_DELAY:
-        case OPT_STEP_DELAY:
+        case OPT_DRIVE_MECHANICS:
+        case OPT_DRIVE_RPM:
         case OPT_DISK_SWAP_DELAY:
         case OPT_DRIVE_PAN:
         case OPT_STEP_VOLUME:
@@ -549,10 +547,10 @@ Amiga::configure(Option option, i64 value)
             hd[2]->setConfigItem(option, value);
             hd[3]->setConfigItem(option, value);
             break;
-     
+
         case OPT_SAMPLING_METHOD:
         case OPT_FILTER_TYPE:
-        case OPT_FILTER_ALWAYS_ON:
+        case OPT_FILTER_ACTIVATION:
         case OPT_AUDVOLL:
         case OPT_AUDVOLR:
             
@@ -680,10 +678,8 @@ Amiga::configure(Option option, long id, i64 value)
             break;
 
         case OPT_DRIVE_TYPE:
-        case OPT_EMULATE_MECHANICS:
-        case OPT_START_DELAY:
-        case OPT_STOP_DELAY:
-        case OPT_STEP_DELAY:
+        case OPT_DRIVE_MECHANICS:
+        case OPT_DRIVE_RPM:
         case OPT_DISK_SWAP_DELAY:
         case OPT_DRIVE_PAN:
         case OPT_STEP_VOLUME:
@@ -721,17 +717,17 @@ Amiga::configure(Option option, long id, i64 value)
         case OPT_PULLUP_RESISTORS:
         case OPT_MOUSE_VELOCITY:
             
-            assert(id == PORT_1 || id == PORT_2);
-            if (id == PORT_1) controlPort1.mouse.setConfigItem(option, value);
-            if (id == PORT_2) controlPort2.mouse.setConfigItem(option, value);
+            assert(id == ControlPort::PORT1 || id == ControlPort::PORT2);
+            if (id == ControlPort::PORT1) controlPort1.mouse.setConfigItem(option, value);
+            if (id == ControlPort::PORT2) controlPort2.mouse.setConfigItem(option, value);
             break;
             
         case OPT_AUTOFIRE:
         case OPT_AUTOFIRE_BULLETS:
         case OPT_AUTOFIRE_DELAY:
             
-            if (id == PORT_1) controlPort1.joystick.setConfigItem(option, value);
-            if (id == PORT_2) controlPort2.joystick.setConfigItem(option, value);
+            if (id == ControlPort::PORT1) controlPort1.joystick.setConfigItem(option, value);
+            if (id == ControlPort::PORT2) controlPort2.joystick.setConfigItem(option, value);
             break;
 
         case OPT_SRV_PORT:
@@ -814,13 +810,6 @@ Amiga::revertToFactorySettings()
 
     // Revert to the initial state
     initialize();
-}
-
-void
-Amiga::setHostRefreshRate(i16 refreshRate)
-{
-    host.refreshRate = refreshRate;
-    paula.muxer.adjustSpeed();
 }
 
 i64
@@ -910,14 +899,49 @@ Amiga::_dump(Category category, std::ostream& os) const
 
     if (category == Category::Config) {
 
-        os << tab("Video format");
+        os << tab("Machine type");
         os << VideoFormatEnum::key(config.type) << std::endl;
-        os << tab("VSYNC");
+        os << tab("Vertical sync");
         os << bol(config.vsync) << std::endl;
     }
 
-    if (category == Category::State) {
-        
+    if (category == Category::Inspection) {
+
+        os << tab("Thread state");
+        os << ExecutionStateEnum::key(state) << std::endl;
+        os << std::endl;
+        os << tab("Current frame");
+        os << dec(agnus.pos.frame) << std::endl;
+        os << tab("CPU progress");
+        os << dec(cpu.getCpuClock()) << " CPU cycles" << std::endl;
+        os << tab("");
+        os << dec(cpu.getMasterClock()) << " Master cycles" << std::endl;
+        os << tab("Agnus progress");
+        os << dec(agnus.clock) << " DMA cycles" << std::endl;
+        os << tab("");
+        os << dec(DMA_CYCLES(agnus.clock)) << " Master cycles" << std::endl;
+        os << tab("CIA A progress");
+        os << dec(ciaA.getClock()) << " CIA cycles" << std::endl;
+        os << tab("");
+        os << dec(CIA_CYCLES(ciaA.getClock())) << " Master cycles" << std::endl;
+        os << tab("CIA B progress");
+        os << dec(ciaB.getClock()) << " CIA cycles" << std::endl;
+        os << tab("");
+        os << dec(CIA_CYCLES(ciaA.getClock())) << " Master cycles" << std::endl;
+    }
+
+    if (category == Category::Debug) {
+
+        os << tab("Thread state");
+        os << ExecutionStateEnum::key(state) << std::endl;
+        os << tab("Sync mode");
+        os << (getSyncMode() == SyncMode::Periodic ? "PERIODIC" : "PULSED") << std::endl;
+
+        os << std::endl;
+        os << tab("Master clock frequency");
+        os << flt(masterClockFrequency() / float(1000000.0)) << " MHz" << std::endl;
+        os << tab("Amiga refresh rate");
+        os << flt(float(refreshRate())) << " Hz" << std::endl;
         os << tab("Power");
         os << bol(isPoweredOn()) << std::endl;
         os << tab("Running");
@@ -928,19 +952,65 @@ Amiga::_dump(Category category, std::ostream& os) const
         os << bol(inWarpMode()) << std::endl;
         os << tab("Debug mode");
         os << bol(inDebugMode()) << std::endl;
-        os << tab("Sync mode");
-        os << (getSyncMode() == SyncMode::Periodic ? "PERIODIC" : "PULSED") << std::endl;
-        os << tab("Master clock frequency");
-        os << flt(masterClockFrequency() / float(1000000.0)) << " MHz" << std::endl;
-        os << tab("Amiga refresh rate");
-        os << dec(refreshRate()) << " Hz" << std::endl;
-        os << tab("Host refresh rate");
-        os << dec(host.refreshRate) << " Hz" << std::endl;
+
     }
-    
+
     if (category == Category::Defaults) {
         
         defaults.dump(category, os);
+    }
+
+    if (category == Category::Current) {
+
+        auto dmacon = agnus.dmacon;
+        bool dmaen = dmacon & DMAEN;
+        auto intreq = paula.intreq;
+        auto intena = (paula.intena & 0x8000) ? paula.intena : 0;
+        auto fc = cpu.readFC();
+        char empty = '.';
+
+        char sr[32];
+        (void)cpu.disassembleSR(sr);
+
+        os << std::setfill('0');
+        os << "   DMACON  INTREQ / INTENA  STATUS REGISTER  IPL FCP" << std::endl;
+
+        os << "   ";
+        os << ((dmacon & BPLEN) ? (dmaen ? 'B' : 'b') : empty);
+        os << ((dmacon & COPEN) ? (dmaen ? 'C' : 'c') : empty);
+        os << ((dmacon & BLTEN) ? (dmaen ? 'B' : 'b') : empty);
+        os << ((dmacon & SPREN) ? (dmaen ? 'S' : 's') : empty);
+        os << ((dmacon & DSKEN) ? (dmaen ? 'D' : 'd') : empty);
+        os << ((dmacon & AUDEN) ? (dmaen ? 'A' : 'a') : empty);
+
+        os << "  ";
+        os << ((intena & 0x4000) ? '1' : '0');
+        os << ((intreq & 0x2000) ? ((intena & 0x2000) ? 'E' : 'e') : empty);
+        os << ((intreq & 0x1000) ? ((intena & 0x1000) ? 'D' : 'd') : empty);
+        os << ((intreq & 0x0800) ? ((intena & 0x0800) ? 'R' : 'r') : empty);
+        os << ((intreq & 0x0400) ? ((intena & 0x0400) ? 'A' : 'a') : empty);
+        os << ((intreq & 0x0200) ? ((intena & 0x0200) ? 'A' : 'a') : empty);
+        os << ((intreq & 0x0100) ? ((intena & 0x0100) ? 'A' : 'a') : empty);
+        os << ((intreq & 0x0080) ? ((intena & 0x0080) ? 'A' : 'a') : empty);
+        os << ((intreq & 0x0040) ? ((intena & 0x0040) ? 'D' : 'd') : empty);
+        os << ((intreq & 0x0020) ? ((intena & 0x0020) ? 'V' : 'v') : empty);
+        os << ((intreq & 0x0010) ? ((intena & 0x0010) ? 'C' : 'c') : empty);
+        os << ((intreq & 0x0008) ? ((intena & 0x0008) ? 'P' : 'p') : empty);
+        os << ((intreq & 0x0004) ? ((intena & 0x0004) ? 'S' : 's') : empty);
+        os << ((intreq & 0x0002) ? ((intena & 0x0002) ? 'D' : 'd') : empty);
+        os << ((intreq & 0x0001) ? ((intena & 0x0001) ? 'T' : 't') : empty);
+
+        os << "  ";
+        os << sr;
+
+        os << " [";
+        os << std::right << std::setw(1) << std::dec << isize(cpu.getIPL()) << "]";
+
+        os << " ";
+        os << ((fc & 0b100) ? '1' : '0');
+        os << ((fc & 0b010) ? '1' : '0');
+        os << ((fc & 0b001) ? '1' : '0');
+        os << std::endl;
     }
 }
 
@@ -958,7 +1028,7 @@ Amiga::_powerOn()
         Snapshot snapshot(INITIAL_SNAPSHOT);
         loadSnapshot(snapshot);
     }
-            
+
     // Set initial breakpoints
     for (auto &bp : std::vector <u32> (INITIAL_BREAKPOINTS)) {
         
@@ -1071,7 +1141,7 @@ Amiga::getSyncMode() const
 void
 Amiga::execute()
 {    
-    while(1) {
+    while (1) {
         
         // Emulate the next CPU instruction
         cpu.execute();
@@ -1184,13 +1254,13 @@ Amiga::execute()
     }
 }
 
-i16
+double
 Amiga::refreshRate() const
 {
     switch (getSyncMode()) {
 
-        case SyncMode::Pulsed:      return host.refreshRate;
-        case SyncMode::Periodic:    return config.type == PAL ? 50 : 60;
+        case SyncMode::Pulsed:      return host.getHostRefreshRate();
+        case SyncMode::Periodic:    return config.type == PAL ? 50.0 : 60.0;
 
         default:
             fatalError;
@@ -1204,19 +1274,6 @@ Amiga::masterClockFrequency() const
 
         case PAL:   return i64(CLK_FREQUENCY_PAL * (refreshRate() / 50.0));
         case NTSC:  return i64(CLK_FREQUENCY_NTSC * (refreshRate() / 60.0));
-
-        default:
-            fatalError;
-    }
-}
-
-util::Time
-Amiga::getDelay() const
-{
-    switch (config.type) {
-
-        case PAL:   return util::Time(i64(1000000000 / 50));
-        case NTSC:  return util::Time(i64(1000000000 / 60));
 
         default:
             fatalError;
@@ -1381,7 +1438,7 @@ Amiga::tmp()
     STATIC_SYNCHRONIZED
     
     static fs::path base;
-            
+
     if (base.empty()) {
 
         // Use /tmp as default folder for temporary files
@@ -1421,4 +1478,6 @@ Amiga::tmp(const string &name, bool unique)
     if (unique) result = fs::path(util::makeUniquePath(result.string()));
     
     return result;
+}
+
 }

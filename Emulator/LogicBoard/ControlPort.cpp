@@ -13,9 +13,11 @@
 #include "IOUtils.h"
 #include "Paula.h"
 
+namespace vamiga {
+
 ControlPort::ControlPort(Amiga& ref, isize nr) : SubComponent(ref), nr(nr)
 {
-    assert(nr == PORT_1 || nr == PORT_2);
+    assert(nr == PORT1 || nr == PORT2);
 
     subComponents = std::vector<AmigaComponent *> { &mouse, &joystick };
 }
@@ -23,9 +25,9 @@ ControlPort::ControlPort(Amiga& ref, isize nr) : SubComponent(ref), nr(nr)
 const char *
 ControlPort::getDescription() const
 {
-    return nr == PORT_1 ? "Port1" : "Port2";
+    return nr == PORT1 ? "Port1" : "Port2";
 }
-    
+
 void
 ControlPort::_inspect() const
 {
@@ -45,7 +47,7 @@ ControlPort::_inspect() const
         
         info.potgo = paula.potgo;
         info.potgor = paula.peekPOTGOR();
-        info.potdat = (nr == PORT_1) ? paula.peekPOTxDAT<0>() : paula.peekPOTxDAT<1>();
+        info.potdat = (nr == PORT1) ? paula.peekPOTxDAT<0>() : paula.peekPOTxDAT<1>();
     }
 }
 
@@ -54,11 +56,38 @@ ControlPort::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
     
-    if (category == Category::State) {
+    if (category == Category::Inspection) {
         
+        os << tab("Control port");
+        os << dec(nr) << std::endl;
         os << tab("Detected device type");
-        os << ControlPortDeviceEnum::key(device);
-        os << std::endl;
+        os << ControlPortDeviceEnum::key(device) << std::endl;
+    }
+
+    if (category == Category::Debug) {
+
+        os << tab("Control port");
+        os << dec(nr) << std::endl;
+
+        if (nr == PORT1) {
+
+            os << tab("potCntX0") << dec(paula.potCntX0) << std::endl;
+            os << tab("potCntY0") << dec(paula.potCntY0) << std::endl;
+            os << tab("chargeX0") << flt(paula.chargeX0) << std::endl;
+            os << tab("chargeY0") << flt(paula.chargeY0) << std::endl;
+        }
+        if (nr == PORT2) {
+
+            os << tab("potCntX1") << dec(paula.potCntX1) << std::endl;
+            os << tab("potCntY1") << dec(paula.potCntY1) << std::endl;
+            os << tab("chargeX1") << flt(paula.chargeX1) << std::endl;
+            os << tab("chargeY1") << flt(paula.chargeY1) << std::endl;
+        }
+        os << tab("Charge DX");
+        os << flt(chargeDX) << std::endl;
+        os << tab("Charge DY");
+        os << flt(chargeDY) << std::endl;
+
         os << tab("Mouse X counter");
         os << dec(mouseCounterX) << std::endl;
         os << tab("Mouse Y counter");
@@ -138,4 +167,6 @@ ControlPort::changePra(u8 &pra) const
         default:
             break;
     }
+}
+
 }

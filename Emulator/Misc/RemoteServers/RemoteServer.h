@@ -15,10 +15,12 @@
 #include "Thread.h"
 #include <thread>
 
+namespace vamiga {
+
 class RemoteServer : public SubComponent {
-        
+
     friend class RemoteManager;
-        
+
 protected:
     
     // Current configuration
@@ -30,14 +32,14 @@ protected:
 
     // The server thread
     std::thread serverThread;
-        
+
     // The current server state
     SrvState state = SRV_STATE_OFF;
     
     // The number of sent and received packets
     isize numSent = 0;
     isize numReceived = 0;
-        
+
     
     //
     // Initializing
@@ -96,18 +98,18 @@ private:
     //
     
 public:
-        
+
     const ServerConfig &getConfig() const { return config; }
     i64 getConfigItem(Option option) const;
     void setConfigItem(Option option, i64 value);
-        
+
 
     //
     // Examining state
     //
     
 public:
-        
+
     bool isOff() const { return state == SRV_STATE_OFF; }
     bool isStarting() const { return state == SRV_STATE_STARTING; }
     bool isListening() const { return state == SRV_STATE_LISTENING; }
@@ -121,7 +123,7 @@ public:
     //
     
 public:
-                     
+
     // Launch the remote server
     void start() throws { SUSPENDED _start(); }
     
@@ -186,12 +188,12 @@ public:
     RemoteServer &operator<<(int payload) { send(payload); return *this; }
     RemoteServer &operator<<(long payload) { send(payload); return *this; }
     RemoteServer &operator<<(std::stringstream &payload) { send(payload); return *this; }
- 
+
     // Processes a package
     void process(const string &payload) throws;
     
 private:
-        
+
     // Reports an error to the GUI
     void handleError(const char *description);
     
@@ -217,3 +219,5 @@ private:
     virtual void didConnect() { };
     virtual void didDisconnect() { };
 };
+
+}

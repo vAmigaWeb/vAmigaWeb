@@ -303,11 +303,15 @@ typedef struct
 }
 AmigaInfo;
 
+/*
 typedef struct
 {
-    i16 refreshRate;
+    double refreshRate;
+    isize frameBufferWidth;
+    isize frameBufferHeight;
 }
 HostInfo;
+*/
 
 
 //

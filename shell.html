@@ -68,16 +68,16 @@
       }
     </style>
   </head>
-  <body data-theme="dark">
+  <body data-theme="dark" oncontextmenu="event.preventDefault()">
     <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><img src="img/vAmigaIcon.png" style="width:5em; height:5em"/><strong>booting into vAmiga WebEdition...</strong></center></figure>
     <div class="emscripten" id="status">Downloading...</div>
     <div class="emscripten">
       <progress value="0" max="100" id="progress" hidden=1></progress>  
-    </div>
-    <div id="div_drive_select"></div>
-    <div id="div_canvas" class="emscripten_border">
+    </div>    
+    <div id="div_canvas" class="emscripten_border" style="width:100vw;height:100vh">
       <canvas class="emscripten" width="724" height="568" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     </div>
+    <div id="div_drive_select"></div>
     <!-- virtual keyboard-->
     <!-- 
       we pin the keyboard collapsable at the bottom and give it the full width 
@@ -899,6 +899,42 @@ goes into edit mode which takes you right back to here ...
         $("#canvas").css("background-color", "var(--lighterbg)");
         $("body").removeAttr( "data-theme").css("background-color", "var(--lighterbg) !important");
       }
+
+
+      is_inside_scrollable=(e)=>{
+        let inside_modal=false;
+        let el=e.target; 
+        while(el != document.body)
+        {
+          if(
+            el.id == 'virtual_keyboard'||
+            (
+              el.classList !== undefined && 
+              (
+                  el.classList.contains("modal-dialog")
+                ||el.classList.contains("modal-header")
+                ||el.classList.contains("modal-body")
+                ||el.classList.contains("modal-content")
+                ||el.classList.contains("modal-footer")
+              )
+            )
+          )
+          {
+            inside_modal=true;
+            break;
+          }
+          el=el.parentNode;
+        }
+        return inside_modal;
+      }
+
+      //prevent backgroundscroll
+      document.body.addEventListener('touchmove',function(e){
+        if(!is_inside_scrollable(e))
+        {//prevent scrolling except on modals and vbk
+          e.preventDefault();
+        }
+      },{ capture:false ,passive: false });
 
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');

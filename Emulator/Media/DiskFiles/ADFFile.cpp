@@ -18,6 +18,8 @@
 #include "MemUtils.h"
 #include "MutableFileSystem.h"
 
+namespace vamiga {
+
 bool
 ADFFile::isCompatible(const string &path)
 {
@@ -302,11 +304,19 @@ ADFFile::encodeTrack(FloppyDisk &disk, Track t) const
     // Encode all sectors
     for (Sector s = 0; s < sectors; s++) encodeSector(disk, t, s);
     
-    // Rectify the first clock bit (where buffer wraps over)
+    // TODO: Remove after while
+    assert((disk.data.track[t][disk.length.track[t] - 1] & 1) == disk.readBit(t, disk.length.track[t] * 8 - 1));
+
+    // Rectify the first clock bit (where the buffer wraps over)
+    if (disk.readBit(t, disk.length.track[t] * 8 - 1)) {
+        disk.writeBit(t, 0, 0);
+    }
+    /*
     if (disk.data.track[t][disk.length.track[t] - 1] & 1) {
         disk.data.track[t][0] &= 0x7F;
     }
-    
+    */
+
     // Compute a debug checksum
     debug(ADF_DEBUG, "Track %ld checksum = %x\n",
           t, util::fnv32(disk.data.track[t], disk.length.track[t]));
@@ -351,7 +361,7 @@ ADFFile::encodeSector(FloppyDisk &disk, Track t, Sector s) const
     
     // Unused area
     for (isize i = 16; i < 48; i++)
-    p[i] = 0xAA;
+        p[i] = 0xAA;
     
     // Data
     u8 bytes[512];
@@ -381,7 +391,7 @@ ADFFile::encodeSector(FloppyDisk &disk, Track t, Sector s) const
     // Add clock bits
     for(isize i = 8; i < 1088; i++) {
         p[i] = FloppyDisk::addClockBits(p[i], p[i-1]);
-    }    
+    }
 }
 
 void
@@ -403,7 +413,7 @@ ADFFile::decodeDisk(FloppyDisk &disk)
     if (disk.getDensity() != getDensity()) {
         throw VAError(ERROR_DISK_INVALID_DENSITY);
     }
-        
+
     // Make the MFM stream scannable beyond the track end
     disk.repeatTracks();
 
@@ -475,4 +485,6 @@ ADFFile::decodeSector(u8 *dst, u8 *src)
     
     // Decode sector data
     FloppyDisk::decodeOddEven(dst + sector * 512, src, 512);
+}
+
 }

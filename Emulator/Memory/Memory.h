@@ -14,11 +14,10 @@
 #include "RomFileTypes.h"
 #include "MemUtils.h"
 
-// REMOVE ASAP
-extern Accessor _accessor;
-
 using util::Allocator;
 using util::Buffer;
+
+namespace vamiga {
 
 #define SLOW_RAM_STRT 0xC00000
 #define FAST_RAM_STRT ramExpansion.getBaseAddr()
@@ -203,7 +202,7 @@ public:
 public:
     
     using SubComponent::SubComponent;
- 
+
 
     //
     // Methods from AmigaObject
@@ -233,7 +232,7 @@ private:
         << config.bankMap
         << config.ramInitPattern
         << config.unmappingType
-        << config.extStart;        
+        << config.extStart;
     }
 
     template <class T>
@@ -288,7 +287,7 @@ private:
 
     void _isReady() const throws override;
 
-        
+
     //
     // Allocating memory
     //
@@ -385,7 +384,7 @@ public:
     void loadExt(class ExtendedRomFile &rom) throws;
     void loadExt(const string &path) throws;
     void loadExt(const u8 *buf, isize len) throws;
-        
+
     // Saves a Rom to disk
     void saveRom(const string &path) throws;
     void saveWom(const string &path) throws;
@@ -403,7 +402,7 @@ public:
     //
     
 public:
-        
+
     // Returns the memory source for a given address
     template <Accessor A> MemorySource getMemSrc(u32 addr);
     
@@ -481,7 +480,7 @@ public:
     u16 peekCustomFaulty16(u32 addr);
     
     u16 spypeekCustom16(u32 addr) const;
- 
+
     template <Accessor s> void pokeCustom16(u32 addr, u16 value);
     
     
@@ -507,12 +506,17 @@ public:
     static const char *regName(u32 addr);
     
     // Returns 16 bytes of memory as an ASCII string
-    template <Accessor A> const char *ascii(u32 addr);
+    template <Accessor A> const char *ascii(u32 addr, isize numBytes);
     
     // Returns a certain amount of bytes as a string containing hex words
-    template <Accessor A> const char *hex(u32 addr, isize bytes);
-    
+    template <Accessor A> const char *hex(u32 addr, isize numBytes);
+
+    // Creates a memory dump
+    template <Accessor A> void memDump(std::ostream& os, u32 addr, isize numLines = 16);
+
     // Searches RAM and ROM for a certain byte sequence
     std::vector <u32> search(u64 pattern, isize bytes);
     std::vector <u32> search(auto pattern) { return search(pattern, isizeof(pattern)); }
 };
+
+}

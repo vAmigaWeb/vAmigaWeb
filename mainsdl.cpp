@@ -25,6 +25,8 @@
 #include <SDL2/SDL_opengles2.h> 
 #include <emscripten/html5.h>
 
+using namespace vamiga;
+
 #define RENDER_SOFTWARE 0
 #define RENDER_GPU 1
 #define RENDER_SHADER 2
@@ -2283,7 +2285,7 @@ extern "C" void wasm_set_sample_rate(unsigned sample_rate)
 {
     printf("set paula.muxer to freq= %d\n", sample_rate);
     wrapper->amiga->paula.muxer.setSampleRate(sample_rate);
-    printf("paula.muxer.getSampleRate()==%f\n", wrapper->amiga->paula.muxer.getSampleRate());
+    //printf("paula.muxer.getSampleRate()==%f\n", wrapper->amiga->paula.muxer.getSampleRate());
 }
 
 

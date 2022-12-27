@@ -921,6 +921,14 @@ function prompt_for_drive()
 
     show_drive_select=(show)=>{
         document.getElementById("div_drive_select").setAttribute('class', `slide-${show?"in":"out"}`);
+        if(show)
+        {
+            $("#div_drive_select").show();
+        }
+        else
+        {
+            setTimeout(()=>$("#div_drive_select").hide(),1000); 
+        }
     }
 
     if(file_slot_file_name.match(/[.](adf|dms|exe)$/i))

@@ -12,6 +12,8 @@
 #include "JoystickTypes.h"
 #include "SubComponent.h"
 
+namespace vamiga {
+
 class Joystick : public SubComponent {
 
     // Reference to control port this device belongs to
@@ -30,7 +32,7 @@ class Joystick : public SubComponent {
     
     // Vertical joystick position (-1 = up, 1 = down, 0 = released)
     int axisY = 0;
-        
+
     // Bullet counter used in multi-fire mode
     i64 bulletCounter = 0;
     
@@ -60,7 +62,7 @@ private:
     //
     // Methods from AmigaComponent
     //
-        
+
 private:
     
     void _reset(bool hard) override;
@@ -95,7 +97,7 @@ public:
 
     i64 getConfigItem(Option option) const;
     void setConfigItem(Option option, i64 value);
-        
+
 
     //
     // Using the device
@@ -129,3 +131,5 @@ private:
     // Updates variable nextAutofireFrame
     void scheduleNextShot();
 };
+
+}
