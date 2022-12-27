@@ -282,7 +282,7 @@ function get_parameter_link()
 
 
 var parameter_link__already_checked=false;
-
+var parameter_link_mount_in_df0=false;
 function load_parameter_link()
 {
     if($('#modal_roms').is(":visible"))
@@ -297,9 +297,8 @@ function load_parameter_link()
     var parameter_link = get_parameter_link();
     if(parameter_link != null)
     {
-        //setTimeout(() => {
+        parameter_link_mount_in_df0=parameter_link.match(/[.](adf|hdf|dms|exe)$/i);
         get_data_collector("csdb").run_link("call_parameter", 0,parameter_link);            
-        //}, 10);
     }
 }
 
@@ -937,7 +936,7 @@ function prompt_for_drive()
         for(let i = 0; i<4;i++)
             df_count+=wasm_get_config_item("DRIVE_CONNECT",i);
 
-        if(df_count==1)
+        if(df_count==1 || parameter_link_mount_in_df0)
         {
             show_drive_select(false);
             insert_file(0);
