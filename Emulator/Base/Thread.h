@@ -14,6 +14,8 @@
 #include "Chrono.h"
 #include "Concurrency.h"
 
+namespace vamiga {
+
 /* This class manages the emulator thread that runs side by side with the GUI.
  * The thread exists during the lifetime of the emulator instance, but may not
  * execute the emulator all the time. The exact behavior is controlled by the
@@ -144,9 +146,9 @@ protected:
     isize loopCounter = 0;
     isize suspendCounter = 0;
     
-    // Time stamp for adjusting the execution speed
+    // Time stamp for adjusting execution speed
     util::Time targetTime;
-            
+
     // Clocks for measuring the CPU load
     util::Clock nonstopClock;
     util::Clock loadClock;
@@ -183,27 +185,17 @@ private:
     virtual void execute() = 0;
 
     // Target frame rate of this thread (provided by the subclass)
-    virtual i16 refreshRate() const = 0;
-
-    // Delay between two frames in nanoseconds (provided by the subclass) (DEPRECATED)
-    virtual util::Time getDelay() const = 0;
+    virtual double refreshRate() const = 0;
 
     // Returns true if this functions is called from within the emulator thread
     bool isEmulatorThread() { return std::this_thread::get_id() == thread.get_id(); }
-
-    
-    //
-    // Configuring
-    //
-
-public:
-    
-    // void setMode(SyncMode newMode);
 
 
     //
     // Analyzing
     //
+
+public:
     
     double getCpuLoad() { return cpuLoad; }
     
@@ -252,7 +244,7 @@ protected:
 public:
 
     // Provides the current sync mode
-    virtual SyncMode getSyncMode() const = 0; 
+    virtual SyncMode getSyncMode() const = 0;
 
     // Awakes the thread if it runs in pulse mode
     void wakeUp();
@@ -271,3 +263,5 @@ struct AutoResume {
 };
 
 #define SUSPENDED AutoResume _ar(this);
+
+}

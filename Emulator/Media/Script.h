@@ -11,6 +11,10 @@
 
 #include "AmigaFile.h"
 
+namespace vamiga {
+
+class Amiga;
+
 class Script : public AmigaFile {
     
 public:
@@ -48,5 +52,7 @@ public:
     //
     
     // Executes the script
-    void execute(class Amiga &amiga);
+    void execute(Amiga &amiga);
 };
+
+}

@@ -14,6 +14,8 @@
 #include "RingBuffer.h"
 #include "Moira.h"
 
+namespace vamiga {
+
 class CPU : public moira::Moira {
 
     friend class Moira;
@@ -24,9 +26,6 @@ class CPU : public moira::Moira {
     // Result of the latest inspection
     mutable CPUInfo info = {};
 
-    // Recorded call stack
-    CallstackRecorder callstack;
-
 
     //
     // Overclocking
@@ -35,7 +34,7 @@ class CPU : public moira::Moira {
 public:
 
     // Sub-cycle counter
-    i64 penalty;
+    i64 debt;
 
     // Number of cycles that should be executed at normal speed
     i64 slowCycles;
@@ -90,7 +89,7 @@ private:
             worker
 
             // Items from CPU class
-            << penalty
+            << debt
             << slowCycles
 
             // Items from Moira class
@@ -151,7 +150,7 @@ public:
     
     i64 getConfigItem(Option option) const;
     void setConfigItem(Option option, i64 value);
- 
+
     
     //
     // Analyzing
@@ -160,7 +159,7 @@ public:
 public:
     
     CPUInfo getInfo() const { return AmigaComponent::getInfo(info); }
-        
+
 
     //
     // Working with the clock
@@ -199,8 +198,15 @@ public:
     // Disassembles the currently executed instruction
     const char *disassembleInstr(isize *len);
     const char *disassembleWords(isize len);
-    
-    
+
+    // Dumps entries from the log buffer
+    void dumpLogBuffer(std::ostream& os, isize count);
+
+    // Disassembles a memory range
+    void disassembleRange(std::ostream& os, u32 addr, isize count);
+    void disassembleRange(std::ostream& os, std::pair<u32, u32> range, isize max = 255);
+
+
     //
     // Changing state
     //
@@ -244,3 +250,5 @@ public:
     void disableCatchpoint(isize nr) throws;
     void ignoreCatchpoint(isize nr, isize count) throws;
 };
+
+}

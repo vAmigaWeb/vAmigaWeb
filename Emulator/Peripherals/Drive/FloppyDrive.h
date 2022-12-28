@@ -18,10 +18,12 @@
 #include "DiskController.h"
 #include "Thread.h"
 
+namespace vamiga {
+
 class FloppyDrive : public Drive {
     
     friend class DiskController;
-        
+
     // Current configuration
     FloppyDriveConfig config = {};
 
@@ -39,16 +41,19 @@ class FloppyDrive : public Drive {
     
     // Recorded motor speed at 'switchCycle' in percent
     double switchSpeed;
-    
+
     // Position of the currently transmitted identification bit
     u8 idCount;
 
     // Value of the currently transmitted identification bit
     bool idBit;
 
-    // Time stamp indicating when the head started to step to another cylinder
-    Cycle stepCycle;
-    
+    // Time stamps of the most recent head step
+    Cycle latestStepUp;
+    Cycle latestStepDown;
+    Cycle latestStep;
+    Cycle latestStepCompleted;
+
     /* Disk change status. This variable controls the /CHNG bit in the CIA A
      * PRA register. Note that the variable only changes it's value under
      * certain conditions. If a head movement pulse is send and no disk is
@@ -62,7 +67,7 @@ class FloppyDrive : public Drive {
     
     // A copy of the PRB register of CIA B
     u8 prb;
-        
+
     /* History buffer storing the most recently visited tracks. The buffer is
      * used to detect the polling head movements that are issued by track disc
      * device to detect a newly inserted disk.
@@ -117,9 +122,8 @@ private:
         worker
 
         << config.type
-        << config.startDelay
-        << config.stopDelay
-        << config.stepDelay;
+        << config.mechanics
+        << config.rpm;
     }
 
     template <class T>
@@ -137,7 +141,9 @@ private:
             << switchSpeed
             << idCount
             << idBit
-            << stepCycle
+            << latestStepUp
+            << latestStepDown
+            << latestStep
             << dskchange
             << dsklen
             << prb
@@ -163,7 +169,6 @@ public:
     Head currentHead() const override { return head.head; }
     isize currentOffset() const override { return head.offset; }
 
-    u64 fnv() const override;
     bool hasDisk() const override;
     bool hasModifiedDisk() const override;
     bool hasProtectedDisk() const override;
@@ -195,7 +200,7 @@ public:
     
     // Returns the result of the latest inspection
     FloppyDriveInfo getInfo() const { return AmigaComponent::getInfo(info); }
- 
+
     // Return the identification pattern of this drive
     u32 getDriveId() const;
 
@@ -204,8 +209,27 @@ public:
 
     // Checks whether a write operation is in progress
     bool isWriting() const;
-    
-    
+
+
+    //
+    // Querying mechanical delays
+    //
+
+    // Returns the ramp-up time of the drive motor
+    Cycle getStartDelay() const;
+
+    // Returns the ramp-down time of the drive motor
+    Cycle getStopDelay() const;
+
+    // Returns the minimum delay required between two step pulses
+    Cycle getStepPulseDelay() const;
+    Cycle getRevStepPulseDelay() const;
+
+    // Returns the time span in which only garbage is read after a head step
+    Cycle getStepReadDelay() const;
+    Cycle getRevStepReadDelay() const;
+
+
     //
     // Handling the drive status register flags
     //
@@ -219,7 +243,7 @@ public:
     //
     // Operating the drive motor
     //
-        
+
 public:
     
     // Returns the current motor speed in percent
@@ -269,8 +293,9 @@ public:
 public:
     
     // Returns wheather the drive is ready to accept a stepping pulse
-    bool readyToStep() const;
-    
+    bool readyToStepUp() const;
+    bool readyToStepDown() const;
+
     // Moves the drive head (0 = inwards, 1 = outwards).
     void step(isize dir);
 
@@ -286,7 +311,7 @@ public:
     //
 
 public:
-            
+
     bool isInsertable(Diameter t, Density d) const;
     bool isInsertable(const FloppyFile &file) const;
     bool isInsertable(const FloppyDisk &disk) const;
@@ -340,3 +365,5 @@ public:
     // Write handler for the PRB register of CIA B
     void PRBdidChange(u8 oldValue, u8 newValue);
 };
+
+}

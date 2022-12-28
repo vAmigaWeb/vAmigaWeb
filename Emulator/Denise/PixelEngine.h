@@ -15,6 +15,8 @@
 #include "Constants.h"
 #include "FrameBuffer.h"
 
+namespace vamiga {
+
 class PixelEngine : public SubComponent {
 
     friend class Denise;
@@ -43,7 +45,7 @@ private:
 
     // Mutex for synchronizing access to the stable buffer
     util::Mutex bufferMutex;
-        
+
     // Buffer with background noise (random black and white pixels)
     Buffer <Texel> noise;
 
@@ -90,7 +92,7 @@ public:
 public:
     
     PixelEngine(Amiga& ref);
- 
+
     // Initializes both frame buffers with a checkerboard pattern
     void clearAll();
 
@@ -102,7 +104,7 @@ public:
 private:
     
     const char *getDescription() const override { return "PixelEngine"; }
-    void _dump(Category category, std::ostream& os) const override { }
+    void _dump(Category category, std::ostream& os) const override;
 
     
     //
@@ -265,3 +267,5 @@ public:
     
     void hide(isize line, u16 layer, u8 alpha);
 };
+
+}

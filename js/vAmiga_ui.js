@@ -282,7 +282,7 @@ function get_parameter_link()
 
 
 var parameter_link__already_checked=false;
-
+var parameter_link_mount_in_df0=false;
 function load_parameter_link()
 {
     if($('#modal_roms').is(":visible"))
@@ -297,9 +297,8 @@ function load_parameter_link()
     var parameter_link = get_parameter_link();
     if(parameter_link != null)
     {
-        //setTimeout(() => {
+        parameter_link_mount_in_df0=parameter_link.match(/[.](adf|hdf|dms|exe)$/i);
         get_data_collector("csdb").run_link("call_parameter", 0,parameter_link);            
-        //}, 10);
     }
 }
 
@@ -907,21 +906,74 @@ function configure_file_dialog(reset=false)
             }
             else if(file_slot_file_name.match(/[.](adf|hdf|dms|exe|vAmiga)$/i))
             {
-                insert_file();
+                prompt_for_drive();
             }
         }    
-
     } catch(e) {
         console.log(e);
     }
 }
 
+function prompt_for_drive()
+{
+    let cancel=`<div class="close" style="position:absolute;top:0.2em;right:0.4em;cursor:pointer" onclick="show_drive_select(false)">×</div>`;
 
+    show_drive_select=(show)=>{
+        document.getElementById("div_drive_select").setAttribute('class', `slide-${show?"in":"out"}`);
+        if(show)
+        {
+            $("#div_drive_select").show();
+        }
+        else
+        {
+            setTimeout(()=>$("#div_drive_select").hide(),1000); 
+        }
+    }
 
+    if(file_slot_file_name.match(/[.](adf|dms|exe)$/i))
+    {
+        let df_count=0;
+        for(let i = 0; i<4;i++)
+            df_count+=wasm_get_config_item("DRIVE_CONNECT",i);
 
+        if(df_count==1 || parameter_link_mount_in_df0)
+        {
+            show_drive_select(false);
+            insert_file(0);
+        }
+        else
+        {
+            let drv_html=`${cancel}
+            <div id="drive_select_file" class="gc_choice_text">insert <span class="mx-2 px-2">${file_slot_file_name}</span> into</div>
+            <div id="drive_select_choice">`;
+            for(var dn=0;dn<df_count;dn++)
+            {
+                drv_html+=`<button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(${dn});show_drive_select(false);">df${dn}:</button>`;
+            }
+            drv_html+=`</div>`;
+            $("#div_drive_select").html(drv_html);
+            show_drive_select(true);
+        }
+    }
+    else if(file_slot_file_name.match(/[.]hdf$/i))
+    {
+        $("#div_drive_select").html(`${cancel}
+        <div id="drive_select_file" class="gc_choice_text">reset amiga and mount <span class="mx-2 px-2">${file_slot_file_name}</span> into</div>
+        <div id="drive_select_choice">
+            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);show_drive_select(false);">dh0:</button>
+            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);show_drive_select(false);">dh1:</button>
+            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);show_drive_select(false);">dh2:</button>
+            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);show_drive_select(false);">dh3:</button>
+        </div>`);
+        show_drive_select(true);
+    }
+    else
+    {
+        show_drive_select(false);
+        insert_file(0);
+    }
 
-
-
+}
 
 var port1 = 'none';
 var port2 = 'none';
@@ -2167,7 +2219,7 @@ function validate_hardware()
 
 validate_hardware();
 
-function bind_config_choice(key, name, values, default_value, value2text=null, text2value=null, targetElement=null){
+function bind_config_choice(key, name, values, default_value, value2text=null, text2value=null, targetElement=null, updated_func=null){
     value2text = value2text == null ? (t)=>t: value2text;
     text2value = text2value == null ? (t)=>t: text2value;
     
@@ -2204,6 +2256,8 @@ function bind_config_choice(key, name, values, default_value, value2text=null, t
             wasm_power_on(1);
             return;
         }
+        if(updated_func!=null)
+            updated_func(choice);
     }
     set_choice(value2text(load_setting(key, default_value)));
 
@@ -2217,9 +2271,23 @@ function bind_config_choice(key, name, values, default_value, value2text=null, t
 
 
 bind_config_choice("OPT_BLITTER_ACCURACY", "blitter accuracy",['0','1','2'],'2');
-bind_config_choice("OPT_DRIVE_SPEED", "drive speed",['-1', '1', '2', '4', '8'],'1');
 
+show_drive_config = (c)=>{
+    $('#div_drives').html(`
+    ${wasm_get_config_item("DRIVE_CONNECT",0)==1?"<span>df0</span>":""} 
+    ${wasm_get_config_item("DRIVE_CONNECT",1)==1?"<span>df1</span>":""} 
+    ${wasm_get_config_item("DRIVE_CONNECT",2)==1?"<span>df2</span>":""} 
+    ${wasm_get_config_item("DRIVE_CONNECT",3)==1?"<span>df3</span>":""}
+    <br>(kickstart needs a reset to recognize new connected drives)
+    `);
+}
 
+bind_config_choice("OPT_floppy_drive_count", "floppy drives",['1', '2', '3', '4'],'2',
+null,null,null,show_drive_config);
+$('#hardware_settings').append(`<div id="div_drives"style="font-size: smaller" class="ml-3 vbk_choice_text"></div>`);
+show_drive_config();
+
+bind_config_choice("OPT_DRIVE_SPEED", "floppy drive speed",['-1', '1', '2', '4', '8'],'1');
 
 $('#hardware_settings').append(`<div class="mt-4">hardware settings</div><span style="font-size: smaller;">(shuts machine down on agnus model or memory change)</span>`);
 
@@ -2475,7 +2543,9 @@ $('.layer').change( function(event) {
             },0);
         }
     }
-    $("#button_insert_file").click(insert_file);
+    $("#button_insert_file").click(()=>{
+         prompt_for_drive();
+    });
     
     $('#modal_take_snapshot').on('hidden.bs.modal', function () {
         if(is_running())
@@ -2492,24 +2562,37 @@ $('.layer').change( function(event) {
     );
    
 
-    $('#modal_settings').on('shown.bs.modal', function() 
-    {       
-        if(wasm_has_disk("df0"))
+    $('#modal_settings').on('show.bs.modal', function() 
+    {    
+        for(var dn=0; dn<4; dn++)
         {
-            $("#button_eject_disk").show();
-        }
-        else
-        {
-            $("#button_eject_disk").hide();
-        }
-        if(wasm_has_disk("dh0"))
-        {
-            $("#button_eject_hdf").show();
-        }
-        else
-        {
-            $("#button_eject_hdf").hide();
-        }
+            if(wasm_has_disk("df"+dn))
+            {
+                $("#button_eject_df"+dn).show();
+            }
+            else
+            {
+                $("#button_eject_df"+dn).hide();
+            }
+            $('#button_eject_df'+dn).click(function() 
+            {
+                wasm_eject_disk("df"+this.id.at(-1));
+                $("#button_eject_df"+this.id.at(-1)).hide();
+            });
+            if(wasm_has_disk("dh"+dn))
+            {
+                $("#button_eject_hd"+dn).show();
+            }
+            else
+            {
+                $("#button_eject_hd"+dn).hide();
+            }
+            $('#button_eject_hd'+dn).click(function() 
+            {
+                wasm_eject_disk("dh"+this.id.at(-1));
+                $("#button_eject_hd"+this.id.at(-1)).hide();
+            });
+        }   
     });
 
     document.getElementById('button_take_snapshot').onclick = function() 
@@ -2519,82 +2602,75 @@ $('.layer').change( function(event) {
         $("#input_app_title").val(global_apptitle);
         $("#input_app_title").focus();
 
-        if(wasm_has_disk("df0"))
+        for(var dfn=0; dfn<4; dfn++)
         {
-            $("#button_export_disk").show();
-        }
-        else
-        {
-            $("#button_export_disk").hide();
-        }
-        if(wasm_has_disk("dh0"))
-        {
-            $("#button_export_hdf").show();
-        }
-        else
-        {
-            $("#button_export_hdf").hide();
+            if(wasm_has_disk("df"+dfn))
+            {
+                $("#button_export_df"+dfn).show();
+            }
+            else
+            {
+                $("#button_export_df"+dfn).hide();
+            }
+            if(wasm_has_disk("dh"+dfn))
+            {
+                $("#button_export_hd"+dfn).show();
+            }
+            else
+            {
+                $("#button_export_hd"+dfn).hide();
+            }
         }
     }
-    $("#button_eject_disk").hide();
-    $('#button_eject_disk').click(function() 
+    for(var dn=0; dn<4; dn++)
     {
-        wasm_eject_disk("df0");
-        $("#button_eject_disk").hide();
-    });
-    $("#button_eject_hdf").hide();
-    $('#button_eject_hdf').click(function() 
-    {
-        wasm_eject_disk("dh0");
-        $("#button_eject_hdf").hide();
-    });
-    $('#button_export_disk').click(function() 
-    {
-        let d64_json = wasm_export_disk("df0");
-        let d64_obj = JSON.parse(d64_json);
-        let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
-        let filebuffer = d64_buffer.slice(0,d64_obj.size);
-        let blob_data = new Blob([filebuffer], {type: 'application/octet-binary'});
-        const url = window.URL.createObjectURL(blob_data);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-
-        let app_name = $("#input_app_title").val();
-        let extension_pos = app_name.indexOf(".");
-        if(extension_pos >=0)
+        $('#button_export_df'+dn).click(function() 
         {
-            app_name = app_name.substring(0,extension_pos);
-        }
-        a.download = app_name+'.adf';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-    });
-    $('#button_export_hdf').click(function() 
-    {
-        let d64_json = wasm_export_disk("dh0");
-        let d64_obj = JSON.parse(d64_json);
-        let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
-        let filebuffer = d64_buffer.slice(0,d64_obj.size);
-        let blob_data = new Blob([filebuffer], {type: 'application/octet-binary'});
-        const url = window.URL.createObjectURL(blob_data);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
+            let d64_json = wasm_export_disk("df"+this.id.at(-1));
+            let d64_obj = JSON.parse(d64_json);
+            let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
+            let filebuffer = d64_buffer.slice(0,d64_obj.size);
+            let blob_data = new Blob([filebuffer], {type: 'application/octet-binary'});
+            const url = window.URL.createObjectURL(blob_data);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
 
-        let app_name = $("#input_app_title").val();
-        let extension_pos = app_name.indexOf(".");
-        if(extension_pos >=0)
+            let app_name = $("#input_app_title").val();
+            let extension_pos = app_name.indexOf(".");
+            if(extension_pos >=0)
+            {
+                app_name = app_name.substring(0,extension_pos);
+            }
+            a.download = app_name+'.adf';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        });
+        $('#button_export_hd'+dn).click(function() 
         {
-            app_name = app_name.substring(0,extension_pos);
-        }
-        a.download = app_name+'.hdf';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-    });
+            let d64_json = wasm_export_disk("dh"+this.id.at(-1));
+            let d64_obj = JSON.parse(d64_json);
+            let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
+            let filebuffer = d64_buffer.slice(0,d64_obj.size);
+            let blob_data = new Blob([filebuffer], {type: 'application/octet-binary'});
+            const url = window.URL.createObjectURL(blob_data);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
 
+            let app_name = $("#input_app_title").val();
+            let extension_pos = app_name.indexOf(".");
+            if(extension_pos >=0)
+            {
+                app_name = app_name.substring(0,extension_pos);
+            }
+            a.download = app_name+'.hdf';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        });
+    }
     $('#button_save_snapshot').click(async function() 
     {       
         let app_name = $("#input_app_title").val();
@@ -2686,7 +2762,7 @@ $('.layer').change( function(event) {
         {
             set_settings_cache_value('active_version', sw_version.cache_name);        
         }
-        window.location.reload();
+        try{window.location.reload();} catch(e){console.error(e)}
     }
     
     $("#div_toast").hide();
@@ -2857,7 +2933,7 @@ $('.layer').change( function(event) {
             document.getElementById('activate_version').onclick = function() {
                 let cache_name = document.getElementById('version_selector').value; 
                 set_settings_cache_value("active_version",cache_name);
-                window.location.reload();
+                try{window.location.reload();} catch(e){console.error(e)}
             }
             let activate_or_install_btn = document.getElementById('activate_or_install');
             if(activate_or_install_btn != null)
@@ -2868,7 +2944,7 @@ $('.layer').change( function(event) {
                         if(new_version_already_installed)
                         {
                             set_settings_cache_value("active_version",sw_version.cache_name);
-                            window.location.reload();
+                            try{window.location.reload();} catch(e){console.error(e)}
                         }
                         else
                         {

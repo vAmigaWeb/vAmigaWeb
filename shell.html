@@ -68,16 +68,16 @@
       }
     </style>
   </head>
-  <body data-theme="dark">
+  <body data-theme="dark" oncontextmenu="event.preventDefault()">
     <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><img src="img/vAmigaIcon.png" style="width:5em; height:5em"/><strong>booting into vAmiga WebEdition...</strong></center></figure>
     <div class="emscripten" id="status">Downloading...</div>
     <div class="emscripten">
       <progress value="0" max="100" id="progress" hidden=1></progress>  
-    </div>
-
-    <div id="div_canvas" class="emscripten_border">
+    </div>    
+    <div id="div_canvas" class="emscripten_border" style="width:100vw;height:100vh">
       <canvas class="emscripten" width="724" height="568" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     </div>
+    <div id="div_drive_select"></div>
     <!-- virtual keyboard-->
     <!-- 
       we pin the keyboard collapsable at the bottom and give it the full width 
@@ -353,10 +353,23 @@
             <p class="mb-2">most settings are permanent and will be saved to your local browser storage</p>    
 
             <button id="button_rom_dialog" type="button" class="btn btn-primary mr-1 mb-3">kickstart roms ...</button>
-            <button id="button_eject_disk" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="eject disk in df0">
+            <button id="button_eject_df0" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="eject disk in df0">
                 <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> df0</button>
-            <button id="button_eject_hdf" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="disconnect hard drive">
+            <button id="button_eject_df1" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="eject disk in df1">
+                <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> df1</button>
+            <button id="button_eject_df2" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="eject disk in df2">
+                <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> df2</button>
+            <button id="button_eject_df3" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="eject disk in df3">
+                <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> df3</button>
+
+            <button id="button_eject_hd0" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="disconnect hard drive 0">
                 <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> dh0</button>
+            <button id="button_eject_hd1" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="disconnect hard drive 1">
+                <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> dh1</button>
+            <button id="button_eject_hd2" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="disconnect hard drive 2">
+                <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> dh2</button>
+            <button id="button_eject_hd3" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="disconnect hard drive 3">
+                <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> dh3</button>
 
             <div class="custom-control custom-switch mt-1">
               <input type="checkbox" class="custom-control-input" id="dark_switch" />
@@ -599,11 +612,23 @@ touch screen settings for virtual keyboard
           <div class="modal-footer" style="align-items: flex-start;">
             <div class="justify-start">
 <div style="display:flex; flex-direction: column">
-              <button id="button_export_disk" type="button" style="text-align:start" class="btn btn-success ml-2" data-toggle="tooltip" data-placement="top" title="export the current state of disk in df0">
+              <button id="button_export_df0" type="button" style="text-align:start" class="btn btn-success ml-2" data-toggle="tooltip" data-placement="top" title="export the current state of disk in df0">
                 <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> disk in df0</button>
+              <button id="button_export_df1" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of disk in df1">
+                              <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> disk in df1</button>
+              <button id="button_export_df2" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of disk in df2">
+                              <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> disk in df2</button>
+              <button id="button_export_df3" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of disk in df3">
+                              <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> disk in df3</button>
 
-              <button id="button_export_hdf" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of hard drive">
+              <button id="button_export_hd0" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of hard drive 0">
                 <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> hd in dh0</button>                
+              <button id="button_export_hd1" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of hard drive 1">
+                <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> hd in dh1</button>                
+              <button id="button_export_hd2" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of hard drive 2">
+                <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> hd in dh2</button>                
+              <button id="button_export_hd3" type="button" style="text-align:start" class="btn btn-success ml-2 mt-1" data-toggle="tooltip" data-placement="top" title="export the current state of hard drive 3">
+                <svg style="width:1.2em;height:1.2em;margin-top:-7px"><use xlink:href="img/sprites.svg#share"/></svg> hd in dh3</button>
 </div>
             </div>
 
@@ -827,14 +852,14 @@ goes into edit mode which takes you right back to here ...
 <!-- Position it -->
 <div id="div_toast" style="position: absolute; bottom: 0; right: 0">
 <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-  <div class="toast-header bg-dark text-white">
+  <div id="toast_header" class="toast-header">
     <img src="img/icon-72x72.png" class="rounded mr-2" style="width:48px;height:48px" alt="vAmigaWeb">
     <span style="font-size: larger" class="mr-auto">newer version available</span>
     <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
       <span aria-hidden="true">&times;</span>
     </button>
   </div>
-  <div class="toast-body bg-dark text-white">
+  <div id="toast_body" class="toast-body">
     <div id="update_dialog"></div>
     <div class="mt-3">
       <button type="button" onclick="execute_update()" class="btn btn-success mt-1">upgrade</button>
@@ -874,6 +899,42 @@ goes into edit mode which takes you right back to here ...
         $("#canvas").css("background-color", "var(--lighterbg)");
         $("body").removeAttr( "data-theme").css("background-color", "var(--lighterbg) !important");
       }
+
+
+      is_inside_scrollable=(e)=>{
+        let inside_modal=false;
+        let el=e.target; 
+        while(el != document.body)
+        {
+          if(
+            el.id == 'virtual_keyboard'||
+            (
+              el.classList !== undefined && 
+              (
+                  el.classList.contains("modal-dialog")
+                ||el.classList.contains("modal-header")
+                ||el.classList.contains("modal-body")
+                ||el.classList.contains("modal-content")
+                ||el.classList.contains("modal-footer")
+              )
+            )
+          )
+          {
+            inside_modal=true;
+            break;
+          }
+          el=el.parentNode;
+        }
+        return inside_modal;
+      }
+
+      //prevent backgroundscroll
+      document.body.addEventListener('touchmove',function(e){
+        if(!is_inside_scrollable(e))
+        {//prevent scrolling except on modals and vbk
+          e.preventDefault();
+        }
+      },{ capture:false ,passive: false });
 
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');

@@ -12,9 +12,11 @@
 #include "Amiga.h"
 #include "Parser.h"
 
+namespace vamiga {
+
 RetroShell::RetroShell(Amiga& ref) : SubComponent(ref), interpreter(ref)
 {    
- 
+
 }
 
 void
@@ -29,7 +31,15 @@ RetroShell::_initialize()
     history.push_back( { "", 0 } );
     
     // Print the startup message and the input prompt
-    storage.welcome();
+    welcome();
+}
+
+void
+RetroShell::_pause()
+{
+    printState();
+    remoteManager.rshServer.send(getPrompt());
+    
 }
 
 RetroShell&
@@ -74,6 +84,37 @@ RetroShell::operator<<(std::stringstream &stream)
     return *this;
 }
 
+const string &
+RetroShell::getPrompt()
+{
+    return prompt;
+}
+
+void
+RetroShell::updatePrompt()
+{
+    if (interpreter.inCommandShell()) {
+
+        prompt = "vAmiga% ";
+
+    } else {
+
+        std::stringstream ss;
+
+        ss << "(";
+        ss << std::right << std::setw(0) << std::dec << isize(agnus.pos.v);
+        ss << ",";
+        ss << std::right << std::setw(0) << std::dec << isize(agnus.pos.h);
+        ss << ") $";
+        ss << std::right << std::setw(6) << std::hex << isize(cpu.getPC0());
+        ss << ": ";
+
+        prompt = ss.str();
+    }
+
+    needsDisplay();
+}
+
 const char *
 RetroShell::text()
 {
@@ -81,9 +122,9 @@ RetroShell::text()
     
     // Add the storage contents
     storage.text(all);
-        
+
     // Add the input line
-    all += prompt + input + " ";
+    all += getPrompt() + input + " ";
     
     return all.c_str();
 }
@@ -122,20 +163,73 @@ RetroShell::clear()
 }
 
 void
-RetroShell::printHelp()
+RetroShell::welcome()
 {
-    storage.printHelp();
-    remoteManager.rshServer << "Type 'help' for help.\n";
-    needsDisplay();
+    string name = interpreter.inDebugShell() ? "Debug Shell" : "Retro Shell";
+
+    if (interpreter.inCommandShell()) {
+
+        storage << "vAmiga " << name << " ";
+        remoteManager.rshServer << "vAmiga " << name << " Remote Server ";
+        *this << Amiga::build() << '\n';
+
+        // *this << "vAmiga " << name << " " << Amiga::build() << '\n';
+        *this << '\n';
+        *this << "Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de" << '\n';
+        *this << "Licensed under the GNU General Public License v3" << '\n';
+        *this << '\n';
+    }
+
+    printHelp();
+    *this << '\n';
 }
 
 void
-RetroShell::press(RetroShellKey key)
+RetroShell::printHelp()
+{
+    string action = interpreter.inDebugShell() ? "exit" : "enter";
+
+    storage << "Type 'help' or press 'TAB' twice for help.\n";
+    storage << "Type '.' or press 'SHIFT+RETURN' to " << action << " debug mode.";
+
+    remoteManager.rshServer << "Type 'help' for help.\n";
+    remoteManager.rshServer << "Type '.' to " << action << " debug mode.";
+
+    *this << '\n';
+}
+
+void
+RetroShell::printState()
+{
+    if (interpreter.inDebugShell()) {
+
+        std::stringstream ss;
+
+        ss << "\n";
+        cpu.dumpLogBuffer(ss, 8);
+        ss << "\n";
+        amiga.dump(Category::Current, ss);
+        ss << "\n";
+        cpu.disassembleRange(ss, cpu.getPC0(), 8);
+        ss << "\n";
+
+        *this << ss;
+
+        updatePrompt();
+
+    } else {
+
+        updatePrompt();
+    }
+}
+
+void
+RetroShell::press(RetroShellKey key, bool shift)
 {
     assert_enum(RetroShellKey, key);
     assert(ipos >= 0 && ipos < historyLength());
     assert(cursor >= 0 && cursor <= inputLength());
-        
+
     switch(key) {
             
         case RSKEY_UP:
@@ -198,7 +292,7 @@ RetroShell::press(RetroShellKey key)
         case RSKEY_TAB:
             
             if (tabPressed) {
-                        
+
                 // TAB was pressed twice
                 help(input);
 
@@ -211,14 +305,21 @@ RetroShell::press(RetroShellKey key)
             break;
             
         case RSKEY_RETURN:
-            
-            *this << '\r' << prompt << input << '\n';
-            execUserCommand(input);
-            input = "";
-            cursor = 0;
-            remoteManager.rshServer.send(prompt);
+
+            if (shift) {
+
+                interpreter.switchInterpreter();
+
+            } else {
+
+                *this << '\r' << getPrompt() << input << '\n';
+                execUserCommand(input);
+                input = "";
+                cursor = 0;
+                remoteManager.rshServer.send(getPrompt());
+            }
             break;
-            
+
         case RSKEY_CR:
             
             input = "";
@@ -286,8 +387,23 @@ RetroShell::cursorRel()
 void
 RetroShell::execUserCommand(const string &command)
 {
-    if (!command.empty()) {
-        
+    if (command.empty()) {
+
+        if (interpreter.inCommandShell()) {
+
+            printHelp();
+
+        } else {
+
+            if (amiga.isRunning()) {
+                amiga.pause();
+            } else {
+                amiga.stepInto();
+            }
+        }
+
+    } else {
+
         // Add the command to the history buffer
         history.back() = { command, (isize)command.size() };
         history.push_back( { "", 0 } );
@@ -295,10 +411,6 @@ RetroShell::execUserCommand(const string &command)
         
         // Execute the command
         try { exec(command); } catch (...) { };
-        
-    } else {
-        
-        printHelp();
     }
 }
 
@@ -350,7 +462,7 @@ RetroShell::continueScript()
 {
     string command;
     while(std::getline(script, command)) {
-            
+
         // Print the command
         *this << command << '\n';
         
@@ -362,7 +474,7 @@ RetroShell::continueScript()
             
             msgQueue.put(MSG_SCRIPT_PAUSE, scriptLine);
             return;
-        
+
         } catch (std::exception &) {
             
             *this << "Aborted in line " << scriptLine << '\n';
@@ -385,7 +497,7 @@ RetroShell::describe(const std::exception &e)
         *this << '\n';
         return;
     }
-        
+
     if (auto err = dynamic_cast<const TooManyArgumentsError *>(&e)) {
         
         *this << err->what() << ": Too many arguments";
@@ -409,11 +521,18 @@ RetroShell::describe(const std::exception &e)
     
     if (auto err = dynamic_cast<const util::ParseBoolError *>(&e)) {
 
-        *this << err->token << " must be true or false";
+        *this << "'" << err->token << "' must be true or false";
         *this << '\n';
         return;
     }
-    
+
+    if (auto err = dynamic_cast<const util::ParseOnOffError *>(&e)) {
+
+        *this << "'" << err->token << "' must be on or off";
+        *this << '\n';
+        return;
+    }
+
     if (auto err = dynamic_cast<const util::ParseError *>(&e)) {
 
         *this << err->what() << ": Syntax error";
@@ -438,14 +557,32 @@ RetroShell::help(const string &command)
 void
 RetroShell::dump(AmigaObject &component, Category category)
 {
-    std::stringstream ss; string line;
+    std::stringstream ss;
     
     {   SUSPENDED
         
         component.dump(category, ss);
     }
-    
-    while(std::getline(ss, line)) *this << line << '\n';
+
+    *this << '\n' << ss << '\n';
+}
+
+void
+RetroShell::dumpConfig(AmigaObject &component)
+{
+    dump(component, Category::Config);
+}
+
+void
+RetroShell::dumpSummary(AmigaObject &component)
+{
+    dump(component, Category::Inspection);
+}
+
+void
+RetroShell::dumpDetails(AmigaObject &component)
+{
+    dump(component, Category::Debug);
 }
 
 void
@@ -456,4 +593,6 @@ RetroShell::eofHandler()
         msgQueue.put(MSG_SCRIPT_WAKEUP);
         wakeUp = INT64_MAX;
     }
+}
+
 }

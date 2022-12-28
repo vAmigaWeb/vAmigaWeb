@@ -25,10 +25,12 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-typedef int SOCKET;
+namespace vamiga { typedef int SOCKET; }
 #define INVALID_SOCKET  -1
 
 #endif
+
+namespace vamiga {
 
 class Socket : public AmigaObject {
 
@@ -55,7 +57,7 @@ public:
     ~Socket();
 
     void create();
-        
+
     
     //
     // Methods from AmigaObject
@@ -91,3 +93,5 @@ public:
     void send(char c) { send((u8)c); }
     void send(const string &s);
 };
+
+}

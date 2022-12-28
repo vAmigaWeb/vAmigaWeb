@@ -17,6 +17,8 @@
 #include "Chrono.h"
 #include "Sampler.h"
 
+namespace vamiga {
+
 /* Architecture of the audio pipeline
  *
  *           Mux class
@@ -42,15 +44,12 @@
 class Muxer : public SubComponent {
 
     friend class Paula;
-
+    
     // Current configuration
     MuxerConfig config = {};
     
     // Underflow and overflow counters
     MuxerStats stats = {};
-
-    // Sample rate in Hz
-    double sampleRate = 0.0;
     
     // Master clock cycles per audio sample
     double cyclesPerSample = 0.0;
@@ -63,7 +62,7 @@ class Muxer : public SubComponent {
 
     // Volume control
     Volume volume;
-            
+
     // Volume scaling factors
     float vol[4];
     float volL;
@@ -89,12 +88,12 @@ public:
     };
 
     // Output
-    AudioStream<SampleType> stream;
+    AudioStream<SAMPLE_T> stream;
     
     // Audio filters
     AudioFilter filterL = AudioFilter(amiga);
     AudioFilter filterR = AudioFilter(amiga);
-        
+
     
     //
     // Initializing
@@ -132,8 +131,6 @@ private:
         worker
         
         << config.samplingMethod
-        << config.filterType
-        << config.filterAlwaysOn
         << config.pan
         << config.vol
         << config.volL
@@ -143,7 +140,7 @@ private:
         << volL
         << volR;
     }
-        
+
     template <class T>
     void applyToResetItems(T& worker, bool hard = true)
     {
@@ -171,7 +168,7 @@ public:
     void setConfigItem(Option option, i64 value);
     void setConfigItem(Option option, long id, i64 value);
 
-    double getSampleRate() const { return sampleRate; }
+    // double getSampleRate() const { return sampleRate; }
     void setSampleRate(double hz);
 
     // Needs to be called when the sampling rate or the CPU speed changes
@@ -190,13 +187,13 @@ public:
     // Returns true if the output volume is zero
     bool isMuted() const { return config.volL == 0 && config.volR == 0; }
 
-        
+
     //
     // Controlling volume
     //
     
 public:
-        
+
     /* Starts to ramp up the volume. This function configures variables volume
      * and targetVolume to simulate a smooth audio fade in.
      */
@@ -250,5 +247,7 @@ public:
      * the ring buffer's read pointer is not closer than n elements to the
      * buffer end.
      */
-    SampleType *nocopy(isize n);
+    SAMPLE_T *nocopy(isize n);
 };
+
+}

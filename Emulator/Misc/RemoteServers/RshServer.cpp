@@ -13,6 +13,8 @@
 #include "RetroShell.h"
 #include "StringUtils.h"
 
+namespace vamiga {
+
 RshServer::RshServer(Amiga& ref) : RemoteServer(ref)
 {
 
@@ -59,18 +61,10 @@ RshServer::didConnect()
     if (config.verbose) {
         
         try {
-            
-            send("vAmiga RetroShell Remote Server ");
-            send(std::to_string(VER_MAJOR) + ".");
-            send(std::to_string(VER_MINOR) + ".");
-            send(std::to_string(VER_SUBMINOR));
-            send(" (" __DATE__ " " __TIME__ ")\n\n");
-            send("Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de\n");
-            send("Licensed under the GNU General Public License v3\n\n");
-            send("Type 'help' for help.\n");
-            send("\n");
+
+            retroShell.welcome();
             send(retroShell.getPrompt());
-            
+
         } catch (...) { };
     }
 }
@@ -122,5 +116,7 @@ void
 RshServer::doProcess(const string &payload)
 {
     retroShell.press(payload);
-    retroShell.press('\n');    
+    retroShell.press('\n');
+}
+
 }

@@ -13,6 +13,8 @@
 #include "ControlPort.h"
 #include "IOUtils.h"
 
+namespace vamiga {
+
 void
 Denise::_inspect() const
 {
@@ -73,14 +75,7 @@ Denise::_dump(Category category, std::ostream& os) const
         os << bol(config.clxSprSpr) << std::endl;
     }
 
-    if (category == Category::State) {
-
-        os << tab("Resolution");
-        os << ResolutionEnum::key(res) << std::endl;
-
-    }
-
-    if (category == Category::Registers) {
+    if (category == Category::Inspection) {
         
         os << tab("BPLCON0");
         os << hex(bplcon0) << std::endl;
@@ -109,4 +104,13 @@ Denise::_dump(Category category, std::ostream& os) const
         for (isize i = 0; i < 8; i++) os << hex(sprctl[i]) << ' ';
         os << std::endl;
     }
+
+    if (category == Category::Debug) {
+
+        os << tab("Resolution");
+        os << ResolutionEnum::key(res) << std::endl;
+
+    }
+}
+
 }

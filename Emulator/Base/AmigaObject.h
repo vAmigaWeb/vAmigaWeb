@@ -11,6 +11,8 @@
 
 #include "Error.h"
 
+namespace vamiga {
+
 /* Object model:
  *
  * ------------------
@@ -45,9 +47,10 @@
 enum class Category
 {    
     BankMap, Beam, Blocks, Breakpoints, Bus, Callstack, Catchpoints, Checksums,
-    Config, Defaults, Dma, Drive, Events, FileSystem, Fpu, Geometry, Hunks,
-    List1, List2, Parameters, Partitions, Properties, Registers, Sections,
-    Segments, Signals, State, Stats, Summary, SwTraps, Tod, Volumes, Watchpoints
+    Config, Current, Debug, Defaults, Disk, Dma, Drive, Events, FileSystem, Fpu,
+    Geometry, Hunks, Inspection, List1, List2, Parameters, Partitions,
+    Properties, Registers, Sections, Segments, Signals, Stats, Status, SwTraps,
+    Tod, Vectors, Volumes, Watchpoints
 };
 
 class AmigaObject {
@@ -143,3 +146,5 @@ fprintf(stderr, "XFILES: " format, ##__VA_ARGS__); }}
 #define xfiles(format, ...)
 
 #endif
+
+}

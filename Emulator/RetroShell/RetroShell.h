@@ -16,7 +16,11 @@
 #include <sstream>
 #include <fstream>
 
+namespace vamiga {
+
 class RetroShell : public SubComponent {
+
+    friend class RshServer;
     
     // Interpreter for commands typed into the console window
     Interpreter interpreter;
@@ -28,13 +32,13 @@ class RetroShell : public SubComponent {
     
     // The text storage
     TextStorage storage;
- 
+
     // History buffer storing old input strings and cursor positions
     std::vector<std::pair<string,isize>> history;
     
     // The currently active input string
     isize ipos = 0;
-        
+
     
     //
     // User input
@@ -42,7 +46,7 @@ class RetroShell : public SubComponent {
     
     // Input line
     string input;
-    
+
     // Input prompt
     string prompt = "vAmiga% ";
 
@@ -74,7 +78,7 @@ class RetroShell : public SubComponent {
 public:
     
     RetroShell(Amiga& ref);
-            
+
     
     //
     // Methods from AmigaObject
@@ -94,7 +98,7 @@ private:
     
     void _initialize() override;
     void _reset(bool hard) override { }
-    
+    void _pause() override;
     isize _size() override { return 0; }
     u64 _checksum() override { return 0; }
     isize _load(const u8 *buffer) override {return 0; }
@@ -108,11 +112,14 @@ private:
 public:
     
     // Returns the prompt
-    string getPrompt() { return prompt; }
+    const string &getPrompt();
+
+    // Updates the prompt according to the current shell mode
+    void updatePrompt();
     
     // Returns the contents of the whole storage as a single C string
     const char *text();
-        
+
     // Moves the cursor forward to a certain column
     void tab(isize pos);
 
@@ -125,7 +132,7 @@ public:
     
     // Assigns an additional output stream
     void setStream(std::ostream &os);
-       
+
 private:
     
     // Marks the text storage as dirty
@@ -133,10 +140,16 @@ private:
     
     // Clears the console window
     void clear();
-    
-    // Prints a help line
+
+    // Prints the welcome message
+    void welcome();
+
+    // Prints the help line
     void printHelp();
-        
+
+    // Prints a state summary (used by the debugger only)
+    void printState();
+
     
     //
     // Managing user input
@@ -148,7 +161,7 @@ public:
     isize inputLength() { return (isize)input.length(); }
     
     // Presses a key or a series of keys
-    void press(RetroShellKey key);
+    void press(RetroShellKey key, bool shift = false);
     void press(char c);
     void press(const string &s);
     
@@ -164,7 +177,7 @@ public:
     
     isize historyLength() { return (isize)history.size(); }
 
-        
+
     
     //
     // Executing commands
@@ -210,6 +223,9 @@ public:
     void exec(Arguments& argv, long param) throws;
 
     void dump(AmigaObject &component, Category category);
+    void dumpConfig(AmigaObject &component);
+    void dumpSummary(AmigaObject &component);
+    void dumpDetails(AmigaObject &component);
 
     
     //
@@ -220,3 +236,5 @@ public:
     
     void eofHandler();
 };
+
+}

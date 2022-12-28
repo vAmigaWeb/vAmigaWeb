@@ -11,23 +11,17 @@
 #include "Agnus.h"
 #include "IOUtils.h"
 
+namespace vamiga {
+
 void
 Copper::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
-    
-    if (category == Category::State) {
-        
-        os << tab("Active Copper list");
-        os << dec(copList) << std::endl;
-        os << tab("Skip flag");
-        os << bol(skip) << std::endl;
-    }
-            
-    if (category == Category::Registers) {
-        
+
+    if (category == Category::Inspection) {
+
         auto deltaPC = coppc - coppc0;
-        
+
         os << tab("COPPC");
         os << hex(coppc0) << " ( +" << dec(deltaPC) << " )" << std::endl;
         os << tab("COP1LC");
@@ -41,7 +35,15 @@ Copper::_dump(Category category, std::ostream& os) const
         os << tab("CDANG");
         os << bol(cdang) << std::endl;
     }
-    
+
+    if (category == Category::Debug) {
+        
+        os << tab("Active Copper list");
+        os << dec(copList) << std::endl;
+        os << tab("Skip flag");
+        os << bol(skip) << std::endl;
+    }
+
     if (category == Category::List1 || category == Category::List2) {
         
         debugger.dump(category, os);
@@ -65,4 +67,6 @@ Copper::_inspect() const
     info.cop2lc = cop2lc & agnus.ptrMask;
     info.cop1ins = cop1ins;
     info.cop2ins = cop2ins;
+}
+
 }

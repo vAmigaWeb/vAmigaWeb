@@ -12,13 +12,15 @@
 #include "AudioFilterTypes.h"
 #include "SubComponent.h"
 
+namespace vamiga {
+
 class AudioFilter : public SubComponent {
     
     friend class Muxer;
-    
-    // The currently set filter type
-    FilterType type = FILTER_BUTTERWORTH;
-    
+
+    // Current configuration
+    AudioFilterConfig config = {};
+
     // Coefficients of the butterworth filter
     double a1 = 0.0;
     double a2 = 0.0;
@@ -49,7 +51,7 @@ public:
 private:
     
     const char *getDescription() const override { return "AudioFilter"; }
-    void _dump(Category category, std::ostream& os) const override { }
+    void _dump(Category category, std::ostream& os) const override;
 
     
     //
@@ -65,7 +67,8 @@ private:
     {
         worker
 
-        << type;
+        << config.filterType
+        << config.filterActivation;
     }
     
     template <class T>
@@ -79,16 +82,27 @@ private:
     isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
     isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
     
-    
+
     //
     // Configuring
     //
-    
+
+public:
+
+    const AudioFilterConfig &getConfig() const { return config; }
+    void resetConfig() override;
+
+    i64 getConfigItem(Option option) const;
+    void setConfigItem(Option option, i64 value);
+
 private:
-        
+
     // Sets the sample rate (only to be called by the Muxer)
     void setSampleRate(double sampleRate);
     
+    // Returns the activation status of this filter
+    bool isEnabled() const;
+
 
     //
     // Using
@@ -102,3 +116,5 @@ public:
     // Inserts a sample into the filter pipeline
     float apply(float sample);
 };
+
+}

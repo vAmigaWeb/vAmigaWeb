@@ -11,6 +11,8 @@
 #include "Recorder.h"
 #include "Amiga.h"
 
+namespace vamiga {
+
 Recorder::Recorder(Amiga& ref) : SubComponent(ref)
 {
     subComponents = std::vector<AmigaComponent *> {
@@ -40,7 +42,7 @@ Recorder::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
     
-    if (category == Category::State) {
+    if (category == Category::Inspection) {
         
         os << tab("FFmpeg path");
         os << FFmpeg::getExecPath() << std::endl;
@@ -50,7 +52,7 @@ Recorder::_dump(Category category, std::ostream& os) const
         os << bol(isRecording()) << std::endl;
     }
 }
-    
+
 string
 Recorder::videoPipePath()
 {
@@ -86,8 +88,10 @@ Recorder::startRecording(isize x1, isize y1, isize x2, isize y2,
                          isize bitRate,
                          isize aspectX, isize aspectY)
 {
+    debug(REC_DEBUG, "startRecording()");
+
     SYNCHRONIZED
-    
+
     debug(REC_DEBUG, "startRecording(%ld,%ld,%ld,%ld,%ld,%ld,%ld)\n",
           x1, y1, x2, y2, bitRate, aspectX, aspectY);
     
@@ -106,11 +110,11 @@ Recorder::startRecording(isize x1, isize y1, isize x2, isize y2,
     }
     
     debug(REC_DEBUG, "Pipes created\n");
-    dump(Category::State);
+    dump(Category::Inspection);
     
     debug(REC_DEBUG, "startRecording(%ld,%ld,%ld,%ld,%ld,%ld,%ld)\n",
           x1, y1, x2, y2, bitRate, aspectX, aspectY);
-        
+
     // Make sure the screen dimensions are even
     if ((x2 - x1) % 2) x2--;
     if ((y2 - y1) % 2) y2--;
@@ -130,7 +134,7 @@ Recorder::startRecording(isize x1, isize y1, isize x2, isize y2,
     
     // Create temporary buffers
     debug(REC_DEBUG, "Creating buffers...\n");
-    
+
     videoData.alloc((x2 - x1) * (y2 - y1));
     audioData.alloc(2 * samplesPerFrame);
     
@@ -235,7 +239,7 @@ Recorder::startRecording(isize x1, isize y1, isize x2, isize y2,
     }
     
     debug(REC_DEBUG, "Success\n");
-    state = State::prepare;    
+    state = State::prepare;
 }
 
 void
@@ -254,12 +258,14 @@ Recorder::stopRecording()
 bool
 Recorder::exportAs(const string &path)
 {
+    debug(REC_DEBUG, "exportAs()\n");
+
     if (isRecording()) return false;
     
     //
     // Assemble the command line arguments for the video encoder
     //
-        
+
     // Verbosity
     string cmd = "-loglevel " + loglevel();
 
@@ -311,6 +317,8 @@ Recorder::vsyncHandler(Cycle target)
 void
 Recorder::prepare()
 {
+    debug(REC_DEBUG, "prepare()\n");
+
     state = State::record;
     audioClock = 0;
     recStart = util::Time::now();
@@ -333,22 +341,22 @@ void
 Recorder::recordVideo(Cycle target)
 {
     auto *buffer = denise.pixelEngine.stablePtr();
-    
+
     isize width = sizeof(u32) * (cutout.x2 - cutout.x1);
     isize height = cutout.y2 - cutout.y1;
     isize offset = cutout.y1 * HPIXELS + cutout.x1;
     u8 *src = (u8 *)(buffer + offset);
     u8 *dst = (u8 *)videoData.ptr;
-    
+
     for (isize y = 0; y < height; y++, src += sizeof(u32) * HPIXELS, dst += width) {
         std::memcpy(dst, src, width);
     }
-    
+
     // Feed the video pipe
     assert(videoPipe.isOpen());
     isize length = width * height;
     isize written = videoPipe.write((u8 *)videoData.ptr, length);
-    
+
     if (written != length || FORCE_RECORDING_ERROR) {
         state = State::abort;
     }
@@ -380,7 +388,7 @@ Recorder::recordAudio(Cycle target)
     assert(audioPipe.isOpen());
     isize length = 2 * sizeof(float) * samplesPerFrame;
     isize written = audioPipe.write((u8 *)audioData.ptr, length);
- 
+
     if (written != length || FORCE_RECORDING_ERROR) {
         state = State::abort;
     }
@@ -388,7 +396,9 @@ Recorder::recordAudio(Cycle target)
 
 void
 Recorder::finalize()
-{    
+{
+    debug(REC_DEBUG, "finalize()\n");
+
     // Close pipes
     videoPipe.close();
     audioPipe.close();
@@ -400,12 +410,18 @@ Recorder::finalize()
     // Switch state and inform the GUI
     state = State::wait;
     recStop = util::Time::now();
+    debug(REC_DEBUG, "finalize() done\n");
+
     msgQueue.put(MSG_RECORDING_STOPPED);
 }
 
 void
 Recorder::abort()
 {
+    debug(REC_DEBUG, "abort()\n");
+
     finalize();
     msgQueue.put(MSG_RECORDING_ABORTED);
+}
+
 }

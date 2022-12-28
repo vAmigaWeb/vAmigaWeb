@@ -14,6 +14,8 @@
 #include "Reflection.h"
 #include "FloppyDisk.h"
 
+namespace vamiga {
+
 class DiskController : public SubComponent
 {
     // Current configuration
@@ -36,7 +38,7 @@ class DiskController : public SubComponent
      * implement the auto DSKSYNC feature which forces the DSKSYNC interrupt to
      * trigger even if no SYNC mark is present.
      */
-    i16 syncCounter = 0;
+    isize syncCounter = 0;
     
     // Used to synchronize the schedulign of the DSK_ROTATE event
     double dskEventDelay = 0;
@@ -48,7 +50,13 @@ class DiskController : public SubComponent
     
     // The latest incoming byte (value shows up in DSKBYTER)
     u16 incoming;
-        
+
+    // Data register
+    u16 dataReg;
+
+    // Number of bits stored in the data register
+    u8 dataRegCount;
+
     /* The drive controller's FIFO buffer. On each DSK_ROTATE event, a byte is
      * read from the selected drive and put into this buffer. Each Disk DMA
      * operation will read two bytes from the buffer and stores them at the
@@ -129,6 +137,8 @@ private:
         << syncCounter
         << dskEventDelay
         << incoming
+        << dataReg
+        << dataRegCount
         << fifo
         << fifoCount
         << dsklen
@@ -234,7 +244,7 @@ public:
     // Write protects or unprotects a disk
     void setWriteProtection(isize nr, bool value);
 
-        
+
     //
     // Serving events
     //
@@ -271,20 +281,18 @@ private:
     // Writes a word into the FIFO buffer
     void writeFifo(u8 byte);
 
-    
-    // Returns true if the next word to read matches the specified value
-    bool compareFifo(u16 word) const;
-
     /* Emulates a data transfert between the selected drive and the FIFO
      * buffer. This function is executed periodically in serviceDiskEvent().
-     * The exact operation is dependent of the current DMA state. If DMA is
-     * off, no action is taken. If a read mode is active, the FIFO is filled
-     * with data from the drive. If a write mode is active, data from the FIFO
-     * is written to the drive head.
+     * The exact operation is dependent of the current DMA state.
      */
-    void executeFifo();
-         
-    
+    void transferByte();
+
+    // Called inside transferByte, depending on the current DMA state
+    void readByte();
+    void writeByte();
+    void readBit(bool bit);
+
+
     //
     // Performing DMA
     //
@@ -327,14 +335,16 @@ public:
      * Neither does it uses the disk DMA slots, nor does it interact with
      * the FIFO buffer.
      */
-  
+
     // Performs DMA in standard mode
     void performDMA();
     void performDMARead(FloppyDrive *drive, u32 count);
     void performDMAWrite(FloppyDrive *drive, u32 count);
-     
+
     // Performs DMA in turbo mode
     void performTurboDMA(FloppyDrive *d);
     void performTurboRead(FloppyDrive *drive);
     void performTurboWrite(FloppyDrive *drive);
 };
+
+}

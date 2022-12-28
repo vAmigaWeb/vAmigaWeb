@@ -14,7 +14,16 @@
 #include "Joystick.h"
 #include "Mouse.h"
 
+namespace vamiga {
+
 class ControlPort : public SubComponent {
+
+public:
+
+    static constexpr isize PORT1 = 1;
+    static constexpr isize PORT2 = 2;
+
+private:
     
     // The represented control port
     isize nr;
@@ -105,10 +114,10 @@ private:
 
 public:
     
-    ControlPortInfo getInfo() const { return AmigaComponent::getInfo(info); }    
+    ControlPortInfo getInfo() const { return AmigaComponent::getInfo(info); }
 
-    bool isPort1() const { return nr == PORT_1; }
-    bool isPort2() const { return nr == PORT_2; }
+    bool isPort1() const { return nr == PORT1; }
+    bool isPort2() const { return nr == PORT2; }
 
     
     //
@@ -139,3 +148,5 @@ public:
     // Modifies the PRA bits of CIA A according to the connected device
     void changePra(u8 &pra) const;
 };
+
+}

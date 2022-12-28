@@ -17,8 +17,10 @@
 
 using util::Buffer;
 
+namespace vamiga {
+
 class Recorder : public SubComponent {
-        
+
     //
     // Sub components
     //
@@ -65,18 +67,18 @@ class Recorder : public SubComponent {
 
     // Sound samples per frame
     isize samplesPerFrame = 0;
-    
+
     // The texture cutout that is going to be recorded
     struct { isize x1; isize y1; isize x2; isize y2; } cutout;
-            
+
     // Time stamps
     util::Time recStart;
     util::Time recStop;
-    
+
     // Temporary storage for audio and video data
     Buffer<u32> videoData;
     Buffer<float> audioData;
-    
+
     
     //
     // Initializing
@@ -130,7 +132,7 @@ private:
     string videoStreamPath();
     string audioStreamPath();
 
-    //Returns the log level passed to FFmpef
+    //Returns the log level passed to FFmpeg
     const string loglevel() { return REC_DEBUG ? "verbose" : "warning"; }
 
     
@@ -144,17 +146,17 @@ public:
     isize getFrameRate() const { return frameRate; }
     isize getBitRate() const { return bitRate; }
     isize getSampleRate() const { return sampleRate; }
-    
 
+    
     //
     // Starting and stopping a video capture
     //
     
 public:
-        
+
     // Checks whether the screen is currently recorded
     bool isRecording() const { return state != State::wait; }
-        
+
     // Starts the screen recorder
     void startRecording(isize x1, isize y1, isize x2, isize y2,
                         isize bitRate,
@@ -172,7 +174,7 @@ public:
     //
 
 public:
-        
+
     // Records a single frame
     void vsyncHandler(Cycle target);
     
@@ -185,3 +187,5 @@ private:
     void finalize();
     void abort();
 };
+
+}

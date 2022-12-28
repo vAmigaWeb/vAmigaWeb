@@ -13,6 +13,8 @@
 #include "SubComponent.h"
 #include "Constants.h"
 
+namespace vamiga {
+
 class OSDebugger : public SubComponent {
     
 private:
@@ -39,7 +41,7 @@ private:
     //
     // Methods from AmigaComponent
     //
-        
+
 private:
     
     void _reset(bool hard) override { };
@@ -93,7 +95,7 @@ public:
     //
     
 public:
-            
+
     void read(u32 addr, u8 *result) const;
     void read(u32 addr, u16 *result) const;
     void read(u32 addr, u32 *result) const;
@@ -210,3 +212,5 @@ public:
     void dumpProcess(std::ostream& s, const string &name);
     void dumpProcess(std::ostream& s, const os::Process &process, bool verbose);
 };
+
+}

@@ -22,12 +22,6 @@ typedef struct
     // Selects how the audio buffer is resampled to match the target frequency
     SamplingMethod samplingMethod;
 
-    // The selected audio filter
-    FilterType filterType;
-
-    // If set to true, the Amiga can't deactivate the filter
-    bool filterAlwaysOn;
-
     // Master volume (left and right channel)
     i64 volL;
     i64 volR;

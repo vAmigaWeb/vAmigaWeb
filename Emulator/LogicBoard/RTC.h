@@ -12,6 +12,8 @@
 #include "RTCTypes.h"
 #include "SubComponent.h"
 
+namespace vamiga {
+
 class RTC : public SubComponent {
 
     // The current configuration
@@ -172,3 +174,5 @@ private:
     void registers2timeOki(tm *t);
     void registers2timeRicoh(tm *t);
 };
+
+}

@@ -73,10 +73,8 @@ enum_long(OPT)
 
     // Floppy Drives
     OPT_DRIVE_TYPE,
-    OPT_EMULATE_MECHANICS,
-    OPT_START_DELAY,
-    OPT_STOP_DELAY,
-    OPT_STEP_DELAY,
+    OPT_DRIVE_MECHANICS,
+    OPT_DRIVE_RPM,
     OPT_DISK_SWAP_DELAY,
     OPT_DRIVE_PAN,
     OPT_STEP_VOLUME,
@@ -128,7 +126,7 @@ enum_long(OPT)
     // Paula audio
     OPT_SAMPLING_METHOD,
     OPT_FILTER_TYPE,
-    OPT_FILTER_ALWAYS_ON,
+    OPT_FILTER_ACTIVATION,
     OPT_AUDPAN,
     OPT_AUDVOL,
     OPT_AUDVOLL,
@@ -200,10 +198,8 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
             case OPT_AUTO_DSKSYNC:          return "AUTO_DSKSYNC";
 
             case OPT_DRIVE_TYPE:            return "DRIVE_TYPE";
-            case OPT_EMULATE_MECHANICS:     return "EMULATE_MECHANICS";
-            case OPT_START_DELAY:           return "START_DELAY";
-            case OPT_STOP_DELAY:            return "STOP_DELAY";
-            case OPT_STEP_DELAY:            return "STEP_DELAY";
+            case OPT_DRIVE_MECHANICS:       return "DRIVE_MECHANICS";
+            case OPT_DRIVE_RPM:             return "DRIVE_RPM";
             case OPT_DISK_SWAP_DELAY:       return "DISK_SWAP_DELAY";
             case OPT_DRIVE_PAN:             return "DRIVE_PAN";
             case OPT_STEP_VOLUME:           return "STEP_VOLUME";
@@ -245,7 +241,7 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
 
             case OPT_SAMPLING_METHOD:       return "SAMPLING_METHOD";
             case OPT_FILTER_TYPE:           return "FILTER_TYPE";
-            case OPT_FILTER_ALWAYS_ON:      return "FILTER_ALWAYS_ON";
+            case OPT_FILTER_ACTIVATION:     return "FILTER_ACTIVATION";
             case OPT_AUDPAN:                return "AUDPAN";
             case OPT_AUDVOL:                return "AUDVOL";
             case OPT_AUDVOLL:               return "AUDVOLL";

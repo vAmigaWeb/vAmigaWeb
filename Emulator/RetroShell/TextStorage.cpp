@@ -11,6 +11,8 @@
 #include "TextStorage.h"
 #include "Amiga.h"
 
+namespace vamiga {
+
 string
 TextStorage::operator [] (isize i) const
 {
@@ -49,7 +51,7 @@ void
 TextStorage::append(const string &line)
 {
     storage.push_back(line);
- 
+
     // Remove old entries if the storage grows too large
     while (storage.size() > capacity) storage.erase(storage.begin());
 }
@@ -58,13 +60,13 @@ TextStorage&
 TextStorage::operator<<(char c)
 {
     assert(!storage.empty());
- 
+
     switch (c) {
             
         case '\n':
             
             if (ostream) *ostream << storage.back() << std::endl;
-            append("");            
+            append("");
             break;
             
         case '\r':
@@ -88,10 +90,20 @@ TextStorage::operator<<(const string &s)
     return *this;
 }
 
+TextStorage &
+TextStorage::operator<<(std::stringstream &ss)
+{
+    string line;
+    while(std::getline(ss, line)) *this << line << '\n';
+    return *this;
+}
+
+/*
 void
 TextStorage::welcome()
 {
     *this << "vAmiga Retro Shell " << Amiga::build() << '\n';
+    *this << '\n';
     *this << "Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de" << '\n';
     *this << "Licensed under the GNU General Public License v3" << '\n';
     *this << '\n';
@@ -103,4 +115,7 @@ void
 TextStorage::printHelp()
 {
     *this << "Type 'help' or press 'TAB' twice for help." << '\n';
+    *this << "Type '.' or press 'SHIFT+RETURN' to enter the debugger." << '\n';
+}
+*/
 }
