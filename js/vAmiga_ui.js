@@ -16,6 +16,7 @@ let call_param_display=null;
 let call_param_wait_for_kickstart_injection=null;
 let call_param_kickstart_rom_url=null;
 
+let startup_script_executed=false;
 let df_mount_list=[];//to auto mount disks from zip e.g. ["Batman_Rises_disk1.adf","Batman_Rises_disk2.adf"];
 let hd_mount_list=[];
 
@@ -180,6 +181,15 @@ function get_parameter_link()
                 b.app_scope = true;
                 b.id = 1000+call_param_buttons.length;
                 call_param_buttons.push( b );
+            }
+        }
+        if(call_obj.startup_script !== undefined && startup_script_executed==false)
+        {
+            try {
+                new Function(`${call_obj.startup_script}`)();
+                startup_script_executed=true;
+            } catch (error) {
+                console.error(`error in startup_script: ${call_obj.startup_script}`,e)
             }
         }
     }
@@ -1592,12 +1602,7 @@ function InitWrappers() {
             }
         }
         init_sound_buffer();
-/*        samples_consumed=0;
-        setInterval(() => {
-            console.log("ap_samples_req: "+samples_consumed/30);
-            samples_consumed=0;
-        }, 30*1000);
-*/      
+
         empty_shuttles=new RingBuffer(16);
         worklet_node.port.onmessage = (msg) => {
             //direct c function calls with preceeding Module._ are faster than cwrap
