@@ -2815,7 +2815,7 @@ $('.layer').change( function(event) {
             manage already installed versions:
             <br>
             <div style="display:flex">
-            <select id="version_selector" class="ml-2" style="background-color:var(--darkbg);color:var(--light);border-radius:6px;border-width:2px;border-color:var(--light);">`;
+            <select id="version_selector" class="ml-2">`;
             for(c_name of cache_names)
             {
                 let name_parts=c_name.split('@');
