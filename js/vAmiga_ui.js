@@ -457,11 +457,11 @@ function message_handler(msg, data, data2)
         $(`#button_${"OPT_CHIP_RAM"}`).text(`chip ram=${wasm_get_config_item('CHIP_RAM')} KB (snapshot)`);
         $(`#button_${"OPT_SLOW_RAM"}`).text(`slow ram=${wasm_get_config_item('SLOW_RAM')} KB (snapshot)`);
         $(`#button_${"OPT_FAST_RAM"}`).text(`fast ram=${wasm_get_config_item('FAST_RAM')} KB (snapshot)`);
+    
+        rom_restored_from_snapshot=true;
     }
 
 }
-rs232_message = "";
-//rs232_message=[];
 
 async function fetchOpenROMS(){
     var installer = async function(suffix, response) {
@@ -3123,19 +3123,30 @@ $('.layer').change( function(event) {
 
 
 //---- rom dialog start
+    rom_restored_from_snapshot=false;
     fill_available_roms=async function (rom_type, select_id){
         let stored_roms=await list_rom_type_entries(rom_type);
         let html_rom_list=`<option value="empty">empty</option>`;
+        if(rom_restored_from_snapshot)
+        {
+            html_rom_list+=`<option value="restored_from_snapshot" hidden selected>restored from snapshot</option>`
+        }
         let selected_rom=local_storage_get(rom_type);
         for(rom of stored_roms)
         {
-            html_rom_list+= `<option value="${rom.id}" ${selected_rom ==rom.id?"selected":""}>${rom.id}</option>`;
+            html_rom_list+= `<option value="${rom.id}"`;
+            if(!rom_restored_from_snapshot)
+            {
+                html_rom_list+=`${selected_rom ==rom.id?"selected":""}`;
+            }
+            html_rom_list+= `>${rom.id}</option>`;
         }
         $(`#${select_id}`).html(html_rom_list);
 
         document.getElementById(select_id).onchange = function() {
             let selected_rom = document.getElementById(select_id).value; 
             save_setting(rom_type, selected_rom);
+            rom_restored_from_snapshot=false;
             load_roms(true);
         }
     }
