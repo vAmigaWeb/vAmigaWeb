@@ -2284,8 +2284,9 @@ extern "C" const char* wasm_power_on(unsigned power_on)
 extern "C" void wasm_set_sample_rate(unsigned sample_rate)
 {
     printf("set paula.muxer to freq= %d\n", sample_rate);
-    wrapper->amiga->paula.muxer.setSampleRate(sample_rate);
-    //printf("paula.muxer.getSampleRate()==%f\n", wrapper->amiga->paula.muxer.getSampleRate());
+    //wrapper->amiga->paula.muxer.setSampleRate(sample_rate);
+    wrapper->amiga->host.setSampleRate(sample_rate);
+    printf("amiga.host.getSampleRate()==%f\n", wrapper->amiga->host.getSampleRate());
 }
 
 

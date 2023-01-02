@@ -16,6 +16,7 @@ let call_param_display=null;
 let call_param_wait_for_kickstart_injection=null;
 let call_param_kickstart_rom_url=null;
 
+let startup_script_executed=false;
 let df_mount_list=[];//to auto mount disks from zip e.g. ["Batman_Rises_disk1.adf","Batman_Rises_disk2.adf"];
 let hd_mount_list=[];
 
@@ -180,6 +181,15 @@ function get_parameter_link()
                 b.app_scope = true;
                 b.id = 1000+call_param_buttons.length;
                 call_param_buttons.push( b );
+            }
+        }
+        if(call_obj.startup_script !== undefined && startup_script_executed==false)
+        {
+            try {
+                new Function(`${call_obj.startup_script}`)();
+                startup_script_executed=true;
+            } catch (error) {
+                console.error(`error in startup_script: ${call_obj.startup_script}`,e)
             }
         }
     }
@@ -893,11 +903,13 @@ function configure_file_dialog(reset=false)
                                     insert_file(drive_number);
                                 } 
                             }
-                            df_mount_list=[];//reset the direct call lists
+                            if(df_mount_list.length == 0 && hd_mount_list.length==0)
+                            {//when there is no auto mount list let the user decide
+                                $("#modal_file_slot").modal();
+                            }
+                            df_mount_list=[];//only do automount once
                             hd_mount_list=[];
                         })();
-
-                        $("#modal_file_slot").modal();
                     }
                 });
 
@@ -1590,12 +1602,7 @@ function InitWrappers() {
             }
         }
         init_sound_buffer();
-/*        samples_consumed=0;
-        setInterval(() => {
-            console.log("ap_samples_req: "+samples_consumed/30);
-            samples_consumed=0;
-        }, 30*1000);
-*/      
+
         empty_shuttles=new RingBuffer(16);
         worklet_node.port.onmessage = (msg) => {
             //direct c function calls with preceeding Module._ are faster than cwrap
@@ -1642,13 +1649,13 @@ function InitWrappers() {
     }
 
     click_unlock_WebAudio=async function() {
-        await connect_audio_processor();
+        try { await connect_audio_processor(); } catch(e){ console.error(e);}
         if(audioContext.state === 'running') {
             document.removeEventListener('click',click_unlock_WebAudio);
         }
     }
     touch_unlock_WebAudio=async function() {
-        await connect_audio_processor();
+        try { await connect_audio_processor(); } catch(e){ console.error(e);}
         if(audioContext.state === 'running') {
             document.getElementById('canvas').removeEventListener('touchstart',touch_unlock_WebAudio);
         }
@@ -2762,7 +2769,7 @@ $('.layer').change( function(event) {
         {
             set_settings_cache_value('active_version', sw_version.cache_name);        
         }
-        try{window.location.reload();} catch(e){console.error(e)}
+        window.location.reload();
     }
     
     $("#div_toast").hide();
@@ -2933,7 +2940,7 @@ $('.layer').change( function(event) {
             document.getElementById('activate_version').onclick = function() {
                 let cache_name = document.getElementById('version_selector').value; 
                 set_settings_cache_value("active_version",cache_name);
-                try{window.location.reload();} catch(e){console.error(e)}
+                window.location.reload();
             }
             let activate_or_install_btn = document.getElementById('activate_or_install');
             if(activate_or_install_btn != null)
@@ -2944,7 +2951,7 @@ $('.layer').change( function(event) {
                         if(new_version_already_installed)
                         {
                             set_settings_cache_value("active_version",sw_version.cache_name);
-                            try{window.location.reload();} catch(e){console.error(e)}
+                            window.location.reload();
                         }
                         else
                         {
