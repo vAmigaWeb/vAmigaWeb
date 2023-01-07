@@ -723,55 +723,15 @@ extern "C" int wasm_draw_one_frame(double now)
     }
   }
 
-/*  int skipped=-1;  // -1, 0, 1 , 2 
-  while(skipped % 2 == 1 //when skip then skip twice because of interlace detection
-        || 
-        total_executed_frame_count < targetFrameCount) {
-    executed_frame_count++;
-    total_executed_frame_count++;
-    
-    if(skipped==-1)
-    {
-      amiga->execute();
-    }
-    else
-    {
-      EM_ASM({
-        setTimeout(Module._wasm_execute);
-      });
-    }
-    skipped++;
-  }
-*/
   int behind=targetFrameCount-total_executed_frame_count;    
   if(behind<=0 && executed_since_last_host_frame==0)
     return behind;   //don't render if ahead of time and everything is already drawn
   
-  if(
-    executed_since_last_host_frame%2==0 //when 0, 2, 4, ... execute here directly 
-  )
-  {
-    //execute always an odd number of amiga frames
-    //this is needed for correct detection of longframes and shortframes when 
-    //amiga uses interlaced resolution and the host device is to slow to render 
-    //always one amiga frame per host frame i.e. when fps drops below 50 
-    amiga->execute();
- 
-    executed_frame_count++;
-    total_executed_frame_count++;
-    behind--;
-  }
-
   executed_since_last_host_frame=0;
   rendered_frame_count++;   
 
-  /*EM_ASM({
-      draw_one_frame(); // to gather joystick information for example 
-  });
-  */
   auto &stableBuffer = amiga->denise.pixelEngine.getStableBuffer();
   auto stable_ptr = amiga->denise.pixelEngine.stablePtr();
-
 
   if(geometry == DISPLAY_BORDERLESS)
   {
@@ -795,8 +755,8 @@ extern "C" int wasm_draw_one_frame(double now)
 
   if(render_method==RENDER_SHADER)
   {
-    prevLOF = currLOF;
-    currLOF = stableBuffer.longFrame;
+    prevLOF = stableBuffer.prevlof;
+    currLOF = stableBuffer.lof;
 
     if (currLOF) {
       glActiveTexture(GL_TEXTURE0);
