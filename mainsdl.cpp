@@ -727,6 +727,15 @@ extern "C" int wasm_draw_one_frame(double now)
   if(behind<=0 && executed_since_last_host_frame==0)
     return behind;   //don't render if ahead of time and everything is already drawn
   
+  if(behind>0)
+  {
+    amiga->execute();
+ 
+    executed_frame_count++;
+    total_executed_frame_count++;
+    behind--;
+  }
+
   executed_since_last_host_frame=0;
   rendered_frame_count++;   
 
