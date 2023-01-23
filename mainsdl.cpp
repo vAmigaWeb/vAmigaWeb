@@ -21,11 +21,11 @@
 
 #include <emscripten.h>
 
-#ifdef SDL2
 #include <SDL2/SDL.h>
+#ifdef SDL2
 #include <SDL2/SDL_opengles2.h> 
-#include <emscripten/html5.h>
 #endif
+#include <emscripten/html5.h>
 
 using namespace vamiga;
 
@@ -355,6 +355,7 @@ EM_BOOL emscripten_window_resized_callback(int eventType, const void *reserved, 
 }
 
 char *filename = NULL;
+#ifdef SDL2
 
 extern "C" void wasm_toggleFullscreen()
 {
@@ -374,7 +375,6 @@ extern "C" void wasm_toggleFullscreen()
       emscripten_exit_soft_fullscreen(); 
     }
 }
-#ifdef SDL2
 int eventFilter(void* thisC64, SDL_Event* event) {
     //C64 *c64 = (C64 *)thisC64;
     switch(event->type){
@@ -750,8 +750,11 @@ extern "C" int wasm_draw_one_frame(double now)
   executed_since_last_host_frame=0;
   rendered_frame_count++;   
 
+#ifdef SDL2
   auto &stableBuffer = amiga->denise.pixelEngine.getStableBuffer();
+#endif
   auto stable_ptr = amiga->denise.pixelEngine.stablePtr();
+
 
   if(geometry == DISPLAY_BORDERLESS)
   {
@@ -1122,6 +1125,7 @@ void create_texture()
 }
 
 
+#endif
 extern "C" int wasm_get_renderer()
 { 
   return render_method;
@@ -1141,7 +1145,7 @@ extern "C" void wasm_set_target_fps(int _target_fps)
   target_fps=_target_fps;
 }
 
-
+#ifdef SDL2
 extern "C" bool wasm_create_renderer(char* name)
 { 
   render_method=RENDER_SOFTWARE;

@@ -2150,7 +2150,7 @@ $(`#choose_game_controller_type a`).click(function ()
     if(!got_renderer && current_renderer!='software')
     {
         alert('MESSAGE: gpu shader can not be created on your system configuration... switching back to software renderer...');
-        wasm_create_renderer('software');
+        //wasm_create_renderer('software');
         set_renderer_choice('software')
     }
 
