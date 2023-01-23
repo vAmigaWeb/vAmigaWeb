@@ -19,11 +19,13 @@
 
 #include "MemUtils.h"
 
-
 #include <emscripten.h>
+
+#ifdef SDL2
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengles2.h> 
 #include <emscripten/html5.h>
+#endif
 
 using namespace vamiga;
 
@@ -56,6 +58,7 @@ u8 target_fps = 50;
 
 extern "C" void wasm_set_display(const char *name);
 
+#ifdef SDL2
 /********* shaders ***********/
 GLuint basic;
 GLuint merge;
@@ -101,7 +104,7 @@ const GLchar *mergeSource =
   "    color = texture(u_long, v_texcoord);  \n"
   "  }                                                \n"
   "}                                                  \n";
-
+#endif
 
 int clip_width  = 724 * TPP;
 int clip_height = 568;
@@ -111,7 +114,7 @@ int buffer_size = 4096;
 bool prevLOF = false;
 bool currLOF = false;
 
-
+#ifdef SDL2
 GLuint compileShader(const GLenum type, const GLchar *source) {
   GLint result;
   GLint length;
@@ -247,7 +250,9 @@ SDL_Renderer * renderer = NULL;
 SDL_Texture * screen_texture = NULL;
 
 /* SDL2 end */
+#endif
 
+#ifdef SDL2
 void PrintEvent(const SDL_Event * event)
 {
     if (event->type == SDL_WINDOWEVENT) {
@@ -319,6 +324,7 @@ void PrintEvent(const SDL_Event * event)
         printf("\n");
     }
 }
+#endif
 
 int eat_border_width = 0;
 int eat_border_height = 0;
@@ -368,7 +374,7 @@ extern "C" void wasm_toggleFullscreen()
       emscripten_exit_soft_fullscreen(); 
     }
 }
-
+#ifdef SDL2
 int eventFilter(void* thisC64, SDL_Event* event) {
     //C64 *c64 = (C64 *)thisC64;
     switch(event->type){
@@ -418,6 +424,10 @@ int eventFilter(void* thisC64, SDL_Event* event) {
     }
     return 1;
 }
+
+#endif
+
+
 unsigned int warp_to_frame=0;
 int sum_samples=0;
 double last_time = 0.0 ;
@@ -444,7 +454,7 @@ bool request_to_reset_calibration=false;
 void set_viewport_dimensions()
 {
     if(log_on) printf("calib: set_viewport_dimensions hmin=%d, hmax=%d, vmin=%d, vmax=%d\n",hstart_min,hstop_max,vstart_min, vstop_max);
-    
+#ifdef SDL2    
 //    hstart_min=0; hstop_max=HPIXELS;
     
     if(render_method==RENDER_SHADER)
@@ -482,6 +492,7 @@ void set_viewport_dimensions()
         SDL_SetWindowSize(window, clipped_width*TPP, clipped_height);
       }
     }
+#endif
     EM_ASM({scaleVMCanvas()});
 }
 
@@ -761,6 +772,7 @@ extern "C" int wasm_draw_one_frame(double now)
       }
     }
   }
+#ifdef SDL2    
 
   if(render_method==RENDER_SHADER)
   {
@@ -815,6 +827,7 @@ extern "C" int wasm_draw_one_frame(double now)
 
     SDL_RenderPresent(renderer);
   }
+#endif
   return behind;
 }
 
@@ -846,8 +859,7 @@ void MyAudioCallback(void*  thisAmiga,
 }
 
 
-
-
+#ifdef SDL2    
 void initSDL(void *thisAmiga)
 {
     if(SDL_Init(SDL_INIT_VIDEO)==-1)
@@ -858,7 +870,7 @@ void initSDL(void *thisAmiga)
 	  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
  
 }
-
+#endif
 
 void send_message_to_js(const char * msg)
 {
@@ -1013,12 +1025,14 @@ class vAmigaWrapper {
 vAmigaWrapper *wrapper = NULL;
 extern "C" int main(int argc, char** argv) {
   wrapper= new vAmigaWrapper();
+#ifdef SDL2    
   initSDL(wrapper->amiga);
+#endif
   wrapper->run();
   return 0;
 }
 
-
+#ifdef SDL2    
 bool create_shader()
 {
     printf("try to create shader renderer\n");
@@ -1163,7 +1177,7 @@ extern "C" bool wasm_create_renderer(char* name)
   }
   return false;
 }
-
+#endif
 
 
 /* emulation of macos mach_absolute_time() function. */
@@ -1619,6 +1633,7 @@ extern "C" void wasm_set_display(const char *name)
   }
   if(log_on) printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);
 
+#ifdef SDL2    
   if(render_method==RENDER_SHADER)
   {
 //    SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
@@ -1637,7 +1652,7 @@ extern "C" void wasm_set_display(const char *name)
     SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height); 
     SDL_SetWindowSize(window, clipped_width*TPP, clipped_height);
   }
-
+#endif
   EM_ASM({scaleVMCanvas()});
 }
 
