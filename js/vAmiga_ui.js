@@ -1497,6 +1497,7 @@ function InitWrappers() {
 
     do_animation_frame=null;
     queued_executes=0;
+    
     wasm_run = function () {
         Module._wasm_run();       
         if(do_animation_frame == null)
@@ -1508,6 +1509,9 @@ function InitWrappers() {
             do_animation_frame = function(now) {
                 draw_one_frame(); // to gather joystick information 
                 let behind = Module._wasm_draw_one_frame(now);
+
+                render_canvas();
+
                 while(behind>queued_executes)
                 {
                     queued_executes++;
@@ -3999,63 +4003,6 @@ function setTheme() {
 }
   
 
-function scaleVMCanvas() {
-        let the_canvas = document.getElementById("canvas");
-        var src_width=Module._wasm_get_render_width();
-        var src_height=Module._wasm_get_render_height()*2; 
-        if(use_ntsc_pixel)
-        {
-            src_height*=52/44;
-        }
-        var src_ratio = src_width/src_height; //1.25
-/*        if(Module._wasm_get_renderer()==0)
-        {//software renderer only has half of height pixels
-            src_height*=2;
-            src_ratio = src_width/src_height;
-        }*/
-
-        var inv_src_ratio = src_height/src_width;
-        var wratio = window.innerWidth / window.innerHeight;
-
-        var topPos=0;
-        if(wratio < src_ratio)
-        {
-            var reducedHeight=window.innerWidth*inv_src_ratio;
-            //all lower than 1.25
-            $("#canvas").css("width", "100%")
-            .css("height", Math.round(reducedHeight)+'px');
-            
-            if($("#virtual_keyboard").is(":hidden"))
-            {   //center vertical, if virtual keyboard and navbar not present
-                topPos=Math.round((window.innerHeight-reducedHeight)/2);
-            }
-            else
-            {//virtual keyboard is present
-                var keyb_height= $("#virtual_keyboard").innerHeight();          
-                //positioning directly stacked onto keyboard          
-                topPos=Math.round(window.innerHeight-reducedHeight-keyb_height);
-            }
-            if(topPos<0)
-            {
-                topPos=0;
-            }
-        }
-        else
-        {
-            //all greater than 1.25
-            if(use_wide_screen)
-            {
-                $("#canvas").css("width", "100%"); 
-            }
-            else
-            {
-                 $("#canvas").css("width", Math.round((window.innerHeight*src_ratio)) +'px');
-            }
-            $("#canvas").css("height", "100%"); 
-        }
-
-        $("#canvas").css("top", topPos + 'px');   
-    };
 
 
 

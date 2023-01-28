@@ -1035,6 +1035,14 @@ extern "C" int main(int argc, char** argv) {
   return 0;
 }
 
+
+extern "C" Texel * wasm_pixel_buffer()
+{
+  auto stable_ptr = thisAmiga->denise.pixelEngine.stablePtr();
+  return stable_ptr;
+}
+
+
 #ifdef SDL2    
 bool create_shader()
 {
@@ -1657,7 +1665,7 @@ extern "C" void wasm_set_display(const char *name)
     SDL_SetWindowSize(window, clipped_width*TPP, clipped_height);
   }
 #endif
-  EM_ASM({scaleVMCanvas()});
+  EM_ASM({js_set_display($0,$1,$2,$3); scaleVMCanvas();},xOff, yOff, clipped_width*TPP,clipped_height );
 }
 
 std::unique_ptr<FloppyDisk> load_disk(const char* filename, Uint8 *blob, long len)
