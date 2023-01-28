@@ -1,11 +1,11 @@
-let HBLANK_MIN=0x12*4;
+let HBLANK_MIN=0x12;
 let HPIXELS=912;
 let PAL_EXTRA_VPIXELS=140;
 let VPIXELS=313;
-let xOff = 0;//252
+let xOff = HBLANK_MIN;//252
 let yOff=26 + 6;
-let clipped_width=HPIXELS;//-xOff;
-let clipped_height=VPIXELS ;
+let clipped_width=HPIXELS-xOff-8;
+let clipped_height=VPIXELS-yOff ;
 
 let ctx=null;
 
@@ -13,36 +13,39 @@ function createContext()
 {
     const canvas = document.getElementById('canvas');
     let ctx2d = canvas.getContext('2d');
-    image_data=ctx2d.createImageData(clipped_width,clipped_height/*VPIXELS+PAL_EXTRA_VPIXELS-yOff*/);
-//    let pixels = Module._wasm_pixel_buffer();
-//    pixel_buffer=new Uint8Array(Module.HEAPU32.buffer, pixels+yOff*HPIXELS*4+(HBLANK_MIN+xOff)*4, (clipped_width-HBLANK_MIN)*(VPIXELS-yOff+PAL_EXTRA_VPIXELS)*4);
+    image_data=ctx2d.createImageData(HPIXELS,VPIXELS);
     return ctx2d;
 }
 
 function render_canvas()
 {
     let pixels = Module._wasm_pixel_buffer();
-//    pixel_buffer=new Uint8Array(Module.HEAPU32.buffer, pixels+HBLANK_MIN+yOff*HPIXELS*4+xOff*4, (clipped_width-HBLANK_MIN)*(VPIXELS-yOff+PAL_EXTRA_VPIXELS)*4);
     pixel_buffer=new Uint8Array(Module.HEAPU32.buffer, pixels, HPIXELS*VPIXELS*4);
 
     if(ctx == null)
     {
         ctx = createContext();
     }
-    //let pixel_data = new Uint8Array(pixel_buffer, xOff+HBLANK_MIN/* offset  */, (clipped_width-HBLANK_MIN)*clipped_height*4);
-    //data.set(snapshot_data.subarray(0, data.length), 0);
     image_data.data.set(pixel_buffer, 0);
 
-    //putImageData(imageData, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight)
+/* SDL2 Rendering
+    Uint8 *texture = (Uint8 *)(stable_ptr);
+    SDL_Rect SrcR;
 
-    let the_canvas = document.getElementById("canvas");
-    the_canvas.width=HPIXELS-HBLANK_MIN;
-    the_canvas.height=VPIXELS;
-    ctx.putImageData(image_data,0,0, /*x,y*/ HBLANK_MIN,0 /* width, height */, clipped_width, clipped_height); 
+    SrcR.x = (xOff-HBLANK_MIN*4) *TPP;
+    SrcR.y = yOff;
+    SrcR.w = clipped_width * TPP;
+    SrcR.h = clipped_height;
+
+    SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*HPIXELS*TPP*SrcR.y) + SrcR.x*4, 4*HPIXELS*TPP);
+
+    SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
+*/
+    //putImageData(imageData, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight)
+    ctx.putImageData(image_data,-xOff+HBLANK_MIN*4,-yOff, /*x,y*/ xOff-HBLANK_MIN*4,yOff /* width, height */, clipped_width, clipped_height); 
 }
 
 function js_set_display(_xOff, _yOff, _clipped_width,_clipped_height) {
-return;
     xOff=_xOff;
     yOff=_yOff;
     clipped_width =_clipped_width;
