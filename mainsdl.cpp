@@ -454,7 +454,6 @@ bool request_to_reset_calibration=false;
 void set_viewport_dimensions()
 {
     if(log_on) printf("calib: set_viewport_dimensions hmin=%d, hmax=%d, vmin=%d, vmax=%d\n",hstart_min,hstop_max,vstart_min, vstop_max);
-#ifdef SDL2    
 //    hstart_min=0; hstop_max=HPIXELS;
     
     if(render_method==RENDER_SHADER)
@@ -463,6 +462,8 @@ void set_viewport_dimensions()
       {         
         clipped_width = hstop_max-hstart_min;
         clipped_height = vstop_max-vstart_min;
+
+#ifdef SDL2    
         SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height*2); 
         SDL_SetWindowSize(window, clipped_width*TPP, clipped_height*2);
         glViewport(0, 0, clipped_width*TPP, clipped_height*2);
@@ -475,6 +476,7 @@ void set_viewport_dimensions()
           /* in merge shader, the height has to be an even number */ 
           vstart_min & 0xfffe, vstop_max & 0xfffe
         );
+#endif
 
       } 
     }
@@ -486,14 +488,14 @@ void set_viewport_dimensions()
         yOff = vstart_min;
         clipped_width = hstop_max-hstart_min;
         clipped_height = vstop_max-vstart_min;
-
+#ifdef SDL2    
         SDL_SetWindowMinimumSize(window, clipped_width*TPP, clipped_height);
         SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height); 
         SDL_SetWindowSize(window, clipped_width*TPP, clipped_height);
+#endif
       }
     }
-#endif
-    EM_ASM({scaleVMCanvas()});
+    EM_ASM({js_set_display($0,$1,$2,$3); scaleVMCanvas();},xOff, yOff, clipped_width*TPP,clipped_height );
 }
 
 
