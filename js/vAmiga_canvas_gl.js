@@ -1,11 +1,7 @@
 function render_canvas_gl(now)
 {
-    let pixels = Module._wasm_pixel_buffer();
-    pixel_buffer=new Uint8Array(Module.HEAPU32.buffer, pixels, HPIXELS*VPIXELS*4);
-
     if(gl == null)
     {
-        //canvas=document.getElementById("canvas");
         initWebGL();
     }
     update(now);
@@ -281,29 +277,34 @@ function render() {
 function updateTexture() {
     const w = HPIXELS;
     const h = VPIXELS;
+
 /*
     // Get the emulator texture
     const frame = $denise.getEmulatorTexture();
 
     // Store the LOF bits
     prevLOF = frame.prevLof;
-    currLOF = frame.currLof;updateTexture
-
+    currLOF = frame.currLof;
+*/
+    let frame_data = Module._wasm_pixel_buffer();
+    let frame_info=Module._wasm_frame_info();
+    currLOF=frame_info & 1;
+    frame_info = frame_info>>>1; 
+    prevLOF=frame_info & 1;
+    frame_frameNr = frame_info>>>1; 
+    
     // Check for duplicate frames or frame drops
-    if (frame.frameNr != frameNr + 1) {
+    if (frame_frameNr != frameNr + 1) {
         // console.log('Frame sync mismatch: ' + frameNr + ' -> ' + frame.frameNr);
 
         // Return immediately if we already have this texture
-        if (frame.frameNr == frameNr) return;
+        if (frame_frameNr == frameNr) return;
     }
-    frameNr = frame.frameNr;
-*/
+
+    frameNr = frame_frameNr;
+
     // Update the GPU texture
-
-    let pixels = Module._wasm_pixel_buffer();
-    const tex=new Uint8Array(Module.HEAPU8.buffer, pixels, w*h*4);
-
-//    const tex = new Uint8Array($proxy.HEAPU8.buffer, frame.data, w * h * 4);
+    const tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h*4);
     if (currLOF) {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, lfTexture);

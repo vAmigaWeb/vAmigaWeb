@@ -42,7 +42,12 @@ function render_canvas()
     SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
 */
     //putImageData(imageData, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight)
-    ctx.putImageData(image_data,-xOff+HBLANK_MIN*4,-yOff, /*x,y*/ xOff-HBLANK_MIN*4,yOff /* width, height */, clipped_width, clipped_height); 
+    ctx.putImageData(image_data,
+        -xOff+HBLANK_MIN*4,-yOff, 
+        /*x,y*/ 
+        xOff-HBLANK_MIN*4,yOff 
+        /* width, height */, 
+        clipped_width, clipped_height); 
 }
 
 function js_set_display(_xOff, _yOff, _clipped_width,_clipped_height) {

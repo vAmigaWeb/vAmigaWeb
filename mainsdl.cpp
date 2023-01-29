@@ -1043,6 +1043,22 @@ extern "C" Texel * wasm_pixel_buffer()
   auto stable_ptr = thisAmiga->denise.pixelEngine.stablePtr();
   return stable_ptr;
 }
+extern "C" u32 wasm_frame_info()
+{
+  auto &stableBuffer = thisAmiga->denise.pixelEngine.getStableBuffer();
+  u32 info = (u32)stableBuffer.nr;
+  info = info<<1;
+
+  if(stableBuffer.prevlof)
+    info |= 0x0001;
+  
+  info = info<<1;
+  
+  if(stableBuffer.lof)
+    info |= 0x0001;
+  
+  return info;
+}
 
 
 #ifdef SDL2    
