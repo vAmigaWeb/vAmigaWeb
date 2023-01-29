@@ -1510,7 +1510,10 @@ function InitWrappers() {
                 draw_one_frame(); // to gather joystick information 
                 let behind = Module._wasm_draw_one_frame(now);
 
-                render_canvas();
+                if(current_renderer=="gpu shader")
+                    render_canvas_gl(now);
+                else
+                    render_canvas(now);
 
                 while(behind>queued_executes)
                 {
@@ -2155,7 +2158,7 @@ $(`#choose_game_controller_type a`).click(function ()
     {
         alert('MESSAGE: gpu shader can not be created on your system configuration... switching back to software renderer...');
         //wasm_create_renderer('software');
-        set_renderer_choice('software')
+//        set_renderer_choice('software')
     }
 
 
