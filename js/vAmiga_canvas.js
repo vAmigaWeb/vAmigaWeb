@@ -58,6 +58,13 @@ function js_set_display(_xOff, _yOff, _clipped_width,_clipped_height) {
     let the_canvas = document.getElementById("canvas");
     the_canvas.width=clipped_width;
     the_canvas.height=clipped_height;
+
+    if(typeof gl != 'undefined' && gl!=null)
+    {
+        let VPOS_CNT=VPIXELS;
+        let HPOS_CNT=HPIXELS;
+        updateTextureRect((xOff-HBLANK_MIN*4) /HPOS_CNT, yOff / VPOS_CNT, (xOff-HBLANK_MIN*4+clipped_width) / HPOS_CNT, (yOff+clipped_height)/VPOS_CNT); 
+    }
 }
 
 function scaleVMCanvas() {
