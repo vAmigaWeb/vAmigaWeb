@@ -1,20 +1,6 @@
+let flicker_weight=1.0; // set 0.5 or 0.6 for interlace flickering
 function render_canvas_gl(now)
 {
-/*
-    if(gl == null)
-    {
-        try{
-            initWebGL();
-        }
-        catch(e)
-        {
-            alert('MESSAGE: gpu shader can not be created on your system configuration... switching back to software renderer...');
-            set_renderer_choice('software');
-            current_renderer='software';
-            return;
-        }
-    }
-*/
     update(now);
     render();
 }
@@ -259,8 +245,8 @@ function createTexture(width, height) {
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
     return texture;
@@ -360,7 +346,7 @@ function createMergeTexture() {
         gl.uniform1i(lfSampler, 1);
         gl.uniform1i(sfSampler, 0);
 
-        const weight = 0.5; // TODO: USE OPTION PARAMETER
+        const weight = flicker_weight;//0.5; // TODO: USE OPTION PARAMETER
 
         if (weight) {
             gl.useProgram(mergeShaderProgram);
