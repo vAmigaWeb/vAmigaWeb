@@ -1,9 +1,20 @@
 function render_canvas_gl(now)
 {
+/*
     if(gl == null)
     {
-        initWebGL();
+        try{
+            initWebGL();
+        }
+        catch(e)
+        {
+            alert('MESSAGE: gpu shader can not be created on your system configuration... switching back to software renderer...');
+            set_renderer_choice('software');
+            current_renderer='software';
+            return;
+        }
     }
+*/
     update(now);
     render();
 }
@@ -127,7 +138,7 @@ function initWebGL() {
 
     // Only proceed if WebGL2 is supported
     if (canvas.getContext('webgl2', options) ==null) {
-        throw new Error('vAmigaWeb needs WebGL2 to run.');
+        throw new Exception("no webgl2");
     }
 
     // Store the context for further use

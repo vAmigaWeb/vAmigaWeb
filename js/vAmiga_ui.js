@@ -2132,11 +2132,11 @@ $(`#choose_game_controller_type a`).click(function ()
     });
 
 //----
-    let set_renderer_choice = function (choice) {
+    set_renderer_choice = function (choice) {
         $(`#button_renderer`).text('video renderer='+choice);
         save_setting("renderer",choice);
     }
-    let current_renderer=load_setting("renderer", "software");
+    current_renderer=load_setting("renderer", "software");
     set_renderer_choice(current_renderer);
 
     $(`#choose_renderer a`).click(function () 
@@ -2151,14 +2151,25 @@ $(`#choose_game_controller_type a`).click(function ()
         current_renderer="gpu shader";
     }
     let got_renderer=false;
-    try{ 
-        got_renderer=wasm_create_renderer(current_renderer); 
-    } catch {}
+    if(current_renderer=="gpu shader")
+    {
+        try{
+            initWebGL();
+            got_renderer=true;
+        }
+        catch(e){}
+    }
+    else
+    {
+        create2d_context();
+    }
+    //got_renderer=wasm_create_renderer(current_renderer); 
     if(!got_renderer && current_renderer!='software')
     {
         alert('MESSAGE: gpu shader can not be created on your system configuration... switching back to software renderer...');
-        //wasm_create_renderer('software');
-//        set_renderer_choice('software')
+        set_renderer_choice('software')
+        current_renderer='software';
+        create2d_context();
     }
 
 

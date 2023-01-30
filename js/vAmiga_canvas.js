@@ -9,12 +9,11 @@ let clipped_height=VPIXELS-yOff ;
 
 let ctx=null;
 
-function createContext()
+function create2d_context()
 {
     const canvas = document.getElementById('canvas');
-    let ctx2d = canvas.getContext('2d');
-    image_data=ctx2d.createImageData(HPIXELS,VPIXELS);
-    return ctx2d;
+    ctx = canvas.getContext('2d');
+    image_data=ctx.createImageData(HPIXELS,VPIXELS);
 }
 
 function render_canvas()
@@ -22,10 +21,6 @@ function render_canvas()
     let pixels = Module._wasm_pixel_buffer();
     pixel_buffer=new Uint8Array(Module.HEAPU32.buffer, pixels, HPIXELS*VPIXELS*4);
 
-    if(ctx == null)
-    {
-        ctx = createContext();
-    }
     image_data.data.set(pixel_buffer, 0);
 
 /* SDL2 Rendering
