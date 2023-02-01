@@ -2448,7 +2448,7 @@ $('.layer').change( function(event) {
 });
 
 //------
-    load_console=function () { var script = document.createElement('script'); script.src="//cdn.jsdelivr.net/npm/eruda@2.4.1"; document.body.appendChild(script); script.onload = function () { eruda.init(
+    load_console=function () { var script = document.createElement('script'); script.src="js/eruda.js"; document.body.appendChild(script); script.onload = function () { eruda.init(
     {
         defaults: {
             displaySize: 50,
