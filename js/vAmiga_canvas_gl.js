@@ -73,12 +73,11 @@ const mergeShaderSource = `
 
     void main()
     {
-        vec2 coord = vTextureCoord * vec2(912.0, 626.0);
-        vec2 coord2 = vec2(floor(coord.x), floor(coord.y));
+        vec2 coord = vec2(floor(gl_FragCoord.x), floor(gl_FragCoord.y));
         float w; 
 
         vec4 color;
-        if (mod(coord2.y, 2.0) == 0.0) {
+        if (mod(coord.y, 2.0) == 0.0) {
             // color = vec4(1.0, 0.0, 0.0, 1.0); 
             color = texture2D(u_lfSampler, vTextureCoord);
             w = u_lweight;
