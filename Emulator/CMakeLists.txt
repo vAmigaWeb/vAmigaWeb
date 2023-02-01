@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
 
 # Set the project name
 project(vAmigaCore)
+#set(thread_type "worker")
 
 # Specify the C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -34,7 +35,9 @@ else()
   target_compile_options(vAmigaCore PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions)
   target_compile_options(vAmigaCore PRIVATE -Wfatal-errors)
 
-#	target_compile_options(vAmigaCore PRIVATE -sWASM_WORKERS)
+  if("${thread_type}" STREQUAL "worker")
+	  target_compile_options(vAmigaCore PRIVATE -sWASM_WORKERS)
+  endif()
   
   #  target_compile_options(vAmigaCore PRIVATE -g) 
   set_target_properties(vAmigaCore PROPERTIES LINK_FLAGS "-O3 -mnontrapping-fptoint -fwasm-exceptions" )

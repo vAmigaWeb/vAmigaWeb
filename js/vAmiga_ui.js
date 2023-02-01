@@ -1506,20 +1506,39 @@ function InitWrappers() {
                 Module._wasm_execute(); 
                 queued_executes--;
             };
-            do_animation_frame = function(now) {
-                draw_one_frame(); // to gather joystick information 
-                let behind = Module._wasm_draw_one_frame(now);
 
+            render_frame= (now)=>{
                 if(current_renderer=="gpu shader")
                     render_canvas_gl(now);
                 else
                     render_canvas(now);
-
-                while(behind>queued_executes)
+            }
+            if(Module._wasm_is_worker_built()){
+                calculate_and_render=(now)=>
                 {
-                    queued_executes++;
-                    setTimeout(execute_amiga_frame);
+                    draw_one_frame(); // to gather joystick information 
+                    render_frame(now);
+                    Module._wasm_worker_run();
                 }
+            }
+            else
+            {
+                calculate_and_render=(now)=>
+                {
+                    draw_one_frame(); // to gather joystick information 
+                    let behind = Module._wasm_draw_one_frame(now);
+                    render_frame(now);
+                    while(behind>queued_executes)
+                    {
+                        queued_executes++;
+                        setTimeout(execute_amiga_frame);
+                    }
+                }
+            }
+
+            do_animation_frame = function(now) {
+                calculate_and_render(now);
+
                 // request another animation frame
                 if(!stop_request_animation_frame)
                 {
