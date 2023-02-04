@@ -71,6 +71,7 @@ void log_on_main_thread(const char *msg)
 }
 void main_log(const char *msg)
 {
+  //call function on ui thread
   emscripten_wasm_worker_post_function_sig(EMSCRIPTEN_WASM_WORKER_ID_PARENT,(void *) log_on_main_thread, "id", msg);
 }
 #endif
@@ -426,7 +427,11 @@ extern "C" int wasm_draw_one_frame(double now)
       bool dimensions_changed=calculate_viewport_dimensions((Uint32 *)stable_ptr - HBLANK_MIN*4*TPP);
       if(dimensions_changed)
       {
-        set_viewport_dimensions(); 
+#ifdef wasm_worker
+        emscripten_wasm_worker_post_function_v(EMSCRIPTEN_WASM_WORKER_ID_PARENT,set_viewport_dimensions);
+#else
+        set_viewport_dimensions();
+#endif
       }  
 
       if(request_to_reset_calibration)
@@ -464,6 +469,11 @@ void send_message_to_js(const char * msg, long data1, long data2)
     }, msg, data1, data2 );    
 
 }
+void send_message_to_js_w(const char * msg, long data1, long data2)
+{
+    printf("------------send_message_to_js_w %s\n",msg);
+    send_message_to_js(msg,data1,data2);
+}
 
 
 
@@ -493,8 +503,34 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
   }
   else
   {
-    if(log_on) printf("vAmiga message=%s, data=%u\n", message_as_string, data1);
+    if(log_on)
+    {
+#ifdef wasm_worker          
+    if(emscripten_current_thread_is_wasm_worker())
+    {
+      snprintf(wasm_log_buffer,sizeof(wasm_log_buffer),"worker: vAmiga message=%s, data1=%u, data2=%u\n", message_as_string, data1, data2);
+      main_log(wasm_log_buffer);
+    }
+    else
+    {
+      printf("main: vAmiga message=%s, data1=%u, data2=%u\n", message_as_string, data1, data2);
+    }
+#else
+     printf("vAmiga message=%s, data1=%u, data2=%u\n", message_as_string, data1, data2);
+#endif
+    }
+
+#ifdef wasm_worker
+    if(emscripten_current_thread_is_wasm_worker())
+    {
+      emscripten_wasm_worker_post_function_sig(EMSCRIPTEN_WASM_WORKER_ID_PARENT,(void*)send_message_to_js_w, "iii", message_as_string, data1, data2);
+    }
+    else
+      send_message_to_js(message_as_string, data1, data2);
+#else
     send_message_to_js(message_as_string, data1, data2);
+#endif
+    
   }
   if(type == MSG_VIEWPORT)
   {
@@ -520,13 +556,27 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
     if(ntsc && vstop_max > VPOS_MAX-PAL_EXTRA_VPIXEL )
       vstop_max = VPOS_MAX-PAL_EXTRA_VPIXEL; 
     
-    if(log_on) printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
+    if(log_on)
+    {
+#ifdef wasm_worker          
+      snprintf(wasm_log_buffer,sizeof(wasm_log_buffer),"tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
+      main_log(wasm_log_buffer);
+#else
+      printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
+#endif
+    }
+
     vstart_min_tracking = vstart_min;
     vstop_max_tracking = vstop_max;
     hstart_min_tracking = hstart_min;
     hstop_max_tracking = hstop_max;
 
+#ifdef wasm_worker
+    emscripten_wasm_worker_post_function_v(EMSCRIPTEN_WASM_WORKER_ID_PARENT,set_viewport_dimensions);
+#else
     set_viewport_dimensions();
+#endif
+
     reset_calibration=true;
   }
   else if(type == MSG_VIDEO_FORMAT)
@@ -1136,6 +1186,7 @@ extern "C" void wasm_set_display(const char *name)
     clipped_height=(3*clipped_width/4 +(ntsc?0:24) /*32 due to PAL?*/)/2 & 0xfffe;
     if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
+  
   if(log_on) printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);
 
   EM_ASM({js_set_display($0,$1,$2,$3); scaleVMCanvas();},xOff, yOff, clipped_width*TPP,clipped_height );
