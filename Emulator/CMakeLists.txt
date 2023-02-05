@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
 
 # Set the project name
 project(vAmigaCore)
-#set(thread_type "worker")
 
 # Specify the C++ standard
 set(CMAKE_CXX_STANDARD 20)

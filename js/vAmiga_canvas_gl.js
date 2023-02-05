@@ -1,7 +1,8 @@
 let flicker_weight=1.0; // set 0.5 or 0.6 for interlace flickering
 function render_canvas_gl(now)
 {
-    update(now);
+    //update(now);
+    updateTexture();
     render();
 }
 
@@ -266,7 +267,7 @@ function setAttribute(program, attribute) {
 
 function update(now /* DOMHighResTimeStamp*/) {
     // Rectify canvas size if needed
-    resizeCanvasToDisplaySize();
+    //resizeCanvasToDisplaySize();
 
     // Get the latest half-picture from the emulator
     updateTexture();
