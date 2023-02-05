@@ -153,7 +153,7 @@ function initWebGL() {
     const vCoords = new Float32Array([-1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 1.0, -1.0]);
     vBuffer = createBuffer(vCoords);
     setAttribute(mainShaderProgram, 'aVertexPosition');
-    setAttribute(mergeShaderProgram, 'aVertexPosition0');
+    setAttribute(mergeShaderProgram, 'aVertexPosition');
 
     // Setup the texture coordinate buffer
     const tCoords = new Float32Array([0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0]);

@@ -413,9 +413,9 @@ extern "C" int wasm_draw_one_frame(double now)
     behind--;
   }
   executed_since_last_host_frame=0;
-  rendered_frame_count++;   
 #endif
-  
+  rendered_frame_count++;
+
   if(geometry == DISPLAY_BORDERLESS)
   {
 //    printf("calibration count=%f\n",now-last_time_calibrated);
@@ -471,7 +471,6 @@ void send_message_to_js(const char * msg, long data1, long data2)
 }
 void send_message_to_js_w(const char * msg, long data1, long data2)
 {
-    printf("------------send_message_to_js_w %s\n",msg);
     send_message_to_js(msg,data1,data2);
 }
 
