@@ -1,10 +1,11 @@
-let HBLANK_MIN=0x12;
-let HPIXELS=912;
+let TPP=1;
+let HBLANK_MIN=0x12*TPP;
+let HPIXELS=912*TPP;
 let PAL_EXTRA_VPIXELS=140;
 let VPIXELS=313;
 let xOff = HBLANK_MIN;//252
 let yOff=26 + 6;
-let clipped_width=HPIXELS-xOff-8;
+let clipped_width=HPIXELS-xOff-8*TPP;
 let clipped_height=VPIXELS-yOff ;
 
 let ctx=null;
@@ -38,9 +39,9 @@ function render_canvas()
 */
     //putImageData(imageData, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight)
     ctx.putImageData(image_data,
-        -xOff+HBLANK_MIN*4,-yOff, 
+        -xOff*TPP+HBLANK_MIN*4,-yOff, 
         /*x,y*/ 
-        xOff-HBLANK_MIN*4,yOff 
+        xOff*TPP-HBLANK_MIN*4,yOff 
         /* width, height */, 
         clipped_width, clipped_height); 
 }
