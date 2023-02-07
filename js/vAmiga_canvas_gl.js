@@ -1,8 +1,7 @@
 let flicker_weight=1.0; // set 0.5 or 0.6 for interlace flickering
 function render_canvas_gl(now)
 {
-    //update(now);
-    updateTexture();
+    updateTexture(now);
     render();
 }
 
@@ -42,41 +41,28 @@ let lfSampler = null; //WebGLUniformLocation;
 let mainShaderProgram=null; //: WebGLProgram;
 let sampler= null; //: WebGLUniformLocation;
 
-
-
-const vertexShaderSource0 = `
-    	attribute vec4 aVertexPosition;
-    	varying highp vec2 vTextureCoord;
-    	void main() {
-    		gl_Position = aVertexPosition;
-			vTextureCoord = gl_Position.xy * .5 + .5;
-    	}
-   	`;
-
-const vertexShaderSource = `
+// 
+// Merge shader
+// 
+const vsMerge = `
     attribute vec4 aVertexPosition;
-    attribute vec2 aTextureCoord;
     varying highp vec2 vTextureCoord;
     void main() {
         gl_Position = aVertexPosition;
-        vTextureCoord = aTextureCoord;
+        vTextureCoord = gl_Position.xy * .5 + .5;
     }
 `;
-
-const mergeShaderSource = `		
+const fsMerge = `		
     precision mediump float;
-
     varying highp vec2 vTextureCoord;
     uniform sampler2D u_lfSampler;
     uniform sampler2D u_sfSampler;
     uniform float u_lweight;
     uniform float u_sweight;
-
     void main()
     {
         vec2 coord = vec2(floor(gl_FragCoord.x), floor(gl_FragCoord.y));
         float w; 
-
         vec4 color;
         if (mod(coord.y, 2.0) == 0.0) {
             // color = vec4(1.0, 0.0, 0.0, 1.0); 
@@ -87,12 +73,22 @@ const mergeShaderSource = `
             color = texture2D(u_sfSampler, vTextureCoord);
             w = u_sweight;
         }
-
         gl_FragColor = color * vec4(w, w, w, 1.0);
     }
 `;
-
-const mainShaderSource = `		
+//
+// Main shader
+// 
+const vsMain = `
+    attribute vec4 aVertexPosition;
+    attribute vec2 aTextureCoord;
+    varying highp vec2 vTextureCoord;
+    void main() {
+        gl_Position = aVertexPosition;
+        vTextureCoord = aTextureCoord;
+    }
+`;
+const fsMain = `		
     precision mediump float;
 
     varying highp vec2 vTextureCoord;
@@ -139,14 +135,14 @@ function initWebGL() {
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     // Create the merge shader
-    mergeShaderProgram = compileProgram(vertexShaderSource0, mergeShaderSource);
+    mergeShaderProgram = compileProgram(vsMerge, fsMerge);
     lfWeight = gl.getUniformLocation(mergeShaderProgram, 'u_lweight');
     sfWeight = gl.getUniformLocation(mergeShaderProgram, 'u_sweight');
     lfSampler = gl.getUniformLocation(mergeShaderProgram, 'u_lfSampler');
     sfSampler = gl.getUniformLocation(mergeShaderProgram, 'u_sfSampler');
 
     // Create the main shader
-    mainShaderProgram = compileProgram(vertexShaderSource, mainShaderSource);
+    mainShaderProgram = compileProgram(vsMain, fsMain);
     sampler = gl.getUniformLocation(mainShaderProgram, 'sampler');
     gl.uniform1i(sampler, 0);
 
@@ -154,7 +150,6 @@ function initWebGL() {
     const vCoords = new Float32Array([-1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 1.0, -1.0]);
     vBuffer = createBuffer(vCoords);
     setAttribute(mainShaderProgram, 'aVertexPosition');
-    setAttribute(mergeShaderProgram, 'aVertexPosition');
 
     // Setup the texture coordinate buffer
     const tCoords = new Float32Array([0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0]);
@@ -267,7 +262,7 @@ function setAttribute(program, attribute) {
 
 function update(now /* DOMHighResTimeStamp*/) {
     // Rectify canvas size if needed
-    //resizeCanvasToDisplaySize();
+    resizeCanvasToDisplaySize();
 
     // Get the latest half-picture from the emulator
     updateTexture();

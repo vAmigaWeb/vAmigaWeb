@@ -53,20 +53,24 @@ function js_set_display(_xOff, _yOff, _clipped_width,_clipped_height) {
     clipped_height=_clipped_height;
     let the_canvas = document.getElementById("canvas");
     the_canvas.width=clipped_width;
-    the_canvas.height=clipped_height;
-
     if(typeof gl != 'undefined' && gl!=null)
     {
+        the_canvas.height=clipped_height*2;
+
         let VPOS_CNT=VPIXELS;
         let HPOS_CNT=HPIXELS;
         updateTextureRect((xOff-HBLANK_MIN*4) /HPOS_CNT, yOff / VPOS_CNT, (xOff-HBLANK_MIN*4+clipped_width) / HPOS_CNT, (yOff+clipped_height)/VPOS_CNT); 
+    }
+    else
+    {
+        the_canvas.height=clipped_height;
     }
 }
 
 function scaleVMCanvas() {
     let the_canvas = document.getElementById("canvas");
-    var src_width=Module._wasm_get_render_width();
-    var src_height=Module._wasm_get_render_height()*2; 
+    var src_width=clipped_width; //Module._wasm_get_render_width();
+    var src_height=clipped_height*2;//Module._wasm_get_render_height()*2; 
     if(use_ntsc_pixel)
     {
         src_height*=52/44;
