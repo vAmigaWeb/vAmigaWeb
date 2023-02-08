@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(vAmiga C CXX)
-set(thread_type "worker")
+set(thread_type "nonworker")
 
 # Specify the C++ standard
 set(CMAKE_CXX_STANDARD 20)

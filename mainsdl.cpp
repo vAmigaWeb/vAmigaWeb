@@ -20,8 +20,6 @@
 #include "MemUtils.h"
 
 #include <emscripten.h>
-
-#include <SDL2/SDL.h>
 #include <emscripten/html5.h>
 
 #ifdef wasm_worker
@@ -150,7 +148,7 @@ u16 vstart_min_calib=0;
 u16 vstop_max_calib=0;
 u16 hstart_min_calib=0;
 u16 hstop_max_calib=0;
-bool calculate_viewport_dimensions(Uint32 *texture)
+bool calculate_viewport_dimensions(u32 *texture)
 {
   if(reset_calibration)
   {
@@ -167,13 +165,13 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 
   bool pixels_found=false;
   //top border: get vstart_min from texture
-  Uint32 ref_pixel= texture[(HPIXELS*vstart_min_tracking + hstart_min_tracking)*TPP];
+  u32 ref_pixel= texture[(HPIXELS*vstart_min_tracking + hstart_min_tracking)*TPP];
 //    printf("refpixel:%u\n",ref_pixel);
   for(int y=vstart_min_tracking;y<vstart_min_calib && !pixels_found;y++)
   {
 //      printf("\nvstart_line:%u\n",y);
     for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
-      Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
+      u32 pixel= texture[(HPIXELS*y + x)*TPP];
 //        printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
@@ -194,7 +192,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
   {
 //      printf("\nline:%u\n",y);
     for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
-      Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
+      u32 pixel= texture[(HPIXELS*y + x)*TPP];
 //        printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
@@ -215,7 +213,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 //      printf("\nrow:%u\n",x);
     for(int y=vstart_min_calib;y<vstop_max_calib && !pixels_found;y++)
     {
-      Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
+      u32 pixel= texture[(HPIXELS*y + x)*TPP];
 //        printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
@@ -238,7 +236,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 //     printf("\ncol:%u\n",x);
     for(int y=vstart_min_calib;y<vstop_max_calib && !pixels_found;y++)
     {
-      Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
+      u32 pixel= texture[(HPIXELS*y + x)*TPP];
 //      printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
@@ -424,7 +422,7 @@ extern "C" int wasm_draw_one_frame(double now)
       last_time_calibrated=now;
       auto stable_ptr = amiga->denise.pixelEngine.stablePtr();
 
-      bool dimensions_changed=calculate_viewport_dimensions((Uint32 *)stable_ptr - HBLANK_MIN*4*TPP);
+      bool dimensions_changed=calculate_viewport_dimensions((u32 *)stable_ptr - HBLANK_MIN*4*TPP);
       if(dimensions_changed)
       {
 #ifdef wasm_worker
@@ -1191,7 +1189,7 @@ extern "C" void wasm_set_display(const char *name)
   EM_ASM({js_set_display($0,$1,$2,$3); scaleVMCanvas();},xOff, yOff, clipped_width*TPP,clipped_height );
 }
 
-std::unique_ptr<FloppyDisk> load_disk(const char* filename, Uint8 *blob, long len)
+std::unique_ptr<FloppyDisk> load_disk(const char* filename, u8 *blob, long len)
 {
   try {
     if (DMSFile::isCompatible(filename)) {
@@ -1222,7 +1220,7 @@ std::unique_ptr<FloppyDisk> load_disk(const char* filename, Uint8 *blob, long le
   return {};
 }
 
-extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len, Uint8 drive_number)
+extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_number)
 {
   printf("load drive=%d, file=%s len=%ld, header bytes= %x, %x, %x\n", drive_number, name, len, blob[0],blob[1],blob[2]);
   filename=name;
