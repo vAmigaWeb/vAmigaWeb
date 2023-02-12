@@ -21,23 +21,27 @@ function create2d_context()
 function render_canvas()
 {
     let pixels = Module._wasm_pixel_buffer() + yOff*(HPIXELS<<2);
-    pixel_buffer=new Uint8Array(Module.HEAPU32.buffer, pixels+(yOff*HPIXELS), HPIXELS*clipped_height<<2 );
+    let pixel_buffer=new Uint8Array(Module.HEAPU32.buffer, pixels, HPIXELS*clipped_height<<2);
     image_data.data.set(pixel_buffer);
 
     //putImageData(imageData, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight)
     ctx.putImageData(image_data,
-        -xOff/*TPP*/+(HBLANK_MIN<<2),/*-yOff*/0, 
+        -xOff/*TPP*/,/*-yOff*/0, 
         /*x,y*/ 
-        xOff/*TPP*/-(HBLANK_MIN<<2),/*yOff*/0 
+        xOff/*TPP*/,/*yOff*/0 
         /* width, height */, 
         clipped_width, clipped_height); 
 }
 
 function js_set_display(_xOff, _yOff, _clipped_width,_clipped_height) {
-    xOff=_xOff;
+    xOff=_xOff-HBLANK_MIN*4;
     yOff=_yOff;
     clipped_width =_clipped_width;
     clipped_height=_clipped_height;
+    if(clipped_height+yOff > VPIXELS)
+    {
+        clipped_height=(VPIXELS-yOff)& 0xfffe;
+    }
     let the_canvas = document.getElementById("canvas");
     the_canvas.width=clipped_width;
     if(typeof gl != 'undefined' && gl!=null)
@@ -46,7 +50,7 @@ function js_set_display(_xOff, _yOff, _clipped_width,_clipped_height) {
 
         let VPOS_CNT=VPIXELS;
         let HPOS_CNT=HPIXELS;
-        updateTextureRect((xOff-HBLANK_MIN*4) /HPOS_CNT, yOff / VPOS_CNT, (xOff-HBLANK_MIN*4+clipped_width) / HPOS_CNT, (yOff+clipped_height)/VPOS_CNT); 
+        updateTextureRect(xOff /HPOS_CNT, yOff / VPOS_CNT, (xOff+clipped_width) / HPOS_CNT, (yOff+clipped_height)/VPOS_CNT); 
     }
     else
     {
