@@ -15,33 +15,20 @@ function create2d_context()
     const canvas = document.getElementById('canvas');
     ctx = canvas.getContext('2d');
     image_data=ctx.createImageData(HPIXELS,VPIXELS);
+//    pixel_buffer=new Uint8Array(0);
 }
 
 function render_canvas()
 {
-    let pixels = Module._wasm_pixel_buffer();
-    pixel_buffer=new Uint8Array(Module.HEAPU32.buffer, pixels, HPIXELS*VPIXELS*4);
+    let pixels = Module._wasm_pixel_buffer() + yOff*(HPIXELS<<2);
+    pixel_buffer=new Uint8Array(Module.HEAPU32.buffer, pixels+(yOff*HPIXELS), HPIXELS*clipped_height<<2 );
+    image_data.data.set(pixel_buffer);
 
-    image_data.data.set(pixel_buffer, 0);
-
-/* SDL2 Rendering
-    Uint8 *texture = (Uint8 *)(stable_ptr);
-    SDL_Rect SrcR;
-
-    SrcR.x = (xOff-HBLANK_MIN*4) *TPP;
-    SrcR.y = yOff;
-    SrcR.w = clipped_width * TPP;
-    SrcR.h = clipped_height;
-
-    SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*HPIXELS*TPP*SrcR.y) + SrcR.x*4, 4*HPIXELS*TPP);
-
-    SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
-*/
     //putImageData(imageData, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight)
     ctx.putImageData(image_data,
-        -xOff*TPP+HBLANK_MIN*4,-yOff, 
+        -xOff/*TPP*/+(HBLANK_MIN<<2),/*-yOff*/0, 
         /*x,y*/ 
-        xOff*TPP-HBLANK_MIN*4,yOff 
+        xOff/*TPP*/-(HBLANK_MIN<<2),/*yOff*/0 
         /* width, height */, 
         clipped_width, clipped_height); 
 }

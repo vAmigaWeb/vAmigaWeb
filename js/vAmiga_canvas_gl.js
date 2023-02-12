@@ -163,6 +163,11 @@ function initWebGL() {
     lfTexture = createTexture(HPIXELS, VPIXELS);
     sfTexture = createTexture(HPIXELS, VPIXELS);
     mergeTexture = createTexture(HPIXELS, 2 * VPIXELS);
+
+    currLOF_tex=new Uint8Array(0);
+    currSHF_tex=new Uint8Array(0);
+    fb = gl.createFramebuffer();
+
 }
 
 function updateTextureRect(x1, y1, x2, y2) {
@@ -288,7 +293,6 @@ function updateTexture() {
     prevLOF = frame.prevLof;
     currLOF = frame.currLof;
 */
-    let frame_data = Module._wasm_pixel_buffer();
     let frame_info=Module._wasm_frame_info();
     currLOF=frame_info & 1;
     frame_info = frame_info>>>1; 
@@ -300,26 +304,35 @@ function updateTexture() {
         // console.log('Frame sync mismatch: ' + frameNr + ' -> ' + frame.frameNr);
 
         // Return immediately if we already have this texture
-        if (frame_frameNr == frameNr) return;
+        if (frame_frameNr === frameNr) return;
     }
 
     frameNr = frame_frameNr;
 
     // Update the GPU texture
-    const tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h*4);
     if (currLOF) {
+        if(currLOF_tex.byteLength===0 || currLOF_tex.byteOffset === currSHF_tex.byteOffset)
+        {
+            let frame_data = Module._wasm_pixel_buffer();
+            currLOF_tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h*4);
+        }
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, lfTexture);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, currLOF_tex);
     } else {
+        if(currSHF_tex.byteLength===0 || currLOF_tex.byteOffset === currSHF_tex.byteOffset)
+        {
+            let frame_data = Module._wasm_pixel_buffer();
+            currSHF_tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h*4);
+        }
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, sfTexture);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, currSHF_tex);
     }
 }
 
 function createMergeTexture() {
-    if (currLOF == prevLOF) {
+    if (currLOF === prevLOF) {
         if (currLOF) {
             // Case 1: Non-interlace mode, two long frames in a row
             gl.useProgram(mergeShaderProgram);
@@ -351,7 +364,7 @@ function createMergeTexture() {
         }
     }
 
-    const fb = gl.createFramebuffer();
+//    const fb = gl.createFramebuffer();
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, lfTexture);
     gl.activeTexture(gl.TEXTURE1);
