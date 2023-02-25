@@ -164,8 +164,6 @@ function initWebGL() {
     sfTexture = createTexture(HPIXELS, VPIXELS);
     mergeTexture = createTexture(HPIXELS, 2 * VPIXELS);
 
-    currLOF_tex=new Uint8Array(0);
-    currSHF_tex=new Uint8Array(0);
     fb = gl.createFramebuffer();
 
 }
@@ -285,14 +283,6 @@ function updateTexture() {
     const w = HPIXELS;
     const h = VPIXELS;
 
-/*
-    // Get the emulator texture
-    const frame = $denise.getEmulatorTexture();
-
-    // Store the LOF bits
-    prevLOF = frame.prevLof;
-    currLOF = frame.currLof;
-*/
     let frame_info=Module._wasm_frame_info();
     currLOF=frame_info & 1;
     frame_info = frame_info>>>1; 
@@ -309,26 +299,18 @@ function updateTexture() {
 
     frameNr = frame_frameNr;
 
+    let frame_data = Module._wasm_pixel_buffer();
+    let tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h<<2);
+
     // Update the GPU texture
     if (currLOF) {
-        if(currLOF_tex.byteLength===0 || currLOF_tex.byteOffset === currSHF_tex.byteOffset)
-        {
-            let frame_data = Module._wasm_pixel_buffer();
-            currLOF_tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h*4);
-        }
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, lfTexture);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, currLOF_tex);
     } else {
-        if(currSHF_tex.byteLength===0 || currLOF_tex.byteOffset === currSHF_tex.byteOffset)
-        {
-            let frame_data = Module._wasm_pixel_buffer();
-            currSHF_tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h*4);
-        }
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, sfTexture);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, currSHF_tex);
     }
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, tex);
 }
 
 function createMergeTexture() {
@@ -370,7 +352,7 @@ function createMergeTexture() {
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, sfTexture);
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-    gl.viewport(0, 0, HPIXELS, 2 * VPIXELS);
+    gl.viewport(0, 0, HPIXELS, VPIXELS<<1);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, mergeTexture, 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
