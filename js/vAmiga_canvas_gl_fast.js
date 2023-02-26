@@ -31,79 +31,74 @@ let sfTexture=null; //WebGLTexture;
 let mergeTexture=null; //WebGLTexture;
 
 // The merge shader for rendering the merge texture
-let mergeShaderProgram=null; //WebGLProgram;
 let lfWeight = null; //WebGLUniformLocation;
 let sfWeight = null; //WebGLUniformLocation;
 let sfSampler = null; //WebGLUniformLocation;
 let lfSampler = null; //WebGLUniformLocation;
 
+
 // The main shader for drawing the final texture on the canvas
 let mainShaderProgram=null; //: WebGLProgram;
 let sampler= null; //: WebGLUniformLocation;
+let fSampler = null; //WebGLUniformLocation;
 
-// 
-// Merge shader
-// 
-const vsMerge = `
-    attribute vec4 aVertexPosition;
-    varying highp vec2 vTextureCoord;
-    void main() {
-        gl_Position = aVertexPosition;
-        vTextureCoord = gl_Position.xy * .5 + .5;
-    }
-`;
-const fsMerge = `		
-    precision mediump float;
-    varying highp vec2 vTextureCoord;
-    uniform sampler2D u_lfSampler;
-    uniform sampler2D u_sfSampler;
-    uniform float u_lweight;
-    uniform float u_sweight;
-    void main()
-    {
-        vec2 coord = vec2(floor(gl_FragCoord.x), floor(gl_FragCoord.y));
-        float w; 
-        vec4 color;
-        if (mod(coord.y, 2.0) == 0.0) {
-            // color = vec4(1.0, 0.0, 0.0, 1.0); 
-            color = texture2D(u_lfSampler, vTextureCoord);
-            w = u_lweight;
-        } else {
-            // color = vec4(1.0, 1.0, 0.0, 1.0); 
-            color = texture2D(u_sfSampler, vTextureCoord);
-            w = u_sweight;
-        }
-        gl_FragColor = color * vec4(w, w, w, 1.0);
-    }
-`;
 //
 // Main shader
 // 
-const vsMain = `
-    attribute vec4 aVertexPosition;
-    attribute vec2 aTextureCoord;
-    varying highp vec2 vTextureCoord;
+const vsMain = `#version 300 es
+    precision mediump float;
+    in vec4 aVertexPosition;
+    in vec2 aTextureCoord;
+    out vec2 vTextureCoord;
     void main() {
         gl_Position = aVertexPosition;
         vTextureCoord = aTextureCoord;
     }
 `;
-const fsMain = `		
-    precision mediump float;
 
-    varying highp vec2 vTextureCoord;
-    uniform sampler2D sampler;
-    void main() {
-        gl_FragColor = texture2D(sampler, vTextureCoord);
-        /*
-        vec2 coord = vec2(floor(gl_FragCoord.x), floor(gl_FragCoord.y));
-        if (mod(coord.y, 2.0) == 0.0) {
-            gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-        } else {
-            gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
-        }
-        */
-    }
+const fsMain = `#version 300 es
+precision mediump float;
+
+uniform sampler2D sampler;
+
+in vec2 vTextureCoord;
+
+out vec4 o_color;
+
+void main() {
+  o_color = texture(sampler, vTextureCoord);
+}
+`;
+
+
+const fsMerge = `#version 300 es
+precision mediump float;
+
+uniform sampler2D u_lfSampler;
+uniform sampler2D u_sfSampler;
+
+uniform float u_lweight;
+uniform float u_sweight;
+
+in vec2 vTextureCoord;
+
+out vec4 o_color;
+
+void main() {
+  vec4 pixel;
+  float w;
+  float y = floor(gl_FragCoord.y);
+
+  if (mod(y, 2.0) == 0.0) {
+    w = u_sweight;
+    pixel = texture(u_sfSampler, vTextureCoord);
+  } else {
+    w = u_lweight;
+    pixel = texture(u_lfSampler, vTextureCoord);
+  }
+
+  o_color = pixel * vec4(w, w, w, 1.0);
+}
 `;
 
 function initWebGL() {
@@ -134,17 +129,23 @@ function initWebGL() {
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // Create the merge shader
-    mergeShaderProgram = compileProgram(vsMerge, fsMerge);
-    lfWeight = gl.getUniformLocation(mergeShaderProgram, 'u_lweight');
-    sfWeight = gl.getUniformLocation(mergeShaderProgram, 'u_sweight');
-    lfSampler = gl.getUniformLocation(mergeShaderProgram, 'u_lfSampler');
-    sfSampler = gl.getUniformLocation(mergeShaderProgram, 'u_sfSampler');
-
     // Create the main shader
     mainShaderProgram = compileProgram(vsMain, fsMain);
     sampler = gl.getUniformLocation(mainShaderProgram, 'sampler');
     gl.uniform1i(sampler, 0);
+
+    // Create the merge shader
+    mergeShaderProgram = compileProgram(vsMain, fsMerge);
+
+    lfWeight = gl.getUniformLocation(mergeShaderProgram, 'u_lweight');
+    sfWeight = gl.getUniformLocation(mergeShaderProgram, 'u_sweight');
+
+    lfSampler = gl.getUniformLocation(mergeShaderProgram, 'u_lfSampler');
+    gl.uniform1i(lfSampler, 1);    
+
+    sfSampler = gl.getUniformLocation(mergeShaderProgram, 'u_sfSampler');
+    gl.uniform1i(sfSampler, 1);    
+
 
     // Setup the vertex coordinate buffer
     const vCoords = new Float32Array([-1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 1.0, -1.0]);
@@ -162,9 +163,6 @@ function initWebGL() {
     // Create textures
     lfTexture = createTexture(HPIXELS, VPIXELS);
     sfTexture = createTexture(HPIXELS, VPIXELS);
-    mergeTexture = createTexture(HPIXELS, 2 * VPIXELS);
-
-    fb = gl.createFramebuffer();
 
 }
 
@@ -175,21 +173,6 @@ function updateTextureRect(x1, y1, x2, y2) {
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, array);
 }
 
-function resizeCanvasToDisplaySize() {
-    // Lookup the size the browser is displaying the canvas
-    const displayWidth = canvas.clientWidth;
-    const displayHeight = canvas.clientHeight;
-
-    // Check if the canvas size matches
-    const needResize = canvas.width !== displayWidth || canvas.height !== displayHeight;
-
-    // Rectify the canvas size if not
-    if (needResize) {
-        canvas.width = displayWidth;
-        canvas.height = displayHeight;
-        console.log('Resizing canvas to ' + displayWidth + ' x ' + displayHeight);
-    }
-}
 
 function compileProgram(vSource, fSource) {
     const vert = compileShader(gl.VERTEX_SHADER, vSource);
@@ -220,25 +203,6 @@ function compileShader(type, source) {
 }
 
 function createTexture(width, height) {
-    /*
-    let pixels = new Uint8Array(width * height * 4);
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            if (((y >> 3) & 1) == ((x >> 3) & 1)) {
-                pixels[4 * (y * width + x) + 0] = 255;
-                pixels[4 * (y * width + x) + 1] = 0;
-                pixels[4 * (y * width + x) + 2] = 0;
-                pixels[4 * (y * width + x) + 3] = 255;
-            } else {
-                pixels[4 * (y * width + x) + 0] = 255;
-                pixels[4 * (y * width + x) + 1] = 255;
-                pixels[4 * (y * width + x) + 2] = 0;
-                pixels[4 * (y * width + x) + 3] = 255;
-            }
-        }
-    }
-    */
-
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -263,17 +227,10 @@ function setAttribute(program, attribute) {
     gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
 }
 
-function update(now /* DOMHighResTimeStamp*/) {
-    // Rectify canvas size if needed
-    resizeCanvasToDisplaySize();
-
-    // Get the latest half-picture from the emulator
-    updateTexture();
-}
 
 function render() {
     // Merge half-pictures
-    createMergeTexture();
+ //   createMergeTexture();
 
     // Render to final texture to the canvas
     renderFinalTexture();
@@ -314,17 +271,17 @@ function updateTexture() {
 }
 
 function createMergeTexture() {
-    gl.useProgram(mergeShaderProgram);
-
     if (currLOF === prevLOF) {
         if (currLOF) {
             // Case 1: Non-interlace mode, two long frames in a row
+            gl.useProgram(mergeShaderProgram);
             gl.uniform1f(lfWeight, 1.0);
             gl.uniform1f(sfWeight, 1.0);
             gl.uniform1i(lfSampler, 0);
             gl.uniform1i(sfSampler, 0);
         } else {
             // Case 2: Non-interlace mode, two short frames in a row
+            gl.useProgram(mergeShaderProgram);
             gl.uniform1f(lfWeight, 1.0);
             gl.uniform1f(sfWeight, 1.0);
             gl.uniform1i(lfSampler, 1);
@@ -332,12 +289,14 @@ function createMergeTexture() {
         }
     } else {
         // Case 3: Interlace mode, long frame followed by a short frame
+        gl.useProgram(mergeShaderProgram);
         gl.uniform1i(lfSampler, 1);
         gl.uniform1i(sfSampler, 0);
 
         const weight = flicker_weight;//0.5; // TODO: USE OPTION PARAMETER
 
         if (weight) {
+            gl.useProgram(mergeShaderProgram);
             gl.uniform1f(lfWeight, flickerCnt % 4 >= 2 ? 1.0 : weight);
             gl.uniform1f(sfWeight, flickerCnt % 4 >= 2 ? weight : 1.0);
             flickerCnt += 1;
@@ -356,12 +315,37 @@ function createMergeTexture() {
 }
 
 function renderFinalTexture() {
-    // Render to the canvas instead of the framebuffer
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, mergeTexture);
-    gl.useProgram(mainShaderProgram);
+
+    gl.activeTexture(currLOF? gl.TEXTURE0: gl.TEXTURE1);
+
+    gl.bindTexture(gl.TEXTURE_2D, currLOF? lfTexture:sfTexture);
+
+    if (currLOF === prevLOF) {
+        gl.useProgram(mainShaderProgram);
+        if (currLOF) {            
+            // Case 1: Non-interlace mode, two long frames in a row
+            gl.uniform1i(sampler, 0);
+        } else {
+            // Case 2: Non-interlace mode, two short frames in a row
+            gl.uniform1i(sampler, 1);
+        }
+    } else {
+        // Case 3: Interlace mode, long frame followed by a short frame
+        gl.useProgram(mergeShaderProgram);
+        gl.uniform1i(lfSampler, 1);
+        gl.uniform1i(sfSampler, 0);
+
+        const weight = flicker_weight;//0.5; // TODO: USE OPTION PARAMETER
+
+        if (weight) {
+            gl.useProgram(mergeShaderProgram);
+            gl.uniform1f(lfWeight, flickerCnt % 4 >= 2 ? 1.0 : weight);
+            gl.uniform1f(sfWeight, flickerCnt % 4 >= 2 ? weight : 1.0);
+            flickerCnt += 1;
+        }
+    }
+
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 

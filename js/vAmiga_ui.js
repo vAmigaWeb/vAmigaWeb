@@ -2176,7 +2176,7 @@ $(`#choose_game_controller_type a`).click(function ()
             initWebGL();
             got_renderer=true;
         }
-        catch(e){}
+        catch(e){ console.error(e)}
     }
     else
     {
