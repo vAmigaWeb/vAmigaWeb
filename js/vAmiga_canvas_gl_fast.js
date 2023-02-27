@@ -157,10 +157,10 @@ function initWebGL() {
     sfWeight = gl.getUniformLocation(mergeShaderProgram, 'u_sweight');
 
     lfSampler = gl.getUniformLocation(mergeShaderProgram, 'u_lfSampler');
-    gl.uniform1i(lfSampler, 0);    
+    gl.uniform1i(lfSampler, 1);    
 
     sfSampler = gl.getUniformLocation(mergeShaderProgram, 'u_sfSampler');
-    gl.uniform1i(sfSampler, 1);    
+    gl.uniform1i(sfSampler, 0);    
 
     diw_size = gl.getUniformLocation(mergeShaderProgram, 'diw_size');
 
@@ -197,6 +197,9 @@ function updateTextureRect(x1, y1, x2, y2) {
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, array);
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+    gl.useProgram(mergeShaderProgram);
+    gl.uniform2f(diw_size, clipped_width, -clipped_height);
 }
 
 
@@ -306,17 +309,17 @@ function render() {
     } else {
         // Case 3: Interlace mode, long frame followed by a short frame
         gl.useProgram(mergeShaderProgram);
-        gl.uniform1i(lfSampler, 1);
-        gl.uniform1i(sfSampler, 0);
+//        gl.uniform1i(lfSampler, 1);
+//        gl.uniform1i(sfSampler, 0);
         
-        gl.uniform2f(diw_size, clipped_width, -clipped_height);
+//        gl.uniform2f(diw_size, clipped_width, -clipped_height);
 
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, lfTexture);
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, sfTexture);
+//        gl.activeTexture(gl.TEXTURE0);
+//        gl.bindTexture(gl.TEXTURE_2D, lfTexture);
+//        gl.activeTexture(gl.TEXTURE1);
+//        gl.bindTexture(gl.TEXTURE_2D, sfTexture);
         
-
+/*
         const weight = flicker_weight;//0.5; // TODO: USE OPTION PARAMETER
 
         if (weight) {
@@ -325,6 +328,7 @@ function render() {
             gl.uniform1f(sfWeight, flickerCnt % 4 >= 2 ? weight : 1.0);
             flickerCnt += 1;
         }
+*/
     }
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
