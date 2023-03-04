@@ -1,4 +1,3 @@
-let flip_it=false; //iPad Pro ProRes Display only renders 50fps when true 
 let flicker_weight=1.0; // set 0.5 or 0.6 for interlace flickering
 function render_canvas_gl(now)
 {
@@ -178,10 +177,6 @@ function initWebGL() {
     setAttribute(mainShaderProgram, 'aTextureCoord');
     setAttribute(mergeShaderProgram, 'aTextureCoord');
 
-    // Flip y axis to get the image right
-    if(flip_it) gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-//    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
-
     // Create textures
     lfTexture = createTexture(HPIXELS, VPIXELS);
     sfTexture = createTexture(HPIXELS, VPIXELS);
@@ -190,9 +185,7 @@ function initWebGL() {
 
 function updateTextureRect(x1, y1, x2, y2) {
     // console.log("updateTextureRect(" + x1 + ", " + y1 + " ," + x2 + ", " + y2 + ")");
-    const array = flip_it ? 
-        new Float32Array([x1, 1.0-y1, x2, 1.0-y1, x1, 1.0-y2, x2, 1.0-y2])
-        :new Float32Array([x1, y1, x2, y1, x1, y2, x2, y2]);
+    const array = new Float32Array([x1, y1, x2, y1, x1, y2, x2, y2]);
     //console.log(array);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, tBuffer);
@@ -258,89 +251,6 @@ function setAttribute(program, attribute) {
     gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
 }
 
-
-
-function updateTexture() {
-    const w = HPIXELS;
-//    const h = VPIXELS;
-
-    let frame_info=Module._wasm_frame_info();
-    currLOF=frame_info & 1;
-    frame_info = frame_info>>>1; 
-    prevLOF=frame_info & 1;
-    frame_frameNr = frame_info>>>1; 
-    
-    // Check for duplicate frames or frame drops
-    if (frame_frameNr != frameNr + 1) {
-        // console.log('Frame sync mismatch: ' + frameNr + ' -> ' + frame.frameNr);
-
-        // Return immediately if we already have this texture
-        if (frame_frameNr === frameNr) return;
-    }
-
-    frameNr = frame_frameNr;
-
-//  let frame_data = Module._wasm_pixel_buffer();
-//  let tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h<<2);
-
-    let frame_data = Module._wasm_pixel_buffer();//+ yOff*(w<<2);
-//    let tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*clipped_height<<2);
-
-    // Update the GPU texture
-    if (currLOF) {
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, lfTexture);
-    } else {
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, sfTexture);
-    }
-//    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, tex);
- //   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, /*yoff*/VPIXELS-yOff-clipped_height, w, clipped_height, gl.RGBA, gl.UNSIGNED_BYTE, Module.HEAPU8,frame_data );
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, VPIXELS, 0, gl.RGBA, gl.UNSIGNED_BYTE,  Module.HEAPU8,frame_data);
-}
-
-
-
-function updateSubTexture2() {
-    const w = HPIXELS;
-//    const h = VPIXELS;
-
-    let frame_info=Module._wasm_frame_info();
-    currLOF=frame_info & 1;
-    frame_info = frame_info>>>1; 
-    prevLOF=frame_info & 1;
-    frame_frameNr = frame_info>>>1; 
-    
-    // Check for duplicate frames or frame drops
-    if (frame_frameNr != frameNr + 1) {
-        // console.log('Frame sync mismatch: ' + frameNr + ' -> ' + frame.frameNr);
-
-        // Return immediately if we already have this texture
-        if (frame_frameNr === frameNr) return;
-    }
-
-    frameNr = frame_frameNr;
-
-//  let frame_data = Module._wasm_pixel_buffer();
-//  let tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h<<2);
-
-    let frame_data = Module._wasm_pixel_buffer()+ yOff*(w<<2);
-    //let tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*clipped_height<<2);
-
-    // Update the GPU texture
-    if (currLOF) {
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, lfTexture);
-    } else {
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, sfTexture);
-    }
-
-    //    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, tex);
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, /*yoff*/VPIXELS-yOff-clipped_height, w, clipped_height, gl.RGBA, gl.UNSIGNED_BYTE, Module.HEAPU8,frame_data );
-}
-
-
 function updateSubTexture() {
     let frame_info=Module._wasm_frame_info();
     currLOF=frame_info & 1;
@@ -362,7 +272,7 @@ function updateSubTexture() {
 //  let tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h<<2);
 
     let frame_data = Module._wasm_pixel_buffer()+ yOff*(HPIXELS<<2);
-    //let tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*clipped_height<<2);
+    let tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, clipped_height*(HPIXELS<<2));
 
     // Update the GPU texture
     if (currLOF) {
@@ -376,7 +286,7 @@ function updateSubTexture() {
     gl.pixelStorei(gl.UNPACK_ROW_LENGTH, HPIXELS);
     gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, xOff);
 
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, xOff, flip_it?VPIXELS-yOff-clipped_height:yOff, clipped_width, clipped_height, gl.RGBA, gl.UNSIGNED_BYTE, Module.HEAPU8, frame_data);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, xOff, yOff, clipped_width, clipped_height, gl.RGBA, gl.UNSIGNED_BYTE, tex);
     return true;
 }
 

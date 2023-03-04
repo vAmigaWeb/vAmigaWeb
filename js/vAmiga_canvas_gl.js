@@ -1,8 +1,7 @@
 let flicker_weight=1.0; // set 0.5 or 0.6 for interlace flickering
 function render_canvas_gl(now)
 {
-    updateTexture(now);
-    render();
+    if(updateTexture(now)) render();
 }
 
 // Reference to the canvas element
@@ -170,26 +169,9 @@ function initWebGL() {
 
 function updateTextureRect(x1, y1, x2, y2) {
     // console.log("updateTextureRect(" + x1 + ", " + y1 + " ," + x2 + ", " + y2 + ")");
-    //const array = new Float32Array([x1, 1.0-y1, x2, 1.0-y1, x1, 1.0-y2, x2, 1.0-y2]);
     const array = new Float32Array([x1, y1, x2, y1, x1, y2, x2, y2]);
     gl.bindBuffer(gl.ARRAY_BUFFER, tBuffer);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, array);
-}
-
-function resizeCanvasToDisplaySize() {
-    // Lookup the size the browser is displaying the canvas
-    const displayWidth = canvas.clientWidth;
-    const displayHeight = canvas.clientHeight;
-
-    // Check if the canvas size matches
-    const needResize = canvas.width !== displayWidth || canvas.height !== displayHeight;
-
-    // Rectify the canvas size if not
-    if (needResize) {
-        canvas.width = displayWidth;
-        canvas.height = displayHeight;
-        console.log('Resizing canvas to ' + displayWidth + ' x ' + displayHeight);
-    }
 }
 
 function compileProgram(vSource, fSource) {
@@ -264,13 +246,6 @@ function setAttribute(program, attribute) {
     gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
 }
 
-function update(now /* DOMHighResTimeStamp*/) {
-    // Rectify canvas size if needed
-    resizeCanvasToDisplaySize();
-
-    // Get the latest half-picture from the emulator
-    updateTexture();
-}
 
 function render() {
     // Merge half-pictures
@@ -295,13 +270,13 @@ function updateTexture() {
         // console.log('Frame sync mismatch: ' + frameNr + ' -> ' + frame.frameNr);
 
         // Return immediately if we already have this texture
-        if (frame_frameNr === frameNr) return;
+        if (frame_frameNr === frameNr) return false;
     }
 
     frameNr = frame_frameNr;
 
-    let frame_data = Module._wasm_pixel_buffer();
-    let tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h<<2);
+    let frame_data = Module._wasm_pixel_buffer()+ yOff*(HPIXELS<<2);
+    let tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h<<2)
 
     // Update the GPU texture
     if (currLOF) {
@@ -311,7 +286,14 @@ function updateTexture() {
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, sfTexture);
     }
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+ //   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, Module.HEAPU8, frame_data);
+
+ gl.pixelStorei(gl.UNPACK_ROW_LENGTH, HPIXELS);
+ gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, xOff);
+
+ gl.texSubImage2D(gl.TEXTURE_2D, 0, xOff, yOff, clipped_width, clipped_height, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+
+ return true;
 }
 
 function createMergeTexture() {
@@ -365,5 +347,4 @@ function renderFinalTexture() {
     gl.useProgram(mainShaderProgram);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
-
 
