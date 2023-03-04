@@ -399,7 +399,7 @@ extern "C" int wasm_draw_one_frame(double now)
 
   int behind=targetFrameCount-total_executed_frame_count;    
   if(behind<=0 && executed_since_last_host_frame==0)
-    return behind;   //don't render if ahead of time and everything is already drawn
+    return -1;   //don't render if ahead of time and everything is already drawn
 
 #ifndef wasm_worker    
   if(behind>0)

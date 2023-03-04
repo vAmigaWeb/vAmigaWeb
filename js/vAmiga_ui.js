@@ -1527,6 +1527,8 @@ function InitWrappers() {
                 {
                     draw_one_frame(); // to gather joystick information 
                     let behind = Module._wasm_draw_one_frame(now);
+                    if(behind<0)
+                        return;
                     render_frame(now);
                     while(behind>queued_executes)
                     {
@@ -1594,7 +1596,7 @@ function InitWrappers() {
 
 
     connect_audio_processor = async () => {
-        if(audioContext.state === 'suspended') {
+        if(audioContext.state !== 'running') {
             await audioContext.resume();  
         }
         if(audio_connected==true)
@@ -1675,18 +1677,29 @@ function InitWrappers() {
     }
 
 
-    //when app is going to background
-    //window.addEventListener('blur', pause);
+    //when app becomes hidden/visible
+    window.addEventListener("visibilitychange", async () => {
+        if(document.visibilityState == "hidden") {
+           try { audioContext.suspend(); } catch(e){ console.error(e);}
+        }
+        else
+        {
+            try { await connect_audio_processor(); } catch(e){ console.error(e);}
+        }
+    });
 
-    //when app is coming to foreground again, reconnect audio if it has been 'suspended' in the meantime
-    window.addEventListener('focus', async ()=>{ 
+    //when app is going to background either visible or hidden
+//    window.addEventListener('blur', ()=>{});
+
+    //when app is coming to foreground again
+    window.addEventListener('focus', async ()=>{         
         try { await connect_audio_processor(); } catch(e){ console.error(e);}
     });
     
     audioContext.onstatechange = () => {
         let state = audioContext.state;
         console.error(`audioContext.state=${state}`);
-        if(state==='suspended'){
+        if(state!=='running'){
             //in case we did go suspended reinstall the unlock events
             document.removeEventListener('click',click_unlock_WebAudio);
             document.addEventListener('click',click_unlock_WebAudio, false);
@@ -1696,7 +1709,7 @@ function InitWrappers() {
             canvas.removeEventListener('touchstart',touch_unlock_WebAudio);
             canvas.addEventListener('touchstart',touch_unlock_WebAudio,false);        
         }
-        else if(state === 'running') {
+        else {
             //if it runs we dont need the unlock handlers, has no effect when handler already removed 
             document.removeEventListener('click',click_unlock_WebAudio);
             document.getElementById('canvas').removeEventListener('touchstart',touch_unlock_WebAudio);

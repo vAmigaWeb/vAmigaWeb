@@ -1,6 +1,7 @@
 const url_root_path= self.location.pathname.replace("/sw.js","");
 const core_version  = '2.3'; //has to be the same as the version in Emulator/config.h
-const ui_version = '2023_02_27'+url_root_path.replace("/","_");
+const ui_version = '2023_03_03f'+url_root_path.replace("/","_");
+const needs_shared_array_buffer=false; //true when vAmiga runs in separat worker thread
 const cache_name = `${core_version}@${ui_version}`;
 const settings_cache = 'settings';
 
@@ -41,17 +42,6 @@ self.addEventListener("message", async evt => {
 self.addEventListener('install', evt => {
   console.log('service worker installed');
   self.skipWaiting();
-//no preinstall - installation implicit during fetch
-/*  event.waitUntil(
-    caches.open(cache_name).then(function(cache) {
-      return cache.addAll([
-        '/index.html',
-        '/vAmiga.js',
-        '/vAmiga.wasm',
-      ]);
-    })
-  );
-*/
 });
 
 // activate event
@@ -116,9 +106,11 @@ self.addEventListener('fetch', function(event){
           console.log('sw: get from '+active_cache_name+' cached resource: '+event.request.url);
           
           const newHeaders = new Headers(cachedResponsePromise.headers);
-          newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
-          newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
-  
+          if(needs_shared_array_buffer)
+          {
+            newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
+            newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
+          }
           const moddedResponse = new Response(cachedResponsePromise.body, {
             status: cachedResponsePromise.status,
             statusText: cachedResponsePromise.statusText,
@@ -162,9 +154,11 @@ self.addEventListener('fetch', function(event){
 
 
         const newHeaders = new Headers(networkResponse.headers);
-        newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
-        newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
-
+        if(needs_shared_array_buffer)
+        {
+          newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
+          newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
+        }
         const moddedResponse = new Response(networkResponse.body, {
           status: networkResponse.status,
           statusText: networkResponse.statusText,
