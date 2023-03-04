@@ -66,11 +66,11 @@ const fsMerge = `
         vec4 color;
         if (mod(coord.y, 2.0) == 0.0) {
             // color = vec4(1.0, 0.0, 0.0, 1.0); 
-            color = texture2D(u_lfSampler, vTextureCoord);
+            color = texture2D(u_sfSampler, vTextureCoord);
             w = u_lweight;
         } else {
             // color = vec4(1.0, 1.0, 0.0, 1.0); 
-            color = texture2D(u_sfSampler, vTextureCoord);
+            color = texture2D(u_lfSampler, vTextureCoord);
             w = u_sweight;
         }
         gl_FragColor = color * vec4(w, w, w, 1.0);
@@ -157,7 +157,7 @@ function initWebGL() {
     setAttribute(mainShaderProgram, 'aTextureCoord');
 
     // Flip y axis to get the image right
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
     // Create textures
     lfTexture = createTexture(HPIXELS, VPIXELS);
@@ -170,7 +170,8 @@ function initWebGL() {
 
 function updateTextureRect(x1, y1, x2, y2) {
     // console.log("updateTextureRect(" + x1 + ", " + y1 + " ," + x2 + ", " + y2 + ")");
-    const array = new Float32Array([x1, 1.0-y1, x2, 1.0-y1, x1, 1.0-y2, x2, 1.0-y2]);
+    //const array = new Float32Array([x1, 1.0-y1, x2, 1.0-y1, x1, 1.0-y2, x2, 1.0-y2]);
+    const array = new Float32Array([x1, y1, x2, y1, x1, y2, x2, y2]);
     gl.bindBuffer(gl.ARRAY_BUFFER, tBuffer);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, array);
 }

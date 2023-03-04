@@ -1,4 +1,4 @@
-let flip_it=true; //iPad Pro ProRes Display only renders 50fps when true 
+let flip_it=false; //iPad Pro ProRes Display only renders 50fps when true 
 let flicker_weight=1.0; // set 0.5 or 0.6 for interlace flickering
 function render_canvas_gl(now)
 {
@@ -201,7 +201,7 @@ function updateTextureRect(x1, y1, x2, y2) {
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
     gl.useProgram(mergeShaderProgram);
-    gl.uniform2f(diw_size, clipped_width, flip_it ? -clipped_height: -clipped_height);
+    gl.uniform2f(diw_size, clipped_width, -clipped_height);
 }
 
 
