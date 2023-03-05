@@ -3,6 +3,7 @@
 build
 index.html
 vAmiga.js
+vAmiga.ww.js
 vAmiga.wasm
 
 # Prerequisites

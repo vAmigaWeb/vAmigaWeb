@@ -31,12 +31,18 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 else()
   target_compile_options(vAmigaCore PRIVATE -Wall -Werror)
   target_compile_options(vAmigaCore PRIVATE -Wno-unused-parameter -Wno-unused-but-set-variable)
-#  target_compile_options(vAmigaCore PRIVATE -O3 -fexceptions)
   target_compile_options(vAmigaCore PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions)
   target_compile_options(vAmigaCore PRIVATE -Wfatal-errors)
-#  target_compile_options(vAmigaCore PRIVATE -g) 
+
+  if("${thread_type}" STREQUAL "worker")
+	  target_compile_options(vAmigaCore PRIVATE -sWASM_WORKERS)
+  endif()
+  
+  #  target_compile_options(vAmigaCore PRIVATE -g) 
   set_target_properties(vAmigaCore PROPERTIES LINK_FLAGS "-O3 -mnontrapping-fptoint -fwasm-exceptions" )
 endif()
+
+
 
 # Add include paths
 target_include_directories(vAmigaCore PUBLIC

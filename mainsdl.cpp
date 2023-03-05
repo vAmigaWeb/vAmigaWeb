@@ -19,11 +19,13 @@
 
 #include "MemUtils.h"
 
-
 #include <emscripten.h>
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_opengles2.h> 
 #include <emscripten/html5.h>
+
+#ifdef wasm_worker
+#include <emscripten/wasm_worker.h>
+#include <emscripten/threading.h>
+#endif
 
 using namespace vamiga;
 
@@ -55,53 +57,22 @@ bool ntsc=false;
 u8 target_fps = 50;
 
 extern "C" void wasm_set_display(const char *name);
-
-/********* shaders ***********/
-GLuint basic;
-GLuint merge;
-GLuint longf;
-GLuint shortf;
-
-const GLchar *vertexSource =
-  "#version 300 es      \n"
-  "precision mediump float;    \n"
-  "in vec4 a_position;  \n"
-  "in vec2 a_texcoord;  \n"
-  "uniform vec2 u_diw_size;  \n"
-  "out vec2 v_texcoord;    \n"
-  "out vec2 amiga_pos;    \n"
-  "void main() {               \n"
-  "  amiga_pos = a_position.xy * u_diw_size.xy; \n"
-  "  gl_Position = a_position; \n"
-  "  v_texcoord = a_texcoord;  \n"
-  "}                           \n";
-
-const GLchar *basicSource =
-  "#version 300 es      \n"
-  "precision mediump float;                        \n"
-  "uniform sampler2D u_long;                       \n"
-  "in vec2 v_texcoord;                        \n"
-  "out vec4 color;                                 \n"
-  "void main() {                                   \n"
-  "  color = texture(u_long, v_texcoord); \n"
-  "}                                               \n";
-
-const GLchar *mergeSource =
-  "#version 300 es      \n"
-  "precision mediump float;                           \n"
-  "uniform sampler2D u_long;                          \n"
-  "uniform sampler2D u_short;                         \n"
-  "in vec2 amiga_pos;                           \n"
-  "in vec2 v_texcoord;                           \n"
-  "out vec4 color;                                 \n"
-  "void main() {                                      \n"
-  "  if (mod(amiga_pos.y, 2.0) < 1.0) {                        \n"
-  "    color = texture(u_short, v_texcoord); \n"
-  "  } else {                                         \n"
-  "    color = texture(u_long, v_texcoord);  \n"
-  "  }                                                \n"
-  "}                                                  \n";
-
+#ifdef wasm_worker
+EM_JS(void, console_log, (const char* str), {
+  console.log(UTF8ToString(str));
+});
+void log_on_main_thread(const char *msg)
+{
+  console_log(msg);
+  //printf("%s",msg);
+  //assert(!emscripten_current_thread_is_wasm_worker());
+}
+void main_log(const char *msg)
+{
+  //call function on ui thread
+  emscripten_wasm_worker_post_function_sig(EMSCRIPTEN_WASM_WORKER_ID_PARENT,(void *) log_on_main_thread, "id", msg);
+}
+#endif
 
 int clip_width  = 724 * TPP;
 int clip_height = 568;
@@ -110,215 +81,6 @@ int buffer_size = 4096;
 
 bool prevLOF = false;
 bool currLOF = false;
-
-
-GLuint compileShader(const GLenum type, const GLchar *source) {
-  GLint result;
-  GLint length;
-
-  GLuint shader = glCreateShader(type);
-  glShaderSource(shader, 1, &source, NULL);
-  glCompileShader(shader);
-
-  glGetShaderiv(shader, GL_COMPILE_STATUS, &result);
-  glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
-
-  if (result != GL_TRUE) {
-    std::vector<char> error(length + 1);
-    glGetShaderInfoLog(shader, length, NULL, &error[0]);
-    printf("Failed to compile shader: %s\n", &error[0]);
-
-    glDeleteShader(shader);
-    return 0;
-  }
-
-  return shader;
-}
-
-GLuint compileProgram(const GLchar *source) {
-  GLint result;
-  GLint length;
-
-  GLuint vertex = compileShader(GL_VERTEX_SHADER, vertexSource);
-  GLuint fragment = compileShader(GL_FRAGMENT_SHADER, source);
-
-  if (vertex == 0 || fragment == 0) {
-    return 0;
-  }
-
-  GLuint program = glCreateProgram();
-  glAttachShader(program, vertex);
-  glAttachShader(program, fragment);
-  glLinkProgram(program);
-
-  glGetProgramiv(program, GL_LINK_STATUS, &result);
-  glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
-
-  if (result != GL_TRUE) {
-    std::vector<char> error(length + 1);
-    glGetProgramInfoLog(program, length, NULL, &error[0]);
-    printf("Failed to compile program: %s\n", &error[0]);
-
-    glDeleteProgram(program);
-    return 0;
-  }
-
-  glDeleteShader(vertex);
-  glDeleteShader(fragment);
-  return program;
-}
-
-void set_texture_display_window(const GLuint program, float hstart, float hstop, float vstart, float vstop)
-{  
-  const float x1 = (hstart-HBLANK_MIN*4) / (HPIXELS);
-  const float x2 = (hstop-HBLANK_MIN*4) / (HPIXELS);
-  const float y1 = vstart  / VPOS_MAX;
-  const float y2 = vstop / VPOS_MAX;
-
-  const GLfloat coords[] = {
-    x1,y1, x2,y1, x1,y2, x2,y2
-  };
-  //if(log_on) printf("%f %f %f %f\n",x1,x2,y1,y2);
-  GLuint corBuffer;
-  glGenBuffers(1, &corBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, corBuffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(coords), coords, GL_STATIC_DRAW);
-
-  GLint corAttrib = glGetAttribLocation(program, "a_texcoord");
-  glEnableVertexAttribArray(corAttrib);
-  glVertexAttribPointer(corAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
-
-  glUniform2f(glGetUniformLocation(merge, "u_diw_size"), (hstop-hstart)*TPP, vstop-vstart);
-
-  //if(log_on) printf("w=%f h=%f\n",hstop-hstart,vstop-vstart);
-
-}
-
-void initGeometry(const GLuint program, float eat_x, float eat_y) {
-  //--- add a_position
-  const GLfloat position[] = {
-    -1.0f,  1.0f,
-     1.0f,  1.0f,
-    -1.0f, -1.0f,
-     1.0f, -1.0f
-  };
-  GLuint posBuffer;
-  glGenBuffers(1, &posBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, posBuffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(position), position, GL_STATIC_DRAW);
-
-  GLint posAttrib = glGetAttribLocation(program, "a_position");
-  glEnableVertexAttribArray(posAttrib);
-  glVertexAttribPointer(posAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
-
-  //--- add a_texcoord
-
-//  set_texture_display_window(program, 168.0f,892.0f,26.0f,312.0f);
-}
-
-GLuint initTexture(const GLuint *source) {
-  GLuint texture = 0;
-  glGenTextures(1, &texture);
-  glBindTexture(GL_TEXTURE_2D, texture);
-
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, HPIXELS*TPP, VPOS_MAX, 0, GL_RGBA, GL_UNSIGNED_BYTE, source);
-
-  return texture;
-}
-
-/********************************************************/
-
-
-
-
-
-
-/* SDL2 start*/
-SDL_Window * window = NULL;
-SDL_Surface * window_surface = NULL;
-unsigned int * pixels;
-
-SDL_Renderer * renderer = NULL;
-SDL_Texture * screen_texture = NULL;
-
-/* SDL2 end */
-
-void PrintEvent(const SDL_Event * event)
-{
-    if (event->type == SDL_WINDOWEVENT) {
-        switch (event->window.event) {
-        case SDL_WINDOWEVENT_SHOWN:
-            printf("Window %d shown", event->window.windowID);
-            break;
-        case SDL_WINDOWEVENT_HIDDEN:
-            printf("Window %d hidden", event->window.windowID);
-            break;
-        case SDL_WINDOWEVENT_EXPOSED:
-            printf("Window %d exposed", event->window.windowID);
-            break;
-        case SDL_WINDOWEVENT_MOVED:
-            printf("Window %d moved to %d,%d",
-                    event->window.windowID, event->window.data1,
-                    event->window.data2);
-            break;
-        case SDL_WINDOWEVENT_RESIZED:
-            printf("Window %d resized to %dx%d",
-                    event->window.windowID, event->window.data1,
-                    event->window.data2);
-            break;
-        case SDL_WINDOWEVENT_SIZE_CHANGED:
-            printf("Window %d size changed to %dx%d",
-                    event->window.windowID, event->window.data1,
-                    event->window.data2);
-            break;
-        case SDL_WINDOWEVENT_MINIMIZED:
-            printf("Window %d minimized", event->window.windowID);
-            break;
-        case SDL_WINDOWEVENT_MAXIMIZED:
-            printf("Window %d maximized", event->window.windowID);
-            break;
-        case SDL_WINDOWEVENT_RESTORED:
-            printf("Window %d restored", event->window.windowID);
-            break;
-        case SDL_WINDOWEVENT_ENTER:
-            printf("Mouse entered window %d",
-                    event->window.windowID);
-            break;
-        case SDL_WINDOWEVENT_LEAVE:
-            printf("Mouse left window %d", event->window.windowID);
-            break;
-        case SDL_WINDOWEVENT_FOCUS_GAINED:
-            printf("Window %d gained keyboard focus",
-                    event->window.windowID);
-            break;
-        case SDL_WINDOWEVENT_FOCUS_LOST:
-            printf("Window %d lost keyboard focus",
-                    event->window.windowID);
-            break;
-        case SDL_WINDOWEVENT_CLOSE:
-            printf("Window %d closed", event->window.windowID);
-            break;
-#if SDL_VERSION_ATLEAST(2, 0, 5)
-        case SDL_WINDOWEVENT_TAKE_FOCUS:
-            printf("Window %d is offered a focus", event->window.windowID);
-            break;
-        case SDL_WINDOWEVENT_HIT_TEST:
-            printf("Window %d has a special hit test", event->window.windowID);
-            break;
-#endif
-        default:
-            printf("Window %d got unknown event %d",
-                    event->window.windowID, event->window.event);
-            break;
-        }
-        printf("\n");
-    }
-}
 
 int eat_border_width = 0;
 int eat_border_height = 0;
@@ -329,95 +91,8 @@ int clipped_height = VPOS_MAX -12 -24 -2*eat_border_height; //248
 
 int bFullscreen = false;
 
-EM_BOOL emscripten_window_resized_callback(int eventType, const void *reserved, void *userData){
-/*
-	double width, height;
-	emscripten_get_element_css_size("canvas", &width, &height);
-	int w = (int)width, h = (int)height;
-*/
-  // resize SDL window
-//    SDL_SetWindowSize(window, clipped_width, clipped_height);
-    /*
-    SDL_Rect SrcR;
-    SrcR.x = 0;
-    SrcR.y = 0;
-    SrcR.w = HPIXELS;
-    SrcR.h = VPIXELS;
-    SDL_RenderSetViewport(renderer, &SrcR);
-    */
-	return true;
-}
-
 char *filename = NULL;
 
-extern "C" void wasm_toggleFullscreen()
-{
-    if(!bFullscreen)
-    {
-      bFullscreen=true;
-
-      EmscriptenFullscreenStrategy strategy;
-      strategy.scaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_STDDEF;
-      strategy.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
-      strategy.canvasResizedCallback = emscripten_window_resized_callback;
-      emscripten_enter_soft_fullscreen("canvas", &strategy);    
-    }
-    else
-    {
-      bFullscreen=false;
-      emscripten_exit_soft_fullscreen(); 
-    }
-}
-
-int eventFilter(void* thisC64, SDL_Event* event) {
-    //C64 *c64 = (C64 *)thisC64;
-    switch(event->type){
-      case SDL_WINDOWEVENT:
-        PrintEvent(event);
-        if (event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
-        {//zuerst
-            window_surface = SDL_GetWindowSurface(window);
-            pixels = (unsigned int *)window_surface->pixels;
-            int width = window_surface->w;
-            int height = window_surface->h;
-            printf("Size changed: %d, %d\n", width, height);  
-        }
-        else if(event->window.event==SDL_WINDOWEVENT_RESIZED)
-        {//this event comes after SDL_WINDOWEVENT_SIZE_CHANGED
-              //SDL_SetWindowSize(window, HPIXELS, VPIXELS);   
-              //SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-              //window_surface = SDL_GetWindowSurface(window);
-        }
-        break;
-      case SDL_KEYDOWN:
-        if ( event->key.keysym.sym == SDLK_RETURN &&
-             event->key.keysym.mod & KMOD_ALT )
-        {
-            wasm_toggleFullscreen();
-        }
-        break;
-      case SDL_FINGERDOWN:
-      case SDL_MOUSEBUTTONDOWN:
-        /* on some browsers (chrome, safari) we have to resume Audio on users action 
-           https://developers.google.com/web/updates/2017/09/autoplay-policy-changes
-        */
-        
-        EM_ASM({
-            if (typeof Module === 'undefined'
-                || typeof Module.SDL2 == 'undefined'
-                || typeof Module.SDL2.audioContext == 'undefined')
-                return;
-            if (Module.SDL2.audioContext.state == 'suspended') {
-                Module.SDL2.audioContext.resume();
-            }
-        });
-        break;
-        default:
-          //printf("unhandeld event %d",event->type);
-          break;
-    }
-    return 1;
-}
 unsigned int warp_to_frame=0;
 int sum_samples=0;
 double last_time = 0.0 ;
@@ -444,7 +119,6 @@ bool request_to_reset_calibration=false;
 void set_viewport_dimensions()
 {
     if(log_on) printf("calib: set_viewport_dimensions hmin=%d, hmax=%d, vmin=%d, vmax=%d\n",hstart_min,hstop_max,vstart_min, vstop_max);
-    
 //    hstart_min=0; hstop_max=HPIXELS;
     
     if(render_method==RENDER_SHADER)
@@ -453,19 +127,6 @@ void set_viewport_dimensions()
       {         
         clipped_width = hstop_max-hstart_min;
         clipped_height = vstop_max-vstart_min;
-        SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height*2); 
-        SDL_SetWindowSize(window, clipped_width*TPP, clipped_height*2);
-        glViewport(0, 0, clipped_width*TPP, clipped_height*2);
-
-        glUseProgram(basic);
-        set_texture_display_window(basic, hstart_min, hstop_max, vstart_min, vstop_max);
-        glUseProgram(merge);
-        set_texture_display_window(merge, 
-          hstart_min, hstop_max,
-          /* in merge shader, the height has to be an even number */ 
-          vstart_min & 0xfffe, vstop_max & 0xfffe
-        );
-
       } 
     }
     else
@@ -476,13 +137,9 @@ void set_viewport_dimensions()
         yOff = vstart_min;
         clipped_width = hstop_max-hstart_min;
         clipped_height = vstop_max-vstart_min;
-
-        SDL_SetWindowMinimumSize(window, clipped_width*TPP, clipped_height);
-        SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height); 
-        SDL_SetWindowSize(window, clipped_width*TPP, clipped_height);
       }
     }
-    EM_ASM({scaleVMCanvas()});
+    EM_ASM({js_set_display($0,$1,$2,$3); scaleVMCanvas();},xOff, yOff, clipped_width*TPP,clipped_height );
 }
 
 
@@ -491,7 +148,7 @@ u16 vstart_min_calib=0;
 u16 vstop_max_calib=0;
 u16 hstart_min_calib=0;
 u16 hstop_max_calib=0;
-bool calculate_viewport_dimensions(Uint32 *texture)
+bool calculate_viewport_dimensions(u32 *texture)
 {
   if(reset_calibration)
   {
@@ -508,13 +165,13 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 
   bool pixels_found=false;
   //top border: get vstart_min from texture
-  Uint32 ref_pixel= texture[(HPIXELS*vstart_min_tracking + hstart_min_tracking)*TPP];
+  u32 ref_pixel= texture[(HPIXELS*vstart_min_tracking + hstart_min_tracking)*TPP];
 //    printf("refpixel:%u\n",ref_pixel);
   for(int y=vstart_min_tracking;y<vstart_min_calib && !pixels_found;y++)
   {
 //      printf("\nvstart_line:%u\n",y);
     for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
-      Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
+      u32 pixel= texture[(HPIXELS*y + x)*TPP];
 //        printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
@@ -535,7 +192,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
   {
 //      printf("\nline:%u\n",y);
     for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
-      Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
+      u32 pixel= texture[(HPIXELS*y + x)*TPP];
 //        printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
@@ -556,7 +213,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 //      printf("\nrow:%u\n",x);
     for(int y=vstart_min_calib;y<vstop_max_calib && !pixels_found;y++)
     {
-      Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
+      u32 pixel= texture[(HPIXELS*y + x)*TPP];
 //        printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
@@ -579,7 +236,7 @@ bool calculate_viewport_dimensions(Uint32 *texture)
 //     printf("\ncol:%u\n",x);
     for(int y=vstart_min_calib;y<vstop_max_calib && !pixels_found;y++)
     {
-      Uint32 pixel= texture[(HPIXELS*y + x)*TPP];
+      u32 pixel= texture[(HPIXELS*y + x)*TPP];
 //      printf("%u:%u ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
@@ -654,7 +311,9 @@ extern "C" void wasm_execute()
   executed_frame_count++;
   total_executed_frame_count++;
 }
-
+#ifdef wasm_worker
+char wasm_log_buffer[256];
+#endif
 extern "C" int wasm_draw_one_frame(double now)
 //int draw_one_frame_into_SDL(void *thisAmiga, float now) 
 {
@@ -700,7 +359,14 @@ extern "C" int wasm_draw_one_frame(double now)
     //lost the sync
     if(targetFrameCount-total_executed_frame_count > MAX_GAP)
     {
-        if(log_on) printf("lost sync target=%lld, total_executed=%lld\n", targetFrameCount, total_executed_frame_count);
+        if(log_on) {
+#ifdef wasm_worker          
+          snprintf(wasm_log_buffer,sizeof(wasm_log_buffer),"lost sync target=%lld, total_executed=%lld\n", targetFrameCount, total_executed_frame_count);
+          main_log(wasm_log_buffer);
+#else
+          printf("lost sync target=%lld, total_executed=%lld\n", targetFrameCount, total_executed_frame_count);
+#endif
+        }
         //reset timer
         //because we are out of sync, we do now skip max_gap-1 emulation frames 
         start_time=now;
@@ -715,8 +381,16 @@ extern "C" int wasm_draw_one_frame(double now)
 
       seconds += 1; 
       frames += rendered_frame_count;
-      if(log_on) printf("time[ms]=%.0lf, audio_samples=%d, frames [executed=%u, rendered=%u] avg_fps=%u\n", 
+      if(log_on) {
+#ifdef wasm_worker
+       snprintf(wasm_log_buffer,sizeof(wasm_log_buffer),"time[ms]=%.0lf, audio_samples=%d, frames [executed=%u, rendered=%u] avg_fps=%u\n", 
+       passed_time, sum_samples, executed_frame_count, rendered_frame_count, frames/seconds);
+       main_log(wasm_log_buffer);
+#else        
+      printf("time[ms]=%.0lf, audio_samples=%d, frames [executed=%u, rendered=%u] avg_fps=%u\n", 
       passed_time, sum_samples, executed_frame_count, rendered_frame_count, frames/seconds);
+#endif
+      }
       sum_samples=0; 
       rendered_frame_count=0;
       executed_frame_count=0;
@@ -725,8 +399,9 @@ extern "C" int wasm_draw_one_frame(double now)
 
   int behind=targetFrameCount-total_executed_frame_count;    
   if(behind<=0 && executed_since_last_host_frame==0)
-    return behind;   //don't render if ahead of time and everything is already drawn
-  
+    return -1;   //don't render if ahead of time and everything is already drawn
+
+#ifndef wasm_worker    
   if(behind>0)
   {
     amiga->execute();
@@ -735,12 +410,9 @@ extern "C" int wasm_draw_one_frame(double now)
     total_executed_frame_count++;
     behind--;
   }
-
   executed_since_last_host_frame=0;
-  rendered_frame_count++;   
-
-  auto &stableBuffer = amiga->denise.pixelEngine.getStableBuffer();
-  auto stable_ptr = amiga->denise.pixelEngine.stablePtr();
+#endif
+  rendered_frame_count++;
 
   if(geometry == DISPLAY_BORDERLESS)
   {
@@ -748,10 +420,16 @@ extern "C" int wasm_draw_one_frame(double now)
     if(now-last_time_calibrated >= 700.0)
     {  
       last_time_calibrated=now;
-      bool dimensions_changed=calculate_viewport_dimensions((Uint32 *)stable_ptr - HBLANK_MIN*4*TPP);
+      auto stable_ptr = amiga->denise.pixelEngine.stablePtr();
+
+      bool dimensions_changed=calculate_viewport_dimensions((u32 *)stable_ptr - HBLANK_MIN*4*TPP);
       if(dimensions_changed)
       {
-        set_viewport_dimensions(); 
+#ifdef wasm_worker
+        emscripten_wasm_worker_post_function_v(EMSCRIPTEN_WASM_WORKER_ID_PARENT,set_viewport_dimensions);
+#else
+        set_viewport_dimensions();
+#endif
       }  
 
       if(request_to_reset_calibration)
@@ -761,103 +439,11 @@ extern "C" int wasm_draw_one_frame(double now)
       }
     }
   }
-
-  if(render_method==RENDER_SHADER)
-  {
-    prevLOF = stableBuffer.prevlof;
-    currLOF = stableBuffer.lof;
-
-    if (currLOF) {
-      glActiveTexture(GL_TEXTURE0);
-    } else if (prevLOF) {
-      glActiveTexture(GL_TEXTURE1);
-    } else {
-      glActiveTexture(GL_TEXTURE0);
-    }  
-
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HPIXELS*TPP, VPOS_MAX, GL_RGBA, GL_UNSIGNED_BYTE, stable_ptr+clip_offset);
-
-    if (currLOF != prevLOF) {
-      // Case 1: Interlace drawing
-      glUseProgram(merge);
-      glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, longf);
-
-      glActiveTexture(GL_TEXTURE1);
-      glBindTexture(GL_TEXTURE_2D, shortf);
-    } 
-    else 
-    {
-      // Case 2: Non-interlace drawing (two long frames in a row)
-      glUseProgram(basic);
-      glBindTexture(GL_TEXTURE_2D, longf);
-    } 
-
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    SDL_GL_SwapWindow(window);
-  }
-  else
-  {
-
-    Uint8 *texture = (Uint8 *)(stable_ptr)+clip_offset*4;
-
-  //  SDL_RenderClear(renderer);
-    SDL_Rect SrcR;
-
-    SrcR.x = (xOff-HBLANK_MIN*4) *TPP;
-    SrcR.y = yOff;
-    SrcR.w = clipped_width * TPP;
-    SrcR.h = clipped_height;
-
-    SDL_UpdateTexture(screen_texture, &SrcR, texture+ (4*HPIXELS*TPP*SrcR.y) + SrcR.x*4, 4*HPIXELS*TPP);
-
-    SDL_RenderCopy(renderer, screen_texture, &SrcR, NULL);
-
-    SDL_RenderPresent(renderer);
-  }
   return behind;
 }
 
 
-/*extern "C" int wasm_draw_one_frame(float now)
-{
-  return draw_one_frame_into_SDL(thisAmiga, now);
-}*/
-
-
 int sample_size=0;
-void MyAudioCallback(void*  thisAmiga,
-                       Uint8* stream,
-                       int    len)
-{
-    Amiga *amiga = (Amiga *)thisAmiga;
-    //calculate number of fitting samples
-    //we are copying stereo interleaved floats in LR format, therefore we must divide by 2
-    //int n = len /  (2 * sizeof(float));
-    amiga->paula.muxer.copy((float *)stream, sample_size); 
-/*    printf("copyMono[%d]: ", n);
-    for(int i=0; i<n; i++)
-    {
-      printf("%hhu,",stream[i]);
-    }
-    printf("\n");
-  */ 
-    sum_samples += sample_size;
-}
-
-
-
-
-void initSDL(void *thisAmiga)
-{
-    if(SDL_Init(SDL_INIT_VIDEO)==-1)
-    {
-        printf("Could not initialize SDL:%s\n", SDL_GetError());
-    }
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
- 
-}
 
 
 void send_message_to_js(const char * msg)
@@ -880,6 +466,10 @@ void send_message_to_js(const char * msg, long data1, long data2)
         message_handler( "MSG_"+UTF8ToString($0), $1, $2 );
     }, msg, data1, data2 );    
 
+}
+void send_message_to_js_w(const char * msg, long data1, long data2)
+{
+    send_message_to_js(msg,data1,data2);
 }
 
 
@@ -910,8 +500,34 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
   }
   else
   {
-    if(log_on) printf("vAmiga message=%s, data=%u\n", message_as_string, data1);
+    if(log_on)
+    {
+#ifdef wasm_worker          
+    if(emscripten_current_thread_is_wasm_worker())
+    {
+      snprintf(wasm_log_buffer,sizeof(wasm_log_buffer),"worker: vAmiga message=%s, data1=%u, data2=%u\n", message_as_string, data1, data2);
+      main_log(wasm_log_buffer);
+    }
+    else
+    {
+      printf("main: vAmiga message=%s, data1=%u, data2=%u\n", message_as_string, data1, data2);
+    }
+#else
+     printf("vAmiga message=%s, data1=%u, data2=%u\n", message_as_string, data1, data2);
+#endif
+    }
+
+#ifdef wasm_worker
+    if(emscripten_current_thread_is_wasm_worker())
+    {
+      emscripten_wasm_worker_post_function_sig(EMSCRIPTEN_WASM_WORKER_ID_PARENT,(void*)send_message_to_js_w, "iii", message_as_string, data1, data2);
+    }
+    else
+      send_message_to_js(message_as_string, data1, data2);
+#else
     send_message_to_js(message_as_string, data1, data2);
+#endif
+    
   }
   if(type == MSG_VIEWPORT)
   {
@@ -937,13 +553,27 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
     if(ntsc && vstop_max > VPOS_MAX-PAL_EXTRA_VPIXEL )
       vstop_max = VPOS_MAX-PAL_EXTRA_VPIXEL; 
     
-    if(log_on) printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
+    if(log_on)
+    {
+#ifdef wasm_worker          
+      snprintf(wasm_log_buffer,sizeof(wasm_log_buffer),"tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
+      main_log(wasm_log_buffer);
+#else
+      printf("tracking MSG_VIEWPORT=%u %u %u %u\n",hstart_min, vstart_min, hstop_max, vstop_max);
+#endif
+    }
+
     vstart_min_tracking = vstart_min;
     vstop_max_tracking = vstop_max;
     hstart_min_tracking = hstart_min;
     hstop_max_tracking = hstop_max;
 
+#ifdef wasm_worker
+    emscripten_wasm_worker_post_function_v(EMSCRIPTEN_WASM_WORKER_ID_PARENT,set_viewport_dimensions);
+#else
     set_viewport_dimensions();
+#endif
+
     reset_calibration=true;
   }
   else if(type == MSG_VIDEO_FORMAT)
@@ -1010,101 +640,75 @@ class vAmigaWrapper {
   }
 };
 
+#ifdef wasm_worker
+emscripten_wasm_worker_t worker;
+
+void run_in_worker()
+{
+//  EM_ASM({console.log("Hello log")});
+//  emscripten_wasm_worker_post_function_sig(EMSCRIPTEN_WASM_WORKER_ID_PARENT,(void *) test_success, "id");
+  auto behind = wasm_draw_one_frame(emscripten_performance_now());
+  while(behind>0)
+  {
+    thisAmiga->execute();
+    executed_since_last_host_frame++;
+    executed_frame_count++;
+    total_executed_frame_count++;
+    behind--;
+  }
+}
+#endif
+
+extern "C" bool wasm_is_worker_built()
+{
+#ifdef wasm_worker
+  return true;
+#else
+  return false;
+#endif
+}
+
+extern "C" void wasm_worker_run()
+{
+  #ifdef wasm_worker
+    emscripten_wasm_worker_post_function_v(worker, run_in_worker); 
+  #endif
+}
+
 vAmigaWrapper *wrapper = NULL;
 extern "C" int main(int argc, char** argv) {
+#ifdef wasm_worker
+  worker = emscripten_malloc_wasm_worker(/*stack size: */2048);
+  printf("running on wasm webworker...\n");
+#else
+  printf("running on main thread...\n");
+#endif
   wrapper= new vAmigaWrapper();
-  initSDL(wrapper->amiga);
   wrapper->run();
   return 0;
 }
 
 
-bool create_shader()
+extern "C" Texel * wasm_pixel_buffer()
 {
-    printf("try to create shader renderer\n");
-
-    window = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, clip_width, clip_height, SDL_WINDOW_OPENGL);
-
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-    SDL_GL_CreateContext(window);
-    SDL_GL_SetSwapInterval(0);
-
-    basic = compileProgram(basicSource);
-    merge = compileProgram(mergeSource);
-
-    if (basic == 0 || merge == 0)
-      return false;
-
-    glViewport(0, 0, clip_width, clip_height);
-    initGeometry(basic, 0,0);
-    initGeometry(merge, 0,0);
-
-    auto stable_ptr = wrapper->amiga->denise.pixelEngine.stablePtr();
-
-    longf  = initTexture((const GLuint *)stable_ptr /*+ clip_offset*/);
-    shortf = initTexture((const GLuint *)stable_ptr /*+ clip_offset*/);
-
-    glUseProgram(merge);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, shortf);
-    glUniform1i(glGetUniformLocation(merge, "u_short"), 1);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, longf);
-    glUniform1i(glGetUniformLocation(merge, "u_long"), 0);
-    glUniform2f(glGetUniformLocation(merge, "u_diw_size"), 724.0f, 284.0f);
-
-    glUseProgram(basic);
-    glUniform1i(glGetUniformLocation(basic, "u_long"), 0);
-    glUniform2f(glGetUniformLocation(merge, "u_diw_size"), 724.0f, 284.0f);
-
-    return true;
+  auto stable_ptr = thisAmiga->denise.pixelEngine.stablePtr();
+  return stable_ptr;
 }
-bool create_renderer_webgl()
+extern "C" u32 wasm_frame_info()
 {
-    printf("try to create web_gl renderer\n");
-      //mach den anderen webgl renderer 
-    window = SDL_CreateWindow("",
-    SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-    clipped_width, clipped_height,
-    SDL_WINDOW_RESIZABLE);
+  auto &stableBuffer = thisAmiga->denise.pixelEngine.getStableBuffer();
+  u32 info = (u32)stableBuffer.nr;
+  info = info<<1;
 
-    renderer = SDL_CreateRenderer(window,
-          -1, 
-          SDL_RENDERER_PRESENTVSYNC|SDL_RENDERER_ACCELERATED);
-
-    return renderer != NULL; 
-}
-bool create_renderer_software()
-{
-    printf("create software renderer\n");
-    if(window == NULL)
-      window = SDL_CreateWindow("",
-      SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-      clipped_width, clipped_height,
-      SDL_WINDOW_RESIZABLE);
-
-    renderer = SDL_CreateRenderer(window,
-          -1, 
-          SDL_RENDERER_SOFTWARE|SDL_RENDERER_PRESENTVSYNC
-          );
-    return renderer != NULL; 
-}
-void create_texture()
-{
-      // Since we are going to display a low resolution buffer,
-    // it is best to limit the window size so that it cannot
-    // be smaller than our internal buffer size.
-  SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
-  SDL_RenderSetLogicalSize(renderer, clipped_width, clipped_height); 
-  SDL_RenderSetIntegerScale(renderer, SDL_TRUE);
-
-  screen_texture = SDL_CreateTexture(renderer,
-        /*SDL_PIXELFORMAT_ARGB32*/ SDL_PIXELFORMAT_ABGR8888 
-        , SDL_TEXTUREACCESS_STREAMING,
-        HPIXELS*TPP, VPOS_MAX);
-
-  window_surface = SDL_GetWindowSurface(window);
+  if(stableBuffer.prevlof)
+    info |= 0x0001;
+  
+  info = info<<1;
+  
+  if(stableBuffer.lof)
+    info |= 0x0001;
+  
+  return info;
 }
 
 
@@ -1126,44 +730,6 @@ extern "C" void wasm_set_target_fps(int _target_fps)
 { 
   target_fps=_target_fps;
 }
-
-
-extern "C" bool wasm_create_renderer(char* name)
-{ 
-  render_method=RENDER_SOFTWARE;
-  printf("try to create %s renderer\n", name);
-  if(0==strcmp("gpu shader", name))
-  {
-    if(create_shader())
-    {
-      render_method=RENDER_SHADER;
-      return true;
-    }
-  }
-/*  else if(0==strcmp("gpu", name))
-  {
-    if(create_renderer_webgl())
-    {
-      printf("got hardware accelerated renderer ...\n");
-      render_method=RENDER_GPU;
-    }
-    else
-    {
-      printf("can not get hardware accelerated renderer going with software renderer instead...\n");
-      create_renderer_software();
-    }
-    create_texture();
-  }
-*/ 
-  else
-  {
-      create_renderer_software();
-      create_texture();
-      return true;
-  }
-  return false;
-}
-
 
 
 /* emulation of macos mach_absolute_time() function. */
@@ -1617,31 +1183,13 @@ extern "C" void wasm_set_display(const char *name)
     clipped_height=(3*clipped_width/4 +(ntsc?0:24) /*32 due to PAL?*/)/2 & 0xfffe;
     if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
   }
+  
   if(log_on) printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);
 
-  if(render_method==RENDER_SHADER)
-  {
-//    SDL_SetWindowMinimumSize(window, clipped_width, clipped_height);
-    SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height*2); 
-    SDL_SetWindowSize(window, clipped_width*TPP, clipped_height*2);
-    glViewport(0, 0, clipped_width*TPP, clipped_height*2);
-
-    glUseProgram(basic); 
-    set_texture_display_window(basic, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
-    glUseProgram(merge);
-    set_texture_display_window(merge, xOff,xOff+clipped_width,yOff,yOff+clipped_height);
-  }
-  else
-  {
-    SDL_SetWindowMinimumSize(window, clipped_width*TPP, clipped_height);
-    SDL_RenderSetLogicalSize(renderer, clipped_width*TPP, clipped_height); 
-    SDL_SetWindowSize(window, clipped_width*TPP, clipped_height);
-  }
-
-  EM_ASM({scaleVMCanvas()});
+  EM_ASM({js_set_display($0,$1,$2,$3); scaleVMCanvas();},xOff, yOff, clipped_width*TPP,clipped_height );
 }
 
-std::unique_ptr<FloppyDisk> load_disk(const char* filename, Uint8 *blob, long len)
+std::unique_ptr<FloppyDisk> load_disk(const char* filename, u8 *blob, long len)
 {
   try {
     if (DMSFile::isCompatible(filename)) {
@@ -1672,7 +1220,7 @@ std::unique_ptr<FloppyDisk> load_disk(const char* filename, Uint8 *blob, long le
   return {};
 }
 
-extern "C" const char* wasm_loadFile(char* name, Uint8 *blob, long len, Uint8 drive_number)
+extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_number)
 {
   printf("load drive=%d, file=%s len=%ld, header bytes= %x, %x, %x\n", drive_number, name, len, blob[0],blob[1],blob[2]);
   filename=name;

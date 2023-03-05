@@ -1497,6 +1497,7 @@ function InitWrappers() {
 
     do_animation_frame=null;
     queued_executes=0;
+    
     wasm_run = function () {
         Module._wasm_run();       
         if(do_animation_frame == null)
@@ -1505,14 +1506,41 @@ function InitWrappers() {
                 Module._wasm_execute(); 
                 queued_executes--;
             };
-            do_animation_frame = function(now) {
-                draw_one_frame(); // to gather joystick information 
-                let behind = Module._wasm_draw_one_frame(now);
-                while(behind>queued_executes)
+
+            render_frame= (now)=>{
+                if(current_renderer=="gpu shader")
+                    render_canvas_gl(now);
+                else
+                    render_canvas(now);
+            }
+            if(Module._wasm_is_worker_built()){
+                calculate_and_render=(now)=>
                 {
-                    queued_executes++;
-                    setTimeout(execute_amiga_frame);
+                    draw_one_frame(); // to gather joystick information 
+                    render_frame(now);
+                    Module._wasm_worker_run();
                 }
+            }
+            else
+            {
+                calculate_and_render=(now)=>
+                {
+                    draw_one_frame(); // to gather joystick information 
+                    let behind = Module._wasm_draw_one_frame(now);
+                    if(behind<0)
+                        return;
+                    render_frame(now);
+                    while(behind>queued_executes)
+                    {
+                        queued_executes++;
+                        setTimeout(execute_amiga_frame);
+                    }
+                }
+            }
+
+            do_animation_frame = function(now) {
+                calculate_and_render(now);
+
                 // request another animation frame
                 if(!stop_request_animation_frame)
                 {
@@ -1568,7 +1596,7 @@ function InitWrappers() {
 
 
     connect_audio_processor = async () => {
-        if(audioContext.state === 'suspended') {
+        if(audioContext.state !== 'running') {
             await audioContext.resume();  
         }
         if(audio_connected==true)
@@ -1649,18 +1677,29 @@ function InitWrappers() {
     }
 
 
-    //when app is going to background
-    //window.addEventListener('blur', pause);
+    //when app becomes hidden/visible
+    window.addEventListener("visibilitychange", async () => {
+        if(document.visibilityState == "hidden") {
+           try { audioContext.suspend(); } catch(e){ console.error(e);}
+        }
+        else
+        {
+            try { await connect_audio_processor(); } catch(e){ console.error(e);}
+        }
+    });
 
-    //when app is coming to foreground again, reconnect audio if it has been 'suspended' in the meantime
-    window.addEventListener('focus', async ()=>{ 
+    //when app is going to background either visible or hidden
+//    window.addEventListener('blur', ()=>{});
+
+    //when app is coming to foreground again
+    window.addEventListener('focus', async ()=>{         
         try { await connect_audio_processor(); } catch(e){ console.error(e);}
     });
     
     audioContext.onstatechange = () => {
         let state = audioContext.state;
         console.error(`audioContext.state=${state}`);
-        if(state==='suspended'){
+        if(state!=='running'){
             //in case we did go suspended reinstall the unlock events
             document.removeEventListener('click',click_unlock_WebAudio);
             document.addEventListener('click',click_unlock_WebAudio, false);
@@ -1670,7 +1709,7 @@ function InitWrappers() {
             canvas.removeEventListener('touchstart',touch_unlock_WebAudio);
             canvas.addEventListener('touchstart',touch_unlock_WebAudio,false);        
         }
-        else if(state === 'running') {
+        else {
             //if it runs we dont need the unlock handlers, has no effect when handler already removed 
             document.removeEventListener('click',click_unlock_WebAudio);
             document.getElementById('canvas').removeEventListener('touchstart',touch_unlock_WebAudio);
@@ -2125,11 +2164,11 @@ $(`#choose_game_controller_type a`).click(function ()
     });
 
 //----
-    let set_renderer_choice = function (choice) {
+    set_renderer_choice = function (choice) {
         $(`#button_renderer`).text('video renderer='+choice);
         save_setting("renderer",choice);
     }
-    let current_renderer=load_setting("renderer", "software");
+    current_renderer=load_setting("renderer", "software");
     set_renderer_choice(current_renderer);
 
     $(`#choose_renderer a`).click(function () 
@@ -2144,14 +2183,25 @@ $(`#choose_game_controller_type a`).click(function ()
         current_renderer="gpu shader";
     }
     let got_renderer=false;
-    try{ 
-        got_renderer=wasm_create_renderer(current_renderer); 
-    } catch {}
+    if(current_renderer=="gpu shader")
+    {
+        try{
+            initWebGL();
+            got_renderer=true;
+        }
+        catch(e){ console.error(e)}
+    }
+    else
+    {
+        create2d_context();
+    }
+    //got_renderer=wasm_create_renderer(current_renderer); 
     if(!got_renderer && current_renderer!='software')
     {
         alert('MESSAGE: gpu shader can not be created on your system configuration... switching back to software renderer...');
-        wasm_create_renderer('software');
         set_renderer_choice('software')
+        current_renderer='software';
+        create2d_context();
     }
 
 
@@ -2411,7 +2461,7 @@ $('.layer').change( function(event) {
 });
 
 //------
-    load_console=function () { var script = document.createElement('script'); script.src="//cdn.jsdelivr.net/npm/eruda@2.4.1"; document.body.appendChild(script); script.onload = function () { eruda.init(
+    load_console=function () { var script = document.createElement('script'); script.src="js/eruda.js"; document.body.appendChild(script); script.onload = function () { eruda.init(
     {
         defaults: {
             displaySize: 50,
@@ -3999,63 +4049,6 @@ function setTheme() {
 }
   
 
-function scaleVMCanvas() {
-        let the_canvas = document.getElementById("canvas");
-        var src_width=Module._wasm_get_render_width();
-        var src_height=Module._wasm_get_render_height()*2; 
-        if(use_ntsc_pixel)
-        {
-            src_height*=52/44;
-        }
-        var src_ratio = src_width/src_height; //1.25
-/*        if(Module._wasm_get_renderer()==0)
-        {//software renderer only has half of height pixels
-            src_height*=2;
-            src_ratio = src_width/src_height;
-        }*/
-
-        var inv_src_ratio = src_height/src_width;
-        var wratio = window.innerWidth / window.innerHeight;
-
-        var topPos=0;
-        if(wratio < src_ratio)
-        {
-            var reducedHeight=window.innerWidth*inv_src_ratio;
-            //all lower than 1.25
-            $("#canvas").css("width", "100%")
-            .css("height", Math.round(reducedHeight)+'px');
-            
-            if($("#virtual_keyboard").is(":hidden"))
-            {   //center vertical, if virtual keyboard and navbar not present
-                topPos=Math.round((window.innerHeight-reducedHeight)/2);
-            }
-            else
-            {//virtual keyboard is present
-                var keyb_height= $("#virtual_keyboard").innerHeight();          
-                //positioning directly stacked onto keyboard          
-                topPos=Math.round(window.innerHeight-reducedHeight-keyb_height);
-            }
-            if(topPos<0)
-            {
-                topPos=0;
-            }
-        }
-        else
-        {
-            //all greater than 1.25
-            if(use_wide_screen)
-            {
-                $("#canvas").css("width", "100%"); 
-            }
-            else
-            {
-                 $("#canvas").css("width", Math.round((window.innerHeight*src_ratio)) +'px');
-            }
-            $("#canvas").css("height", "100%"); 
-        }
-
-        $("#canvas").css("top", topPos + 'px');   
-    };
 
 
 
