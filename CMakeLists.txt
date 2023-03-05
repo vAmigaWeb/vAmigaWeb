@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(vAmiga C CXX)
+
+#to build a worker built 
+#1.set thread_type to "worker"
+#2.go to the sw.js and set needs_shared_array_buffer=true
 set(thread_type "nonworker")
 
 # Specify the C++ standard
