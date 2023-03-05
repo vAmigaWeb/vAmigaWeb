@@ -1685,6 +1685,7 @@ function InitWrappers() {
         else
         {
             try { await connect_audio_processor(); } catch(e){ console.error(e);}
+            add_unlock_user_action();
         }
     });
 
@@ -1694,39 +1695,53 @@ function InitWrappers() {
     //when app is coming to foreground again
     window.addEventListener('focus', async ()=>{         
         try { await connect_audio_processor(); } catch(e){ console.error(e);}
+        add_unlock_user_action();
     });
-    
+
+    add_unlock_user_action = function(){
+        //in case we did go suspended reinstall the unlock events
+        document.removeEventListener('click',click_unlock_WebAudio);
+        document.addEventListener('click',click_unlock_WebAudio, false);
+
+        //iOS safari does not bubble click events on canvas so we add this extra event handler here
+        let canvas=document.getElementById('canvas');
+        canvas.removeEventListener('touchstart',touch_unlock_WebAudio);
+        canvas.addEventListener('touchstart',touch_unlock_WebAudio,false);        
+    }
+    remove_unlock_user_action = function(){
+        //if it runs we dont need the unlock handlers, has no effect when handler already removed 
+        document.removeEventListener('click',click_unlock_WebAudio);
+        document.getElementById('canvas').removeEventListener('touchstart',touch_unlock_WebAudio);
+    }
+
     audioContext.onstatechange = () => {
         let state = audioContext.state;
         console.error(`audioContext.state=${state}`);
         if(state!=='running'){
-            //in case we did go suspended reinstall the unlock events
-            document.removeEventListener('click',click_unlock_WebAudio);
-            document.addEventListener('click',click_unlock_WebAudio, false);
-
-            //iOS safari does not bubble click events on canvas so we add this extra event handler here
-            let canvas=document.getElementById('canvas');
-            canvas.removeEventListener('touchstart',touch_unlock_WebAudio);
-            canvas.addEventListener('touchstart',touch_unlock_WebAudio,false);        
+            add_unlock_user_action();
         }
         else {
-            //if it runs we dont need the unlock handlers, has no effect when handler already removed 
-            document.removeEventListener('click',click_unlock_WebAudio);
-            document.getElementById('canvas').removeEventListener('touchstart',touch_unlock_WebAudio);
+            remove_unlock_user_action();
         }
     }
 
     click_unlock_WebAudio=async function() {
-        try { await connect_audio_processor(); } catch(e){ console.error(e);}
+        try { 
+            await connect_audio_processor(); 
+            if(audioContext.state=="running")
+                remove_unlock_user_action();
+        } catch(e){ console.error(e);}
     }
     touch_unlock_WebAudio=async function() {
-        try { await connect_audio_processor(); } catch(e){ console.error(e);}
+        try { 
+            await connect_audio_processor(); 
+            if(audioContext.state=="running")
+                remove_unlock_user_action();
+        } catch(e){ console.error(e);}
     }    
-    document.addEventListener('click',click_unlock_WebAudio, false);
 
-    //iOS safari does not bubble click events on canvas so we add this extra event handler here
-    document.getElementById('canvas').addEventListener('touchstart',touch_unlock_WebAudio,false);
-
+    add_unlock_user_action();
+    
     get_audio_context=function() {
         if (typeof Module === 'undefined'
         || typeof Module.SDL2 == 'undefined'
