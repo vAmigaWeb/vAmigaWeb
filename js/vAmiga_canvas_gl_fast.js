@@ -1,7 +1,7 @@
 let flicker_weight=1.0; // set 0.5 or 0.6 for interlace flickering
 function render_canvas_gl(now)
 {
-    if(updateSubTexture(now)) render();
+    if(updateFullTexture(now)) render();
 }
 
 // Reference to the canvas element
@@ -287,6 +287,41 @@ function updateSubTexture() {
     gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, xOff);
 
     gl.texSubImage2D(gl.TEXTURE_2D, 0, xOff, yOff, clipped_width, clipped_height, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+    return true;
+}
+function updateFullTexture() {
+    let frame_info=Module._wasm_frame_info();
+    currLOF=frame_info & 1;
+    frame_info = frame_info>>>1; 
+    prevLOF=frame_info & 1;
+    frame_frameNr = frame_info>>>1; 
+    
+    // Check for duplicate frames or frame drops
+    if (frame_frameNr != frameNr + 1) {
+        // console.log('Frame sync mismatch: ' + frameNr + ' -> ' + frame.frameNr);
+
+        // Return immediately if we already have this texture
+        if (frame_frameNr === frameNr) return false;
+    }
+
+    frameNr = frame_frameNr;
+
+//  let frame_data = Module._wasm_pixel_buffer();
+//  let tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, w*h<<2);
+
+    let frame_data = Module._wasm_pixel_buffer();
+    let tex=new Uint8Array(Module.HEAPU8.buffer, frame_data, VPIXELS*HPIXELS<<2);
+
+    // Update the GPU texture
+    if (currLOF) {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, lfTexture);
+    } else {
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, sfTexture);
+    }
+
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, HPIXELS, VPIXELS, gl.RGBA, gl.UNSIGNED_BYTE, tex);
     return true;
 }
 
