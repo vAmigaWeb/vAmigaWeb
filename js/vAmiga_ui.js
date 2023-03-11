@@ -1514,11 +1514,17 @@ function InitWrappers() {
                     render_canvas(now);
             }
             if(Module._wasm_is_worker_built()){
+                rendered_frame_id=0;
                 calculate_and_render=(now)=>
                 {
                     draw_one_frame(); // to gather joystick information 
-                    render_frame(now);
-                    Module._wasm_worker_run();
+                    Module._wasm_worker_run();                    
+                    let current_rendered_frame_id=Module._wasm_frame_info();
+                    if(rendered_frame_id !== current_rendered_frame_id)
+                    {
+                        render_frame(now);
+                        rendered_frame_id = current_rendered_frame_id;
+                    }
                 }
             }
             else
@@ -1878,7 +1884,20 @@ function InitWrappers() {
 
     has_pointer_lock=false;
     try_to_lock_pointer=0;
+    has_pointer_lock_fallback=false;
+    window.last_mouse_x=0;
+    window.last_mouse_y=0;
+
     request_pointerlock = async function() {
+        if(canvas.requestPointerLock === undefined)
+        {
+            if(!has_pointer_lock_fallback)
+            {
+                add_pointer_lock_fallback();      
+                has_pointer_lock_fallback=true;
+            }
+            return;
+        }
         if(!has_pointer_lock && try_to_lock_pointer <20)
         {
             try_to_lock_pointer++;
@@ -1892,6 +1911,18 @@ function InitWrappers() {
         }
     };
     
+    window.add_pointer_lock_fallback=()=>{
+        document.addEventListener("mousemove", updatePosition_fallback, false); 
+        document.addEventListener("mousedown", mouseDown, false);
+        document.addEventListener("mouseup", mouseUp, false);
+    };
+    window.remove_pointer_lock_fallback=()=>{
+        document.removeEventListener("mousemove", updatePosition_fallback, false); 
+        document.removeEventListener("mousedown", mouseDown, false);
+        document.removeEventListener("mouseup", mouseUp, false);
+        has_pointer_lock_fallback=false;
+    };
+
     // Hook pointer lock state change events for different browsers
     document.addEventListener('pointerlockchange', lockChangeAlert, false);
     document.addEventListener('mozpointerlockchange', lockChangeAlert, false);
@@ -1917,6 +1948,24 @@ function InitWrappers() {
     var mouse_port=1;
     function updatePosition(e) {
         Module._wasm_mouse(mouse_port,e.movementX,e.movementY);
+    }
+    function updatePosition_fallback(e) {
+        let movementX=e.screenX-window.last_mouse_x;
+        let movementY=e.screenY-window.last_mouse_y;
+        window.last_mouse_x=e.screenX;
+        window.last_mouse_y=e.screenY;
+        let border_speed=4;
+        let border_pixel=2;
+    
+        if(e.screenX<=border_pixel)
+          movementX=-border_speed;
+        if(e.screenX>=window.innerWidth-border_pixel)
+          movementX=border_speed;
+        if(e.screenY<=border_pixel)
+          movementY=-border_speed;
+        if(e.screenY>=window.innerHeight-border_pixel)
+          movementY=border_speed;        
+        Module._wasm_mouse(mouse_port,movementX,movementY);  
     }
     function mouseDown(e) {
         Module._wasm_mouse_button(mouse_port,e.which, 1/* down */);
@@ -3109,6 +3158,7 @@ $('.layer').change( function(event) {
         else if(port2 != 'mouse')
         {
             canvas.removeEventListener('click', request_pointerlock);
+            remove_pointer_lock_fallback();
         }
         if(port1.startsWith('mouse touch'))
         {
@@ -3124,6 +3174,7 @@ $('.layer').change( function(event) {
             canvas.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
             canvas.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
         }
+        this.blur();
     }
     document.getElementById('port2').onchange = function() {
         port2 = document.getElementById('port2').value;
@@ -3153,6 +3204,7 @@ $('.layer').change( function(event) {
         else if(port1 != 'mouse')
         {
             canvas.removeEventListener('click', request_pointerlock);
+            remove_pointer_lock_fallback();
         }
         if(port2.startsWith('mouse touch'))
         {
@@ -3168,7 +3220,7 @@ $('.layer').change( function(event) {
             canvas.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
             canvas.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
         }
-
+        this.blur();
     }
 
 
