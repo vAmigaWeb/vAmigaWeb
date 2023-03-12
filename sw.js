@@ -85,6 +85,8 @@ self.addEventListener('fetch', function(event){
       if(
         event.request.url.toLowerCase().startsWith('https://vamigaweb.github.io/doc')
         ||
+        !event.request.url.toLowerCase().startsWith('https://vamigaweb.github.io')
+        ||
         event.request.url.toLowerCase().endsWith('vamigaweb_player.js')
 	||
         event.request.url.endsWith('run.html')

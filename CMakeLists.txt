@@ -62,7 +62,7 @@ add_custom_target(run
 	DEPENDS vAmiga
 )
 
-#run local webserver
+#run worker version on local webserver
 add_custom_target(wrun
     COMMAND ${CMAKE_COMMAND} -E copy vAmiga.html ../index.html
     COMMAND ${CMAKE_COMMAND} -E copy vAmiga.js ..
@@ -85,14 +85,15 @@ add_custom_target(publish
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${PUBLISH_FOLDER}/css
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${PUBLISH_FOLDER}/js
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${PUBLISH_FOLDER}/img
-	COMMAND ${CMAKE_COMMAND} -E rm -f  ${PUBLISH_FOLDER}/vC64.*
+	COMMAND ${CMAKE_COMMAND} -E rm -f  ${PUBLISH_FOLDER}/vAmiga.*
 	COMMAND ${CMAKE_COMMAND} -E rm -f  ${PUBLISH_FOLDER}/*.js
 	COMMAND ${CMAKE_COMMAND} -E rm -f  ${PUBLISH_FOLDER}/*.json
 	COMMAND ${CMAKE_COMMAND} -E rm -f  ${PUBLISH_FOLDER}/index.html
 	COMMAND ${CMAKE_COMMAND} -E rm -f  ${PUBLISH_FOLDER}/run.html
 	COMMAND ${CMAKE_COMMAND} -E copy vAmiga.html ${PUBLISH_FOLDER}/index.html
     COMMAND ${CMAKE_COMMAND} -E copy vAmiga.js ${PUBLISH_FOLDER}
-    COMMAND ${CMAKE_COMMAND} -E copy vAmiga.ww.js ${PUBLISH_FOLDER}
+    #the following line is only needed for the worker build
+	#COMMAND ${CMAKE_COMMAND} -E copy vAmiga.ww.js ${PUBLISH_FOLDER}
 	COMMAND ${CMAKE_COMMAND} -E copy vAmiga.wasm ${PUBLISH_FOLDER}
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../js ${PUBLISH_FOLDER}/js
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../css ${PUBLISH_FOLDER}/css
@@ -112,7 +113,7 @@ add_custom_target(uat
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${UAT_FOLDER}/css
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${UAT_FOLDER}/js
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${UAT_FOLDER}/img
-	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/vC64.*
+	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/vAmiga.*
 	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/*.js
 #	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/*.json
 	COMMAND ${CMAKE_COMMAND} -E rm -f  ${UAT_FOLDER}/index.html
@@ -138,7 +139,7 @@ add_custom_target(worker
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${WORKER_FOLDER}/css
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${WORKER_FOLDER}/js
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${WORKER_FOLDER}/img
-	COMMAND ${CMAKE_COMMAND} -E rm -f  ${WORKER_FOLDER}/vC64.*
+	COMMAND ${CMAKE_COMMAND} -E rm -f  ${WORKER_FOLDER}/vAmiga.*
 	COMMAND ${CMAKE_COMMAND} -E rm -f  ${WORKER_FOLDER}/*.js
 #	COMMAND ${CMAKE_COMMAND} -E rm -f  ${WORKER_FOLDER}/*.json
 	COMMAND ${CMAKE_COMMAND} -E rm -f  ${WORKER_FOLDER}/index.html
@@ -158,4 +159,3 @@ add_custom_target(worker
 	#COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${WORKER_FOLDER}
 	DEPENDS vAmiga
 )
-
