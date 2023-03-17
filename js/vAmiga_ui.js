@@ -331,6 +331,20 @@ function wait_on_message(msg)
     return new Promise(resolve => fire_on_message(msg, resolve));
 }
 
+window.serial_port_out_buffer="";
+function set_serial_port_out_handler(new_handler){
+	window.serial_port_out_handler = new_handler;  
+}
+set_serial_port_out_handler((data) => {
+    //clear buffer when nobody consumes after 4kb of incoming data
+    if(window.serial_port_out_buffer.length>4096)
+    {
+        window.serial_port_out_buffer="";
+    }
+    window.serial_port_out_buffer += String.fromCharCode( data & 0xff );
+    //if we are embedded in a player send serial data to the host page
+    window.parent.postMessage({ msg: 'serial_port_out', value: data},"*");
+});
 function message_handler(msg, data, data2)
 {
     //console.log(`js receives msg:${msg} data:${data}`);
@@ -459,7 +473,12 @@ function message_handler(msg, data, data2)
         $(`#button_${"OPT_FAST_RAM"}`).text(`fast ram=${wasm_get_config_item('FAST_RAM')} KB (snapshot)`);
     
         rom_restored_from_snapshot=true;
+    } 
+    else if(msg == "MSG_SER_OUT")
+    {
+      serial_port_out_handler(data);
     }
+
 
 }
 
@@ -2566,14 +2585,7 @@ $('.layer').change( function(event) {
         }
         $("#output_row").hide();
     });
-    
-    /*document.getElementById('button_fullscreen').onclick = function() {
-        if (wasm_toggleFullscreen != null) {
-            wasm_toggleFullscreen();
-        }
-        document.getElementById('canvas').focus();
-    }
-    */
+
     document.getElementById('button_reset').onclick = function() {
         wasm_reset();
 

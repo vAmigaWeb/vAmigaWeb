@@ -3,6 +3,25 @@
 <!-- vAmigaWeb-block start -->
 <script src="js/vAmigaWeb_player.js"></script>
 
+<script>
+//the following lines of code demonstrate how to receive serial data from the Amiga
+let out_buffer="";
+window.addEventListener('message', event => {
+    if(event.data.msg == 'serial_port_out')
+    {
+        let byte_from_amiga=event.data.value;
+        out_buffer+=String.fromCharCode( byte_from_amiga & 0xff );
+
+        if(out_buffer.length>80)
+        {
+            console.log(out_buffer);
+            out_buffer="";
+        }
+    }
+});
+</script>
+
+
 <style>
 	body {
         background-color: darkgray;
