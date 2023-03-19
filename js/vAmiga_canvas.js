@@ -37,7 +37,7 @@ function js_set_display(_xOff, _yOff, _clipped_width,_clipped_height) {
     xOff=_xOff-HBLANK_MIN*4;
     yOff=_yOff;
     clipped_width =_clipped_width;
-    clipped_height=_clipped_height;
+    clipped_height=_clipped_height & 0xfffe;
     if(clipped_height+yOff > VPIXELS)
     {
         clipped_height=(VPIXELS-yOff)& 0xfffe;
