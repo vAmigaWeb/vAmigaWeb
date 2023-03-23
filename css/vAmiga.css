@@ -4,14 +4,14 @@
   --lighterbg: #f0f0f0;
 }
 
-
 #canvas {
     position:fixed;
     left:0;
     right:0;
     background-color: var(--darkbg);
     user-select: none;
- }
+    -webkit-user-select: none;
+}
 
 .pixel_art{
     image-rendering: pixelated;
@@ -44,8 +44,10 @@ flex: 0 0 auto;
 
 body
 {
-    background-color: var(--lighterbg) !important;
+    user-select: none;
+    -webkit-user-select: none;
     overflow:hidden;
+    background-color: var(--lighterbg) !important;
 }
 
 [data-theme="dark"] {
