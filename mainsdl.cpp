@@ -1753,11 +1753,6 @@ extern "C" u8 wasm_peek(u16 addr)
 }
 
 
-extern "C" void wasm_write_string_to_ser(char* chars_to_send)
-{
-//  wrapper->amiga->write_string_to_ser(chars_to_send);
-}
-
 //const char chars_to_send[] = "HELLOMYWORLD!";
 extern "C" void wasm_poke(u16 addr, u8 value)
 {
@@ -1941,5 +1936,18 @@ extern "C" void wasm_update_audio(int offset)
     wrapper->amiga->paula.muxer.copy(left, right, leftChannel.size / 2);
 }
 
-
-
+bool is_connected=false;
+extern "C" void wasm_write_string_to_ser(char* chars_to_send)
+{
+   // wrapper->amiga->configure(OPT_SERIAL_DEVICE, SPD_NULLMODEM);
+    //auto s = std::string(chars_to_send);
+    //printf("send %s into serport %s\n",chars_to_send, s.c_str());
+    if(!is_connected)
+    {
+      wrapper->amiga->remoteManager.serServer.didConnect();
+      is_connected=true;
+//      printf("connect to serial port\n");
+    }
+    wrapper->amiga->remoteManager.serServer.doProcess(chars_to_send);
+    //printf("data sent\n");
+}
