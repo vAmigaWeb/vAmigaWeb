@@ -1,6 +1,6 @@
 const url_root_path= self.location.pathname.replace("/sw.js","");
 const core_version  = '2.3'; //has to be the same as the version in Emulator/config.h
-const ui_version = '2023_03_22c'+url_root_path.replace("/","_");
+const ui_version = '2023_03_24'+url_root_path.replace("/","_");
 const needs_shared_array_buffer=false; //true when vAmiga runs in separat worker thread
 const cache_name = `${core_version}@${ui_version}`;
 const settings_cache = 'settings';
@@ -85,7 +85,9 @@ self.addEventListener('fetch', function(event){
       if(
         event.request.url.toLowerCase().startsWith('https://vamigaweb.github.io/doc')
         ||
-        !event.request.url.toLowerCase().startsWith('https://vamigaweb.github.io')
+        !(event.request.url.toLowerCase().startsWith('https://vamigaweb.github.io')
+          || event.request.url.toLowerCase().startsWith('https://mithrendal.github.io')
+         )
         ||
         event.request.url.toLowerCase().endsWith('vamigaweb_player.js')
 	||

@@ -1618,9 +1618,7 @@ function InitWrappers() {
     wasm_get_config_item = Module.cwrap('wasm_get_config_item', 'number', ['string']);
     wasm_get_core_version = Module.cwrap('wasm_get_core_version', 'string');
 
-
-
-    connect_audio_processor = async () => {
+    connect_audio_processor_standard = async () => {
         if(audioContext.state !== 'running') {
             await audioContext.resume();  
         }
@@ -1701,6 +1699,48 @@ function InitWrappers() {
         worklet_node.connect(audioContext.destination);        
     }
 
+    connect_audio_processor_shared_memory= async ()=>{
+        if(audioContext.state !== 'running') {
+            await audioContext.resume();  
+        }
+        if(audio_connected==true)
+            return; 
+        if(audioContext.state === 'suspended') {
+            return;  
+        }
+        audio_connected=true;
+
+        audioContext.onstatechange = () => console.log('Audio Context: state = ' + audioContext.state);
+        let gainNode = audioContext.createGain();
+        gainNode.gain.value = 0.15;
+        gainNode.connect(audioContext.destination);
+        wasm_set_sample_rate(audioContext.sampleRate);
+        await audioContext.audioWorklet.addModule('js/vAmiga_audioprocessor_sharedarraybuffer.js');
+        const audioNode = new AudioWorkletNode(audioContext, 'vAmiga_audioprocessor_sharedarraybuffer', {
+            outputChannelCount: [2],
+            processorOptions: {
+                pointers: [Module._wasm_leftChannelBuffer(), Module._wasm_rightChannelBuffer()],
+                buffer: Module.HEAPF32.buffer,
+                length: 2048
+            }
+        });
+        audioNode.port.onmessage = (e) => {
+            Module._wasm_update_audio(e.data);
+        };
+        audioNode.connect(audioContext.destination);
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+    }
+
+    if(Module._wasm_is_worker_built())
+    {
+        connect_audio_processor=connect_audio_processor_shared_memory;
+    }
+    else
+    {
+        connect_audio_processor=connect_audio_processor_standard;
+    }
 
     //when app becomes hidden/visible
     window.addEventListener("visibilitychange", async () => {

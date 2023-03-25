@@ -1753,11 +1753,6 @@ extern "C" u8 wasm_peek(u16 addr)
 }
 
 
-extern "C" void wasm_write_string_to_ser(char* chars_to_send)
-{
-//  wrapper->amiga->write_string_to_ser(chars_to_send);
-}
-
 //const char chars_to_send[] = "HELLOMYWORLD!";
 extern "C" void wasm_poke(u16 addr, u8 value)
 {
@@ -1914,4 +1909,45 @@ extern "C" void wasm_print_error(unsigned exception_ptr)
     string s= std::string(reinterpret_cast<std::exception *>(exception_ptr)->what());
     printf("uncaught exception %u: %s\n",exception_ptr, s.c_str());
   }
+}
+
+
+Buffer<float> leftChannel;
+extern "C" u32 wasm_leftChannelBuffer()
+{
+    if (leftChannel.size == 0)
+        leftChannel.init(2048, 0);
+    return (u32)leftChannel.ptr;
+}
+
+Buffer<float> rightChannel;
+extern "C" u32 wasm_rightChannelBuffer()
+{
+    if (rightChannel.size == 0)
+        rightChannel.init(2048, 0);
+    return (u32)rightChannel.ptr;
+}
+extern "C" void wasm_update_audio(int offset)
+{
+//    assert(offset == 0 || offset == leftChannel.size / 2);
+
+    float *left = leftChannel.ptr + offset;
+    float *right = rightChannel.ptr + offset;
+    wrapper->amiga->paula.muxer.copy(left, right, leftChannel.size / 2);
+}
+
+bool is_connected=false;
+extern "C" void wasm_write_string_to_ser(char* chars_to_send)
+{
+   // wrapper->amiga->configure(OPT_SERIAL_DEVICE, SPD_NULLMODEM);
+    //auto s = std::string(chars_to_send);
+    //printf("send %s into serport %s\n",chars_to_send, s.c_str());
+    if(!is_connected)
+    {
+      wrapper->amiga->remoteManager.serServer.didConnect();
+      is_connected=true;
+//      printf("connect to serial port\n");
+    }
+    wrapper->amiga->remoteManager.serServer.doProcess(chars_to_send);
+    //printf("data sent\n");
 }
