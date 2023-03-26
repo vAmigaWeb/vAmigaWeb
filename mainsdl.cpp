@@ -1936,18 +1936,11 @@ extern "C" void wasm_update_audio(int offset)
     wrapper->amiga->paula.muxer.copy(left, right, leftChannel.size / 2);
 }
 
-bool is_connected=false;
 extern "C" void wasm_write_string_to_ser(char* chars_to_send)
 {
-   // wrapper->amiga->configure(OPT_SERIAL_DEVICE, SPD_NULLMODEM);
-    //auto s = std::string(chars_to_send);
-    //printf("send %s into serport %s\n",chars_to_send, s.c_str());
-    if(!is_connected)
+    if(wrapper->amiga->agnus.id[SLOT_SER] != SER_RECEIVE)
     {
       wrapper->amiga->remoteManager.serServer.didConnect();
-      is_connected=true;
-//      printf("connect to serial port\n");
     }
     wrapper->amiga->remoteManager.serServer.doProcess(chars_to_send);
-    //printf("data sent\n");
 }
