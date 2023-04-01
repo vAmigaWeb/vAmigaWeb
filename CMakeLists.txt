@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS False)
 
-add_executable(vAmiga mainsdl.cpp)
+add_executable(vAmiga main.cpp)
 
 if("${thread_type}" STREQUAL "worker")
 	target_compile_options(vAmiga PRIVATE -sWASM_WORKERS)
