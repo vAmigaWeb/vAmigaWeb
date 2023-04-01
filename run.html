@@ -19,6 +19,19 @@ window.addEventListener('message', event => {
         }
     }
 });
+
+
+function send_hello_to_ser(){
+    //get the vAmigaWeb iFrame window
+    let vAmigaWeb_window=document.getElementById("vAmigaWeb").contentWindow;
+
+    //data that should be written into the serial port
+    let data="hello";
+
+    //send the data to the serial port of vAmigaWeb
+    vAmigaWeb_window.postMessage({cmd:"ser:", text: data}, "*");
+}
+
 </script>
 
 
@@ -82,7 +95,7 @@ window.addEventListener('message', event => {
                 border:0.3,
                 port2:true,
                 url:'./test2.adf',
-                kickstart_rom_url:'./roms/kick2.rom'
+                //kickstart_rom_url:'./roms/kick2.rom'
             }; 
             vAmigaWeb_player.load(this,encodeURIComponent(JSON.stringify(config)));
             return false;"		
@@ -90,4 +103,6 @@ window.addEventListener('message', event => {
     </div>
 </div>
 <br>
+<button type="button" onclick="send_hello_to_ser()">send hello to ser</button>
+
 <!-- vAmigaWeb-block end -->

@@ -1913,7 +1913,11 @@ function InitWrappers() {
                 configure_file_dialog(reset=false);
             }
         }
-    }); 
+        else if(event.data.cmd == "ser:")
+        {
+            wasm_write_string_to_ser(event.data.text);
+        }
+    });
     
     dark_switch = document.getElementById('dark_switch');
 
