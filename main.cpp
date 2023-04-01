@@ -1,5 +1,5 @@
 /*!
- * @file        mainsdl.cpp
+ * @file        main.cpp
  * @author      mithrendal and Dirk W. Hoffmann, www.dirkwhoffmann.de
  * @copyright   Dirk W. Hoffmann. All rights reserved.
  */
@@ -20,7 +20,6 @@
 #include "MemUtils.h"
 
 #include <emscripten.h>
-#include <emscripten/html5.h>
 
 #ifdef wasm_worker
 #include <emscripten/wasm_worker.h>
