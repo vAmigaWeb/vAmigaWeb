@@ -26,10 +26,19 @@ function send_hello_to_ser(){
     let vAmigaWeb_window=document.getElementById("vAmigaWeb").contentWindow;
 
     //data that should be written into the serial port
-    let data="hello";
+    let data="sending text";
 
     //send the data to the serial port of vAmigaWeb
     vAmigaWeb_window.postMessage({cmd:"ser:", text: data}, "*");
+
+    //single bytes
+    let byte_buffer=(new TextEncoder()).encode(" sending single bytes");
+    for(let b of byte_buffer)
+        vAmigaWeb_window.postMessage({cmd:"ser:", byte: b}, "*");
+
+    //bytebuffer
+    let complete_buffer=(new TextEncoder()).encode(" sending a byte array");
+    vAmigaWeb_window.postMessage({cmd:"ser:", bytes: complete_buffer}, "*");
 }
 
 </script>

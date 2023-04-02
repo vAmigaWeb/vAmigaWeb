@@ -1638,28 +1638,6 @@ extern "C" char* wasm_sprite_info()
    return buffer;
 }
 
-extern "C" void wasm_set_sid_model(unsigned SID_Model)
-{
-/*
-  bool wasRunning=false;
-  if(wrapper->amiga->isRunning()){
-    wasRunning= true;
-    wrapper->amiga->pause();
-  }
-  if(SID_Model == 6581)
-  {
-    wrapper->amiga->configure(OPT_SID_REVISION, MOS_6581);
-  }
-  else if(SID_Model == 8580)
-  {
-    wrapper->amiga->configure(OPT_SID_REVISION, MOS_8580);  
-  }
-  if(wasRunning)
-  {
-    wrapper->amiga->run();
-  }
-  */
-}
 
 extern "C" void wasm_cut_layers(unsigned cut_layers)
 {
@@ -1744,32 +1722,6 @@ extern "C" u64 wasm_get_cpu_cycles()
 {
   return wrapper->amiga->cpu.getClock();
 }
-
-extern "C" u8 wasm_peek(u16 addr)
-{
-  //return wrapper->amiga->mem.spypeek(addr);
-  return 0;
-}
-
-
-//const char chars_to_send[] = "HELLOMYWORLD!";
-extern "C" void wasm_poke(u16 addr, u8 value)
-{
-    //wrapper->amiga->mem.poke(addr, value);
-}
-
-/*
-char wasm_translate_json[255];
-extern "C" char* wasm_translate(char c)
-{
-  auto key = C64Key::translate(c);
-  sprintf(wasm_translate_json, "{\"size\": "+key.+" }");
-  sprintf( wasm_translate_json);
-  
-  return wasm_translate_json;
-}
-*/
-
 
 char config_result[512];
 extern "C" const char* wasm_power_on(unsigned power_on)
@@ -1942,4 +1894,25 @@ extern "C" void wasm_write_string_to_ser(char* chars_to_send)
       wrapper->amiga->remoteManager.serServer.didConnect();
     }
     wrapper->amiga->remoteManager.serServer.doProcess(chars_to_send);
+}
+
+/*extern "C" void wasm_write_bytes_to_ser(u8 *bytes_to_send, u32 length)
+{
+    if(wrapper->amiga->agnus.id[SLOT_SER] != SER_RECEIVE)
+    {
+      wrapper->amiga->remoteManager.serServer.didConnect();
+    }
+    auto &serserver = wrapper->amiga->remoteManager.serServer;
+    for (u32 i=0; i<length; i++) { 
+      serserver.processIncomingByte((u8)bytes_to_send[i]); 
+    }
+}*/
+
+extern "C" void wasm_write_byte_to_ser(u8 byte_to_send)
+{
+    if(wrapper->amiga->agnus.id[SLOT_SER] != SER_RECEIVE)
+    {
+      wrapper->amiga->remoteManager.serServer.didConnect();
+    }
+    wrapper->amiga->remoteManager.serServer.processIncomingByte(byte_to_send);
 }
