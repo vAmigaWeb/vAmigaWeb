@@ -1501,7 +1501,15 @@ function InitWrappers() {
         Module._free(file_slot_wasmbuf);
         return retVal;                    
     }
-    
+    wasm_write_bytes_to_ser = function (bytes_to_send) {
+        for(let b of bytes_to_send)
+        {
+            Module._wasm_write_byte_to_ser(b);
+        }
+    }
+    wasm_write_byte_to_ser = function (byte_to_send) {
+            Module._wasm_write_byte_to_ser(byte_to_send);
+    }
     wasm_key = Module.cwrap('wasm_key', 'undefined', ['number', 'number']);
     wasm_toggleFullscreen = Module.cwrap('wasm_toggleFullscreen', 'undefined');
     wasm_joystick = Module.cwrap('wasm_joystick', 'undefined', ['string']);
@@ -1915,7 +1923,18 @@ function InitWrappers() {
         }
         else if(event.data.cmd == "ser:")
         {
-            wasm_write_string_to_ser(event.data.text);
+            if(event.data.text !== undefined)
+            {
+                wasm_write_string_to_ser(event.data.text);
+            }
+            else if (event.data.byte !== undefined )
+            {
+                Module._wasm_write_byte_to_ser(event.data.byte);
+            }
+            else if (event.data.bytes !== undefined )
+            {
+                wasm_write_bytes_to_ser(event.data.bytes);
+            }
         }
     });
     
