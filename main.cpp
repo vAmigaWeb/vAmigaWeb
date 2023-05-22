@@ -409,8 +409,8 @@ extern "C" int wasm_draw_one_frame(double now)
     total_executed_frame_count++;
     behind--;
   }
-  executed_since_last_host_frame=0;
 #endif
+  executed_since_last_host_frame=0;
   rendered_frame_count++;
 
   if(geometry == DISPLAY_BORDERLESS)
@@ -1882,9 +1882,11 @@ extern "C" void wasm_update_audio(int offset)
 {
 //    assert(offset == 0 || offset == leftChannel.size / 2);
 
-    float *left = leftChannel.ptr + offset;
-    float *right = rightChannel.ptr + offset;
-    wrapper->amiga->paula.muxer.copy(left, right, leftChannel.size / 2);
+  float *left = leftChannel.ptr + offset;
+  float *right = rightChannel.ptr + offset;
+  auto samples = leftChannel.size / 2;
+  wrapper->amiga->paula.muxer.copy(left, right, samples);
+  sum_samples += samples; 
 }
 
 extern "C" void wasm_write_string_to_ser(char* chars_to_send)
