@@ -5,8 +5,8 @@ project(vAmiga C CXX)
 #to build a worker built 
 #1.set thread_type to "worker"
 #2.go to the sw.js and set needs_shared_array_buffer=true
-#set(thread_type "nonworker")
-set(thread_type "worker")
+set(thread_type "nonworker")
+#set(thread_type "worker")
 
 # Specify the C++ standard
 set(CMAKE_CXX_STANDARD 20)
