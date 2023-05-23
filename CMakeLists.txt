@@ -119,7 +119,7 @@ add_custom_target(publish
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../roms ${PUBLISH_FOLDER}/roms
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../sounds ${PUBLISH_FOLDER}/sounds
 	COMMAND ${CMAKE_COMMAND} -E copy ../run.html ${PUBLISH_FOLDER}
-	COMMAND ${CMAKE_COMMAND} -E copy ../sw.js ${PUBLISH_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy sw.js ${PUBLISH_FOLDER}
 	COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${PUBLISH_FOLDER}
 	DEPENDS vAmiga
 )
@@ -145,7 +145,7 @@ add_custom_target(uat
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../roms ${UAT_FOLDER}/roms
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../sounds ${UAT_FOLDER}/sounds
 	COMMAND ${CMAKE_COMMAND} -E copy ../run.html ${UAT_FOLDER}
-	COMMAND ${CMAKE_COMMAND} -E copy ../sw.js ${UAT_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy sw.js ${UAT_FOLDER}
 #	COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${UAT_FOLDER}
 	DEPENDS vAmiga
 )
@@ -173,7 +173,7 @@ add_custom_target(worker
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../roms ${WORKER_FOLDER}/roms
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../sounds ${WORKER_FOLDER}/sounds
 	COMMAND ${CMAKE_COMMAND} -E copy ../run.html ${WORKER_FOLDER}
-	COMMAND ${CMAKE_COMMAND} -E copy ../sw.js ${WORKER_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy sw.js ${WORKER_FOLDER}
 	#COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${WORKER_FOLDER}
 	DEPENDS vAmiga
 )
