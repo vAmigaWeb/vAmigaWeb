@@ -993,8 +993,8 @@ function prompt_for_drive()
         <div id="drive_select_choice">
             <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);show_drive_select(false);">dh0:</button>
             <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);show_drive_select(false);">dh1:</button>
-            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(0);show_drive_select(false);">dh2:</button>
-            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(1);show_drive_select(false);">dh3:</button>
+            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(2);show_drive_select(false);">dh2:</button>
+            <button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(3);show_drive_select(false);">dh3:</button>
         </div>`);
         show_drive_select(true);
     }
@@ -1755,7 +1755,7 @@ function InitWrappers() {
         if(document.visibilityState == "hidden") {
            try { audioContext.suspend(); } catch(e){ console.error(e);}
         }
-        else
+        else if(emulator_currently_runs)
         {
             try { await connect_audio_processor(); } catch(e){ console.error(e);}
             add_unlock_user_action();
@@ -1766,9 +1766,12 @@ function InitWrappers() {
 //    window.addEventListener('blur', ()=>{});
 
     //when app is coming to foreground again
-    window.addEventListener('focus', async ()=>{         
-        try { await connect_audio_processor(); } catch(e){ console.error(e);}
-        add_unlock_user_action();
+    window.addEventListener('focus', async ()=>{
+        if(emulator_currently_runs)
+        {
+            try { await connect_audio_processor(); } catch(e){ console.error(e);}
+            add_unlock_user_action();
+        }
     });
 
     add_unlock_user_action = function(){
@@ -2667,6 +2670,7 @@ $('.layer').change( function(event) {
         if(running)
         {        
             wasm_halt();
+            try { audioContext.suspend(); } catch(e){ console.error(e);}
             running = false;
             //set run icon
             $('#button_run').html(`<svg class="bi bi-play-fill" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -2683,9 +2687,9 @@ $('.layer').change( function(event) {
             //have to catch an intentional "unwind" exception here, which is thrown
             //by emscripten_set_main_loop() after emscripten_cancel_main_loop();
             //to simulate infinity gamelloop see emscripten API for more info ... 
-            try{wasm_run();} catch(e) {}
+            try{wasm_run();} catch(e) {}        
+            try {connect_audio_processor();} catch(e){ console.error(e);}
             running = true;
-
         }
         
         //document.getElementById('canvas').focus();

@@ -15,6 +15,27 @@
   <meta name="apple-mobile-web-app-status-bar" content="black-translucent">
   <meta name="theme-color" content="black">
     
+  <script>
+    (async function () {
+        let registration = await navigator.serviceWorker
+            .register('sw.js')
+            .catch((e) => console.error('service worker failed to register:', e));
+        if (registration) {
+            console.log('service worker registered', registration.scope);
+    
+            registration.addEventListener('updatefound', () => {
+                console.log('Reloading page to make use of updated service worker.');
+                window.location.reload();
+            });    
+            // If the registration is active, but it's not controlling the page
+            if (registration.active && !navigator.serviceWorker.controller) {
+                console.log('Reloading page to make use of new service worker.');
+                window.location.reload();
+            }
+        }
+    })();
+  </script>
+
   <link rel="stylesheet" href="css/bootstrap.min.css">
   <link rel="stylesheet" href="css/vAmiga.css">
   <script src="js/jquery-3.6.0.min.js"></script>
@@ -29,7 +50,7 @@
   <script src="js/vAmiga_action_script.js"></script>
   <script src="js/virtualjoystick.js"></script>
   <script src="js/jszip.min.js"></script>
-    <style>
+  <style>
       .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
       textarea.emscripten { font-family: monospace; width: 80%; }
       div.emscripten { text-align: center; }
@@ -1036,17 +1057,6 @@ goes into edit mode which takes you right back to here ...
           if (text) Module.printErr('[post-exception status] ' + text);
         };
       };
-
-
-
-
-      if('serviceWorker' in navigator){        
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => {
-            console.log('service worker registered')
-          })
-          .catch(err => console.log('service worker not registered', err));
-      }
 
       var db;    
       //ready function

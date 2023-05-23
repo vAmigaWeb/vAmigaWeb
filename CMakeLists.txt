@@ -6,6 +6,7 @@ project(vAmiga C CXX)
 #1.set thread_type to "worker"
 #2.go to the sw.js and set needs_shared_array_buffer=true
 set(thread_type "nonworker")
+#set(thread_type "worker")
 
 # Specify the C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -31,8 +32,7 @@ add_subdirectory("Emulator" "vAmigaCore")
 target_link_libraries(vAmiga vAmigaCore)
 
 #emscripten linker settings
-#set(LF_MEM   "-s INITIAL_MEMORY=1024MB -s TOTAL_STACK=32MB -s ALLOW_MEMORY_GROWTH=0")
-set(LF_MEM   "-s INITIAL_MEMORY=320MB -s TOTAL_STACK=32MB -s ALLOW_MEMORY_GROWTH=1")
+
 #set(LF_OPTI  "-O3 -s NO_DISABLE_EXCEPTION_CATCHING")
 set(LF_OPTI  "-O3 -mnontrapping-fptoint -fwasm-exceptions")
 set(LF_SHELL "--shell-file ../shell.html")
@@ -41,38 +41,55 @@ set(LF_EXPORTS "-s EXPORTED_RUNTIME_METHODS=['cwrap','ccall'] -s EXPORTED_FUNCTI
 
 set(LF_OTHER  "-s DISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=1  -s LLD_REPORT_UNDEFINED -s ASSERTIONS=0 -s GL_ASSERTIONS=0")
 
+#configure the service worker
+file(READ sw_template.js sw_template)
 if("${thread_type}" STREQUAL "worker")
 	set(LF_WORKER  "-sWASM_WORKERS")
+
+	set(needs_shared_array_buffer "true")
+	file(CONFIGURE OUTPUT sw.js CONTENT "${sw_template}" @ONLY)
+
+	#bug iOS/iPadOS does not allow mem growing on a shared_array_buffer therefore we set it to a fixed size 
+	set(LF_MEM   "-s INITIAL_MEMORY=1024MB -s TOTAL_STACK=32MB -s ALLOW_MEMORY_GROWTH=0")
 else()
 	set(LF_WORKER  " ")
-endif()
 
+	set(needs_shared_array_buffer "false")
+	file(CONFIGURE OUTPUT sw.js CONTENT "${sw_template}" @ONLY)
+
+	set(LF_MEM   "-s INITIAL_MEMORY=320MB -s TOTAL_STACK=32MB -s ALLOW_MEMORY_GROWTH=1")
+endif()
 
 #-s ALLOW_MEMORY_GROWTH=1 -g -s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19306 
 
 set_target_properties(vAmiga PROPERTIES LINK_FLAGS "${LF_SHELL} ${LF_OPTI} ${LF_MEM} ${LF_EXPORTS} ${LF_OTHER} ${LF_WORKER}" )
 set(CMAKE_EXECUTABLE_SUFFIX ".html")
 
-
 #run local webserver
-add_custom_target(run
-    COMMAND ${CMAKE_COMMAND} -E copy vAmiga.html ../index.html
-    COMMAND ${CMAKE_COMMAND} -E copy vAmiga.js ..
-    COMMAND ${CMAKE_COMMAND} -E copy vAmiga.wasm ..
-    COMMAND ${CMAKE_COMMAND} -E chdir .. python3 -m http.server 8080
-	DEPENDS vAmiga
-)
+if("${thread_type}" STREQUAL "worker")
+	#run worker version on local webserver
+	add_custom_target(run
+		COMMAND ${CMAKE_COMMAND} -E copy vAmiga.html ../index.html
+		COMMAND ${CMAKE_COMMAND} -E copy vAmiga.js ..
+		COMMAND ${CMAKE_COMMAND} -E copy vAmiga.ww.js ..
+		COMMAND ${CMAKE_COMMAND} -E copy vAmiga.wasm ..
+		COMMAND ${CMAKE_COMMAND} -E copy sw.js ..
+	#    COMMAND ${CMAKE_COMMAND} -E chdir .. python3 -m http.server 8080
+			COMMAND ${CMAKE_COMMAND} -E chdir .. python3 ./https.py
+			DEPENDS vAmiga
+	)
+else()
+	add_custom_target(run
+		COMMAND ${CMAKE_COMMAND} -E copy vAmiga.html ../index.html
+		COMMAND ${CMAKE_COMMAND} -E copy vAmiga.js ..
+		COMMAND ${CMAKE_COMMAND} -E copy vAmiga.wasm ..
+		COMMAND ${CMAKE_COMMAND} -E copy sw.js ..
+		COMMAND ${CMAKE_COMMAND} -E chdir .. python3 -m http.server 8080
+		DEPENDS vAmiga
+	)
+endif()
 
-#run worker version on local webserver
-add_custom_target(wrun
-    COMMAND ${CMAKE_COMMAND} -E copy vAmiga.html ../index.html
-    COMMAND ${CMAKE_COMMAND} -E copy vAmiga.js ..
-    COMMAND ${CMAKE_COMMAND} -E copy vAmiga.ww.js ..
-    COMMAND ${CMAKE_COMMAND} -E copy vAmiga.wasm ..
-#    COMMAND ${CMAKE_COMMAND} -E chdir .. python3 -m http.server 8080
-        COMMAND ${CMAKE_COMMAND} -E chdir .. python3 ./https.py
-        DEPENDS vAmiga
-)
+
 
 
 
@@ -102,7 +119,7 @@ add_custom_target(publish
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../roms ${PUBLISH_FOLDER}/roms
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../sounds ${PUBLISH_FOLDER}/sounds
 	COMMAND ${CMAKE_COMMAND} -E copy ../run.html ${PUBLISH_FOLDER}
-	COMMAND ${CMAKE_COMMAND} -E copy ../sw.js ${PUBLISH_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy sw.js ${PUBLISH_FOLDER}
 	COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${PUBLISH_FOLDER}
 	DEPENDS vAmiga
 )
@@ -128,12 +145,12 @@ add_custom_target(uat
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../roms ${UAT_FOLDER}/roms
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../sounds ${UAT_FOLDER}/sounds
 	COMMAND ${CMAKE_COMMAND} -E copy ../run.html ${UAT_FOLDER}
-	COMMAND ${CMAKE_COMMAND} -E copy ../sw.js ${UAT_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy sw.js ${UAT_FOLDER}
 #	COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${UAT_FOLDER}
 	DEPENDS vAmiga
 )
 
-set(WORKER_FOLDER "../../ghworker")
+set(WORKER_FOLDER "../../worker")
 add_custom_target(worker
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${WORKER_FOLDER}/sounds
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${WORKER_FOLDER}/roms
@@ -156,7 +173,7 @@ add_custom_target(worker
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../roms ${WORKER_FOLDER}/roms
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../sounds ${WORKER_FOLDER}/sounds
 	COMMAND ${CMAKE_COMMAND} -E copy ../run.html ${WORKER_FOLDER}
-	COMMAND ${CMAKE_COMMAND} -E copy ../sw.js ${WORKER_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy sw.js ${WORKER_FOLDER}
 	#COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${WORKER_FOLDER}
 	DEPENDS vAmiga
 )

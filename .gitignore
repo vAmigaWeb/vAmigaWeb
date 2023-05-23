@@ -1,6 +1,7 @@
 #roms
 #*.bin
 build
+b
 index.html
 vAmiga.js
 vAmiga.ww.js
@@ -38,3 +39,5 @@ vAmiga.wasm
 *.exe
 *.out
 *.app
+
+sw.js
