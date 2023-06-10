@@ -223,7 +223,7 @@ FloppyDrive::_dump(Category category, std::ostream& os) const
         os << dec(AS_MSEC(getHeadSettleTime())) << " msec" << std::endl;
     }
     
-    if (category == Category::Inspection) {
+    if (category == Category::State) {
         
         os << tab("Nr");
         os << dec(nr) << std::endl;
@@ -241,16 +241,12 @@ FloppyDrive::_dump(Category category, std::ostream& os) const
         os << bol(disk != nullptr) << std::endl;
         os << tab("Modified");
         os << bol(hasModifiedDisk()) << std::endl;
-    }
-
-    if (category == Category::Debug) {
-
-        os << tab("Nr");
-        os << dec(nr) << std::endl;
         os << tab("Id count");
         os << dec(idCount) << std::endl;
         os << tab("Id bit");
         os << dec(idBit) << std::endl;
+
+        os << std::endl;
         os << tab("latestStepUp");
         os << dec(latestStepUp) << std::endl;
         os << tab("latestStepDown");
@@ -285,9 +281,7 @@ FloppyDrive::_dump(Category category, std::ostream& os) const
 
         if (hasDisk()) {
 
-            disk->_dump(Category::Inspection, os);
-            os << std::endl;
-            disk->_dump(Category::Debug, os);
+            disk->_dump(Category::State, os);
 
         } else {
 
@@ -412,12 +406,12 @@ FloppyDrive::setProtectionFlag(bool value)
         if (value && !disk->isWriteProtected()) {
             
             disk->setWriteProtection(true);
-            msgQueue.put(MSG_DISK_PROTECT);
+            msgQueue.put(MSG_DISK_PROTECTED, true);
         }
         if (!value && disk->isWriteProtected()) {
             
             disk->setWriteProtection(false);
-            msgQueue.put(MSG_DISK_UNPROTECT);
+            msgQueue.put(MSG_DISK_PROTECTED, false);
         }
     }
 }
@@ -616,9 +610,12 @@ FloppyDrive::setMotor(bool value)
     idCount = 0;
     
     // Inform the GUI
-    msgQueue.put(value ? MSG_DRIVE_LED_ON : MSG_DRIVE_LED_OFF, nr);
-    msgQueue.put(value ? MSG_DRIVE_MOTOR_ON : MSG_DRIVE_MOTOR_OFF, nr);
-    
+    msgQueue.put(MSG_DRIVE_LED, DriveMsg { i16(nr), value, 0, 0 });
+    msgQueue.put(MSG_DRIVE_MOTOR, DriveMsg { i16(nr), value, 0, 0 });
+
+    // Enable or disable warp mode if applicable
+    amiga.updateWarpState();
+
     debug(DSK_DEBUG, "Motor %s [%d]\n", motor ? "on" : "off", idCount);
 }
 
@@ -828,13 +825,15 @@ FloppyDrive::step(isize dir)
     // Notify the GUI
     if (pollsForDisk()) {
         
-        msgQueue.put(MSG_DRIVE_POLL,
-                     i16(nr), i16(head.cylinder), config.pollVolume, config.pan);
+        msgQueue.put(MSG_DRIVE_POLL, DriveMsg {
+            i16(nr), i16(head.cylinder), config.pollVolume, config.pan
+        });
         
     } else {
 
-        msgQueue.put(MSG_DRIVE_STEP,
-                     i16(nr), i16(head.cylinder), config.stepVolume, config.pan);
+        msgQueue.put(MSG_DRIVE_STEP, DriveMsg {
+            i16(nr), i16(head.cylinder), config.stepVolume, config.pan
+        });
     }
 }
 
@@ -1097,7 +1096,11 @@ FloppyDrive::serviceDiskChangeEvent()
             
             // Notify the GUI
             msgQueue.put(MSG_DISK_EJECT,
+                         DriveMsg { i16(nr), 0, config.ejectVolume, config.pan });
+            /*
+            msgQueue.put(MSG_DISK_EJECT,
                          i16(nr), 0, config.ejectVolume, config.pan);
+             */
         }
     }
     
@@ -1113,8 +1116,9 @@ FloppyDrive::serviceDiskChangeEvent()
             head.offset = 0;
             
             // Notify the GUI
-            msgQueue.put(MSG_DISK_INSERT,
-                         i16(nr), 0, config.insertVolume, config.pan);
+            msgQueue.put(MSG_DISK_INSERT, DriveMsg {
+                i16(nr), 0, config.insertVolume, config.pan
+            });
         }
     }
 

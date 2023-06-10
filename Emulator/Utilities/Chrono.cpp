@@ -16,16 +16,13 @@
 #include <mach/mach_time.h>
 #endif
 
-#ifdef __EMSCRIPTEN__    
-#include <emscripten.h>
-#endif
 
 namespace util {
 
-#ifdef __MACH__
+#if defined(__MACH__)
 
 //
-// macOS
+// MacOS
 //
 
 static struct mach_timebase_info timebaseInfo()
@@ -67,22 +64,18 @@ Time::sleepUntil()
     mach_wait_until(ticks * tb.denom / tb.numer);
 }
 
-#else
-    
+#elif defined(__unix__)
+
 //
-// Linux
+// Unix
 //
 
 Time
 Time::now()
 {
-#ifndef __EMSCRIPTEN__
     struct timespec ts;
     (void)clock_gettime(CLOCK_MONOTONIC, &ts);
     return (i64)ts.tv_sec * 1000000000 + ts.tv_nsec;
-#else
- return (uint64_t)(emscripten_get_now()*1000000.0);
-#endif
 }
 
 std::tm
@@ -97,7 +90,6 @@ Time::local(const std::time_t &time)
 void
 Time::sleep()
 {
-#ifndef __EMSCRIPTEN__
     struct timespec req, rem;
     
     if (ticks > 0) {
@@ -105,15 +97,48 @@ Time::sleep()
         req.tv_nsec = ticks;
         nanosleep(&req, &rem);
     }
-#endif
 }
 
 void
 Time::sleepUntil()
 {
-#ifndef __EMSCRIPTEN__
     (*this - now()).sleep();
-#endif
+}
+
+#else
+    
+//
+// Generic
+//
+
+Time
+Time::now()
+{
+    const auto now = std::chrono::steady_clock::now();
+    static auto start = now;
+    return std::chrono::nanoseconds(now - start).count();
+}
+
+std::tm
+Time::local(const std::time_t &time)
+{
+    std::tm local {};
+    localtime_s(&local, &time);
+    
+    return local;
+}
+
+void
+Time::sleep()
+{
+    if (ticks > 0)
+        std::this_thread::sleep_for(std::chrono::nanoseconds(ticks));
+}
+
+void
+Time::sleepUntil()
+{
+    (*this - now()).sleep();
 }
 
 #endif

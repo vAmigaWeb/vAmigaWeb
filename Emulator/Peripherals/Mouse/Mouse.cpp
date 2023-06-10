@@ -124,7 +124,7 @@ Mouse::_dump(Category category, std::ostream& os) const
         os << dec(config.velocity) << std::endl;
     }
 
-    if (category == Category::Inspection) {
+    if (category == Category::State) {
 
         os << tab("leftButton");
         os << bol(leftButton) << std::endl;
@@ -136,10 +136,6 @@ Mouse::_dump(Category category, std::ostream& os) const
         os << mouseX << std::endl;
         os << tab("mouseY");
         os << mouseY << std::endl;
-    }
-
-    if (category == Category::Debug) {
-        
         os << tab("oldMouseX");
         os << oldMouseX << std::endl;
         os << tab("oldMouseY");

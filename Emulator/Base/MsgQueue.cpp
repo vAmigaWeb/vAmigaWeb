@@ -24,32 +24,80 @@ MsgQueue::setListener(const void *listener, Callback *callback)
         while (!queue.isEmpty()) {
 
             Message &msg = queue.read();
-            callback(listener,
-                     msg.type, msg.data1, msg.data2, msg.data3, msg.data4);
-        }
-        
-        put(MSG_REGISTER);
+            callback(listener, msg);
+        }        
     }
 }
 
 void
-MsgQueue::put(MsgType type, isize d1, isize d2, isize d3, isize d4)
+MsgQueue::put(const Message &msg)
 {
     {   SYNCHRONIZED
-        
-        auto i1 = i32(d1);
-        auto i2 = i32(d2);
-        auto i3 = i32(d3);
-        auto i4 = i32(d4);
 
-        debug(QUEUE_DEBUG,
-              "%s [%d:%d:%d:%d]\n", MsgTypeEnum::key(type), i1, i2, i3, i4);
-        
-        // Send the message immediately if a lister has been registered
-        if (listener) { callback(listener, type, i1, i2, i3, i4); return; }
-        
-        // Otherwise, store it in the ring buffer
-        Message msg = { type, i1, i2, i3, i4 }; queue.write(msg);
+        debug(QUEUE_DEBUG, "%s [%llx]\n", MsgTypeEnum::key(msg.type), msg.value);
+
+        if (listener) {
+
+            // Send the message immediately if a lister has been registered
+            callback(listener, msg); return;
+
+        } else {
+
+            // Otherwise, store it in the ring buffer
+            if (!queue.isFull()) {
+                queue.write(msg);
+            } else {
+                warn("Message lost: %s [%llx]\n", MsgTypeEnum::key(msg.type), msg.value);
+            }
+        }
+    }
+}
+
+void
+MsgQueue::put(MsgType type, i64 payload)
+{
+    put( Message { .type = type, .value = payload } );
+}
+
+void
+MsgQueue::put(MsgType type, CpuMsg payload)
+{
+    put( Message { .type = type, .cpu = payload } );
+}
+
+void
+MsgQueue::put(MsgType type, DriveMsg payload)
+{
+    put( Message { .type = type, .drive = payload } );
+}
+
+void
+MsgQueue::put(MsgType type, HdcMsg payload)
+{
+    put( Message { .type = type, .hdc = payload } );
+}
+
+void
+MsgQueue::put(MsgType type, ScriptMsg payload)
+{
+    put( Message { .type = type, .script = payload } );
+}
+
+void
+MsgQueue::put(MsgType type, ViewportMsg payload)
+{
+    put( Message { .type = type, .viewport = payload } );
+}
+
+bool
+MsgQueue::get(Message &msg)
+{
+    {   SYNCHRONIZED
+
+        if (queue.isEmpty()) return false;
+
+        msg = queue.read();
+        return true;
     }
 }
 

@@ -20,6 +20,8 @@ enum_long(OPT)
 {
     // Amiga
     OPT_VIDEO_FORMAT,
+    OPT_WARP_BOOT,
+    OPT_WARP_MODE,
     OPT_SYNC_MODE,
     OPT_PROPOSED_FPS,
     
@@ -92,7 +94,8 @@ enum_long(OPT)
     OPT_HDR_STEP_VOLUME,
     
     // Ports
-    OPT_SERIAL_DEVICE,
+    OPT_SER_DEVICE,
+    OPT_SER_VERBOSE,
 
     // Compatibility
     OPT_HIDDEN_BITPLANES,
@@ -127,7 +130,6 @@ enum_long(OPT)
     // Paula audio
     OPT_SAMPLING_METHOD,
     OPT_FILTER_TYPE,
-    OPT_FILTER_ACTIVATION,
     OPT_AUDPAN,
     OPT_AUDVOL,
     OPT_AUDVOLL,
@@ -157,6 +159,8 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
         switch (value) {
 
             case OPT_VIDEO_FORMAT:          return "VIDEO_FORMAT";
+            case OPT_WARP_BOOT:             return "WARP_BOOT";
+            case OPT_WARP_MODE:             return "WARP_MODE";
             case OPT_SYNC_MODE:             return "SYNC_MODE";
             case OPT_PROPOSED_FPS:          return "PROPOSED_FPS";
 
@@ -216,7 +220,8 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
             case OPT_HDR_PAN:               return "HDR_PAN";
             case OPT_HDR_STEP_VOLUME:       return "HDR_STEP_VOLUME";
 
-            case OPT_SERIAL_DEVICE:         return "SERIAL_DEVICE";
+            case OPT_SER_DEVICE:            return "SER_DEVICE";
+            case OPT_SER_VERBOSE:           return "SER_VERBOSE";
 
             case OPT_HIDDEN_BITPLANES:      return "HIDDEN_BITPLANES";
             case OPT_HIDDEN_SPRITES:        return "HIDDEN_SPRITES";
@@ -244,7 +249,6 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
 
             case OPT_SAMPLING_METHOD:       return "SAMPLING_METHOD";
             case OPT_FILTER_TYPE:           return "FILTER_TYPE";
-            case OPT_FILTER_ACTIVATION:     return "FILTER_ACTIVATION";
             case OPT_AUDPAN:                return "AUDPAN";
             case OPT_AUDVOL:                return "AUDVOL";
             case OPT_AUDVOLL:               return "AUDVOLL";
