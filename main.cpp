@@ -480,8 +480,6 @@ bool warp_mode=false;
 void theListener(const void * amiga, Message msg){
   int data1=0;
   int data2=0;
-  int data3=0;
-  int data4=0;
   if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.pos.frame < warp_to_frame)
   {
     //skip automatic warp mode on disk load
@@ -498,51 +496,16 @@ void theListener(const void * amiga, Message msg){
     }
   }
 
-  const char *message_as_string =  (const char *)MsgTypeEnum::key((MsgType)msg.type);
-  if(msg.type == MSG_DRIVE_SELECT)
-  {
-  }
-  else
-  {
-    if(log_on)
-    {
-#ifdef wasm_worker          
-    if(emscripten_current_thread_is_wasm_worker())
-    {
-      snprintf(wasm_log_buffer,sizeof(wasm_log_buffer),"worker: vAmiga message=%s\n", message_as_string);
-      main_log(wasm_log_buffer);
-    }
-    else
-    {
-      printf("main: vAmiga message=%s\n", message_as_string);
-    }
-#else
-//     printf("vAmiga message=%s, data1=%u, data2=%u\n", message_as_string, data1, data2);
-#endif
-    }
-
-#ifdef wasm_worker
-    if(emscripten_current_thread_is_wasm_worker())
-    {
-      emscripten_wasm_worker_post_function_sig(EMSCRIPTEN_WASM_WORKER_ID_PARENT,(void*)send_message_to_js_w, "iii", message_as_string, data1, data2);
-    }
-    else
-      send_message_to_js(message_as_string, data1, data2);
-#else
-    send_message_to_js(message_as_string, data1, data2);
-#endif
-    
-  }
   if(msg.type == MSG_VIEWPORT)
   {
-    if(data1==0 && data2==0 && data3 == 0 && data4 == 0)
+    if(msg.viewport.hstrt==0 && msg.viewport.vstrt==0 && msg.viewport.hstop == 0 && msg.viewport.vstop == 0)
       return;
-    if(log_on) printf("tracking MSG_VIEWPORT=%d, %d, %d, %d\n",data1, data2, data3, data4);
-    hstart_min= data1;
-    vstart_min= data2;
-    hstop_max=  data3;
-    vstop_max=  data4;
-    
+    hstart_min= msg.viewport.hstrt; 
+    vstart_min= msg.viewport.vstrt;
+    hstop_max=  msg.viewport.hstop;
+    vstop_max=  msg.viewport.vstop;
+    if(log_on) printf("tracking MSG_VIEWPORT=%d, %d, %d, %d\n",hstart_min, vstart_min, hstop_max, vstop_max);
+
     hstart_min *=2;
     hstop_max *=2;
 
@@ -582,10 +545,57 @@ void theListener(const void * amiga, Message msg){
   }
   else if(msg.type == MSG_VIDEO_FORMAT)
   {
-    if(log_on) printf("video format=%s\n",VideoFormatEnum::key(data1));    
-    wasm_set_display(data1?"ntsc":"pal");
+    data1=msg.value;
+    if(log_on) printf("video format=%s data1=%d\n",VideoFormatEnum::key(msg.value),data1);
+
+    wasm_set_display(msg.value == NTSC? "ntsc":"pal");
     request_to_reset_calibration=true;
   }
+
+  if(msg.type == MSG_DRIVE_STEP || msg.type == MSG_DRIVE_POLL 
+     ||msg.type == MSG_HDR_STEP)
+  {
+      data1=msg.drive.nr;
+      data2=msg.drive.value;
+  }
+
+  if(msg.type == MSG_DRIVE_SELECT)
+  {
+  }
+  else
+  {
+    const char *message_as_string =  (const char *)MsgTypeEnum::key((MsgType)msg.type);
+
+    if(log_on)
+    {
+#ifdef wasm_worker          
+    if(emscripten_current_thread_is_wasm_worker())
+    {
+      snprintf(wasm_log_buffer,sizeof(wasm_log_buffer),"worker: vAmiga message=%s\n", message_as_string);
+      main_log(wasm_log_buffer);
+    }
+    else
+    {
+      printf("main: vAmiga message=%s\n", message_as_string);
+    }
+#else
+    printf("vAmiga message=%s, data1=%u, data2=%u\n", message_as_string, data1, data2);
+#endif
+    }
+
+#ifdef wasm_worker
+    if(emscripten_current_thread_is_wasm_worker())
+    {
+      emscripten_wasm_worker_post_function_sig(EMSCRIPTEN_WASM_WORKER_ID_PARENT,(void*)send_message_to_js_w, "iii", message_as_string, data1, data2);
+    }
+    else
+      send_message_to_js(message_as_string, data1, data2);
+#else
+    send_message_to_js(message_as_string, data1, data2);
+#endif
+    
+  }
+
 }
 
 
