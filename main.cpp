@@ -92,7 +92,7 @@ int bFullscreen = false;
 
 char *filename = NULL;
 
-unsigned int warp_to_frame=0;
+//unsigned int warp_to_frame=0;
 int sum_samples=0;
 double last_time = 0.0 ;
 double last_time_calibrated = 0.0 ;
@@ -341,12 +341,13 @@ extern "C" int wasm_draw_one_frame(double now)
     {
       amiga->execute();
       i--;
-      if(warp_to_frame>0 && amiga->agnus.pos.frame > warp_to_frame)
+/*      if(warp_to_frame>0 && amiga->agnus.pos.frame > warp_to_frame)
       {
         if(log_on) printf("reached warp_to_frame count\n");
         amiga->warpOff();
         warp_to_frame=0;
       }
+*/
     }
     start_time=now;
     total_executed_frame_count=0;
@@ -478,23 +479,27 @@ bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
 //void theListener(const void * amiga, long type,  int data1, int data2, int data3, int data4){
 void theListener(const void * amiga, Message msg){
-  int data1=0;
+  int data1=msg.value;
   int data2=0;
+
+  /*
   if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.pos.frame < warp_to_frame)
   {
     //skip automatic warp mode on disk load
   }
   else
   {
-    if(warp_mode && msg.type == MSG_DRIVE_MOTOR && msg.drive.value==1 /* on */&& !((Amiga *)amiga)->isWarping())
+    if(warp_mode && msg.type == MSG_DRIVE_MOTOR && msg.drive.value==1 && !((Amiga *)amiga)->isWarping())
     {
       ((Amiga *)amiga)->warpOn(); //setWarp(true);
+      printf("warp on %d\n",((Amiga *)amiga)->isWarping());
     }
-    else if(msg.type == MSG_DRIVE_MOTOR && msg.drive.value==0 /* off */&& ((Amiga *)amiga)->isWarping())
+    else if(msg.type == MSG_DRIVE_MOTOR && msg.drive.value==0 && ((Amiga *)amiga)->isWarping())
     {
+      printf("warp off\n");
       ((Amiga *)amiga)->warpOff(); //setWarp(false);
     }
-  }
+  }*/
 
   if(msg.type == MSG_VIEWPORT)
   {
@@ -1076,11 +1081,17 @@ extern "C" void wasm_set_warp(unsigned on)
   )
   {
 */
+  if(warp_mode == true)
+  {
+    wrapper->amiga->configure(OPT_WARP_MODE, WARP_AUTO); 
+  }
+
+
   if(warp_mode == false && wrapper->amiga->isWarping())
   {
-      wrapper->amiga->warpOff();
+//      wrapper->amiga->warpOff();
+      wrapper->amiga->configure(OPT_WARP_MODE, WARP_NEVER); 
   }
-/*  }*/
 }
 
 extern "C" void wasm_set_display(const char *name)
@@ -1792,8 +1803,10 @@ extern "C" const char* wasm_configure(char* option, char* _value)
 
   if(strcmp(option,"warp_to_frame") == 0 )
   {
-    warp_to_frame= util::parseNum(value);
-    wrapper->amiga->warpOn();
+    auto warp_to_frame= util::parseNum(value);
+    wrapper->amiga->configure(OPT_WARP_BOOT, /*sec */ warp_to_frame /50);
+
+//    wrapper->amiga->warpOn();
     return config_result;
   }
   else if(strcmp(option,"log_on") == 0 )
