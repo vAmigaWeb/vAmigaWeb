@@ -1804,7 +1804,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
   if(strcmp(option,"warp_to_frame") == 0 )
   {
     auto warp_to_frame= util::parseNum(value);
-    wrapper->amiga->configure(OPT_WARP_BOOT, /*sec */ warp_to_frame /50);
+    wrapper->amiga->configure(OPT_WARP_BOOT, SEC(warp_to_frame)/(wrapper->amiga->agnus.isPAL()?50:60));
 
 //    wrapper->amiga->warpOn();
     return config_result;

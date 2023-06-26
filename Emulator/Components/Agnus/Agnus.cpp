@@ -60,7 +60,7 @@ Agnus::_reset(bool hard)
     scheduleFirstBplEvent();
     scheduleFirstDasEvent();
     scheduleRel<SLOT_SRV>(SEC(0.5), SRV_LAUNCH_DAEMON);
-    scheduleAbs<SLOT_WBT>(SEC(amiga.getConfig().warpBoot), WBT_DISABLE);
+    scheduleAbs<SLOT_WBT>(Cycle(amiga.getConfig().warpBoot), WBT_DISABLE);
     if (insEvent) scheduleRel <SLOT_INS> (0, insEvent);
 }
 

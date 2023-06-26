@@ -1405,8 +1405,8 @@ Amiga::stepOver()
 void
 Amiga::updateWarpState()
 {
-    if (agnus.clock < SEC(config.warpBoot)) {
-
+    //printf("clk %lld < warp %ld\n",agnus.clock, config.warpBoot);
+    if (agnus.clock < config.warpBoot) {
         switchWarp(true);
         return;
     }
