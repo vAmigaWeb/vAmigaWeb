@@ -78,7 +78,8 @@ public:
     bool isCompatibleStream(std::istream &stream) const override { return isCompatible(stream); }
     FileType type() const override { return FILETYPE_ADF; }
     
-    
+     void finalizeRead() override;
+     
     //
     // Methods from DiskFile
     //
