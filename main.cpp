@@ -457,7 +457,8 @@ void send_message_to_js(const char * msg)
 
 }
 
-void send_message_to_js(const char * msg, long data1, long data2)
+
+void send_message_to_js_main_thread(const char * msg, long data1, long data2)
 {
     EM_ASM(
     {
@@ -467,11 +468,47 @@ void send_message_to_js(const char * msg, long data1, long data2)
     }, msg, data1, data2 );    
 
 }
-void send_message_to_js_w(const char * msg, long data1, long data2)
+
+
+void send_message_to_js_with_param(const char * message_as_string, long data1, long data2)
 {
-    send_message_to_js(msg,data1,data2);
+
+    if(log_on)
+    {
+#ifdef wasm_worker          
+      if(emscripten_current_thread_is_wasm_worker())
+      {
+        snprintf(wasm_log_buffer,sizeof(wasm_log_buffer),"worker: vAmiga message=%s, data1=%ld, data2=%ld\n", message_as_string, data1, data2);
+        main_log(wasm_log_buffer);
+      }
+      else
+      {
+        printf("main: vAmiga message=%s\n", message_as_string);
+      }
+#else
+      printf("vAmiga message=%s, data1=%ld, data2=%ld\n", message_as_string, data1, data2);
+#endif
+    }
+
+
+#ifdef wasm_worker
+    if(emscripten_current_thread_is_wasm_worker())
+    {
+      emscripten_wasm_worker_post_function_sig(EMSCRIPTEN_WASM_WORKER_ID_PARENT,(void*)send_message_to_js_main_thread, "iii", message_as_string, data1, data2);
+    }
+    else
+      send_message_to_js_main_thread(message_as_string, data1, data2);
+#else
+    send_message_to_js_main_thread(message_as_string, data1, data2);
+#endif
 }
 
+/*
+void send_message_to_js_w(const char * msg, long data1, long data2)
+{
+    send_message_to_js_main_thread(msg,data1,data2);
+}
+*/
 
 
 //bool paused_the_emscripten_main_loop=false;
@@ -481,25 +518,6 @@ bool warp_mode=false;
 void theListener(const void * amiga, Message msg){
   int data1=msg.value;
   int data2=0;
-
-  /*
-  if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.pos.frame < warp_to_frame)
-  {
-    //skip automatic warp mode on disk load
-  }
-  else
-  {
-    if(warp_mode && msg.type == MSG_DRIVE_MOTOR && msg.drive.value==1 && !((Amiga *)amiga)->isWarping())
-    {
-      ((Amiga *)amiga)->warpOn(); //setWarp(true);
-      printf("warp on %d\n",((Amiga *)amiga)->isWarping());
-    }
-    else if(msg.type == MSG_DRIVE_MOTOR && msg.drive.value==0 && ((Amiga *)amiga)->isWarping())
-    {
-      printf("warp off\n");
-      ((Amiga *)amiga)->warpOff(); //setWarp(false);
-    }
-  }*/
 
   if(msg.type == MSG_VIEWPORT)
   {
@@ -550,7 +568,6 @@ void theListener(const void * amiga, Message msg){
   }
   else if(msg.type == MSG_VIDEO_FORMAT)
   {
-    data1=msg.value;
     if(log_on) printf("video format=%s data1=%d\n",VideoFormatEnum::key(msg.value),data1);
 
     wasm_set_display(msg.value == NTSC? "ntsc":"pal");
@@ -571,37 +588,23 @@ void theListener(const void * amiga, Message msg){
   {
     const char *message_as_string =  (const char *)MsgTypeEnum::key((MsgType)msg.type);
 
-    if(log_on)
+    if(msg.type == MSG_SER_OUT)
     {
-#ifdef wasm_worker          
-    if(emscripten_current_thread_is_wasm_worker())
-    {
-      snprintf(wasm_log_buffer,sizeof(wasm_log_buffer),"worker: vAmiga message=%s\n", message_as_string);
-      main_log(wasm_log_buffer);
+      int byte = ((Amiga *)amiga)->serialPort.readOutgoingByte();
+      while(byte>=0)
+      {
+        send_message_to_js_with_param(message_as_string, byte, data2);
+        byte = ((Amiga *)amiga)->serialPort.readOutgoingByte();
+      }
     }
     else
     {
-      printf("main: vAmiga message=%s\n", message_as_string);
+      send_message_to_js_with_param(message_as_string, data1, data2);
     }
-#else
-    printf("vAmiga message=%s, data1=%u, data2=%u\n", message_as_string, data1, data2);
-#endif
-    }
-
-#ifdef wasm_worker
-    if(emscripten_current_thread_is_wasm_worker())
-    {
-      emscripten_wasm_worker_post_function_sig(EMSCRIPTEN_WASM_WORKER_ID_PARENT,(void*)send_message_to_js_w, "iii", message_as_string, data1, data2);
-    }
-    else
-      send_message_to_js(message_as_string, data1, data2);
-#else
-    send_message_to_js(message_as_string, data1, data2);
-#endif
-    
   }
 
 }
+
 
 
 
@@ -1805,8 +1808,6 @@ extern "C" const char* wasm_configure(char* option, char* _value)
   {
     auto warp_to_frame= util::parseNum(value);
     wrapper->amiga->configure(OPT_WARP_BOOT, SEC(warp_to_frame)/(wrapper->amiga->agnus.isPAL()?50:60));
-
-//    wrapper->amiga->warpOn();
     return config_result;
   }
   else if(strcmp(option,"log_on") == 0 )
