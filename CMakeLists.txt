@@ -57,8 +57,8 @@ else()
 	set(needs_shared_array_buffer "false")
 	file(CONFIGURE OUTPUT sw.js CONTENT "${sw_template}" @ONLY)
 
-	#set(LF_MEM   "-s INITIAL_MEMORY=320MB -s TOTAL_STACK=32MB -s ALLOW_MEMORY_GROWTH=1")
-	set(LF_MEM   "-s INITIAL_MEMORY=1400MB -s TOTAL_STACK=32MB -s ALLOW_MEMORY_GROWTH=0")
+	set(LF_MEM   "-s INITIAL_MEMORY=320MB -s TOTAL_STACK=32MB -s ALLOW_MEMORY_GROWTH=1")
+	#set(LF_MEM   "-s INITIAL_MEMORY=1200MB -s TOTAL_STACK=32MB -s ALLOW_MEMORY_GROWTH=0")
 endif()
 
 #-s ALLOW_MEMORY_GROWTH=1 -g -s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=19306 

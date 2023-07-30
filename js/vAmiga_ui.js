@@ -728,7 +728,7 @@ async function drop_handler(ev) {
                 }
                 else
                 {
-                    alert("Sorry only C64-Files, CSDb-release-links or CSDb-download-links are currently supported by vc64web ...");
+                    alert("Sorry only amiga disk files are currently supported by vAmigaWeb ...");
                 }
                 break;
             }
@@ -1760,6 +1760,14 @@ function InitWrappers() {
             try { await connect_audio_processor(); } catch(e){ console.error(e);}
             add_unlock_user_action();
         }
+        if(document.visibilityState === "visible" && wakeLock !== null)
+        {
+            if(is_running())
+            {
+//                alert("req wakelock again "+document.visibilityState);
+                set_wake_lock(true);
+            }
+        }
     });
 
     //when app is going to background either visible or hidden
@@ -2580,6 +2588,89 @@ wide_screen_switch.change( function() {
     save_setting('widescreen', this.checked);
     scaleVMCanvas();
 });
+//------
+  // create a reference for the wake lock
+  wakeLock = null;
+
+
+check_wake_lock = async () => {
+    if(is_running())
+    {
+        if(wakeLock != null)
+        {
+//            alert("req");
+            requestWakeLock();
+        }
+    }
+    else
+    {
+        if(wakeLock != null)
+        {
+//            alert("release");
+            wakeLock.release();
+        }
+    }
+}
+
+// create an async function to request a wake lock
+requestWakeLock = async () => {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+
+      // change up our interface to reflect wake lock active
+      $("#wake_lock_status").text("(wake lock active, app will stay awake, no auto off)");
+      wake_lock_switch.prop('checked', true);
+
+      // listen for our release event
+      wakeLock.onrelease = function(ev) {
+        console.log(ev);
+      }
+      wakeLock.addEventListener('release', () => {
+        // if wake lock is released alter the button accordingly
+        if(wakeLock==null)
+            $("#wake_lock_status").text(`(no wake lock, system will probably auto off and sleep after a while)`);
+        else
+            $("#wake_lock_status").text(`(wake lock released while pausing, system will probably auto off and sleep after a while)`);
+        wake_lock_switch.prop('checked', false);
+
+      });
+    } catch (err) {
+      // if wake lock request fails - usually system related, such as battery
+      $("#wake_lock_status").text(`(no wake lock, system will probably auto off and sleep after a while). ${err.name}, ${err.message}`);
+      wake_lock_switch.prop('checked', false);
+      console.error(err);
+//      alert(`error while requesting wakelock: ${err.name}, ${err.message}`);
+    }
+}
+
+set_wake_lock = (use_wake_lock)=>{
+    let is_supported=false;
+    if ('wakeLock' in navigator) {
+        is_supported = true;
+    } else {
+        wake_lock_switch.prop('disabled', true);
+        $("#wake_lock_status").text("(wake lock is not supported on this browser, your system will decide when it turns your device off)");
+    }
+    if(is_supported && use_wake_lock)
+    {
+        requestWakeLock();
+    }
+    else if(wakeLock != null)
+    {
+        let current_wakelock=wakeLock;
+        wakeLock = null;
+        current_wakelock.release();
+    }
+}
+
+wake_lock_switch = $('#wake_lock_switch');
+let use_wake_lock=load_setting('wake_lock', false);
+set_wake_lock(use_wake_lock);
+wake_lock_switch.change( function() {
+    let use_wake_lock  = this.checked;
+    set_wake_lock(use_wake_lock);
+    save_setting('wake_lock', this.checked);
+});
 
 //------
 
@@ -2691,7 +2782,7 @@ $('.layer').change( function(event) {
             try {connect_audio_processor();} catch(e){ console.error(e);}
             running = true;
         }
-        
+        check_wake_lock();        
         //document.getElementById('canvas').focus();
     });
 
