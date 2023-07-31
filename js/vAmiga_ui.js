@@ -2671,7 +2671,36 @@ wake_lock_switch.change( function() {
     set_wake_lock(use_wake_lock);
     save_setting('wake_lock', this.checked);
 });
+//---
+fullscreen_switch = $('#button_fullscreen');
+if(document.fullscreenEnabled)
+{
+    fullscreen_switch.show();
+    svg_fs_on=`<path d="M1.5 1a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4A1.5 1.5 0 0 1 1.5 0h4a.5.5 0 0 1 0 1h-4zM10 .5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 16 1.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zM.5 10a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 0 14.5v-4a.5.5 0 0 1 .5-.5zm15 0a.5.5 0 0 1 .5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5z"/>`;
+    $('#svg_fullscreen').html(svg_fs_on);
 
+    addEventListener("fullscreenchange", () => {
+        $('#svg_fullscreen').html(
+            document.fullscreenElement?
+            `<path d="M5.5 0a.5.5 0 0 1 .5.5v4A1.5 1.5 0 0 1 4.5 6h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5zm5 0a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 10 4.5v-4a.5.5 0 0 1 .5-.5zM0 10.5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 6 11.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zm10 1a1.5 1.5 0 0 1 1.5-1.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4z"/>`:
+            svg_fs_on
+        );
+        $('#svg_fullscreen').attr("data-original-title",
+            document.fullscreenElement? "exit fullscreen":"fullscreen"
+        );
+    });
+
+    fullscreen_switch.click( ()=>{	
+        if(!document.fullscreenElement)
+            document.documentElement.requestFullscreen({navigationUI: "hide"});
+        else
+            document.exitFullscreen();            
+    });
+}
+else
+{
+    fullscreen_switch.hide();
+}
 //------
 
 $('.layer').change( function(event) {
