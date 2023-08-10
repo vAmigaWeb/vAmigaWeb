@@ -107,6 +107,10 @@ function FromBase64(str) {
     return atob(str).split('').map(function (c) { return c.charCodeAt(0); });
 }
 
+function html_encode(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;').replace(/"/g, '&#34;');
+}
+
 function get_parameter_link()
 {
     let parameter_link=null;
@@ -1060,7 +1064,8 @@ function keydown(e) {
 
     for(action_button of custom_keys)
     {
-        if(action_button.key == e.key)
+        if(action_button.key == e.key /* e.key only for legacy custom keys*/   
+           || action_button.key == e.code)
         {
             if(e.repeat)
             {
@@ -1751,7 +1756,14 @@ function InitWrappers() {
     //when app becomes hidden/visible
     window.addEventListener("visibilitychange", async () => {
         if(document.visibilityState == "hidden") {
-           try { audioContext.suspend(); } catch(e){ console.error(e);}
+           console.log("visibility=hidden");
+           let is_full_screen=document.fullscreenElement!=null;
+           console.log("fullscreen="+is_full_screen);
+           if(!is_full_screen)
+           {//safari bug: goes visible=hidden when entering fullscreen
+            //in that case don't disable the audio 
+               try { audioContext.suspend(); } catch(e){ console.error(e);}
+           }
         }
         else if(emulator_currently_runs)
         {
@@ -3635,18 +3647,44 @@ $('.layer').change( function(event) {
             set_complete_label();
             editor.focus();
         });
-            
+        
+        short_cut_input = document.getElementById('input_button_shortcut');
+        button_delete_shortcut=$("#button_delete_shortcut");
+        short_cut_input.addEventListener(
+            'keydown',
+            (e)=>{
+                e.preventDefault();
+                e.stopPropagation();
+                short_cut_input.value=e.code;
+                button_delete_shortcut.addClass("active");
+            }
+        );
+        short_cut_input.addEventListener(
+            'keyup',
+            (e)=>{
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        );        
+        button_delete_shortcut.click(()=>{
+
+            short_cut_input.value='';
+            button_delete_shortcut.removeClass("active");
+        });
 
 
         $('#modal_custom_key').on('show.bs.modal', function () {
+            bind_custom_key();    
+        });
 
+        bind_custom_key = function () {
             $('#choose_padding a').click(function () 
             {
-                 $('#button_padding').text('size = '+ $(this).text() ); 
+                 $('#button_padding').text('btn size = '+ $(this).text() ); 
             });
             $('#choose_opacity a').click(function () 
             {
-                 $('#button_opacity').text('opacity = '+ $(this).text() ); 
+                 $('#button_opacity').text('btn opacity = '+ $(this).text() ); 
             });
 
             function set_script_language(script_language) {
@@ -3662,27 +3700,79 @@ $('.layer').change( function(event) {
                 editor.focus();
             });
 
+            let otherButtons="";
+            if(!create_new_custom_key){
+                otherButtons+=`<a class="dropdown-item" href="#">&lt;new&gt;</a>`;
+            }
+            for(let otherBtn of custom_keys)
+            {
+                otherButtons+=`<a class="dropdown-item" href="#">${html_encode(otherBtn.title)}</a>`;
+            }
+
+
+            $("#other_buttons").html(`
+         <div class="dropdown">
+            <button id="button_other_action" class="ml-4 py-0 btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              list
+            </button>
+            <div id="choose_action" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+             ${otherButtons}
+            </div>
+          </div>`);
+
+            $('#choose_action a').click(function () 
+            {
+                let selected_title = $(this).text();
+                if(selected_title=="<new>")
+                    create_new_custom_key=true;
+                else
+                {
+                    create_new_custom_key=false;
+                    var btn_def = custom_keys.find(el=> el.title == selected_title);
+                    haptic_touch_selected= {id: 'ck'+btn_def.id};
+                }
+                bind_custom_key();
+                validate_custom_key();
+            });
+
             if(create_new_custom_key)
             {
                 $('#button_delete_custom_button').hide();
                 $('#check_app_scope').prop('checked',true);
+                $('#input_button_text').val('');
+                $('#input_button_shortcut').val('');
+
+                $('#input_action_script').val('');
+                if(typeof(editor) !== 'undefined') editor.getDoc().setValue("");
+                $('#button_reset_position').removeClass("active");
+                button_delete_shortcut.removeClass("active");
             }
             else
             {
                 var btn_def = custom_keys.find(el=> ('ck'+el.id) == haptic_touch_selected.id);
 
+                if(btn_def.currentX==0 && btn_def.currentY==0)
+                    $('#button_reset_position').removeClass("active");
+                else
+                    $('#button_reset_position').addClass("active");
+
                 set_script_language(btn_def.lang);
                 $('#input_button_text').val(btn_def.title);
                 $('#input_button_shortcut').val(btn_def.key);
+
                 let padding = btn_def.padding == undefined ? 'default':btn_def.padding ;
-                $('#button_padding').text('size = '+ padding );
+                $('#button_padding').text('btn size = '+ padding );
                 let opacity = btn_def.opacity == undefined ? 'default':btn_def.opacity ;
-                $('#button_opacity').text('opacity = '+ opacity);
+                $('#button_opacity').text('btn opacity = '+ opacity);
                 
                 $('#check_app_scope').prop('checked',btn_def.app_scope);
                 $('#input_action_script').val(btn_def.script);
-
+                if(typeof(editor) !== 'undefined') editor.getDoc().setValue(btn_def.script);
                 $('#button_delete_custom_button').show();
+                if(btn_def.key == "")
+                    button_delete_shortcut.removeClass("active");
+                else
+                    button_delete_shortcut.addClass("active");
 
                 //show errors
                 validate_action_script();
@@ -3822,7 +3912,7 @@ release_key('ControlLeft');`;
                     validate_action_script();
                 }
             );
-        });
+        };
 
         turn_on_full_editor = ()=>{
             require.config(
@@ -3952,6 +4042,20 @@ release_key('ControlLeft');`;
 
         $('#input_button_text').keyup( function () {validate_custom_key(); return true;} );
         $('#input_action_script').keyup( function () {validate_action_script(); return true;} );
+
+        $('#button_reset_position').click(function(e) 
+        {
+            var btn_def = custom_keys.find(el=> ('ck'+el.id) == haptic_touch_selected.id);
+            if(btn_def != null)
+            {
+                btn_def.currentX=0;
+                btn_def.currentY=0;
+                btn_def.position= "top:50%;left:50%";
+                install_custom_keys();
+                $('#button_reset_position').removeClass("active");
+                save_custom_buttons(global_apptitle, custom_keys);
+            }
+        });
 
         $('#button_save_custom_button').click(async function(e) 
         {
@@ -4085,7 +4189,7 @@ release_key('ControlLeft');`;
             }
 
 
-            btn_html += 'touch-action:none">'+element.title+'</button>';
+            btn_html += 'touch-action:none">'+html_encode(element.title)+'</button>';
 
             $('#div_canvas').append(btn_html);
             action_scripts["ck"+element.id] = element.script;

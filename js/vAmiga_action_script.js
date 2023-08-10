@@ -342,20 +342,6 @@ async function validate_custom_key(){
     {  
         input_button_text.addClass("is-valid");
     }
-
-    var input_button_shortcut=$('#input_button_shortcut');
-
-    input_button_shortcut.removeClass("is-valid")
-    input_button_shortcut.removeClass("is-invalid");
-    if( input_button_shortcut.val().length>1)
-    {
-        input_button_shortcut.addClass("is-invalid");
-        is_valid=false;
-    }
-    else
-    {  
-        input_button_shortcut.addClass("is-valid");
-    }
   
     return is_valid;
 };
