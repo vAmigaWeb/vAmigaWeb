@@ -114,11 +114,6 @@ background-color: var(--green) !important;
     user-select: none;
 }
 
-.active {
-    background-color: var(--primary);
-    color: white;
-}
-
 [data-theme="dark"] .custom-select {
 color: var(--light) !important;
 border-color: var(--light) !important;
