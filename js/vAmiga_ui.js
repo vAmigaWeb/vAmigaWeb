@@ -2802,7 +2802,7 @@ $('.layer').change( function(event) {
         {
             $("#button_run").click();
         }
-        $("#modal_reset").modal('hide');
+        $("#modal_reset").modal('hide').blur();
     }
 
 
