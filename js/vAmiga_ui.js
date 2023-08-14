@@ -1056,16 +1056,40 @@ function is_any_text_input_active()
     return active;
 }
 
+function serialize_key_code(e){
+    let mods = ""; let code = e.code;
+    if(e.altKey && !code.startsWith('Alt'))
+        mods+="Alt+";
+    if(e.metaKey && !code.startsWith('Meta'))
+        mods+="Meta+";
+    if(e.shiftKey && !code.startsWith('Shift'))
+        mods+="Shift+";
+    if(e.ctrlKey && !code.startsWith('Control'))
+        mods+="Ctrl+";
+    return mods+code;
+}
+
 function keydown(e) {
     if(is_any_text_input_active())
         return;
 
     e.preventDefault();
 
+    if(port1=='keys'||port2=='keys')
+    {
+        var joystick_cmd = joystick_keydown_map[joystick_button_count][e.code];
+        if(joystick_cmd !== undefined)
+        {
+            emit_joystick_cmd((port1=='keys'?'1':'2')+joystick_cmd);
+            return;
+        }
+    }
+
+    let serialized_code=serialize_key_code(e);
     for(action_button of custom_keys)
     {
         if(action_button.key == e.key /* e.key only for legacy custom keys*/   
-           || action_button.key == e.code)
+           || action_button.key == serialized_code)
         {
             if(e.repeat)
             {
@@ -1084,15 +1108,7 @@ function keydown(e) {
         }
     }
 
-    if(port1=='keys'||port2=='keys')
-    {
-        var joystick_cmd = joystick_keydown_map[joystick_button_count][e.code];
-        if(joystick_cmd !== undefined)
-        {
-            emit_joystick_cmd((port1=='keys'?'1':'2')+joystick_cmd);
-            return;
-        }
-    }
+
 
     var key_code = translateKey2(e.code, e.key);
     if(key_code !== undefined && key_code.raw_key[0] != undefined)
@@ -3655,7 +3671,7 @@ $('.layer').change( function(event) {
             (e)=>{
                 e.preventDefault();
                 e.stopPropagation();
-                short_cut_input.value=e.code;
+                short_cut_input.value=serialize_key_code(e);
                 button_delete_shortcut.prop('disabled', false);
             }
         );
