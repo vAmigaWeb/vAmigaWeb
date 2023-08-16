@@ -245,6 +245,20 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
             $('#button_keyboard').click();
         }
     }
+    else if(cmd == 'menubar')
+    {
+        if(execute)
+        {
+            $("#button_show_menu").click();
+        }
+    }
+    else if(cmd == 'fullscreen')
+    {
+        if(execute)
+        {
+            $('#button_fullscreen').click();
+        }
+    }
     else if(cmd == 'restore_last_snapshot')
     {
         if(execute)

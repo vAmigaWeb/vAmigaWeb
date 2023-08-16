@@ -1127,15 +1127,6 @@ function keyup(e) {
 
     e.preventDefault();
 
-    for(action_button of custom_keys)
-    {
-        if(action_button.key == e.key)
-        {
-            get_running_script(action_button.id).action_button_released = true;
-            return;
-        }
-    }
-
     if(port1=='keys'||port2=='keys')
     {
         var joystick_cmd = joystick_keyup_map[joystick_button_count][e.code];
@@ -1153,6 +1144,17 @@ function keyup(e) {
             {
                 emit_joystick_cmd(port_id+joystick_cmd);
             }
+            return;
+        }
+    }
+
+    let serialized_code=serialize_key_code(e);
+    for(action_button of custom_keys)
+    {
+        if(action_button.key == e.key /* e.key only for legacy custom keys*/   
+           || action_button.key == serialized_code)
+        {
+            get_running_script(action_button.id).action_button_released = true;
             return;
         }
     }
@@ -3875,7 +3877,7 @@ $('.layer').change( function(event) {
             $('#add_timer_action a').click(on_add_action);
             
             //system action
-            var list_actions=['toggle_run', 'take_snapshot', 'restore_last_snapshot', 'swap_joystick', 'keyboard', 'pause', 'run'];
+            var list_actions=['toggle_run', 'take_snapshot', 'restore_last_snapshot', 'swap_joystick', 'keyboard', 'fullscreen', 'menubar', 'pause', 'run'];
             html_action_list='';
             list_actions.forEach(element => {
                 html_action_list +='<a class="dropdown-item" href="#">'+element+'</a>';
