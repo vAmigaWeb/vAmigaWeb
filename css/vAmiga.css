@@ -504,3 +504,16 @@ button[id^="detail_run"] {
     background-color:var(--darkbg);
     color:var(--light);    
 }
+
+
+.is-invalid~.invalid-feedback, .is-invalid~.invalid-tooltip, .was-validated :invalid~.invalid-feedback, .was-validated :invalid~.invalid-tooltip {
+    display: block;
+    background-color: red;
+    color: white;
+    border-bottom-right-radius: 0.4em;
+    border-bottom-left-radius: 0.4em;
+    padding: 0.4em;
+    margin-top: 0;
+    margin-left: 0.15em;
+    margin-right: 0.15em;
+}

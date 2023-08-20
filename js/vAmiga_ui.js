@@ -3665,7 +3665,7 @@ $('.layer').change( function(event) {
             set_complete_label();
             editor.focus();
         });
-        
+
         short_cut_input = document.getElementById('input_button_shortcut');
         button_delete_shortcut=$("#button_delete_shortcut");
         short_cut_input.addEventListener(
@@ -3675,6 +3675,7 @@ $('.layer').change( function(event) {
                 e.stopPropagation();
                 short_cut_input.value=serialize_key_code(e);
                 button_delete_shortcut.prop('disabled', false);
+                validate_custom_key();
             }
         );
         short_cut_input.addEventListener(
@@ -3693,11 +3694,11 @@ $('.layer').change( function(event) {
             }
         );
         button_delete_shortcut.click(()=>{
-
+            
             short_cut_input.value='';
             button_delete_shortcut.prop('disabled', true);
+            validate_custom_key();
         });
-
 
         $('#modal_custom_key').on('show.bs.modal', function () {
             bind_custom_key();    
@@ -3728,39 +3729,58 @@ $('.layer').change( function(event) {
 
             let otherButtons="";
             if(!create_new_custom_key){
-                otherButtons+=`<a class="dropdown-item" href="#">&lt;new&gt;</a>`;
+                otherButtons+=`<a class="dropdown-item" href="#" id="choose_new">&lt;new&gt;</a>`;
             }
+                        
             for(let otherBtn of custom_keys)
             {
-                otherButtons+=`<a class="dropdown-item" href="#">${html_encode(otherBtn.title)}</a>`;
-            }
-
+                let keys = otherBtn.key.split('+');
+                let key_display="";
+                for(key of keys)
+                {
+                    key_display+=`<div class="px-1" style="border-radius: 0.25em;margin-left:0.3em;background-color: var(--gray);color: white">
+                    ${html_encode(key)}
+                    </div>`;
+                }
+                otherButtons+=`<a class="dropdown-item" href="#" id="choose_${otherBtn.id}">
+                <div style="display:flex;justify-content:space-between">
+                    <div>${html_encode(otherBtn.title)}</div>
+                    <div style="display:flex;margin-left:0.3em;" 
+                        ${otherBtn.key==''?'hidden':''}>
+                        ${key_display}
+                    </div>
+                </div></a>`;
+             }
+            
 
             $("#other_buttons").html(`
-         <div class="dropdown">
-            <button id="button_other_action" class="ml-4 py-0 btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-              list
-            </button>
-            <div id="choose_action" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
-             ${otherButtons}
-            </div>
-          </div>`);
+                <div class="dropdown">
+                    <button id="button_other_action" class="ml-4 py-0 btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    list (${custom_keys.length})
+                    </button>
+                    <div id="choose_action" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    ${otherButtons}
+                    </div>
+                </div>`);
+            $("#button_other_action").prop('disabled',custom_keys.length==0);
 
             $('#choose_action a').click(function () 
             {
-                let selected_title = $(this).text();
-                if(selected_title=="<new>")
+                let btn_id = this.id.replace("choose_","");
+                if(btn_id == "new")
                     create_new_custom_key=true;
                 else
                 {
                     create_new_custom_key=false;
-                    var btn_def = custom_keys.find(el=> el.title == selected_title);
+                    var btn_def = custom_keys.find(el=>el.id == btn_id);
+                   
                     haptic_touch_selected= {id: 'ck'+btn_def.id};
                 }
                 bind_custom_key();
-                validate_custom_key();
+                reset_validate();
             });
 
+            reset_validate();
             if(create_new_custom_key)
             {
                 $('#button_delete_custom_button').hide();
@@ -3772,6 +3792,9 @@ $('.layer').change( function(event) {
                 if(typeof(editor) !== 'undefined') editor.getDoc().setValue("");
                 $('#button_reset_position').prop('disabled', true);
                 button_delete_shortcut.prop('disabled', true);
+                $('#button_padding').prop('disabled', true);
+                $('#button_opacity').prop('disabled', true);
+     
             }
             else
             {
@@ -3782,7 +3805,7 @@ $('.layer').change( function(event) {
                 set_script_language(btn_def.lang);
                 $('#input_button_text').val(btn_def.title);
                 $('#input_button_shortcut').val(btn_def.key);
-
+                
                 let padding = btn_def.padding == undefined ? 'default':btn_def.padding ;
                 $('#button_padding').text('btn size = '+ padding );
                 let opacity = btn_def.opacity == undefined ? 'default':btn_def.opacity ;
@@ -3791,10 +3814,13 @@ $('.layer').change( function(event) {
                 $('#check_app_scope').prop('checked',btn_def.app_scope);
                 $('#input_action_script').val(btn_def.script);
                 if(typeof(editor) !== 'undefined') editor.getDoc().setValue(btn_def.script);
+
                 $('#button_delete_custom_button').show();
                 
                 button_delete_shortcut.prop('disabled',btn_def.key == "");
-
+                $('#button_padding').prop('disabled', btn_def.title=='');
+                $('#button_opacity').prop('disabled', btn_def.title=='');
+     
                 //show errors
                 validate_action_script();
             }
@@ -3877,7 +3903,7 @@ $('.layer').change( function(event) {
             $('#add_timer_action a').click(on_add_action);
             
             //system action
-            var list_actions=['toggle_run', 'take_snapshot', 'restore_last_snapshot', 'swap_joystick', 'keyboard', 'fullscreen', 'menubar', 'pause', 'run'];
+            var list_actions=['toggle_run', 'take_snapshot', 'restore_last_snapshot', 'swap_joystick', 'keyboard', 'fullscreen', 'menubar', 'pause', 'run', 'clipboard_paste'];
             html_action_list='';
             list_actions.forEach(element => {
                 html_action_list +='<a class="dropdown-item" href="#">'+element+'</a>';
@@ -4061,8 +4087,15 @@ release_key('ControlLeft');`;
         });
 
 
-        $('#input_button_text').keyup( function () {validate_custom_key(); return true;} );
+        $('#input_button_text').keyup( function () {
+            validate_custom_key(); 
+            let empty=document.getElementById('input_button_text').value =='';
+            $('#button_padding').prop('disabled', empty);
+            $('#button_opacity').prop('disabled', empty);
+            return true;
+        } );
         $('#input_action_script').keyup( function () {validate_action_script(); return true;} );
+
 
         $('#button_reset_position').click(function(e) 
         {
@@ -4073,7 +4106,7 @@ release_key('ControlLeft');`;
                 btn_def.currentY=0;
                 btn_def.position= "top:50%;left:50%";
                 install_custom_keys();
-                $('#button_reset_position').prop('disabled', true);
+                $('#button_reset_position').prop('disabled',true);
                 save_custom_buttons(global_apptitle, custom_keys);
             }
         });
@@ -4182,7 +4215,8 @@ release_key('ControlLeft');`;
         custom_keys.forEach(function (element, i) {
             element.id = element.transient !== undefined && element.transient ? element.id : i;
 
-            if(element.transient && element.title == undefined)
+            if(element.transient && element.title == undefined ||
+                element.title=="")
             {//don't render transient buttons if no title
                 return;
             }

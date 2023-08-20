@@ -252,6 +252,14 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
             $("#button_show_menu").click();
         }
     }
+    else if(cmd == 'clipboard_paste')
+    {
+        if(execute)
+        {
+            let cliptext = await navigator.clipboard.readText();
+        action(`'${cliptext/*.toLowerCase()*/}'`);
+        }
+    }
     else if(cmd == 'fullscreen')
     {
         if(execute)
@@ -342,23 +350,35 @@ async function validate_custom_key_form(){
     return is_valid;
 }
 
-async function validate_custom_key(){
+async function reset_validate(){
+    document.querySelectorAll(".is-invalid").forEach(el=>el.classList.remove("is-invalid"))
+    document.querySelectorAll(".is-valid").forEach(el=>el.classList.remove("is-valid"))
+}
 
+async function validate_custom_key(){
     var is_valid=true;
     var input_button_text=$('#input_button_text');
+    var input_button_shortcut=$('#input_button_shortcut');
+
     input_button_text.removeClass("is-valid").removeClass("is-invalid");
-    if( input_button_text.val().trim().length==0)
+    input_button_shortcut.removeClass("is-valid").removeClass("is-invalid");
+
+    if( input_button_text.val().trim().length==0 && 
+        input_button_shortcut.val().trim().length==0)
     {
         input_button_text.addClass("is-invalid");
+        input_button_shortcut.addClass("is-invalid");
         is_valid=false;
     }
     else
     {  
         input_button_text.addClass("is-valid");
+        input_button_shortcut.addClass("is-valid");
     }
   
     return is_valid;
-};
+}
+
 async function validate_action_script()
 {
     let is_valid=true;
