@@ -7,7 +7,7 @@
     <title>vAmigaWeb Amiga emulator iPad iPhone</title>
   
   <link rel="icon" href="img/favicon.ico">
-  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
   <link rel="manifest" href="manifest.json">
   <!-- ios support -->
   <link rel="apple-touch-icon" href="img/icon-96x96.png">
@@ -564,6 +564,48 @@ game controller type settings
   <span>three fire buttons</span> when using the virtual touch joystick the right half of screen is divided in three vertical stacked touch areas. All external controller buttons are mapped alternating to button1, 2 and 3. When using keyboard joystick emulation button2 is mapped to key 'B' and button3 to key 'N'.
 </div>
 </div>
+<br>
+virtual touch joystick settings
+<div class="mt-2" style="font-size: smaller">
+  <button id="button_vjoy_touch" class="btn btn-primary dropdown-toggle text-right mb-1" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+  positioning=base moves
+  </button>
+  <div id="choose_vjoy_touch" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+      <a class="dropdown-item" href="#">base moves</a>
+      <a class="dropdown-item" href="#">base fixed on first touch</a>
+      <a class="dropdown-item" href="#">stationary middle</a>
+      <a class="dropdown-item" href="#">stationary bottom</a>
+  </div>
+<br>
+<div id="base_moves_text" class="ml-3 vjoy_choice_text">
+  <span>base moves</span>&nbsp;the base follows your finger when the stick circle passes the boundary of the base circle.
+</div>
+<div id="base_fixed_on_first_touch_text" class="ml-3 vjoy_choice_text" >
+  <span>base fixed on first touch</span>&nbsp;joystick base is fixed
+</div>
+<div id="stationary_middle_text" class="ml-3 vjoy_choice_text">
+  <span>stationary middle</span>&nbsp;the base at a fixed middle y position and always visible
+</div>
+<div id="stationary_bottom_text" class="ml-3 vjoy_choice_text">
+  <span>stationary bottom</span>&nbsp;the base at a fixed bottom y position and always visible
+</div>
+</div>
+
+<div class="dropdown mr-1 mt-4">
+  <button id="button_vjoy_dead_zone" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    virtual joysticks dead zone=12
+  </button>
+  <div id="choose_vjoy_dead_zone" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+    <a class="dropdown-item" href="#">0</a>
+    <a class="dropdown-item" href="#">4</a>
+    <a class="dropdown-item" href="#">8</a>
+    <a class="dropdown-item" href="#">12</a>
+    <a class="dropdown-item" href="#">14</a>
+    <a class="dropdown-item" href="#">16</a>
+    <a class="dropdown-item" href="#">20</a>
+    <a class="dropdown-item" href="#">24</a>
+  </div>
+</div>
 
 <br>     
 touch screen settings for virtual keyboard
@@ -578,13 +620,13 @@ touch screen settings for virtual keyboard
   </div>
 <br>
 <div id="exact_timing_text" class="ml-3 vbk_choice_text">
-  <span>exact timing</span> autorepeat and simultaneous keycap presses (disables default scroll gestures on keycaps, scroll gesture possible only on gaps around the keys)
+  <span>exact timing</span>&nbsp;autorepeat and simultaneous keycap presses (disables default scroll gestures on keycaps, scroll gesture possible only on gaps around the keys)
 </div>
 <div id="smartphone_like_text" class="ml-3 vbk_choice_text" >
-  <span>smartphone like</span> native scroll gestures on keycaps (press starts after finger is lifted from keycap for a duration of 100ms)
+  <span>smartphone like</span>&nbsp;native scroll gestures on keycaps (press starts after finger is lifted from keycap for a duration of 100ms)
 </div>
 <div id="mix_of_both_text" class="ml-3 vbk_choice_text">
-  <span>mix of both</span> tries to mix both worlds... i.e. exact timing and simultaneous presses but also scrolls keyboard when swiping the finger on keycaps. disadvantage: also does a keypress when only scrolling was intended 
+  <span>mix of both</span>&nbsp;tries to mix both worlds... i.e. exact timing and simultaneous presses but also scrolls keyboard when swiping the finger on keycaps. disadvantage: also does a keypress when only scrolling was intended 
 </div>
 </div>
 

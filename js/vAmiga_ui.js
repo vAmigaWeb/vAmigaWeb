@@ -1173,6 +1173,7 @@ function keyup(e) {
 timestampjoy1 = null;
 timestampjoy2 = null;
 last_touch_cmd = null;
+last_touch_fire= null;
 /* callback for wasm mainsdl.cpp */
 function draw_one_frame()
 {
@@ -1259,12 +1260,20 @@ function handle_touch(portnr)
         var new_fire_2 = 2==fire_button_number&&v_fire._pressed?"PRESS_FIRE2":"RELEASE_FIRE2";
         var new_fire_3 = 3==fire_button_number&&v_fire._pressed?"PRESS_FIRE3":"RELEASE_FIRE3";
         
-        var new_touch_cmd = portnr + new_touch_cmd_x + new_touch_cmd_y + new_fire + new_fire_2 + new_fire_3;
+        var new_touch_cmd = portnr + new_touch_cmd_x + new_touch_cmd_y;
+
         if( last_touch_cmd != new_touch_cmd)
         {
             last_touch_cmd = new_touch_cmd;
             emit_joystick_cmd(portnr+new_touch_cmd_x);
             emit_joystick_cmd(portnr+new_touch_cmd_y);
+             //play_sound(audio_df_step);
+             v_joystick.redraw_base(new_touch_cmd);
+        }
+        var new_touch_fire = portnr + new_fire + new_fire_2 + new_fire_3;
+        if( last_touch_fire != new_touch_fire)
+        {
+            last_touch_fire = new_touch_fire;
             emit_joystick_cmd(portnr+new_fire);
             emit_joystick_cmd(portnr+new_fire_2);
             emit_joystick_cmd(portnr+new_fire_3);
@@ -2347,6 +2356,82 @@ $(`#choose_game_controller_type a`).click(function ()
         set_vbk_choice(choice);
         $("#modal_settings").focus();
     });
+
+//---
+v_joystick=null;
+let set_vjoy_choice = function (choice) {
+    $(`#button_vjoy_touch`).text('positioning='+choice);
+    current_vjoy_touch=choice;
+
+    let need_re_register=false;
+    if(v_joystick != null)
+    {
+        need_re_register=true;
+        unregister_v_joystick()
+    }
+
+    if(v_joystick != null)
+    {
+        v_joystick._stationaryBase=false;    
+    }
+    if(choice == "base moves")
+    {
+        stationaryBase = false;
+        fixed_touch_joystick_base=false;
+    }
+    else if(choice == "base fixed on first touch")
+    {
+        stationaryBase = false;
+        fixed_touch_joystick_base=true;
+    }
+    else if(choice.startsWith("stationary"))
+    {
+        stationaryBase = true;
+        fixed_touch_joystick_base=true;
+    }
+    if(need_re_register)
+    {
+        register_v_joystick()
+    }
+
+    save_setting("vjoy_touch",choice);   
+
+    for(el of document.querySelectorAll(".vjoy_choice_text"))
+    {
+        el.style.display="none";
+    }
+    let text_label=document.getElementById(choice.replaceAll(" ","_")+"_text");
+    if(text_label !== null)
+    {
+        text_label.style.display="inherit";
+    }
+}
+current_vjoy_touch=load_setting("vjoy_touch", "base moves");
+set_vjoy_choice(current_vjoy_touch);
+
+$(`#choose_vjoy_touch a`).click(function () 
+{
+    let choice=$(this).text();
+    set_vjoy_choice(choice);
+    $("#modal_settings").focus();
+});
+//---
+set_vjoy_dead_zone(load_setting('vjoy_dead_zone', 14));
+function set_vjoy_dead_zone(vjoy_dead_zone) {
+    rest_zone=vjoy_dead_zone;
+    $("#button_vjoy_dead_zone").text(`virtual joysticks dead zone=${vjoy_dead_zone}`);
+}
+$('#choose_vjoy_dead_zone a').click(function () 
+{
+    var vjoy_dead_zone=$(this).text();
+    set_vjoy_dead_zone(vjoy_dead_zone);
+    save_setting('vjoy_dead_zone',vjoy_dead_zone);
+    $("#modal_settings").focus();
+});
+
+//--
+
+
 
 //----
     set_renderer_choice = function (choice) {
@@ -4494,11 +4579,19 @@ function setTheme() {
             container	: document.getElementById('div_canvas'),
             mouseSupport	: true,
             strokeStyle	: 'white',
-            limitStickTravel: true
+            stickRadius	: 118,
+            limitStickTravel: true,
+            stationaryBase: stationaryBase
+
         });
         v_joystick.addEventListener('touchStartValidation', function(event){
-            var touch	= event.changedTouches[0];
-            return touch.pageX < window.innerWidth/2;
+            var touches = event.changedTouches;
+            var touch =null;
+            if(touches !== undefined)
+                touch= touches[0];
+            else
+                touch = event;//mouse emulation    
+            return touch.pageX < window.innerWidth/2;  
         });
        
         // one on the right of the screen
@@ -4510,7 +4603,12 @@ function setTheme() {
             mouseSupport	: true
         });
         v_fire.addEventListener('touchStartValidation', function(event){
-            var touch	= event.changedTouches[0];
+            var touches = event.changedTouches;
+            var touch =null;
+            if(touches !== undefined)
+                touch= touches[0];
+            else
+                touch = event;//mouse emulation    
             return touch.pageX >= window.innerWidth/2;
         });
     }
