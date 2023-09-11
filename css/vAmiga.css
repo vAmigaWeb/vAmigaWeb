@@ -170,7 +170,7 @@ color: #aaa !important;
     background-color:var(--darkbg);
 }
 
-.gc_choice_text span, .vbk_choice_text span {
+.gc_choice_text span, .vbk_choice_text span, .vjoy_choice_text span {
     background-color: var(--gray);
     border-radius: 6px;
     padding-left: 4px;
