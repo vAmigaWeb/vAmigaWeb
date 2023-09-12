@@ -37,11 +37,13 @@ function js_set_display(_xOff, _yOff, _clipped_width,_clipped_height) {
     xOff=_xOff-HBLANK_MIN*4;
     yOff=_yOff;
     clipped_width =_clipped_width;
-    clipped_height=_clipped_height & 0xfffe;
+    clipped_height=_clipped_height;
+    if(clipped_height%2!=0) clipped_height++; //when odd make the height even 
     if(clipped_height+yOff > VPIXELS)
     {
-        clipped_height=(VPIXELS-yOff)& 0xfffe;
+        clipped_height=(VPIXELS-yOff) & 0xfffe;
     }
+
     let the_canvas = document.getElementById("canvas");
     the_canvas.width=clipped_width;
     if(typeof gl != 'undefined' && gl!=null)

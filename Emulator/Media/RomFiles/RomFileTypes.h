@@ -13,171 +13,77 @@
 #include "Reflection.h"
 
 //
-// Enumerations
+// Constants
 //
 
-enum_long(ROM_IDENTIFIER)
-{
-    ROM_MISSING,
-    ROM_UNKNOWN,
+static const u32 CRC32_MISSING                  = 0x00000000;
+static const u32 CRC32_BOOT_A1000_8K            = 0x62F11C04;
+static const u32 CRC32_BOOT_A1000_64K           = 0x0B1AD2D0;
 
-    // Boot Roms (A1000)
-    ROM_BOOT_A1000_8K,
-    ROM_BOOT_A1000_64K,
+static const u32 CRC32_KICK07_27_003_BETA       = 0x428A9A4B;
+static const u32 CRC32_KICK10_30_NTSC           = 0x299790FF;
+static const u32 CRC32_KICK11_31_034_NTSC       = 0xD060572A;
+static const u32 CRC32_KICK11_32_034_PAL        = 0xEC86DAE2;
+static const u32 CRC32_KICK12_33_166            = 0x9ED783D0;
+static const u32 CRC32_KICK12_33_180            = 0xA6CE1636;
+static const u32 CRC32_KICK121_34_004           = 0xDB4C8033;
+static const u32 CRC32_KICK13_34_005_A500       = 0xC4F0F55F;
+static const u32 CRC32_KICK13_34_005_A3000      = 0xE0F37258;
 
-    // Kickstart V0.x
-    ROM_KICK07_27_003_BETA,
+static const u32 CRC32_KICK12_33_180_MRAS       = 0xF80F0FC5;
 
-    // Kickstart V1.x
-    ROM_KICK10_30_NTSC,
-    ROM_KICK11_31_034_NTSC,
-    ROM_KICK11_32_034_PAL,
-    ROM_KICK12_33_166,
-    ROM_KICK12_33_180,
-    ROM_KICK121_34_004,
-    ROM_KICK13_34_005_A500,
-    ROM_KICK13_34_005_A3000,
+static const u32 CRC32_KICK12_33_180_G11R       = 0x85067666;
+static const u32 CRC32_KICK13_34_005_G12R       = 0x74680D37;
 
-    // Expansion lib patches
-    ROM_KICK12_33_180_MRAS,
+static const u32 CRC32_KICK20_36_028            = 0xB4113910;
 
-    // Guardian patches
-    ROM_KICK12_33_180_G11R,
-    ROM_KICK13_34_005_G12R,
+static const u32 CRC32_KICK202_36_207_A3000     = 0x9A15519D;
+static const u32 CRC32_KICK204_37_175_A500      = 0xC3BDB240;
+static const u32 CRC32_KICK204_37_175_A3000     = 0x234A7233;
+static const u32 CRC32_KICK205_37_299_A600      = 0x83028FB5;
+static const u32 CRC32_KICK205_37_300_A600HD    = 0x64466C2A;
+static const u32 CRC32_KICK205_37_350_A600HD    = 0x43B0DF7B;
 
-    // Kickstart V2.x
-    ROM_KICK20_36_028,
-    ROM_KICK202_36_207_A3000,
-    ROM_KICK204_37_175_A500,
-    ROM_KICK204_37_175_A3000,
-    ROM_KICK205_37_299_A600,
-    ROM_KICK205_37_300_A600HD,
-    ROM_KICK205_37_350_A600HD,
+static const u32 CRC32_KICK30_39_106_A1200      = 0x6C9B07D2;
+static const u32 CRC32_KICK30_39_106_A4000      = 0x9E6AC152;
+static const u32 CRC32_KICK31_40_063_A500       = 0xFC24AE0D;
+static const u32 CRC32_KICK31_40_063_A500_R     = 0x88136CA9;
+static const u32 CRC32_KICK31_40_068_A1200      = 0x1483A091;
+static const u32 CRC32_KICK31_40_068_A3000      = 0xEFB239CC;
+static const u32 CRC32_KICK31_40_068_A4000      = 0xD6BAE334;
+static const u32 CRC32_KICK31_40_070_A4000T     = 0x75932C3A;
 
-    // Kickstart V3.x
-    ROM_KICK30_39_106_A1200,
-    ROM_KICK30_39_106_A4000,
-    ROM_KICK31_40_063_A500,
-    ROM_KICK31_40_063_A500_R,
-    ROM_KICK31_40_068_A1200,
-    ROM_KICK31_40_068_A3000,
-    ROM_KICK31_40_068_A4000,
-    ROM_KICK31_40_070_A4000T,
+// static const u32 CRC32_HYP314_46_143_A500       = 0xD52B52FD;
+static const u32 CRC32_HYP314_46_143_A500       = 0x568F8786;
+static const u32 CRC32_HYP314_46_143_A1200      = 0xF17FA97F;
+static const u32 CRC32_HYP314_46_143_A2000      = 0xC25939AC;
+static const u32 CRC32_HYP314_46_143_A3000      = 0x50C3529C;
+static const u32 CRC32_HYP314_46_143_A4000      = 0xD47E18FD;
+static const u32 CRC32_HYP314_46_143_A4000T     = 0x75A2B2A5;
+static const u32 CRC32_HYP320_47_96_A500        = 0x8173D7B6;
+static const u32 CRC32_HYP320_47_96_A1200       = 0xBD1FF75E;
+static const u32 CRC32_HYP320_47_96_A3000       = 0xF3AF46CC;
+static const u32 CRC32_HYP320_47_96_A4000       = 0x9BB8FC93;
+static const u32 CRC32_HYP320_47_96_A4000T      = 0x9188A509;
+static const u32 CRC32_HYP321_47_102_A500       = 0x4F078456;
+static const u32 CRC32_HYP321_47_102_A1200      = 0x2B653371;
+static const u32 CRC32_HYP321_47_102_A3000      = 0x0078F607;
+static const u32 CRC32_HYP321_47_102_A4000      = 0xF3CED3B8;
+static const u32 CRC32_HYP321_47_102_A4000T     = 0xAF3452EC;
+static const u32 CRC32_HYP322_47_111_A500       = 0xE4458462;
+static const u32 CRC32_HYP322_47_111_A1200      = 0x5C40328A;
+static const u32 CRC32_HYP322_47_111_A3000      = 0x46335B57;
+static const u32 CRC32_HYP322_47_111_A4000      = 0x4BEA9798;
+static const u32 CRC32_HYP322_47_111_A4000T     = 0x36BBCD8A;
 
-    // Hyperion
-    ROM_HYP314_46_143_A500,
-    ROM_HYP314_46_143_A1200,
-    ROM_HYP314_46_143_A2000,
-    ROM_HYP314_46_143_A3000,
-    ROM_HYP314_46_143_A4000,
-    ROM_HYP314_46_143_A4000T,
-    ROM_HYP320_47_96_A500,
-    ROM_HYP320_47_96_A1200,
-    ROM_HYP320_47_96_A3000,
-    ROM_HYP320_47_96_A4000,
-    ROM_HYP320_47_96_A4000T,
-    ROM_HYP321_47_102_A500,
-    ROM_HYP321_47_102_A1200,
-    ROM_HYP321_47_102_A3000,
-    ROM_HYP321_47_102_A4000,
-    ROM_HYP321_47_102_A4000T,
+static const u32 CRC32_AROS_54705               = 0x9CE0F009;
+static const u32 CRC32_AROS_54705_EXT           = 0xE2C7F70A;
+static const u32 CRC32_AROS_55696               = 0x3F4FCC0A;
+static const u32 CRC32_AROS_55696_EXT           = 0xF2E52B07;
+static const u32 CRC32_AROS_1ED13DE6E3          = 0x4CE7C8D6;
+static const u32 CRC32_AROS_1ED13DE6E3_EXT      = 0xF2A9CDC5;
 
-    // Free Kickstart Rom replacements
-    ROM_AROS_54705,
-    ROM_AROS_54705_EXT,
-    ROM_AROS_55696,
-    ROM_AROS_55696_EXT,
-    ROM_AROS_1ED13DE6E3,
-    ROM_AROS_1ED13DE6E3_EXT,
-
-    // Diagnostic cartridges
-    ROM_DIAG11,
-    ROM_DIAG12,
-    ROM_DIAG121,
-    ROM_LOGICA20
-};
-typedef ROM_IDENTIFIER RomIdentifier;
-
-#ifdef __cplusplus
-struct RomIdentifierEnum : util::Reflection<RomIdentifierEnum, RomIdentifier>
-{
-    static constexpr long minVal = 0;
-    static constexpr long maxVal = ROM_LOGICA20;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-
-    static const char *prefix() { return "ROM"; }
-    static const char *key(RomIdentifier value)
-    {
-        switch (value) {
-
-            case ROM_MISSING:               return "MISSING";
-            case ROM_UNKNOWN:               return "UNKNOWN";
-
-            case ROM_BOOT_A1000_8K:         return "BOOT_A1000_8K";
-            case ROM_BOOT_A1000_64K:        return "BOOT_A1000_64K";
-
-            case ROM_KICK07_27_003_BETA:    return "KICK07_27_003";
-            case ROM_KICK10_30_NTSC:        return "KICK10_30";
-            case ROM_KICK11_31_034_NTSC:    return "KICK11_31_034";
-            case ROM_KICK11_32_034_PAL:     return "KICK11_32_034";
-            case ROM_KICK12_33_166:         return "KICK12_33_166";
-            case ROM_KICK12_33_180:         return "KICK12_33_180";
-            case ROM_KICK121_34_004:        return "KICK121_34_004";
-            case ROM_KICK13_34_005_A500:
-            case ROM_KICK13_34_005_A3000:   return "KICK13_34_005";
-
-            case ROM_KICK12_33_180_MRAS:    return "KICK12_33_180_MRAS";
-
-            case ROM_KICK12_33_180_G11R:    return "ROM_KICK12_33_180_G11R";
-            case ROM_KICK13_34_005_G12R:    return "ROM_KICK13_34_005_G12R";
-
-            case ROM_KICK20_36_028:         return "KICK20_36_028";
-            case ROM_KICK202_36_207_A3000:  return "KICK202_36_207";
-            case ROM_KICK204_37_175_A500:
-            case ROM_KICK204_37_175_A3000:  return "KICK204_37_175";
-            case ROM_KICK205_37_299_A600:   return "KICK205_37_299";
-            case ROM_KICK205_37_300_A600HD: return "KICK205_37_300";
-            case ROM_KICK205_37_350_A600HD: return "KICK205_37_350";
-
-            case ROM_KICK30_39_106_A1200:
-            case ROM_KICK30_39_106_A4000:   return "KICK30_39_106";
-            case ROM_KICK31_40_063_A500:
-            case ROM_KICK31_40_063_A500_R:  return "KICK31_40_063";
-            case ROM_KICK31_40_068_A1200:
-            case ROM_KICK31_40_068_A3000:
-            case ROM_KICK31_40_068_A4000:   return "KICK31_40_068";
-            case ROM_KICK31_40_070_A4000T:  return "KICK31_40_070";
-
-            case ROM_HYP314_46_143_A500:
-            case ROM_HYP314_46_143_A1200:
-            case ROM_HYP314_46_143_A2000:
-            case ROM_HYP314_46_143_A3000:
-            case ROM_HYP314_46_143_A4000:
-            case ROM_HYP314_46_143_A4000T:  return "HYP314_46_143";
-            case ROM_HYP320_47_96_A500:
-            case ROM_HYP320_47_96_A1200:
-            case ROM_HYP320_47_96_A3000:
-            case ROM_HYP320_47_96_A4000:
-            case ROM_HYP320_47_96_A4000T:   return "HYP320_47_96";
-            case ROM_HYP321_47_102_A500:
-            case ROM_HYP321_47_102_A1200:
-            case ROM_HYP321_47_102_A3000:
-            case ROM_HYP321_47_102_A4000:
-            case ROM_HYP321_47_102_A4000T:  return "HYP321_47_102";
-
-            case ROM_AROS_54705:            return "AROS_54705";
-            case ROM_AROS_54705_EXT:        return "AROS_54705_EXT";
-            case ROM_AROS_55696:            return "AROS_55696";
-            case ROM_AROS_55696_EXT:        return "AROS_55696_EXT";
-            case ROM_AROS_1ED13DE6E3:       return "AROS_1ED13DE6E3";
-            case ROM_AROS_1ED13DE6E3_EXT:   return "AROS_1ED13DE6E3_EXT";
-
-            case ROM_DIAG11:                return "DIAG11";
-            case ROM_DIAG12:                return "DIAG12";
-            case ROM_DIAG121:               return "DIAG121";
-            case ROM_LOGICA20:              return "LOGICA20";
-        }
-        return "???";
-    }
-};
-#endif
+static const u32 CRC32_DIAG11                   = 0x4C4B5C05;
+static const u32 CRC32_DIAG12                   = 0x771CD0EA;
+static const u32 CRC32_DIAG121                  = 0x850209CD;
+static const u32 CRC32_LOGICA20                 = 0x8484F426;

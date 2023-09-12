@@ -11,6 +11,7 @@
 
 #include "Aliases.h"
 #include "Reflection.h"
+#include "HdControllerTypes.h"
 
 //
 // Enumerations
@@ -20,32 +21,26 @@ enum_long(MSG_TYPE)
 {
     MSG_NONE = 0,
     
-    // Message queue
-    MSG_REGISTER,
-    
     // Emulator state
     MSG_CONFIG,
-    MSG_POWER_ON,
-    MSG_POWER_OFF,
+    MSG_POWER,
     MSG_RUN,
     MSG_PAUSE,
     MSG_STEP,
     MSG_RESET,
-    MSG_HALT,
+    MSG_SHUTDOWN,
     MSG_ABORT,
-    MSG_WARP_ON,
-    MSG_WARP_OFF,
-    MSG_DEBUG_ON,
-    MSG_DEBUG_OFF,
-    MSG_MUTE_ON,
-    MSG_MUTE_OFF,
+    MSG_WARP,
+    MSG_TRACK,
+    MSG_MUTE,
     MSG_POWER_LED_ON,
     MSG_POWER_LED_DIM,
     MSG_POWER_LED_OFF,
 
     // Retro shell
-    MSG_CLOSE_CONSOLE,
-    MSG_UPDATE_CONSOLE,
+    MSG_CONSOLE_CLOSE,
+    MSG_CONSOLE_UPDATE,
+    MSG_CONSOLE_DEBUGGER,
     MSG_SCRIPT_DONE,
     MSG_SCRIPT_PAUSE,
     MSG_SCRIPT_ABORT,
@@ -79,26 +74,19 @@ enum_long(MSG_TYPE)
         
     // Floppy drives
     MSG_DRIVE_CONNECT,
-    MSG_DRIVE_DISCONNECT,
     MSG_DRIVE_SELECT,
     MSG_DRIVE_READ,
     MSG_DRIVE_WRITE,
-    MSG_DRIVE_LED_ON,
-    MSG_DRIVE_LED_OFF,
-    MSG_DRIVE_MOTOR_ON,
-    MSG_DRIVE_MOTOR_OFF,
+    MSG_DRIVE_LED,
+    MSG_DRIVE_MOTOR,
     MSG_DRIVE_STEP,
     MSG_DRIVE_POLL,
     MSG_DISK_INSERT,
     MSG_DISK_EJECT,
-    MSG_DISK_SAVED,
-    MSG_DISK_UNSAVED,
-    MSG_DISK_PROTECT,
-    MSG_DISK_UNPROTECT,
+    MSG_DISK_PROTECTED,
 
     // Hard drive controllers
     MSG_HDC_CONNECT,
-    MSG_HDC_DISCONNECT,
     MSG_HDC_STATE,
     
     // Hard drives
@@ -128,13 +116,15 @@ enum_long(MSG_TYPE)
     MSG_RECORDING_ABORTED,
         
     // DMA Debugging
-    MSG_DMA_DEBUG_ON,
-    MSG_DMA_DEBUG_OFF,
+    MSG_DMA_DEBUG,
 
     // Remote server
     MSG_SRV_STATE,
     MSG_SRV_RECEIVE,
-    MSG_SRV_SEND
+    MSG_SRV_SEND,
+
+    // Scheduled alarms
+    MSG_ALARM
 };
 typedef MSG_TYPE MsgType;
 
@@ -142,7 +132,7 @@ typedef MSG_TYPE MsgType;
 struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = MSG_SRV_SEND;
+    static constexpr long maxVal = MSG_ALARM;
     static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "MSG"; }
@@ -151,29 +141,25 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
         switch (value) {
                 
             case MSG_NONE:                  return "NONE";
-            case MSG_REGISTER:              return "REGISTER";
 
             case MSG_CONFIG:                return "CONFIG";
-            case MSG_POWER_ON:              return "POWER_ON";
-            case MSG_POWER_OFF:             return "POWER_OFF";
+            case MSG_POWER:                 return "POWER";
             case MSG_RUN:                   return "RUN";
             case MSG_PAUSE:                 return "PAUSE";
             case MSG_STEP:                  return "STEP";
             case MSG_RESET:                 return "RESET";
-            case MSG_HALT:                  return "HALT";
+            case MSG_SHUTDOWN:              return "SHUTDOWN";
             case MSG_ABORT:                 return "ABORT";
-            case MSG_WARP_ON:               return "WARP_ON";
-            case MSG_WARP_OFF:              return "WARP_OFF";
-            case MSG_DEBUG_ON:              return "DEBUG_ON";
-            case MSG_DEBUG_OFF:             return "DEBUG_OFF";
-            case MSG_MUTE_ON:               return "MUTE_ON";
-            case MSG_MUTE_OFF:              return "MUTE_OFF";
+            case MSG_WARP:                  return "WARP";
+            case MSG_TRACK:                 return "TRACK";
+            case MSG_MUTE:                  return "MUTE";
             case MSG_POWER_LED_ON:          return "POWER_LED_ON";
             case MSG_POWER_LED_DIM:         return "POWER_LED_DIM";
             case MSG_POWER_LED_OFF:         return "POWER_LED_OFF";
 
-            case MSG_CLOSE_CONSOLE:         return "CLOSE_CONSOLE";
-            case MSG_UPDATE_CONSOLE:        return "UPDATE_CONSOLE";
+            case MSG_CONSOLE_CLOSE:         return "CONSOLE_CLOSE";
+            case MSG_CONSOLE_UPDATE:        return "CONSOLE_UPDATE";
+            case MSG_CONSOLE_DEBUGGER:      return "CONSOLE_DEBUGGER";
             case MSG_SCRIPT_DONE:           return "SCRIPT_DONE";
             case MSG_SCRIPT_PAUSE:          return "SCRIPT_PAUSE";
             case MSG_SCRIPT_ABORT:          return "SCRIPT_ABORT";
@@ -201,25 +187,18 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
             case MSG_MEM_LAYOUT:            return "MEM_LAYOUT";
                     
             case MSG_DRIVE_CONNECT:         return "DRIVE_CONNECT";
-            case MSG_DRIVE_DISCONNECT:      return "DRIVE_DISCONNECT";
             case MSG_DRIVE_SELECT:          return "DRIVE_SELECT";
             case MSG_DRIVE_READ:            return "DRIVE_READ";
             case MSG_DRIVE_WRITE:           return "DRIVE_WRITE";
-            case MSG_DRIVE_LED_ON:          return "DRIVE_LED_ON";
-            case MSG_DRIVE_LED_OFF:         return "DRIVE_LED_OFF";
-            case MSG_DRIVE_MOTOR_ON:        return "DRIVE_MOTOR_ON";
-            case MSG_DRIVE_MOTOR_OFF:       return "DRIVE_MOTOR_OFF";
+            case MSG_DRIVE_LED:             return "DRIVE_LED";
+            case MSG_DRIVE_MOTOR:           return "DRIVE_MOTOR";
             case MSG_DRIVE_STEP:            return "DRIVE_STEP";
             case MSG_DRIVE_POLL:            return "DRIVE_POLL";
             case MSG_DISK_INSERT:           return "DISK_INSERT";
             case MSG_DISK_EJECT:            return "DISK_EJECT";
-            case MSG_DISK_SAVED:            return "DISK_SAVED";
-            case MSG_DISK_UNSAVED:          return "DISK_UNSAVED";
-            case MSG_DISK_PROTECT:          return "DISK_PROTECT";
-            case MSG_DISK_UNPROTECT:        return "DISK_UNPROTECT";
+            case MSG_DISK_PROTECTED:        return "DISK_PROTECTED";
 
             case MSG_HDC_CONNECT:           return "HDC_CONNECT";
-            case MSG_HDC_DISCONNECT:        return "HDC_DISCONNECT";
             case MSG_HDC_STATE:             return "HDC_STATE";
                 
             case MSG_HDR_STEP:              return "HDR_STEP";
@@ -242,12 +221,13 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
             case MSG_RECORDING_STOPPED:     return "RECORDING_STOPPED";
             case MSG_RECORDING_ABORTED:     return "RECORDING_ABORTED";
                                 
-            case MSG_DMA_DEBUG_ON:          return "DMA_DEBUG_ON";
-            case MSG_DMA_DEBUG_OFF:         return "DMA_DEBUG_OFF";
+            case MSG_DMA_DEBUG:             return "DMA_DEBUG";
                                 
             case MSG_SRV_STATE:             return "SRV_STATE";
             case MSG_SRV_RECEIVE:           return "SRV_RECEIVE";
             case MSG_SRV_SEND:              return "SRV_SEND";
+
+            case MSG_ALARM:                 return "ALARM";
         }
         return "???";
     }
@@ -259,18 +239,26 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
 // Structures
 //
 
+typedef struct { u32 pc; u8 vector; } CpuMsg;
+typedef struct { i16 nr; i16 value; i16 volume; i16 pan; } DriveMsg;
+typedef struct { i16 nr; HdcState state; } HdcMsg;
+typedef struct { i16 hstrt; i16 vstrt; i16 hstop; i16 vstop; } ViewportMsg;
+typedef struct { isize line; i16 delay; } ScriptMsg;
+
 typedef struct
 {
+    // Header
     MsgType type;
 
-    /* The payload of a message consists of up to four (signed) 32-bit values.
-     * We avoid the usage of 64-bit types inside this structure to make it
-     * easily processable by JavaScript (web ports).
-     */
-    i32 data1;
-    i32 data2;
-    i32 data3;
-    i32 data4;
+    // Payload
+    union {
+        i64 value;
+        CpuMsg cpu;
+        DriveMsg drive;
+        HdcMsg hdc;
+        ScriptMsg script;
+        ViewportMsg viewport;
+    };
 }
 Message;
 
@@ -279,4 +267,4 @@ Message;
 // Signatures
 //
 
-typedef void Callback(const void *, long, i32, i32, i32, i32);
+typedef void Callback(const void *, Message);

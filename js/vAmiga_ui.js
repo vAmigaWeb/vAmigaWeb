@@ -107,6 +107,10 @@ function FromBase64(str) {
     return atob(str).split('').map(function (c) { return c.charCodeAt(0); });
 }
 
+function html_encode(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;').replace(/"/g, '&#34;');
+}
+
 function get_parameter_link()
 {
     let parameter_link=null;
@@ -478,8 +482,6 @@ function message_handler(msg, data, data2)
     {
       serial_port_out_handler(data);
     }
-
-
 }
 
 async function fetchOpenROMS(){
@@ -728,7 +730,7 @@ async function drop_handler(ev) {
                 }
                 else
                 {
-                    alert("Sorry only C64-Files, CSDb-release-links or CSDb-download-links are currently supported by vc64web ...");
+                    alert("Sorry only amiga disk files are currently supported by vAmigaWeb ...");
                 }
                 break;
             }
@@ -1054,15 +1056,40 @@ function is_any_text_input_active()
     return active;
 }
 
+function serialize_key_code(e){
+    let mods = ""; let code = e.code;
+    if(e.altKey && !code.startsWith('Alt'))
+        mods+="Alt+";
+    if(e.metaKey && !code.startsWith('Meta'))
+        mods+="Meta+";
+    if(e.shiftKey && !code.startsWith('Shift'))
+        mods+="Shift+";
+    if(e.ctrlKey && !code.startsWith('Control'))
+        mods+="Ctrl+";
+    return mods+code;
+}
+
 function keydown(e) {
     if(is_any_text_input_active())
         return;
 
     e.preventDefault();
 
+    if(port1=='keys'||port2=='keys')
+    {
+        var joystick_cmd = joystick_keydown_map[joystick_button_count][e.code];
+        if(joystick_cmd !== undefined)
+        {
+            emit_joystick_cmd((port1=='keys'?'1':'2')+joystick_cmd);
+            return;
+        }
+    }
+
+    let serialized_code=serialize_key_code(e);
     for(action_button of custom_keys)
     {
-        if(action_button.key == e.key)
+        if(action_button.key == e.key /* e.key only for legacy custom keys*/   
+           || action_button.key == serialized_code)
         {
             if(e.repeat)
             {
@@ -1081,15 +1108,7 @@ function keydown(e) {
         }
     }
 
-    if(port1=='keys'||port2=='keys')
-    {
-        var joystick_cmd = joystick_keydown_map[joystick_button_count][e.code];
-        if(joystick_cmd !== undefined)
-        {
-            emit_joystick_cmd((port1=='keys'?'1':'2')+joystick_cmd);
-            return;
-        }
-    }
+
 
     var key_code = translateKey2(e.code, e.key);
     if(key_code !== undefined && key_code.raw_key[0] != undefined)
@@ -1107,15 +1126,6 @@ function keyup(e) {
         return;
 
     e.preventDefault();
-
-    for(action_button of custom_keys)
-    {
-        if(action_button.key == e.key)
-        {
-            get_running_script(action_button.id).action_button_released = true;
-            return;
-        }
-    }
 
     if(port1=='keys'||port2=='keys')
     {
@@ -1138,6 +1148,17 @@ function keyup(e) {
         }
     }
 
+    let serialized_code=serialize_key_code(e);
+    for(action_button of custom_keys)
+    {
+        if(action_button.key == e.key /* e.key only for legacy custom keys*/   
+           || action_button.key == serialized_code)
+        {
+            get_running_script(action_button.id).action_button_released = true;
+            return;
+        }
+    }
+
     var key_code = translateKey2(e.code, e.key);
     if(key_code !== undefined && key_code.raw_key[0] != undefined)
     {
@@ -1152,6 +1173,7 @@ function keyup(e) {
 timestampjoy1 = null;
 timestampjoy2 = null;
 last_touch_cmd = null;
+last_touch_fire= null;
 /* callback for wasm mainsdl.cpp */
 function draw_one_frame()
 {
@@ -1238,12 +1260,20 @@ function handle_touch(portnr)
         var new_fire_2 = 2==fire_button_number&&v_fire._pressed?"PRESS_FIRE2":"RELEASE_FIRE2";
         var new_fire_3 = 3==fire_button_number&&v_fire._pressed?"PRESS_FIRE3":"RELEASE_FIRE3";
         
-        var new_touch_cmd = portnr + new_touch_cmd_x + new_touch_cmd_y + new_fire + new_fire_2 + new_fire_3;
+        var new_touch_cmd = portnr + new_touch_cmd_x + new_touch_cmd_y;
+
         if( last_touch_cmd != new_touch_cmd)
         {
             last_touch_cmd = new_touch_cmd;
             emit_joystick_cmd(portnr+new_touch_cmd_x);
             emit_joystick_cmd(portnr+new_touch_cmd_y);
+             //play_sound(audio_df_step);
+             v_joystick.redraw_base(new_touch_cmd);
+        }
+        var new_touch_fire = portnr + new_fire + new_fire_2 + new_fire_3;
+        if( last_touch_fire != new_touch_fire)
+        {
+            last_touch_fire = new_touch_fire;
             emit_joystick_cmd(portnr+new_fire);
             emit_joystick_cmd(portnr+new_fire_2);
             emit_joystick_cmd(portnr+new_fire_3);
@@ -1753,12 +1783,27 @@ function InitWrappers() {
     //when app becomes hidden/visible
     window.addEventListener("visibilitychange", async () => {
         if(document.visibilityState == "hidden") {
-           try { audioContext.suspend(); } catch(e){ console.error(e);}
+           console.log("visibility=hidden");
+           let is_full_screen=document.fullscreenElement!=null;
+           console.log("fullscreen="+is_full_screen);
+           if(!is_full_screen)
+           {//safari bug: goes visible=hidden when entering fullscreen
+            //in that case don't disable the audio 
+               try { audioContext.suspend(); } catch(e){ console.error(e);}
+           }
         }
         else if(emulator_currently_runs)
         {
             try { await connect_audio_processor(); } catch(e){ console.error(e);}
             add_unlock_user_action();
+        }
+        if(document.visibilityState === "visible" && wakeLock !== null)
+        {
+            if(is_running())
+            {
+//                alert("req wakelock again "+document.visibilityState);
+                set_wake_lock(true);
+            }
         }
     });
 
@@ -2312,6 +2357,82 @@ $(`#choose_game_controller_type a`).click(function ()
         $("#modal_settings").focus();
     });
 
+//---
+v_joystick=null;
+let set_vjoy_choice = function (choice) {
+    $(`#button_vjoy_touch`).text('positioning='+choice);
+    current_vjoy_touch=choice;
+
+    let need_re_register=false;
+    if(v_joystick != null)
+    {
+        need_re_register=true;
+        unregister_v_joystick()
+    }
+
+    if(v_joystick != null)
+    {
+        v_joystick._stationaryBase=false;    
+    }
+    if(choice == "base moves")
+    {
+        stationaryBase = false;
+        fixed_touch_joystick_base=false;
+    }
+    else if(choice == "base fixed on first touch")
+    {
+        stationaryBase = false;
+        fixed_touch_joystick_base=true;
+    }
+    else if(choice.startsWith("stationary"))
+    {
+        stationaryBase = true;
+        fixed_touch_joystick_base=true;
+    }
+    if(need_re_register)
+    {
+        register_v_joystick()
+    }
+
+    save_setting("vjoy_touch",choice);   
+
+    for(el of document.querySelectorAll(".vjoy_choice_text"))
+    {
+        el.style.display="none";
+    }
+    let text_label=document.getElementById(choice.replaceAll(" ","_")+"_text");
+    if(text_label !== null)
+    {
+        text_label.style.display="inherit";
+    }
+}
+current_vjoy_touch=load_setting("vjoy_touch", "base moves");
+set_vjoy_choice(current_vjoy_touch);
+
+$(`#choose_vjoy_touch a`).click(function () 
+{
+    let choice=$(this).text();
+    set_vjoy_choice(choice);
+    $("#modal_settings").focus();
+});
+//---
+set_vjoy_dead_zone(load_setting('vjoy_dead_zone', 14));
+function set_vjoy_dead_zone(vjoy_dead_zone) {
+    rest_zone=vjoy_dead_zone;
+    $("#button_vjoy_dead_zone").text(`virtual joysticks dead zone=${vjoy_dead_zone}`);
+}
+$('#choose_vjoy_dead_zone a').click(function () 
+{
+    var vjoy_dead_zone=$(this).text();
+    set_vjoy_dead_zone(vjoy_dead_zone);
+    save_setting('vjoy_dead_zone',vjoy_dead_zone);
+    $("#modal_settings").focus();
+});
+
+//--
+
+
+
 //----
     set_renderer_choice = function (choice) {
         $(`#button_renderer`).text('video renderer='+choice);
@@ -2580,7 +2701,119 @@ wide_screen_switch.change( function() {
     save_setting('widescreen', this.checked);
     scaleVMCanvas();
 });
+//------
+  // create a reference for the wake lock
+  wakeLock = null;
 
+
+check_wake_lock = async () => {
+    if(is_running())
+    {
+        if(wakeLock != null)
+        {
+//            alert("req");
+            requestWakeLock();
+        }
+    }
+    else
+    {
+        if(wakeLock != null)
+        {
+//            alert("release");
+            wakeLock.release();
+        }
+    }
+}
+
+// create an async function to request a wake lock
+requestWakeLock = async () => {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+
+      // change up our interface to reflect wake lock active
+      $("#wake_lock_status").text("(wake lock active, app will stay awake, no auto off)");
+      wake_lock_switch.prop('checked', true);
+
+      // listen for our release event
+      wakeLock.onrelease = function(ev) {
+        console.log(ev);
+      }
+      wakeLock.addEventListener('release', () => {
+        // if wake lock is released alter the button accordingly
+        if(wakeLock==null)
+            $("#wake_lock_status").text(`(no wake lock, system will probably auto off and sleep after a while)`);
+        else
+            $("#wake_lock_status").text(`(wake lock released while pausing, system will probably auto off and sleep after a while)`);
+        wake_lock_switch.prop('checked', false);
+
+      });
+    } catch (err) {
+      // if wake lock request fails - usually system related, such as battery
+      $("#wake_lock_status").text(`(no wake lock, system will probably auto off and sleep after a while). ${err.name}, ${err.message}`);
+      wake_lock_switch.prop('checked', false);
+      console.error(err);
+//      alert(`error while requesting wakelock: ${err.name}, ${err.message}`);
+    }
+}
+
+set_wake_lock = (use_wake_lock)=>{
+    let is_supported=false;
+    if ('wakeLock' in navigator) {
+        is_supported = true;
+    } else {
+        wake_lock_switch.prop('disabled', true);
+        $("#wake_lock_status").text("(wake lock is not supported on this browser, your system will decide when it turns your device off)");
+    }
+    if(is_supported && use_wake_lock)
+    {
+        requestWakeLock();
+    }
+    else if(wakeLock != null)
+    {
+        let current_wakelock=wakeLock;
+        wakeLock = null;
+        current_wakelock.release();
+    }
+}
+
+wake_lock_switch = $('#wake_lock_switch');
+let use_wake_lock=load_setting('wake_lock', false);
+set_wake_lock(use_wake_lock);
+wake_lock_switch.change( function() {
+    let use_wake_lock  = this.checked;
+    set_wake_lock(use_wake_lock);
+    save_setting('wake_lock', this.checked);
+});
+//---
+fullscreen_switch = $('#button_fullscreen');
+if(document.fullscreenEnabled)
+{
+    fullscreen_switch.show();
+    svg_fs_on=`<path d="M1.5 1a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4A1.5 1.5 0 0 1 1.5 0h4a.5.5 0 0 1 0 1h-4zM10 .5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 16 1.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zM.5 10a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 0 14.5v-4a.5.5 0 0 1 .5-.5zm15 0a.5.5 0 0 1 .5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5z"/>`;
+    $('#svg_fullscreen').html(svg_fs_on);
+
+    addEventListener("fullscreenchange", () => {
+        $('#svg_fullscreen').html(
+            document.fullscreenElement?
+            `<path d="M5.5 0a.5.5 0 0 1 .5.5v4A1.5 1.5 0 0 1 4.5 6h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5zm5 0a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 10 4.5v-4a.5.5 0 0 1 .5-.5zM0 10.5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 6 11.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zm10 1a1.5 1.5 0 0 1 1.5-1.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4z"/>`:
+            svg_fs_on
+        );
+        $('#svg_fullscreen').attr("data-original-title",
+            document.fullscreenElement? "exit fullscreen":"fullscreen"
+        );
+    });
+
+    fullscreen_switch.click( ()=>{	
+        if(!document.fullscreenElement)
+            document.documentElement.requestFullscreen({navigationUI: "hide"});
+        else
+            document.exitFullscreen();            
+    });
+}
+else
+{
+    fullscreen_switch.hide();
+}
 //------
 
 $('.layer').change( function(event) {
@@ -2652,16 +2885,29 @@ $('.layer').change( function(event) {
         $("#output_row").hide();
     });
 
+
+
+    $('#modal_reset').keydown(event => {
+            if(event.key === "Enter")
+            {
+                $( "#button_reset_confirmed" ).click();                        
+            }
+            return true;
+        }
+    );
     document.getElementById('button_reset').onclick = function() {
+        $("#modal_reset").modal('show');
+    }
+    document.getElementById('button_reset_confirmed').onclick = function() {
         wasm_reset();
 
         if(!is_running())
         {
             $("#button_run").click();
         }
-        //document.getElementById('canvas').focus();
-        //alert('reset');
+        $("#modal_reset").modal('hide').blur();
     }
+
 
     running=true;
     emulator_currently_runs=false;
@@ -2691,7 +2937,7 @@ $('.layer').change( function(event) {
             try {connect_audio_processor();} catch(e){ console.error(e);}
             running = true;
         }
-        
+        check_wake_lock();        
         //document.getElementById('canvas').focus();
     });
 
@@ -3504,18 +3750,53 @@ $('.layer').change( function(event) {
             set_complete_label();
             editor.focus();
         });
-            
 
+        short_cut_input = document.getElementById('input_button_shortcut');
+        button_delete_shortcut=$("#button_delete_shortcut");
+        short_cut_input.addEventListener(
+            'keydown',
+            (e)=>{
+                e.preventDefault();
+                e.stopPropagation();
+                short_cut_input.value=serialize_key_code(e);
+                button_delete_shortcut.prop('disabled', false);
+                validate_custom_key();
+            }
+        );
+        short_cut_input.addEventListener(
+            'keyup',
+            (e)=>{
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        );
+        short_cut_input.addEventListener(
+            'blur',
+            (e)=>{
+                e.preventDefault();
+                e.stopPropagation();
+                short_cut_input.value=short_cut_input.value.replace('^','').replace('^','');
+            }
+        );
+        button_delete_shortcut.click(()=>{
+            
+            short_cut_input.value='';
+            button_delete_shortcut.prop('disabled', true);
+            validate_custom_key();
+        });
 
         $('#modal_custom_key').on('show.bs.modal', function () {
+            bind_custom_key();    
+        });
 
+        bind_custom_key = function () {
             $('#choose_padding a').click(function () 
             {
-                 $('#button_padding').text('size = '+ $(this).text() ); 
+                 $('#button_padding').text('btn size = '+ $(this).text() ); 
             });
             $('#choose_opacity a').click(function () 
             {
-                 $('#button_opacity').text('opacity = '+ $(this).text() ); 
+                 $('#button_opacity').text('btn opacity = '+ $(this).text() ); 
             });
 
             function set_script_language(script_language) {
@@ -3531,28 +3812,100 @@ $('.layer').change( function(event) {
                 editor.focus();
             });
 
+            let otherButtons="";
+            if(!create_new_custom_key){
+                otherButtons+=`<a class="dropdown-item" href="#" id="choose_new">&lt;new&gt;</a>`;
+            }
+                        
+            for(let otherBtn of custom_keys)
+            {
+                let keys = otherBtn.key.split('+');
+                let key_display="";
+                for(key of keys)
+                {
+                    key_display+=`<div class="px-1" style="border-radius: 0.25em;margin-left:0.3em;background-color: var(--gray);color: white">
+                    ${html_encode(key)}
+                    </div>`;
+                }
+                otherButtons+=`<a class="dropdown-item" href="#" id="choose_${otherBtn.id}">
+                <div style="display:flex;justify-content:space-between">
+                    <div>${html_encode(otherBtn.title)}</div>
+                    <div style="display:flex;margin-left:0.3em;" 
+                        ${otherBtn.key==''?'hidden':''}>
+                        ${key_display}
+                    </div>
+                </div></a>`;
+             }
+            
+
+            $("#other_buttons").html(`
+                <div class="dropdown">
+                    <button id="button_other_action" class="ml-4 py-0 btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    list (${custom_keys.length})
+                    </button>
+                    <div id="choose_action" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    ${otherButtons}
+                    </div>
+                </div>`);
+            $("#button_other_action").prop('disabled',custom_keys.length==0);
+
+            $('#choose_action a').click(function () 
+            {
+                let btn_id = this.id.replace("choose_","");
+                if(btn_id == "new")
+                    create_new_custom_key=true;
+                else
+                {
+                    create_new_custom_key=false;
+                    var btn_def = custom_keys.find(el=>el.id == btn_id);
+                   
+                    haptic_touch_selected= {id: 'ck'+btn_def.id};
+                }
+                bind_custom_key();
+                reset_validate();
+            });
+
+            reset_validate();
             if(create_new_custom_key)
             {
                 $('#button_delete_custom_button').hide();
                 $('#check_app_scope').prop('checked',true);
+                $('#input_button_text').val('');
+                $('#input_button_shortcut').val('');
+
+                $('#input_action_script').val('');
+                if(typeof(editor) !== 'undefined') editor.getDoc().setValue("");
+                $('#button_reset_position').prop('disabled', true);
+                button_delete_shortcut.prop('disabled', true);
+                $('#button_padding').prop('disabled', true);
+                $('#button_opacity').prop('disabled', true);
+     
             }
             else
             {
                 var btn_def = custom_keys.find(el=> ('ck'+el.id) == haptic_touch_selected.id);
 
+                $('#button_reset_position').prop('disabled', btn_def.currentX==0 && btn_def.currentY==0);
+     
                 set_script_language(btn_def.lang);
                 $('#input_button_text').val(btn_def.title);
                 $('#input_button_shortcut').val(btn_def.key);
+                
                 let padding = btn_def.padding == undefined ? 'default':btn_def.padding ;
-                $('#button_padding').text('size = '+ padding );
+                $('#button_padding').text('btn size = '+ padding );
                 let opacity = btn_def.opacity == undefined ? 'default':btn_def.opacity ;
-                $('#button_opacity').text('opacity = '+ opacity);
+                $('#button_opacity').text('btn opacity = '+ opacity);
                 
                 $('#check_app_scope').prop('checked',btn_def.app_scope);
                 $('#input_action_script').val(btn_def.script);
+                if(typeof(editor) !== 'undefined') editor.getDoc().setValue(btn_def.script);
 
                 $('#button_delete_custom_button').show();
-
+                
+                button_delete_shortcut.prop('disabled',btn_def.key == "");
+                $('#button_padding').prop('disabled', btn_def.title=='');
+                $('#button_opacity').prop('disabled', btn_def.title=='');
+     
                 //show errors
                 validate_action_script();
             }
@@ -3635,7 +3988,7 @@ $('.layer').change( function(event) {
             $('#add_timer_action a').click(on_add_action);
             
             //system action
-            var list_actions=['toggle_run', 'take_snapshot', 'restore_last_snapshot', 'swap_joystick', 'keyboard', 'pause', 'run'];
+            var list_actions=['toggle_run', 'take_snapshot', 'restore_last_snapshot', 'swap_joystick', 'keyboard', 'fullscreen', 'menubar', 'pause', 'run', 'clipboard_paste'];
             html_action_list='';
             list_actions.forEach(element => {
                 html_action_list +='<a class="dropdown-item" href="#">'+element+'</a>';
@@ -3670,7 +4023,7 @@ while(not_stopped(this_id))
                         else if(txt=='API example')
                             action_script_val = '//example of the API\nwhile(not_stopped(this_id))\n{\n  //wait some time\n  await action("100ms");\n\n  //get information about the sprites 0..7\n  var y_light=sprite_ypos(0);\n  var y_dark=sprite_ypos(0);\n\n  //reserve exclusive port 1..2 access (manual joystick control is blocked)\n  set_port_owner(1,PORT_ACCESSOR.BOT);\n  await action(`j1left1=>j1up1=>400ms=>j1left0=>j1up0`);\n  //give control back to the user\n  set_port_owner(1,PORT_ACCESSOR.MANUAL);\n}';
                         else if(txt=='aimbot')
-                            action_script_val = '//archon aimbot\nconst port_light=2, port_dark=1, sprite_light=4, sprite_dark=6;\n\nwhile(not_stopped(this_id))\n{\n  await aim_and_shoot( port_light /* change bot side here ;-) */ );\n  await action("100ms");\n}\n\nasync function aim_and_shoot(port)\n{ \n  var y_light=sprite_ypos(sprite_light);\n  var y_dark=sprite_ypos(sprite_dark);\n  var x_light=sprite_xpos(sprite_light);\n  var x_dark=sprite_xpos(sprite_dark);\n\n  var y_diff=Math.abs(y_light - y_dark);\n  var x_diff=Math.abs(x_light - x_dark);\n  var angle = shoot_angle(x_diff,y_diff);\n\n  var x_aim=null;\n  var y_aim=null;\n  if( y_diff<10 || 26<angle && angle<28 )\n  {\n     var x_rel = (port == port_dark) ? x_dark-x_light: x_light-x_dark;  \n     x_aim=x_rel > 0 ?"left":"right";   \n  }\n  if( x_diff <10 || 26<angle && angle<28)\n  {\n     var y_rel = (port == port_dark) ? y_dark-y_light: y_light-y_dark;  \n     y_aim=y_rel > 0 ?"up":"down";   \n  }\n  \n  if(x_aim != null || y_aim != null)\n  {\n    set_port_owner(port, \n      PORT_ACCESSOR.BOT);\n    await action(`j${port}left0=>j${port}up0`);\n\n    await action(`j${port}fire1`);\n    if(x_aim != null)\n     await action(`j${port}${x_aim}1`);\n    if(y_aim != null)\n      await action(`j${port}${y_aim}1`);\n    await action("60ms");\n    if(x_aim != null)\n      await action(`j${port}${x_aim}0`);\n    if(y_aim != null)\n      await action(`j${port}${y_aim}0`);\n    await action(`j${port}fire0`);\n    await action("60ms");\n\n    set_port_owner(\n      port,\n      PORT_ACCESSOR.MANUAL\n    );\n    await action("500ms");\n  }\n}\n\nfunction shoot_angle(x, y) {\n  return Math.atan2(y, x) * 180 / Math.PI;\n}';
+                            action_script_val = '//archon aimbot\nconst port_light=2, port_dark=1, sprite_light=4, sprite_dark=6;\n\nwhile(not_stopped(this_id))\n{\n  await aim_and_shoot( port_light /* change bot side here ;-) */ );\n  await action("100ms");\n}\n\nasync function aim_and_shoot(port)\n{ \n  var y_light=sprite_ypos(sprite_light);\n  var y_dark=sprite_ypos(sprite_dark);\n  var x_light=sprite_xpos(sprite_light);\n  var x_dark=sprite_xpos(sprite_dark);\n\n  var y_diff=Math.abs(y_light - y_dark);\n  var x_diff=Math.abs(x_light - x_dark);\n  var angle = shoot_angle(x_diff,y_diff);\n\n  var x_aim=null;\n  var y_aim=null;\n  if( y_diff<10 || 26<angle && angle<28 )\n  {\n     var x_rel = (port == port_dark) ? x_dark-x_light: x_light-x_dark;  \n     x_aim=x_rel < 0 ?"left":"right";   \n  }\n  if( x_diff <10 || 26<angle && angle<28)\n  {\n     var y_rel = (port == port_dark) ? y_dark-y_light: y_light-y_dark;  \n     y_aim=y_rel < 0 ?"up":"down";   \n  }\n  \n  if(x_aim != null || y_aim != null)\n  {\n    set_port_owner(port, \n      PORT_ACCESSOR.BOT);\n    await action(`j${port}left0=>j${port}up0`);\n\n    await action(`j${port}fire1`);\n    if(x_aim != null)\n     await action(`j${port}${x_aim}1`);\n    if(y_aim != null)\n      await action(`j${port}${y_aim}1`);\n    await action("60ms");\n    if(x_aim != null)\n      await action(`j${port}${x_aim}0`);\n    if(y_aim != null)\n      await action(`j${port}${y_aim}0`);\n    await action(`j${port}fire0`);\n    await action("60ms");\n\n    set_port_owner(\n      port,\n      PORT_ACCESSOR.MANUAL\n    );\n    await action("500ms");\n  }\n}\n\nfunction shoot_angle(x, y) {\n  return Math.atan2(y, x) * 180 / Math.PI;\n}';
                         else if(txt=='keyboard combos')
                             action_script_val =
 `//example for key combinations
@@ -3691,7 +4044,7 @@ release_key('ControlLeft');`;
                     validate_action_script();
                 }
             );
-        });
+        };
 
         turn_on_full_editor = ()=>{
             require.config(
@@ -3819,8 +4172,29 @@ release_key('ControlLeft');`;
         });
 
 
-        $('#input_button_text').keyup( function () {validate_custom_key(); return true;} );
+        $('#input_button_text').keyup( function () {
+            validate_custom_key(); 
+            let empty=document.getElementById('input_button_text').value =='';
+            $('#button_padding').prop('disabled', empty);
+            $('#button_opacity').prop('disabled', empty);
+            return true;
+        } );
         $('#input_action_script').keyup( function () {validate_action_script(); return true;} );
+
+
+        $('#button_reset_position').click(function(e) 
+        {
+            var btn_def = custom_keys.find(el=> ('ck'+el.id) == haptic_touch_selected.id);
+            if(btn_def != null)
+            {
+                btn_def.currentX=0;
+                btn_def.currentY=0;
+                btn_def.position= "top:50%;left:50%";
+                install_custom_keys();
+                $('#button_reset_position').prop('disabled',true);
+                save_custom_buttons(global_apptitle, custom_keys);
+            }
+        });
 
         $('#button_save_custom_button').click(async function(e) 
         {
@@ -3926,7 +4300,8 @@ release_key('ControlLeft');`;
         custom_keys.forEach(function (element, i) {
             element.id = element.transient !== undefined && element.transient ? element.id : i;
 
-            if(element.transient && element.title == undefined)
+            if(element.transient && element.title == undefined ||
+                element.title=="")
             {//don't render transient buttons if no title
                 return;
             }
@@ -3954,7 +4329,7 @@ release_key('ControlLeft');`;
             }
 
 
-            btn_html += 'touch-action:none">'+element.title+'</button>';
+            btn_html += 'touch-action:none">'+html_encode(element.title)+'</button>';
 
             $('#div_canvas').append(btn_html);
             action_scripts["ck"+element.id] = element.script;
@@ -4204,11 +4579,19 @@ function setTheme() {
             container	: document.getElementById('div_canvas'),
             mouseSupport	: true,
             strokeStyle	: 'white',
-            limitStickTravel: true
+            stickRadius	: 118,
+            limitStickTravel: true,
+            stationaryBase: stationaryBase
+
         });
         v_joystick.addEventListener('touchStartValidation', function(event){
-            var touch	= event.changedTouches[0];
-            return touch.pageX < window.innerWidth/2;
+            var touches = event.changedTouches;
+            var touch =null;
+            if(touches !== undefined)
+                touch= touches[0];
+            else
+                touch = event;//mouse emulation    
+            return touch.pageX < window.innerWidth/2;  
         });
        
         // one on the right of the screen
@@ -4220,7 +4603,12 @@ function setTheme() {
             mouseSupport	: true
         });
         v_fire.addEventListener('touchStartValidation', function(event){
-            var touch	= event.changedTouches[0];
+            var touches = event.changedTouches;
+            var touch =null;
+            if(touches !== undefined)
+                touch= touches[0];
+            else
+                touch = event;//mouse emulation    
             return touch.pageX >= window.innerWidth/2;
         });
     }

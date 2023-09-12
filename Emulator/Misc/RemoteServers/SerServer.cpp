@@ -29,7 +29,7 @@ SerServer::_dump(Category category, std::ostream& os) const
 
     RemoteServer::_dump(category, os);
     
-    if (category == Category::Debug) {
+    if (category == Category::State) {
         
         os << tab("Received bytes");
         os << dec(receivedBytes) << std::endl;
@@ -66,7 +66,7 @@ SerServer::resetConfig()
 bool
 SerServer::shouldRun()
 {
-    return serialPort.getConfigItem(OPT_SERIAL_DEVICE) == SPD_NULLMODEM;
+    return serialPort.getConfigItem(OPT_SER_DEVICE) == SPD_NULLMODEM;
 }
 
 string

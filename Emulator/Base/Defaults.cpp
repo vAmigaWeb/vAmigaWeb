@@ -32,6 +32,8 @@ namespace vamiga {
 Defaults::Defaults()
 {
     setFallback(OPT_VIDEO_FORMAT, PAL);
+    setFallback(OPT_WARP_BOOT, 0);
+    setFallback(OPT_WARP_MODE, WARP_NEVER);
     setFallback(OPT_SYNC_MODE, SYNC_NATIVE_FPS);
     setFallback(OPT_PROPOSED_FPS, 60);
     setFallback(OPT_AGNUS_REVISION, AGNUS_ECS_1MB);
@@ -98,7 +100,8 @@ Defaults::Defaults()
     setFallback(OPT_HDR_PAN, { 0, 2 }, 300);
     setFallback(OPT_HDR_PAN, { 1, 3 }, 100);
     setFallback(OPT_HDR_STEP_VOLUME, { 0, 1, 2, 3 }, 50);
-    setFallback(OPT_SERIAL_DEVICE, SPD_NONE);
+    setFallback(OPT_SER_DEVICE, SPD_NONE);
+    setFallback(OPT_SER_VERBOSE, 0);
     setFallback(OPT_HIDDEN_BITPLANES, 0);
     setFallback(OPT_HIDDEN_SPRITES, 0);
     setFallback(OPT_HIDDEN_LAYERS, 0);
@@ -118,8 +121,7 @@ Defaults::Defaults()
     setFallback(OPT_AUTOFIRE_BULLETS, -3);
     setFallback(OPT_AUTOFIRE_DELAY, 125);
     setFallback(OPT_SAMPLING_METHOD, SMP_NONE);
-    setFallback(OPT_FILTER_TYPE, FILTER_BUTTERWORTH);
-    setFallback(OPT_FILTER_ACTIVATION, FILTER_AUTO_ENABLE);
+    setFallback(OPT_FILTER_TYPE, FILTER_A500);
     setFallback(OPT_AUDPAN, { 0, 3 }, 50);
     setFallback(OPT_AUDPAN, { 1, 2 }, 350);
     setFallback(OPT_AUDVOL, { 0, 1, 2, 3 }, 100);
@@ -254,7 +256,9 @@ Defaults::load(std::stringstream &stream)
             throw VAError(ERROR_SYNTAX, line);
         }
 
-        debug(DEF_DEBUG, "%ld keys accepted, %ld ignored\n", accepted, skipped);
+        if (accepted || skipped) {
+            debug(DEF_DEBUG, "%ld keys accepted, %ld ignored\n", accepted, skipped);
+        }
     }
 }
 

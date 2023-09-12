@@ -114,12 +114,12 @@ protected:
     void halt();
     void warpOn();
     void warpOff();
-    void debugOn();
-    void debugOff();
+    void trackOn();
+    void trackOff();
     
     void powerOnOff(bool value) { value ? powerOn() : powerOff(); }
     void warpOnOff(bool value) { value ? warpOn() : warpOff(); }
-    void debugOnOff(bool value) { value ? debugOn() : debugOff(); }
+    void trackOnOff(bool value) { value ? trackOn() : trackOff(); }
 
 private:
     
@@ -131,8 +131,8 @@ private:
     virtual void _halt() { }
     virtual void _warpOn() { }
     virtual void _warpOff() { }
-    virtual void _debugOn() { }
-    virtual void _debugOff() { }
+    virtual void _trackOn() { }
+    virtual void _trackOff() { }
     
     
     //
@@ -161,7 +161,7 @@ public:
      * inspection target via Amiga::setInspectionTarget().
      */
     void inspect() const;
-    virtual void _inspect() const { };
+    virtual void _inspect() const { }
 
     /* Base method for building the class specific getInfo() methods. When the
      * emulator is running, the result of the most recent inspection is

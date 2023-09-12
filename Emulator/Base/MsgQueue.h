@@ -18,7 +18,7 @@ namespace vamiga {
 class MsgQueue : public SubComponent {
 
     // Ring buffer storing all pending messages
-    util::RingBuffer <Message, 128> queue;
+    util::RingBuffer <Message, 512> queue;
 
     // The registered listener
     const void *listener = nullptr;
@@ -67,7 +67,16 @@ public:
     void setListener(const void *listener, Callback *func);
 
     // Sends a message
-    void put(MsgType type, isize = 0, isize = 0, isize = 0, isize = 0);
+    void put(const Message &msg);
+    void put(MsgType type, i64 payload = 0);
+    void put(MsgType type, CpuMsg payload);
+    void put(MsgType type, DriveMsg payload);
+    void put(MsgType type, HdcMsg payload);
+    void put(MsgType type, ScriptMsg payload);
+    void put(MsgType type, ViewportMsg payload);
+
+    // Reads a message
+    bool get(Message &msg);
 };
 
 }

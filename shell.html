@@ -7,7 +7,7 @@
     <title>vAmigaWeb Amiga emulator iPad iPhone</title>
   
   <link rel="icon" href="img/favicon.ico">
-  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
   <link rel="manifest" href="manifest.json">
   <!-- ios support -->
   <link rel="apple-touch-icon" href="img/icon-96x96.png">
@@ -182,6 +182,10 @@
         <!-- iOS won't work with accept=".g64,.d64,.crt,.prg,.bin" on d64 files -->
         <input id="filedialog" name="theFileDialog" type="file" style="display:none" >
       </form>
+      <button id="button_fullscreen" class="btn btn-sm icon hidden" type="button">
+        <svg id="svg_fullscreen" class="bi bi-fs" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" data-toggle="tooltip" data-placement="top" title="fullscreen">
+        </svg>
+      </button>
       <button id="button_settings" class="btn btn-sm icon" type="button" data-toggle="modal" data-target="#modal_settings">
         <svg class="bi bi-gear-fill" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" data-toggle="tooltip" data-placement="top" title="settings">
           <path fill-rule="evenodd" d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 0 0-5.86 2.929 2.929 0 0 0 0 5.858z"/>
@@ -438,6 +442,12 @@
               <label class="custom-control-label" for="wide_screen_switch">cinematic wide screen</label>
             </div>
 
+            <div class="custom-control custom-switch mt-2">
+              <input type="checkbox" class="custom-control-input" id="wake_lock_switch" />
+              <label class="custom-control-label" for="wake_lock_switch">wake lock</label>
+              <span id="wake_lock_status" class="ml-1" style="font-size: smaller">(request to stay awake while running, prevent thereby system auto off or screen dimming)</span>
+            </div>
+
             <div class="dropdown mr-1 mt-2">
               <button id="button_color_palette" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                 color
@@ -554,6 +564,48 @@ game controller type settings
   <span>three fire buttons</span> when using the virtual touch joystick the right half of screen is divided in three vertical stacked touch areas. All external controller buttons are mapped alternating to button1, 2 and 3. When using keyboard joystick emulation button2 is mapped to key 'B' and button3 to key 'N'.
 </div>
 </div>
+<br>
+virtual touch joystick settings
+<div class="mt-2" style="font-size: smaller">
+  <button id="button_vjoy_touch" class="btn btn-primary dropdown-toggle text-right mb-1" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+  positioning=base moves
+  </button>
+  <div id="choose_vjoy_touch" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+      <a class="dropdown-item" href="#">base moves</a>
+      <a class="dropdown-item" href="#">base fixed on first touch</a>
+      <a class="dropdown-item" href="#">stationary middle</a>
+      <a class="dropdown-item" href="#">stationary bottom</a>
+  </div>
+<br>
+<div id="base_moves_text" class="ml-3 vjoy_choice_text">
+  <span>base moves</span>&nbsp;the base follows your finger when the stick circle passes the boundary of the base circle.
+</div>
+<div id="base_fixed_on_first_touch_text" class="ml-3 vjoy_choice_text" >
+  <span>base fixed on first touch</span>&nbsp;joystick base is fixed
+</div>
+<div id="stationary_middle_text" class="ml-3 vjoy_choice_text">
+  <span>stationary middle</span>&nbsp;the base at a fixed middle y position and always visible
+</div>
+<div id="stationary_bottom_text" class="ml-3 vjoy_choice_text">
+  <span>stationary bottom</span>&nbsp;the base at a fixed bottom y position and always visible
+</div>
+</div>
+
+<div class="dropdown mr-1 mt-4">
+  <button id="button_vjoy_dead_zone" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    virtual joysticks dead zone=12
+  </button>
+  <div id="choose_vjoy_dead_zone" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+    <a class="dropdown-item" href="#">0</a>
+    <a class="dropdown-item" href="#">4</a>
+    <a class="dropdown-item" href="#">8</a>
+    <a class="dropdown-item" href="#">12</a>
+    <a class="dropdown-item" href="#">14</a>
+    <a class="dropdown-item" href="#">16</a>
+    <a class="dropdown-item" href="#">20</a>
+    <a class="dropdown-item" href="#">24</a>
+  </div>
+</div>
 
 <br>     
 touch screen settings for virtual keyboard
@@ -568,13 +620,13 @@ touch screen settings for virtual keyboard
   </div>
 <br>
 <div id="exact_timing_text" class="ml-3 vbk_choice_text">
-  <span>exact timing</span> autorepeat and simultaneous keycap presses (disables default scroll gestures on keycaps, scroll gesture possible only on gaps around the keys)
+  <span>exact timing</span>&nbsp;autorepeat and simultaneous keycap presses (disables default scroll gestures on keycaps, scroll gesture possible only on gaps around the keys)
 </div>
 <div id="smartphone_like_text" class="ml-3 vbk_choice_text" >
-  <span>smartphone like</span> native scroll gestures on keycaps (press starts after finger is lifted from keycap for a duration of 100ms)
+  <span>smartphone like</span>&nbsp;native scroll gestures on keycaps (press starts after finger is lifted from keycap for a duration of 100ms)
 </div>
 <div id="mix_of_both_text" class="ml-3 vbk_choice_text">
-  <span>mix of both</span> tries to mix both worlds... i.e. exact timing and simultaneous presses but also scrolls keyboard when swiping the finger on keycaps. disadvantage: also does a keypress when only scrolling was intended 
+  <span>mix of both</span>&nbsp;tries to mix both worlds... i.e. exact timing and simultaneous presses but also scrolls keyboard when swiping the finger on keycaps. disadvantage: also does a keypress when only scrolling was intended 
 </div>
 </div>
 
@@ -611,6 +663,31 @@ touch screen settings for virtual keyboard
     </div>
     <!-- end of modal settings-->
 
+    <!-- modal reset --->
+    <div class="modal fade" id="modal_reset" tabindex="-1" role="dialog" aria-hidden="true">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">hard reset</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            By resetting the CPU and the custom chip set, the Amiga will be forced to reboot.<br><br>
+            Disk drives will stay connected.<br><br>
+            Current program state will be lost.
+
+            <div style="display: flex;justify-content: flex-end;">
+              <button type="button" id="button_reset_confirmed" class="btn btn-primary mr-2">reset now&nbsp;<svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-return-left" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M14.5 1.5a.5.5 0 0 1 .5.5v4.8a2.5 2.5 0 0 1-2.5 2.5H2.707l3.347 3.346a.5.5 0 0 1-.708.708l-4.2-4.2a.5.5 0 0 1 0-.708l4-4a.5.5 0 1 1 .708.708L2.707 8.3H12.5A1.5 1.5 0 0 0 14 6.8V2a.5.5 0 0 1 .5-.5z"/></svg></button>
+              <button type="button" class="btn btn-secondary" data-dismiss="modal">cancel</button>  
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
     <!-- modal take snapshot--->
     <div class="modal fade" id="modal_take_snapshot" tabindex="-1" role="dialog" aria-labelledby="take_snapshot_ModalLabel" aria-hidden="true">
       <div class="modal-dialog" role="document">
@@ -626,7 +703,7 @@ touch screen settings for virtual keyboard
               <div class="input-group-prepend">
                 <span class="input-group-text" id="inputGroup-sizing-default">app title</span>
               </div>
-              <input id="input_app_title" type="text" class="form-control" aria-label="Sizing example input" aria-describedby="inputGroup-sizing-default"
+              <input id="input_app_title" type="text" spellcheck="false" class="form-control" aria-label="Sizing example input" aria-describedby="inputGroup-sizing-default"
               data-toggle="tooltip" data-placement="right" title="store in a snapshot browser row dedicated for this app title"
               >
             </div>
@@ -668,31 +745,33 @@ touch screen settings for virtual keyboard
     <div class="modal fade" id="modal_custom_key" tabindex="-1" role="dialog" aria-labelledby="custom_key_ModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="custom_key_ModalLabel">define an action button</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
+          <div class="modal-header pb-0">
+            <h5 class="modal-title" id="custom_key_ModalLabel">define the action</h5>
+            <div style="display:flex">
+              <div id="other_buttons"></div>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
           </div>
-          <div class="modal-body">
-            This is the place where you can create app or game specific customized overlay buttons with free positioning ...    
-            <div class="mt-3" style="display:flex;justify-content:space-between;width:100%">
-              <div class="w-75">
-                  label of the action button<br>
-                  <input id="input_button_text" required pattern="^.+$" placeholder="try to use emojis 😊 as icons" type="text" class="form-control" aria-label="action script" aria-describedby="inputGroup-sizing-default">
-                  <div id="input_button_text_error" class="invalid-feedback">you are missing text here</div>
-              </div>
-              <div class="ml-2">
-                shortcut key<br>
-                <input id="input_button_shortcut" required pattern="^.{0,1}$" placeholder="(optional)" type="text" class="form-control ml-1" style="width:6em;margin-left: 0 !important;" aria-label="action script" aria-describedby="inputGroup-sizing-default">
-                <div id="input_button_shortcut_error" class="invalid-feedback">please specify only one shortcut key</div>
+          <div class="modal-body pt-0">
+            <i>create app or game specific keyboard mappings or customized overlay buttons with free positioning that trigger your defined action.</i>
+            
+            <div class="mt-4 w-100">
+              action button (optional)<br>
+              <div class="input-group mb-3">
+                <input id="input_button_text" spellcheck="false" autocomplete="off" placeholder="Enter button text or use emojis 😊 as icon. Empty for no button." type="text" class="form-control" aria-label="action script" aria-describedby="inputGroup-sizing-default">
+                <div class="input-group-append">
+                  <button id="button_reset_position" class="btn btn-primary" style="border-top-right-radius: 0.25rem;border-bottom-right-radius: 0.25rem;">reset position</button>
+                </div>
+                <div id="input_button_text_error" class="invalid-feedback">specify either a button text or a keyboard shortcut or both</div>
               </div>
             </div>
 
             <div class="mt-3" style="display:flex;justify-content:flex-start;width:100%">
               <div class="dropdown">
                 <button id="button_padding" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                  size = default
+                  btn size = default
                 </button>
                 <div id="choose_padding" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
                   <a class="dropdown-item" href="#">default</a>
@@ -710,7 +789,7 @@ touch screen settings for virtual keyboard
               </div> 
               <div class="dropdown">
                 <button id="button_opacity" class="ml-4 btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                  opacity = default
+                  btn opacity = default
                 </button>
                 <div id="choose_opacity" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
                   <a class="dropdown-item" href="#">default</a>
@@ -727,8 +806,16 @@ touch screen settings for virtual keyboard
                 </div>
               </div>
             </div>
-
-            <br>
+            <div class="mt-4 w-100">
+              keyboard mapping shortcut<br>
+              <div class="input-group mb-3">
+                <input id="input_button_shortcut" placeholder="(optional)" spellcheck="false" autocomplete="off" type="text" class="form-control ml-1" style="width:8em;margin-left: 0 !important;" aria-label="action script" aria-describedby="inputGroup-sizing-default">
+                <div class="input-group-append">
+                  <button id="button_delete_shortcut" class="btn btn-primary" style="border-top-right-radius: 0.25rem;border-bottom-right-radius: 0.25rem;">×</button>
+                </div>
+                <div id="input_button_shortcut_error" class="invalid-feedback">specify either a button text or a keyboard shortcut or both</div>
+              </div>
+            </div>
             app scope
             <div class="custom-control-lg custom-control custom-checkbox">
               <input id="check_app_scope" class="custom-control-input" type="checkbox" value="">

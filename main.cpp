@@ -15,7 +15,7 @@
 #include "EXEFile.h"
 #include "HDFFile.h"
 #include "Snapshot.h"
-#include "EXTFile.h"
+#include "EADFFile.h"
 
 #include "MemUtils.h"
 
@@ -92,7 +92,7 @@ int bFullscreen = false;
 
 char *filename = NULL;
 
-unsigned int warp_to_frame=0;
+//unsigned int warp_to_frame=0;
 int sum_samples=0;
 double last_time = 0.0 ;
 double last_time_calibrated = 0.0 ;
@@ -333,20 +333,21 @@ extern "C" int wasm_draw_one_frame(double now)
  
   Amiga *amiga = /*(Amiga *)*/thisAmiga;
   bool show_stat=true;
-  if(amiga->inWarpMode() == true)
+  if(amiga->isWarping() == true)
   {
     if(log_on) printf("warping at least 25 frames at once ...\n");
     int i=25;
-    while(amiga->inWarpMode() == true && i>0)
+    while(amiga->isWarping() == true && i>0)
     {
       amiga->execute();
       i--;
-      if(warp_to_frame>0 && amiga->agnus.pos.frame > warp_to_frame)
+/*      if(warp_to_frame>0 && amiga->agnus.pos.frame > warp_to_frame)
       {
         if(log_on) printf("reached warp_to_frame count\n");
         amiga->warpOff();
         warp_to_frame=0;
       }
+*/
     }
     start_time=now;
     total_executed_frame_count=0;
@@ -456,7 +457,8 @@ void send_message_to_js(const char * msg)
 
 }
 
-void send_message_to_js(const char * msg, long data1, long data2)
+
+void send_message_to_js_main_thread(const char * msg, long data1, long data2)
 {
     EM_ASM(
     {
@@ -466,78 +468,67 @@ void send_message_to_js(const char * msg, long data1, long data2)
     }, msg, data1, data2 );    
 
 }
-void send_message_to_js_w(const char * msg, long data1, long data2)
+
+
+void send_message_to_js_with_param(const char * message_as_string, long data1, long data2)
 {
-    send_message_to_js(msg,data1,data2);
+
+    if(log_on)
+    {
+#ifdef wasm_worker          
+      if(emscripten_current_thread_is_wasm_worker())
+      {
+        snprintf(wasm_log_buffer,sizeof(wasm_log_buffer),"worker: vAmiga message=%s, data1=%ld, data2=%ld\n", message_as_string, data1, data2);
+        main_log(wasm_log_buffer);
+      }
+      else
+      {
+        printf("main: vAmiga message=%s\n", message_as_string);
+      }
+#else
+      printf("vAmiga message=%s, data1=%ld, data2=%ld\n", message_as_string, data1, data2);
+#endif
+    }
+
+
+#ifdef wasm_worker
+    if(emscripten_current_thread_is_wasm_worker())
+    {
+      emscripten_wasm_worker_post_function_sig(EMSCRIPTEN_WASM_WORKER_ID_PARENT,(void*)send_message_to_js_main_thread, "iii", message_as_string, data1, data2);
+    }
+    else
+      send_message_to_js_main_thread(message_as_string, data1, data2);
+#else
+    send_message_to_js_main_thread(message_as_string, data1, data2);
+#endif
 }
 
+/*
+void send_message_to_js_w(const char * msg, long data1, long data2)
+{
+    send_message_to_js_main_thread(msg,data1,data2);
+}
+*/
 
 
 //bool paused_the_emscripten_main_loop=false;
 bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
-void theListener(const void * amiga, long type,  int data1, int data2, int data3, int data4){
-  if(warp_to_frame>0 && ((Amiga *)amiga)->agnus.pos.frame < warp_to_frame)
-  {
-    //skip automatic warp mode on disk load
-  }
-  else
-  {
-    if(warp_mode && type == MSG_DRIVE_MOTOR_ON && !((Amiga *)amiga)->inWarpMode())
-    {
-      ((Amiga *)amiga)->warpOn(); //setWarp(true);
-    }
-    else if(type == MSG_DRIVE_MOTOR_OFF && ((Amiga *)amiga)->inWarpMode())
-    {
-      ((Amiga *)amiga)->warpOff(); //setWarp(false);
-    }
-  }
+//void theListener(const void * amiga, long type,  int data1, int data2, int data3, int data4){
+void theListener(const void * amiga, Message msg){
+  int data1=msg.value;
+  int data2=0;
 
-  const char *message_as_string =  (const char *)MsgTypeEnum::key((MsgType)type);
-  if(type == MSG_DRIVE_SELECT)
+  if(msg.type == MSG_VIEWPORT)
   {
-  }
-  else
-  {
-    if(log_on)
-    {
-#ifdef wasm_worker          
-    if(emscripten_current_thread_is_wasm_worker())
-    {
-      snprintf(wasm_log_buffer,sizeof(wasm_log_buffer),"worker: vAmiga message=%s, data1=%u, data2=%u\n", message_as_string, data1, data2);
-      main_log(wasm_log_buffer);
-    }
-    else
-    {
-      printf("main: vAmiga message=%s, data1=%u, data2=%u\n", message_as_string, data1, data2);
-    }
-#else
-     printf("vAmiga message=%s, data1=%u, data2=%u\n", message_as_string, data1, data2);
-#endif
-    }
-
-#ifdef wasm_worker
-    if(emscripten_current_thread_is_wasm_worker())
-    {
-      emscripten_wasm_worker_post_function_sig(EMSCRIPTEN_WASM_WORKER_ID_PARENT,(void*)send_message_to_js_w, "iii", message_as_string, data1, data2);
-    }
-    else
-      send_message_to_js(message_as_string, data1, data2);
-#else
-    send_message_to_js(message_as_string, data1, data2);
-#endif
-    
-  }
-  if(type == MSG_VIEWPORT)
-  {
-    if(data1==0 && data2==0 && data3 == 0 && data4 == 0)
+    if(msg.viewport.hstrt==0 && msg.viewport.vstrt==0 && msg.viewport.hstop == 0 && msg.viewport.vstop == 0)
       return;
-    if(log_on) printf("tracking MSG_VIEWPORT=%d, %d, %d, %d\n",data1, data2, data3, data4);
-    hstart_min= data1;
-    vstart_min= data2;
-    hstop_max=  data3;
-    vstop_max=  data4;
-    
+    hstart_min= msg.viewport.hstrt; 
+    vstart_min= msg.viewport.vstrt;
+    hstop_max=  msg.viewport.hstop;
+    vstop_max=  msg.viewport.vstop;
+    if(log_on) printf("tracking MSG_VIEWPORT=%d, %d, %d, %d\n",hstart_min, vstart_min, hstop_max, vstop_max);
+
     hstart_min *=2;
     hstop_max *=2;
 
@@ -575,13 +566,45 @@ void theListener(const void * amiga, long type,  int data1, int data2, int data3
 
     reset_calibration=true;
   }
-  else if(type == MSG_VIDEO_FORMAT)
+  else if(msg.type == MSG_VIDEO_FORMAT)
   {
-    if(log_on) printf("video format=%s\n",VideoFormatEnum::key(data1));    
-    wasm_set_display(data1?"ntsc":"pal");
+    if(log_on) printf("video format=%s data1=%d\n",VideoFormatEnum::key(msg.value),data1);
+
+    wasm_set_display(msg.value == NTSC? "ntsc":"pal");
     request_to_reset_calibration=true;
   }
+
+  if(msg.type == MSG_DRIVE_STEP || msg.type == MSG_DRIVE_POLL 
+     ||msg.type == MSG_HDR_STEP)
+  {
+      data1=msg.drive.nr;
+      data2=msg.drive.value;
+  }
+
+  if(msg.type == MSG_DRIVE_SELECT)
+  {
+  }
+  else
+  {
+    const char *message_as_string =  (const char *)MsgTypeEnum::key((MsgType)msg.type);
+
+    if(msg.type == MSG_SER_OUT)
+    {
+      int byte = ((Amiga *)amiga)->serialPort.readOutgoingByte();
+      while(byte>=0)
+      {
+        send_message_to_js_with_param(message_as_string, byte, data2);
+        byte = ((Amiga *)amiga)->serialPort.readOutgoingByte();
+      }
+    }
+    else
+    {
+      send_message_to_js_with_param(message_as_string, data1, data2);
+    }
+  }
+
 }
+
 
 
 
@@ -1054,18 +1077,24 @@ extern "C" void wasm_set_warp(unsigned on)
 /*
   if(wrapper->amiga->iec.isTransferring() && 
       (
-        (wrapper->amiga->inWarpMode() && warp_mode == false)
+        (wrapper->amiga->isWarping() && warp_mode == false)
         ||
-        (wrapper->amiga->inWarpMode() == false && warp_mode)
+        (wrapper->amiga->isWarping() == false && warp_mode)
       )
   )
   {
 */
-  if(warp_mode == false && wrapper->amiga->inWarpMode())
+  if(warp_mode == true)
   {
-      wrapper->amiga->warpOff();
+    wrapper->amiga->configure(OPT_WARP_MODE, WARP_AUTO); 
   }
-/*  }*/
+
+
+  if(warp_mode == false && wrapper->amiga->isWarping())
+  {
+//      wrapper->amiga->warpOff();
+      wrapper->amiga->configure(OPT_WARP_MODE, WARP_NEVER); 
+  }
 }
 
 extern "C" void wasm_set_display(const char *name)
@@ -1204,7 +1233,7 @@ std::unique_ptr<FloppyDisk> load_disk(const char* filename, u8 *blob, long len)
       } catch (const VAError& e) {
         // Maybe it's an extended ADF?
         printf("Error loading %s - %s. Trying to load as extended ADF\n", filename, e.what());
-        EXTFile ext{blob, len};
+        EADFFile ext{blob, len};
         return std::make_unique<FloppyDisk>(ext);
       }
     }
@@ -1307,6 +1336,7 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
     {
       printf("try to build RomFile\n");
       rom = new RomFile(blob, len);
+      printf("breaks before\n");
     }
     catch(VAError &exception) {
       printf("Failed to read ROM image file %s\n", name);
@@ -1598,9 +1628,9 @@ RELEASE_FIRE
 char buffer[50];
 extern "C" char* wasm_sprite_info()
 {
-  if(!wrapper->amiga->inDebugMode())
+  if(!wrapper->amiga->isTracking())
   {
-    wrapper->amiga->debugOn();
+    wrapper->amiga->trackOn();
   }
 //   wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(250));
 //   wrapper->amiga->denise.debugger.recordSprite(0);
@@ -1776,8 +1806,8 @@ extern "C" const char* wasm_configure(char* option, char* _value)
 
   if(strcmp(option,"warp_to_frame") == 0 )
   {
-    warp_to_frame= util::parseNum(value);
-    wrapper->amiga->warpOn();
+    auto warp_to_frame= util::parseNum(value);
+    wrapper->amiga->configure(OPT_WARP_BOOT, SEC(warp_to_frame)/(wrapper->amiga->agnus.isPAL()?50:60));
     return config_result;
   }
   else if(strcmp(option,"log_on") == 0 )
