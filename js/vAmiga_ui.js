@@ -2212,9 +2212,9 @@ function InitWrappers() {
             $('#port1').val(port1);
             mouse_touchpad_pattern=port1;
             mouse_touchpad_port=1;
-            canvas.addEventListener('touchstart',emulate_mouse_touchpad_start, false);
-            canvas.addEventListener('touchmove',emulate_mouse_touchpad_move, false);
-            canvas.addEventListener('touchend',emulate_mouse_touchpad_end, false);
+            document.addEventListener('touchstart',emulate_mouse_touchpad_start, false);
+            document.addEventListener('touchmove',emulate_mouse_touchpad_move, false);
+            document.addEventListener('touchend',emulate_mouse_touchpad_end, false);
             if(port2=="touch")
             {
                 port2="none";
@@ -3489,9 +3489,9 @@ $('.layer').change( function(event) {
         {
             mouse_touchpad_pattern=port1;
             mouse_touchpad_port=1;
-            canvas.addEventListener('touchstart',emulate_mouse_touchpad_start, false);
-            canvas.addEventListener('touchmove',emulate_mouse_touchpad_move, false);
-            canvas.addEventListener('touchend',emulate_mouse_touchpad_end, false);
+            document.addEventListener('touchstart',emulate_mouse_touchpad_start, false);
+            document.addEventListener('touchmove',emulate_mouse_touchpad_move, false);
+            document.addEventListener('touchend',emulate_mouse_touchpad_end, false);
         }
         else if(!port2.startsWith('mouse touch'))
         {
@@ -3535,9 +3535,9 @@ $('.layer').change( function(event) {
         {
             mouse_touchpad_pattern=port2;
             mouse_touchpad_port=2;
-            canvas.addEventListener('touchstart',emulate_mouse_touchpad_start, false);
-            canvas.addEventListener('touchmove',emulate_mouse_touchpad_move, false);
-            canvas.addEventListener('touchend',emulate_mouse_touchpad_end, false);
+            document.addEventListener('touchstart',emulate_mouse_touchpad_start, false);
+            document.addEventListener('touchmove',emulate_mouse_touchpad_move, false);
+            document.addEventListener('touchend',emulate_mouse_touchpad_end, false);
         }
         else if(!port1.startsWith('mouse touch'))
         {
