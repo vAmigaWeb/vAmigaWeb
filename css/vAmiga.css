@@ -52,7 +52,7 @@ body
 }
 
 [data-theme="dark"] {
-background-color: var(--darkbg) !important;
+background-color: black !important;
 color: var(--light) !important;
 }
 

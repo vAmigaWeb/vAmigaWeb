@@ -617,28 +617,6 @@ class vAmigaWrapper {
     printf("constructing vAmiga ...\n");
     this->amiga = new Amiga();
 
-    printf("adding a listener to vAmiga message queue...\n");
-
-    amiga->msgQueue.setListener(this->amiga, &theListener);
-    amiga->defaults.setFallback(OPT_HDC_CONNECT, 0, false);
-
-    // master Volumne
-    amiga->configure(OPT_AUDVOLL, 100); 
-    amiga->configure(OPT_AUDVOLR, 100);
-
-    //Volumne
-    amiga->configure(OPT_AUDVOL, 0, 100); 
-    amiga->configure(OPT_AUDPAN, 0, 0);
-
-
-    amiga->configure(OPT_CHIP_RAM, 512);
-    amiga->configure(OPT_SLOW_RAM, 512);
-    amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS);
-
-    //turn automatic hd mounting off because kick1.2 makes trouble
-    amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
-
-    amiga->configure(OPT_DRIVE_CONNECT,/*df1*/ 1, /*enable*/true);
   }
   ~vAmigaWrapper()
   {
@@ -706,7 +684,32 @@ extern "C" int main(int argc, char** argv) {
   printf("running on main thread...\n");
 #endif
   wrapper= new vAmigaWrapper();
+
+  printf("adding a listener to vAmiga message queue...\n");
+
+  wrapper->amiga->msgQueue.setListener(wrapper->amiga, &theListener);
+  wrapper->amiga->defaults.setFallback(OPT_HDC_CONNECT, 0, false);
+
+  // master Volumne
+  wrapper->amiga->configure(OPT_AUDVOLL, 100); 
+  wrapper->amiga->configure(OPT_AUDVOLR, 100);
+
+  //Volumne
+  wrapper->amiga->configure(OPT_AUDVOL, 0, 100); 
+  wrapper->amiga->configure(OPT_AUDPAN, 0, 0);
+
+
+  wrapper->amiga->configure(OPT_CHIP_RAM, 512);
+  wrapper->amiga->configure(OPT_SLOW_RAM, 512);
+  wrapper->amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS);
+
+  //turn automatic hd mounting off because kick1.2 makes trouble
+  wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
+
+  wrapper->amiga->configure(OPT_DRIVE_CONNECT,/*df1*/ 1, /*enable*/true);
+
   wrapper->run();
+
   return 0;
 }
 
@@ -1336,7 +1339,6 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
     {
       printf("try to build RomFile\n");
       rom = new RomFile(blob, len);
-      printf("breaks before\n");
     }
     catch(VAError &exception) {
       printf("Failed to read ROM image file %s\n", name);
