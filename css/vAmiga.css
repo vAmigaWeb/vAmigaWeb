@@ -517,3 +517,9 @@ button[id^="detail_run"] {
     margin-left: 0.15em;
     margin-right: 0.15em;
 }
+
+#div_canvas
+{ 
+	position : relative;
+	overflow : hidden;
+}
