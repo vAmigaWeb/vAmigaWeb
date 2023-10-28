@@ -6,7 +6,7 @@
 
 .cm-s-vc64dark.CodeMirror {
   background-color: var(--darkbg);
-  color: #EEFFFF;
+  color: var(--lightgray);
 }
 
 .cm-s-vc64dark .CodeMirror-gutters {

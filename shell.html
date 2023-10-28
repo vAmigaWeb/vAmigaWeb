@@ -192,8 +192,8 @@
         </svg>
       </button>       
     </div>
-    <div class="col-4">
-      <select id="port1" class="custom-select mr-0" data-toggle="tooltip" data-placement="left" title="game port 1">
+    <div class="col-4 pr-0">
+      <select id="port1" class="custom-select mr-0 ml-1" data-toggle="tooltip" data-placement="left" title="game port 1">
         <option value="none">none</option>
         <option value="keys">cursor key (move) space (fire)</option>
         <option value="touch">touch joystick (move|fire)</option>
@@ -201,7 +201,7 @@
         <option value="mouse touchpad">mouse touchpad (btn|move|btn)</option>
         <option value="mouse touchpad2">mouse touchpad (move|btn/btn)</option>
       </select>
-      <select id="port2" class="custom-select" data-toggle="tooltip" data-placement="left" title="game port 2">
+      <select id="port2" class="custom-select ml-1" data-toggle="tooltip" data-placement="left" title="game port 2">
         <option value="none">none</option>
         <option value="keys">cursor key (move) space (fire)</option>
         <option value="touch">touch joystick (move|fire)</option>
@@ -1138,7 +1138,7 @@ goes into edit mode which takes you right back to here ...
         //alert(message + " -- go to settings open live debug console ...");
         document.getElementById('output').value += "\n"+ message + "\n";
 
-        Module.setStatus('Exception thrown, see JavaScript console');
+        Module.setStatus('Error thrown, see JavaScript console ' + message);
         spinnerElement.style.display = 'none';
         Module.setStatus = function(text) {
           if (text) Module.printErr('[post-exception status] ' + text);

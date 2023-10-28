@@ -2,13 +2,13 @@
   --darkbg: #2d2d2d;
   --lightbg: #e1dfe1;
   --lighterbg: #f0f0f0;
+  --lightgray: #d8d8d8;
 }
 
 #canvas {
     position:fixed;
     left:0;
     right:0;
-    background-color: var(--darkbg);
     user-select: none;
     -webkit-user-select: none;
     outline: none;
@@ -53,9 +53,9 @@ body
 
 [data-theme="dark"] {
 background-color: black !important;
-color: var(--light) !important;
+color: var(--lightgray) !important;
 }
-
+    
 
 
 /* the filled circle in the switch was to high */
@@ -81,8 +81,8 @@ background-color: var(--green) !important;
 
     
 [data-theme="dark"] #port1, [data-theme="dark"] #port2 {
-    border-color: var(--light);
-    color: #aaa !important;
+    border-color: var(--lightgray);
+    color: var(--lightgray) !important;
 }
 
 #stored_roms, #stored_exts {
@@ -92,11 +92,9 @@ background-color: var(--green) !important;
 }
 
 [data-theme="dark"] #stored_roms, [data-theme="dark"] #stored_exts {
-    border-color: var(--light);
-    color: #aaa !important;
+    border-color: var(--lightgray);
+    color: var(--lightgray) !important;
 }
-
-
 
 
 .btn-sm
@@ -115,8 +113,8 @@ background-color: var(--green) !important;
 }
 
 [data-theme="dark"] .custom-select {
-color: var(--light) !important;
-border-color: var(--light) !important;
+color: var(--lightgray) !important;
+border-color: var(--lightgray) !important;
 }
 
 [data-theme="dark"] #output {
@@ -210,8 +208,8 @@ color: #aaa !important;
 }
 
 [data-theme="dark"] .icon {
-    fill: var(--light);
-    color: var(--light) !important;
+    fill: var(--lightgray);
+    color: var(--lightgray) !important;
 }
 
 
@@ -516,4 +514,10 @@ button[id^="detail_run"] {
     margin-top: 0;
     margin-left: 0.15em;
     margin-right: 0.15em;
+}
+
+#div_canvas
+{ 
+	position : relative;
+	overflow : hidden;
 }
