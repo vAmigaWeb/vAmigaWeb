@@ -136,7 +136,7 @@ RemoteManager::serviceServerEvent()
     }
 
     // Schedule next event
-    agnus.scheduleInc <SLOT_SRV> (SEC(0.5), SRV_LAUNCH_DAEMON);
+    agnus.scheduleInc <SLOT_SRV> (MSEC(500), SRV_LAUNCH_DAEMON);
 }
 
 }

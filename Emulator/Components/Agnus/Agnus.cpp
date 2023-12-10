@@ -59,7 +59,7 @@ Agnus::_reset(bool hard)
     diskController.scheduleFirstDiskEvent();
     scheduleFirstBplEvent();
     scheduleFirstDasEvent();
-    scheduleRel<SLOT_SRV>(SEC(0.5), SRV_LAUNCH_DAEMON);
+    scheduleRel<SLOT_SRV>(MSEC(500), SRV_LAUNCH_DAEMON);
     scheduleAbs<SLOT_WBT>(Cycle(amiga.getConfig().warpBoot), WBT_DISABLE);
     if (insEvent) scheduleRel <SLOT_INS> (0, insEvent);
 }

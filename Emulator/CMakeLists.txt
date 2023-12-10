@@ -50,7 +50,7 @@ else()
   endif()
   
   #  target_compile_options(vAmigaCore PRIVATE -g) 
-  set_target_properties(vAmigaCore PROPERTIES LINK_FLAGS "-O1 -mnontrapping-fptoint -fwasm-exceptions" )
+  set_target_properties(vAmigaCore PROPERTIES LINK_FLAGS "-O3 -mnontrapping-fptoint -fwasm-exceptions" )
 endif()
 
 # Add include paths
