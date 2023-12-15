@@ -25,6 +25,11 @@ let use_wide_screen=false;
 let use_ntsc_pixel=false;
 let joystick_button_count=1;
 
+let v_joystick=null;
+let v_fire=null;
+let fixed_touch_joystick_base=false;
+let stationaryBase = false;
+
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 const audioContext = new AudioContext();
 let audio_connected=false;
@@ -2358,7 +2363,6 @@ $(`#choose_game_controller_type a`).click(function ()
     });
 
 //---
-v_joystick=null;
 let set_vjoy_choice = function (choice) {
     $(`#button_vjoy_touch`).text('positioning='+choice);
     current_vjoy_touch=choice;
@@ -3451,9 +3455,6 @@ $('.layer').change( function(event) {
 //------- update management end ---
 
     setup_browser_interface();
-
-    v_joystick=null;
-    v_fire=null;
 
     document.getElementById('port1').onchange = function() {
         port1 = document.getElementById('port1').value; 
@@ -4575,6 +4576,8 @@ function setTheme() {
 
     function register_v_joystick()
     {
+        if(v_joystick!=null)
+            return;
         v_joystick	= new VirtualJoystick({
             container	: document.getElementById('div_canvas'),
             mouseSupport	: true,
