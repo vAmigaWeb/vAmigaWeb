@@ -165,7 +165,7 @@ private:
     void recordIncomingByte(u8 byte);
 
     // Called when a byte has been sent
-    void recordOutgoingByte(u8 byte);
+    void recordOutgoingByte(u16 byte);
 
 
     //
