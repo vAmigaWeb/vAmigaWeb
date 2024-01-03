@@ -25,6 +25,11 @@ let use_wide_screen=false;
 let use_ntsc_pixel=false;
 let joystick_button_count=1;
 
+let v_joystick=null;
+let v_fire=null;
+let fixed_touch_joystick_base=false;
+let stationaryBase = false;
+
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 const audioContext = new AudioContext();
 let audio_connected=false;
@@ -1304,37 +1309,35 @@ function handleGamePad(portnr, gamepad)
         Module.print(`${gamepad.buttons.length} btns= ${btns_output}`);
     }
 
-    var horizontal_axis = 0;
-    var vertical_axis = 1;
+    const horizontal_axis = 0;
+    const vertical_axis = 1;
+    let bReleaseX=true;
+    let bReleaseY=true;
 
-    var bReleaseX=false;
-    var bReleaseY=false;
-    if(0.8<gamepad.axes[horizontal_axis])
+    for(let stick=0; stick<=gamepad.axes.length/2;stick+=2)
     {
-        emit_joystick_cmd(portnr+"PULL_RIGHT");   
+        if(bReleaseX && 0.5<gamepad.axes[stick+horizontal_axis])
+        {
+            emit_joystick_cmd(portnr+"PULL_RIGHT");
+            bReleaseX=false;
+        }
+        else if(bReleaseX && -0.5>gamepad.axes[stick+horizontal_axis])
+        {
+            emit_joystick_cmd(portnr+"PULL_LEFT");
+            bReleaseX=false;
+        }
+ 
+        if(bReleaseY && 0.5<gamepad.axes[stick+vertical_axis])
+        {
+            emit_joystick_cmd(portnr+"PULL_DOWN");
+            bReleaseY=false;
+        }
+        else if(bReleaseY && -0.5>gamepad.axes[stick+vertical_axis])
+        {
+            emit_joystick_cmd(portnr+"PULL_UP");
+            bReleaseY=false;
+        }
     }
-    else if(-0.8>gamepad.axes[horizontal_axis])
-    {
-        emit_joystick_cmd(portnr+"PULL_LEFT");
-    }
-    else
-    {
-        bReleaseX=true;
-    }
-
-    if(0.8<gamepad.axes[vertical_axis])
-    {
-        emit_joystick_cmd(portnr+"PULL_DOWN");   
-    }
-    else if(-0.8>gamepad.axes[vertical_axis])
-    {
-        emit_joystick_cmd(portnr+"PULL_UP");
-    }
-    else
-    {
-        bReleaseY=true;
-    }
-
 
     if(gamepad.buttons.length > 15 && bReleaseY && bReleaseX)
     {
@@ -2358,7 +2361,6 @@ $(`#choose_game_controller_type a`).click(function ()
     });
 
 //---
-v_joystick=null;
 let set_vjoy_choice = function (choice) {
     $(`#button_vjoy_touch`).text('positioning='+choice);
     current_vjoy_touch=choice;
@@ -3451,9 +3453,6 @@ $('.layer').change( function(event) {
 //------- update management end ---
 
     setup_browser_interface();
-
-    v_joystick=null;
-    v_fire=null;
 
     document.getElementById('port1').onchange = function() {
         port1 = document.getElementById('port1').value; 
@@ -4575,6 +4574,8 @@ function setTheme() {
 
     function register_v_joystick()
     {
+        if(v_joystick!=null)
+            return;
         v_joystick	= new VirtualJoystick({
             container	: document.getElementById('div_canvas'),
             mouseSupport	: true,
