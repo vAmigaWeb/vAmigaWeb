@@ -2432,6 +2432,31 @@ $('#choose_vjoy_dead_zone a').click(function ()
 });
 
 //--
+set_keycap_size(load_setting('keycap_size', '1.00'));
+function set_keycap_size(keycap_size) {
+    document.querySelector(':root').style.setProperty('--keycap_zoom', keycap_size);
+    $("#button_keycap_size").text(`keycap size=${keycap_size}`);
+}
+$('#choose_keycap_size a').click(function () 
+{
+    var keycap_size=$(this).text();
+    set_keycap_size(keycap_size);
+    save_setting('keycap_size',keycap_size);
+    $("#modal_settings").focus();
+});
+//--
+set_keyboard_bottom_margin(load_setting('keyboard_bottom_margin', '0px'));
+function set_keyboard_bottom_margin(keyboard_bottom_margin) {
+    document.querySelector(':root').style.setProperty('--keyboard_bottom_margin', keyboard_bottom_margin);
+    $("#button_keyboard_bottom_margin").text(`keyboard bottom margin=${keyboard_bottom_margin}`);
+}
+$('#choose_keyboard_bottom_margin a').click(function () 
+{
+    var keyboard_bottom_margin=$(this).text();
+    set_keyboard_bottom_margin(keyboard_bottom_margin);
+    save_setting('keyboard_bottom_margin',keyboard_bottom_margin);
+    $("#modal_settings").focus();
+});
 
 
 
