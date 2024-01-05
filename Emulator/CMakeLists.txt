@@ -38,7 +38,7 @@ else()
 	  target_compile_options(vAmigaCore PRIVATE -sWASM_WORKERS)
   endif()
   
-  #  target_compile_options(vAmigaCore PRIVATE -g) 
+#  target_compile_options(vAmigaCore PRIVATE -g) 
   set_target_properties(vAmigaCore PROPERTIES LINK_FLAGS "-O3 -mnontrapping-fptoint -fwasm-exceptions" )
 endif()
 

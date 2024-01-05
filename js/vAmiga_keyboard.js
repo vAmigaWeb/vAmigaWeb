@@ -554,7 +554,6 @@ padding-bottom: var(--keyboard_bottom_margin)">
 
                     if(keydef.c == 'ShiftLeft' ||keydef.c == 'ShiftRight')
                     {
-                        console.log(event);
                         if(document.body.getAttribute(keydef.c+'-key')=='')
                         {
                             document.body.setAttribute('shift-keys', 'pressed');
@@ -612,10 +611,6 @@ padding-bottom: var(--keyboard_bottom_margin)">
                 the_key_element.setAttribute('key-state', '');
             }
         }
-        if(the_key_element==null){
-            console.assert(the_key_element !=null);
-        }
-
         the_key_element.addEventListener("focus", (event)=>{ event.preventDefault(); event.currentTarget.blur();})
         the_key_element.addEventListener("pointerdown", (event)=>{
             if(current_vbk_touch.startsWith("smart"))

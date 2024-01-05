@@ -2465,7 +2465,7 @@ $('#choose_keyboard_bottom_margin a').click(function ()
         $(`#button_renderer`).text('video renderer='+choice);
         save_setting("renderer",choice);
     }
-    current_renderer=load_setting("renderer", "software");
+    current_renderer=load_setting("renderer", "gpu shader");
     set_renderer_choice(current_renderer);
 
     $(`#choose_renderer a`).click(function () 
