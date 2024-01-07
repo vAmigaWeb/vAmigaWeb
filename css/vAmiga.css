@@ -4,6 +4,37 @@
   --lighterbg: #f0f0f0;
   --lightgray: #d8d8d8;
 }
+:root {
+    --keycap_size: calc(calc(calc(100vw / var(--keycap_columns)) *4) * var(--keycap_zoom));
+}
+#keyboard_grid {
+    display:grid;
+    grid-template-columns: repeat(var(--keycap_columns), calc(calc(var(--keycap_size) /4) * 1.0));
+    grid-template-rows: repeat(6, calc(var(--keycap_size)));
+    grid-column-gap: 0px;
+    grid-row-gap: 0px;
+    user-select:none;
+    padding-bottom: var(--keyboard_bottom_margin);
+}
+.keycap_base {
+    background-color: var(--gray);
+    color:white;
+    border-radius: calc(var(--keycap_size) * 0.1);
+    align-items: center;
+    text-align: center;
+    font-size:calc(var(--keycap_size) / 2.5);
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin: calc(var(--keycap_size) * 0.038);
+}
+
+@media (max-width: 511px) {
+    :root {
+        --keycap_size: calc(calc(calc(max(100vw,100vh) / var(--keycap_columns)) * 4) * var(--keycap_zoom));
+    }       
+}
 
 #canvas {
     position:fixed;
@@ -379,18 +410,6 @@ button[id^="detail_run"] {
     font-size:calc(var(--keycap_size) / 2.5);
 }
 
-.keycap_base {
-    background-color: var(--gray);
-    color:white;
-    border-radius: 0.25rem;
-    align-items: center;
-    text-align: center;
-    font-size:calc(var(--keycap_size) / 2.5);
-
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
 .keycap_base:hover, .keycap_base:focus, .keycap_base:active  {
     background-color: #5a6268;
 }

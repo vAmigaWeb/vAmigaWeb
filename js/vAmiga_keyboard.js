@@ -385,9 +385,6 @@ function installKeyboard() {
         }
     };
 
-
-    let key_size=45;
-    let col_gap=3;
     let columns=0; 
     let cellpos=0;
     //calculate number of grid columns
@@ -405,18 +402,11 @@ function installKeyboard() {
     }
     document.querySelector(':root').style.setProperty('--keyboard_bottom_margin', `0px`);
     document.querySelector(':root').style.setProperty('--keycap_zoom', `1.0`);
-    document.querySelector(':root').style.setProperty('--keycap_size', 
-      `calc(calc(calc(calc(calc(max(100vw, 100vh) - 2cm) / ${columns}) * 4) - 3px) * var(--keycap_zoom))`);
+    document.querySelector(':root').style.setProperty('--keycap_columns', columns);
+
     var the_keyBoard=`
-<div 
-draggable="false" 
-style="display:grid;
-grid-template-columns: repeat(${columns}, calc(calc(var(--keycap_size) * 0.8) / 4));
-grid-template-rows: repeat(6, var(--keycap_size));
-grid-column-gap: ${col_gap}px;
-grid-row-gap: 3px;
-user-select:none;
-padding-bottom: var(--keyboard_bottom_margin)">
+<div id="keyboard_grid"
+draggable="false">
     `;
     for(let row of keymap)
     {
@@ -437,8 +427,7 @@ padding-bottom: var(--keyboard_bottom_margin)">
          }
     }
     the_keyBoard+='</div>';
-    $('#divKeyboardRows').html(the_keyBoard).
-    prop('style',`width:calc(${columns} * calc(calc(calc(var(--keycap_size) + ${col_gap}) * 0.8) / 4)`);
+    $('#divKeyboardRows').html(the_keyBoard);
 
     release_modifiers=function()
     {
