@@ -195,6 +195,13 @@ color: #aaa !important;
     background-color: var(--lightbg);
 }
 
+@media (orientation:landscape) {
+    #virtual_keyboard {
+        opacity: var(--keyboard_opacity);
+    }
+}
+
+
 [data-theme="dark"] #virtual_keyboard {
     background-color:var(--darkbg);
 }

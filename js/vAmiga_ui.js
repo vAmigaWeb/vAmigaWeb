@@ -40,9 +40,9 @@ let load_sound = async function(url){
     let audio_buffer= await audioContext.decodeAudioData(buffer);
     return audio_buffer;
 } 
-let sound_volumne=0.1;// 10%
 let parallel_playing=0;
-let play_sound = function(audio_buffer){
+let keyboard_sound_volumne=0.04;
+let play_sound = function(audio_buffer, sound_volumne=0.1){
         if(audio_buffer== null)
         {                 
             load_all_sounds();
@@ -71,6 +71,10 @@ let audio_df_insert=null;
 let audio_df_eject=null;
 let audio_df_step=null;
 let audio_hd_step=null;
+let audio_key_standard=null;
+let audio_key_backspace=null;
+let audio_key_space=null;
+
 async function load_all_sounds()
 {
     if(audio_df_insert==null)
@@ -81,6 +85,12 @@ async function load_all_sounds()
         audio_df_step=await load_sound('sounds/step.mp3');
     if(audio_hd_step == null)   
         audio_hd_step=await load_sound('sounds/stephd.mp3');
+    if(audio_key_standard == null)   
+        audio_key_standard=await load_sound('sounds/key_standard.mp3');
+    if(audio_key_backspace == null)   
+        audio_key_backspace=await load_sound('sounds/key_backspace.mp3');
+    if(audio_key_space == null)   
+        audio_key_space=await load_sound('sounds/key_space.mp3');
 }
 load_all_sounds();
 
@@ -2456,6 +2466,49 @@ $('#choose_keyboard_bottom_margin a').click(function ()
     set_keyboard_bottom_margin(keyboard_bottom_margin);
     save_setting('keyboard_bottom_margin',keyboard_bottom_margin);
     $("#modal_settings").focus();
+});
+//----
+set_keyboard_sound_volumne(load_setting('keyboard_sound_volumne', '50'));
+function set_keyboard_sound_volumne(volumne) {
+    keyboard_sound_volumne = 0.01 * volumne;
+    $("#button_keyboard_sound_volumne").text(`key press sound volumne=${volumne}%`);
+}
+$('#choose_keyboard_sound_volumne a').click(function () 
+{
+    var sound_volumne=$(this).text();
+    set_keyboard_sound_volumne(sound_volumne);
+    save_setting('keyboard_sound_volumne',sound_volumne);
+    $("#modal_settings").focus();
+});
+//----
+set_keyboard_transparency(load_setting('keyboard_transparency', '0'));
+function set_keyboard_transparency(value) {
+    document.querySelector(':root').style.setProperty('--keyboard_opacity', `${100-value}%`);
+    $("#button_keyboard_transparency").text(`keyboard transparency=${value}%`);
+}
+$('#choose_keyboard_transparency a').click(function () 
+{
+    let val=$(this).text();
+    set_keyboard_transparency(val);
+    save_setting('keyboard_transparency',val);
+    $("#modal_settings").focus();
+});
+//---
+key_haptic_feedback_switch = $('#key_haptic_feedback');
+set_key_haptic_feedback = function(value){
+    if ('vibrate' in navigator) {
+        key_haptic_feedback = value;
+        $('#key_haptic_feedback').prop('checked', value);
+    } else {
+        key_haptic_feedback=false;
+        key_haptic_feedback_switch.prop('disabled', true);
+    }
+}
+
+set_key_haptic_feedback(load_setting('key_haptic_feedback', true));
+key_haptic_feedback_switch.change( function() {
+    save_setting('key_haptic_feedback', this.checked);
+    set_key_haptic_feedback(this.checked);
 });
 
 

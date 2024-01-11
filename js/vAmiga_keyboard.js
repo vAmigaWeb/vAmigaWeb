@@ -304,12 +304,12 @@ function installKeyboard() {
     reset_keyboard();
 
     keymap= [ 
-    [{g: 6, k:'Esc', c:'Escape',cls:'darkkey'},{g:1},{g:5,k:'F1',c:'F1', cls:'darkkey'}, {g:5,k:'F2',c:'F2',cls:'darkkey'},{g:5,k:'F3',c:'F3',cls:'darkkey'},{g:5,k:'F4',c:'F4',cls:'darkkey'},{g:5,k:'F5',c:'F5',cls:'darkkey'},{g:2},{g:5,k:'F6',c:'F6',cls:'darkkey'},{g:5,k:'F7',c:'F7',cls:'darkkey'},{g:5,k:'F8',c:'F8',cls:'darkkey'},{g:5,k:'F9',c:'F9',cls:'darkkey'},{g:5,k:'F10',c:'F10',cls:'darkkey'},{g: 1},{g:6,k:'Del',c:'Delete',cls:'darkkey'},{g:7},{g:6,k:'hide', c:'hide_keyboard',cls:'darkkey'}],
-    [{k:'`',c:'Grave'}, {k:'1', sk:'!',c:'Digit1'},{k:'2', sk:'@',c:'Digit2'},{k:'3', sk:'#',c:'Digit3'},{k:'4', sk:'$', c:'Digit4'},{k:'5',sk:'%',c:'Digit5'},{k:'6', sk:'^',c:'Digit6'},{k:'7',sk:'&',c:'Digit7'},{k:'8',sk:'*',c:'Digit8'},{k:'9', sk:'(',c:'Digit9'},{k:'0', sk:')',c:'Digit0'},{k:'-', sk:'_',c:'Minus'},{k:'=',sk:'+', c:'Equal'},{k:'\\',sk:'|', c:'Backslash'},{k:'\u{2190}',c:'Backspace',g:5}, {g:5,k:'Help',c:'Help'},{g:1}, {k:'7',c:'Numpad7'},{k:'8',c:'Numpad8'},{k:'9',c:'Numpad9'} ], 
-    [{k:'\u{21e5}',c:'Tab',g:6}, {k:'Q'},{k:'W'},{k:'E'},{k:'R'},{k:'T'},{k:'Y'},{k:'U'},{k:'I'},{k:'O'},{k:'P'},{k:'[',sk:'{',c:'BracketLeft'},{k:']', sk:'}',c:'BracketRight'}, {k:'\u{21b5}',c:'Enter',g:8},{g:5}, {k:'4',c:'Numpad4'},{k:'5',c:'Numpad5'},{k:'6',c:'Numpad6'}], 
-    [{k:'CTRL',c:'ControlLeft',cls:'ControlLeft'},{k:'CAPS</br>LOCK', c:'CapsLock',cls:'capslock'},{k:'A'},{k:'S'},{k:'D'},{k:'F'},{k:'G'},{k:'H'},{k:'J'},{k:'K'},{k:'L'},{k:';', sk:':', c:'Semicolon'},{k:',', sk:'\"', c:'Quote'},{k:'#', sk:'^', c:'hashtag'},{g:11}, {k:'1',c:'Numpad1'},{k:'2',c:'Numpad2'},{k:'3',c:'Numpad3'}], 
-    [{k:'\u{21e7}',c:'ShiftLeft',g:6},{k:'<', sk:'>', c:'laceBrace'},{k:'Z'},{k:'X'},{k:'C'},{k:'V'},{k:'B'},{k:'N'},{k:'M'},{k:',',sk:'<',c:'Comma'},{k:'.',sk:'>',c:'Period'},{k:'/',sk:'?', c:'Slash'},{k:'\u{21e7}',c:'ShiftRight',g:8},{k:'\u{2191}',c:'ArrowUp'},{g:5},{k:'0',c:'Numpad0',g:8},{k:'.',c:'NumpadDecimal'}],
-    [{},{k:'Alt', c:'AltLeft'},{k:'A', c:'leftAmiga', cls:'amigakey'},{k:' ', c:'Space', g:32},{k:'A', c:'rightAmiga', cls:'amigakey'},{k:'Alt', c:'AltRight'},{g:2}, {k:'\u{2190}',c:'ArrowLeft'},{k:'\u{2193}', c:'ArrowDown'},{k:'\u{2192}', c:'ArrowRight'}, {g:1}, {k:'-',c:'NumpadSubtract'},{k:'Enter',c:'NumpadEnter',g:8}]
+    [{g: 6, k:'Esc', c:'Escape',cls:'darkkey',s:3},{g:1},{g:5,k:'F1',c:'F1', cls:'darkkey',s:2}, {g:5,k:'F2',c:'F2',cls:'darkkey',s:2},{g:5,k:'F3',c:'F3',cls:'darkkey',s:2},{g:5,k:'F4',c:'F4',cls:'darkkey',s:2},{g:5,k:'F5',c:'F5',cls:'darkkey',s:2},{g:2},{g:5,k:'F6',c:'F6',cls:'darkkey',s:2},{g:5,k:'F7',c:'F7',cls:'darkkey',s:2},{g:5,k:'F8',c:'F8',cls:'darkkey',s:2},{g:5,k:'F9',c:'F9',cls:'darkkey',s:2},{g:5,k:'F10',c:'F10',cls:'darkkey',s:2},{g: 1},{g:6,k:'Del',c:'Delete',cls:'darkkey',s:3},{g:7},{g:6,k:'hide', c:'hide_keyboard',cls:'darkkey',s:3}],
+    [{k:'`',c:'Grave'}, {k:'1', sk:'!',c:'Digit1'},{k:'2', sk:'@',c:'Digit2'},{k:'3', sk:'#',c:'Digit3'},{k:'4', sk:'$', c:'Digit4'},{k:'5',sk:'%',c:'Digit5'},{k:'6', sk:'^',c:'Digit6'},{k:'7',sk:'&',c:'Digit7'},{k:'8',sk:'*',c:'Digit8'},{k:'9', sk:'(',c:'Digit9'},{k:'0', sk:')',c:'Digit0'},{k:'-', sk:'_',c:'Minus'},{k:'=',sk:'+', c:'Equal'},{k:'\\',sk:'|', c:'Backslash'},{k:'\u{2190}',c:'Backspace',s:3,g:5}, {g:5,k:'Help',c:'Help',s:2},{g:1}, {k:'7',c:'Numpad7'},{k:'8',c:'Numpad8'},{k:'9',c:'Numpad9'} ], 
+    [{k:'\u{21e5}',c:'Tab',g:6,s:2}, {k:'Q'},{k:'W'},{k:'E'},{k:'R'},{k:'T'},{k:'Y'},{k:'U'},{k:'I'},{k:'O'},{k:'P'},{k:'[',sk:'{',c:'BracketLeft'},{k:']', sk:'}',c:'BracketRight'}, {k:'\u{21b5}',c:'Enter',g:8,s:2},{g:5}, {k:'4',c:'Numpad4'},{k:'5',c:'Numpad5'},{k:'6',c:'Numpad6'}], 
+    [{k:'CTRL',c:'ControlLeft',cls:'ControlLeft',s:2},{k:'CAPS</br>LOCK', c:'CapsLock',cls:'capslock',s:2},{k:'A'},{k:'S'},{k:'D'},{k:'F'},{k:'G'},{k:'H'},{k:'J'},{k:'K'},{k:'L'},{k:';', sk:':', c:'Semicolon'},{k:',', sk:'\"', c:'Quote'},{k:'#', sk:'^', c:'hashtag'},{g:11}, {k:'1',c:'Numpad1'},{k:'2',c:'Numpad2'},{k:'3',c:'Numpad3'}], 
+    [{k:'\u{21e7}',c:'ShiftLeft',g:6,s:2},{k:'<', sk:'>', c:'laceBrace'},{k:'Z'},{k:'X'},{k:'C'},{k:'V'},{k:'B'},{k:'N'},{k:'M'},{k:',',sk:'<',c:'Comma'},{k:'.',sk:'>',c:'Period'},{k:'/',sk:'?', c:'Slash'},{k:'\u{21e7}',c:'ShiftRight',g:8,s:2},{k:'\u{2191}',c:'ArrowUp',s:2},{g:5},{k:'0',c:'Numpad0',g:8},{k:'.',c:'NumpadDecimal'}],
+    [{},{k:'Alt', c:'AltLeft',s:2},{k:'A', c:'leftAmiga', cls:'amigakey',s:2},{k:' ', c:'Space',s:2, g:32},{k:'A', c:'rightAmiga', cls:'amigakey',s:2},{k:'Alt', c:'AltRight',s:2},{g:2}, {k:'\u{2190}',c:'ArrowLeft',s:2},{k:'\u{2193}', c:'ArrowDown',s:2},{k:'\u{2192}', c:'ArrowRight',s:2}, {g:1}, {k:'-',c:'NumpadSubtract'},{k:'Enter',c:'NumpadEnter',s:2,g:8}]
     ];
 
     let  renderKey  = (keydef,cellpos) => {
@@ -498,6 +498,20 @@ draggable="false">
         
         let key_down_handler=function(event) 
         {
+            if(keyboard_sound_volumne>0)
+            {
+                if(keydef.s === undefined)
+                    play_sound(audio_key_standard,keyboard_sound_volumne);
+                else if(keydef.s == 2)
+                    play_sound(audio_key_space,keyboard_sound_volumne);
+                else if(keydef.s == 3)
+                    play_sound(audio_key_backspace,keyboard_sound_volumne);
+            }
+            if(key_haptic_feedback)
+            {
+                navigator.vibrate(15);
+            }
+
             if(keydef.c == 'hide_keyboard')
             {
                     $('#virtual_keyboard').collapse('hide');
