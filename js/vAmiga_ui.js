@@ -497,6 +497,11 @@ function message_handler(msg, data, data2)
     {
       serial_port_out_handler(data);
     }
+    else if(msg == "MSG_CTRL_AMIGA_AMIGA")
+    {
+        setTimeout(release_modifiers, 0);
+        wasm_reset();
+    }
 }
 
 async function fetchOpenROMS(){
@@ -2979,6 +2984,7 @@ $('.layer').change( function(event) {
         $("#modal_reset").modal('show');
     }
     document.getElementById('button_reset_confirmed').onclick = function() {
+        setTimeout(release_modifiers, 0);
         wasm_reset();
 
         if(!is_running())
@@ -3572,9 +3578,9 @@ $('.layer').change( function(event) {
         }
         else if(!port2.startsWith('mouse touch'))
         {
-            canvas.removeEventListener('touchstart',emulate_mouse_touchpad_start, false);
-            canvas.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
-            canvas.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
+            document.removeEventListener('touchstart',emulate_mouse_touchpad_start, false);
+            document.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
+            document.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
         }
         this.blur();
     }
@@ -3618,9 +3624,9 @@ $('.layer').change( function(event) {
         }
         else if(!port1.startsWith('mouse touch'))
         {
-            canvas.removeEventListener('touchstart',emulate_mouse_touchpad_start, false);
-            canvas.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
-            canvas.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
+            document.removeEventListener('touchstart',emulate_mouse_touchpad_start, false);
+            document.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
+            document.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
         }
         this.blur();
     }
