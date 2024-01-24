@@ -1217,6 +1217,10 @@ std::unique_ptr<FloppyDisk> load_disk(const char* filename, u8 *blob, long len)
     }
   } catch (const VAError& e) {
     printf("Error loading %s - %s\n", filename, e.what());
+    EM_ASM(
+    {
+        alert( UTF8ToString($0) );
+    }, e.what() );    
   }
   return {};
 }

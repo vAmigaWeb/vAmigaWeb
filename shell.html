@@ -100,7 +100,7 @@
     <div id="div_canvas" class="emscripten_border" style="width:100vw;height:100vh">
       <canvas class="emscripten" width="724" height="568" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     </div>
-    <div id="div_drive_select"></div>
+    <div id="div_drive_select" ontouchstart="event.stopPropagation()"></div>
     <!-- virtual keyboard-->
     <!-- 
       we pin the keyboard collapsable at the bottom and give it the full width 
@@ -126,7 +126,7 @@
       </svg>
     </button>
   
-    <div class="container-fluid collapse" id="navbar">
+    <div class="container-fluid collapse" id="navbar" ontouchstart="event.stopPropagation()">
     <div class="row mt-2 mb-1">
     <div class="col-8 px-0">
         <span style="width: 40px;display: inline-block;"></span>
@@ -363,7 +363,7 @@
     <!-- end of modal roms-->
 
     <!-- modal settings-->
-    <div class="modal fade" id="modal_settings" tabindex="-1" role="dialog" aria-labelledby="settingsModalLabel" aria-hidden="true">
+    <div class="modal fade" id="modal_settings" tabindex="-1" role="dialog" aria-labelledby="settingsModalLabel" aria-hidden="true" ontouchstart="event.stopPropagation()">
       <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
           <div class="modal-header">
