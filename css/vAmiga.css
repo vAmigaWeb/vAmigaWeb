@@ -4,6 +4,37 @@
   --lighterbg: #f0f0f0;
   --lightgray: #d8d8d8;
 }
+:root {
+    --keycap_size: calc(calc(calc(100vw / var(--keycap_columns)) *4) * var(--keycap_zoom));
+}
+#keyboard_grid {
+    display:grid;
+    grid-template-columns: repeat(var(--keycap_columns), calc(calc(var(--keycap_size) /4) * 1.0));
+    grid-template-rows: repeat(6, calc(var(--keycap_size)));
+    grid-column-gap: 0px;
+    grid-row-gap: 0px;
+    user-select:none;
+    padding-bottom: var(--keyboard_bottom_margin);
+}
+.keycap_base {
+    background-color: var(--gray);
+    color:white;
+    border-radius: calc(var(--keycap_size) * 0.1);
+    align-items: center;
+    text-align: center;
+    font-size:calc(var(--keycap_size) / 2.5);
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin: calc(var(--keycap_size) * 0.038);
+}
+
+@media (max-width: 511px) {
+    :root {
+        --keycap_size: calc(calc(calc(max(100vw,100vh) / var(--keycap_columns)) * 4) * var(--keycap_zoom));
+    }       
+}
 
 #canvas {
     position:fixed;
@@ -163,6 +194,13 @@ color: #aaa !important;
     width:100%;
     background-color: var(--lightbg);
 }
+
+@media (orientation:landscape) {
+    #virtual_keyboard {
+        opacity: var(--keyboard_opacity);
+    }
+}
+
 
 [data-theme="dark"] #virtual_keyboard {
     background-color:var(--darkbg);
@@ -372,19 +410,33 @@ button[id^="detail_run"] {
 
 
 .keycap_shift {
-    font-size:x-small;
+    font-size:calc(var(--keycap_size) / 4.5);
 }
 
 [shift-keys="pressed"] .keycap_shift {
-    font-size:medium;
+    font-size:calc(var(--keycap_size) / 2.5);
+}
+
+.keycap_base:hover, .keycap_base:focus, .keycap_base:active  {
+    background-color: #5a6268;
 }
 
 .keycap {
-    font-size:medium;
+    font-size:calc(var(--keycap_size) / 2.5);
 }
+/* keyboard grid gap */
+.g-1 { grid-column: auto / span 1 }
+.g-2 { grid-column: auto / span 2 }
+.g-3 { grid-column: auto / span 3 }
+.g-4 { grid-column: auto / span 4 }
+.g-5 { grid-column: auto / span 5 }
+.g-6 { grid-column: auto / span 6 }
+.g-8 { grid-column: auto / span 8 }
+.g-11 { grid-column: auto / span 11 }
+.g-32 { grid-column: auto / span 32 }
 
 [shift-keys="pressed"] .keycap {
-    font-size:x-small;
+    font-size:calc(var(--keycap_size) / 4.5);
 }
 
 [key-state="pressed"] {
@@ -395,15 +447,16 @@ button[id^="detail_run"] {
     background-color: rgb(78,87,95);
     border-color: #222222;
 }
-.capslock {
-    font-size:xx-small;
+.capslock,.ControlLeft {
+    font-size:calc(var(--keycap_size) / 4.5);
 }
 
 .amigakey { 
-    color: red;
+    color: rgb(255, 137, 37);
     font-style: italic;
+    font-weight: bold;
     font-family: serif;
-    font-size: x-large;
+    font-size:calc(var(--keycap_size) / 2);
     padding-top: 0;
     padding-bottom: 0;
 }
