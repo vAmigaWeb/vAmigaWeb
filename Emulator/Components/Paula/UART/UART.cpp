@@ -156,7 +156,7 @@ UART::copyToTransmitShiftRegister()
 
     // Record the outgoing byte
     auto byte = u8(transmitBuffer & 0xFF);
-    recordOutgoingByte(byte);
+    recordOutgoingByte(transmitBuffer);
 
     // Send the byte to the null modem cable
     remoteManager.serServer << char(byte);
@@ -228,7 +228,7 @@ UART::recordIncomingByte(u8 byte)
 }
 
 void
-UART::recordOutgoingByte(u8 byte)
+UART::recordOutgoingByte(u16 byte)
 {
     serialPort.recordOutgoingByte(byte);
 }

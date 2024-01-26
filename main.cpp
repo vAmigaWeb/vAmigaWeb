@@ -573,14 +573,13 @@ void theListener(const void * amiga, Message msg){
     wasm_set_display(msg.value == NTSC? "ntsc":"pal");
     request_to_reset_calibration=true;
   }
-
-  if(msg.type == MSG_DRIVE_STEP || msg.type == MSG_DRIVE_POLL 
+  else if(msg.type == MSG_DRIVE_STEP || msg.type == MSG_DRIVE_POLL 
      ||msg.type == MSG_HDR_STEP)
   {
       data1=msg.drive.nr;
       data2=msg.drive.value;
   }
-
+  
   if(msg.type == MSG_DRIVE_SELECT)
   {
   }
@@ -689,6 +688,9 @@ extern "C" int main(int argc, char** argv) {
 
   wrapper->amiga->msgQueue.setListener(wrapper->amiga, &theListener);
   wrapper->amiga->defaults.setFallback(OPT_HDC_CONNECT, 0, false);
+
+//  wrapper->amiga->defaults.setFallback(OPT_FILTER_TYPE, FILTER_NONE);
+//  wrapper->amiga->configure(OPT_FILTER_TYPE, FILTER_NONE);
 
   // master Volumne
   wrapper->amiga->configure(OPT_AUDVOLL, 100); 
@@ -1247,6 +1249,10 @@ std::unique_ptr<FloppyDisk> load_disk(const char* filename, u8 *blob, long len)
     }
   } catch (const VAError& e) {
     printf("Error loading %s - %s\n", filename, e.what());
+    EM_ASM(
+    {
+        alert( UTF8ToString($0) );
+    }, e.what() );    
   }
   return {};
 }

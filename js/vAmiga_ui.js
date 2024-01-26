@@ -40,9 +40,9 @@ let load_sound = async function(url){
     let audio_buffer= await audioContext.decodeAudioData(buffer);
     return audio_buffer;
 } 
-let sound_volumne=0.1;// 10%
 let parallel_playing=0;
-let play_sound = function(audio_buffer){
+let keyboard_sound_volumne=0.04;
+let play_sound = function(audio_buffer, sound_volumne=0.1){
         if(audio_buffer== null)
         {                 
             load_all_sounds();
@@ -71,6 +71,10 @@ let audio_df_insert=null;
 let audio_df_eject=null;
 let audio_df_step=null;
 let audio_hd_step=null;
+let audio_key_standard=null;
+let audio_key_backspace=null;
+let audio_key_space=null;
+
 async function load_all_sounds()
 {
     if(audio_df_insert==null)
@@ -81,6 +85,12 @@ async function load_all_sounds()
         audio_df_step=await load_sound('sounds/step.mp3');
     if(audio_hd_step == null)   
         audio_hd_step=await load_sound('sounds/stephd.mp3');
+    if(audio_key_standard == null)   
+        audio_key_standard=await load_sound('sounds/key_standard.mp3');
+    if(audio_key_backspace == null)   
+        audio_key_backspace=await load_sound('sounds/key_backspace.mp3');
+    if(audio_key_space == null)   
+        audio_key_space=await load_sound('sounds/key_space.mp3');
 }
 load_all_sounds();
 
@@ -486,6 +496,11 @@ function message_handler(msg, data, data2)
     else if(msg == "MSG_SER_OUT")
     {
       serial_port_out_handler(data);
+    }
+    else if(msg == "MSG_CTRL_AMIGA_AMIGA")
+    {
+        setTimeout(release_modifiers, 0);
+        wasm_reset();
     }
 }
 
@@ -1309,37 +1324,35 @@ function handleGamePad(portnr, gamepad)
         Module.print(`${gamepad.buttons.length} btns= ${btns_output}`);
     }
 
-    var horizontal_axis = 0;
-    var vertical_axis = 1;
+    const horizontal_axis = 0;
+    const vertical_axis = 1;
+    let bReleaseX=true;
+    let bReleaseY=true;
 
-    var bReleaseX=false;
-    var bReleaseY=false;
-    if(0.8<gamepad.axes[horizontal_axis])
+    for(let stick=0; stick<=gamepad.axes.length/2;stick+=2)
     {
-        emit_joystick_cmd(portnr+"PULL_RIGHT");   
+        if(bReleaseX && 0.5<gamepad.axes[stick+horizontal_axis])
+        {
+            emit_joystick_cmd(portnr+"PULL_RIGHT");
+            bReleaseX=false;
+        }
+        else if(bReleaseX && -0.5>gamepad.axes[stick+horizontal_axis])
+        {
+            emit_joystick_cmd(portnr+"PULL_LEFT");
+            bReleaseX=false;
+        }
+ 
+        if(bReleaseY && 0.5<gamepad.axes[stick+vertical_axis])
+        {
+            emit_joystick_cmd(portnr+"PULL_DOWN");
+            bReleaseY=false;
+        }
+        else if(bReleaseY && -0.5>gamepad.axes[stick+vertical_axis])
+        {
+            emit_joystick_cmd(portnr+"PULL_UP");
+            bReleaseY=false;
+        }
     }
-    else if(-0.8>gamepad.axes[horizontal_axis])
-    {
-        emit_joystick_cmd(portnr+"PULL_LEFT");
-    }
-    else
-    {
-        bReleaseX=true;
-    }
-
-    if(0.8<gamepad.axes[vertical_axis])
-    {
-        emit_joystick_cmd(portnr+"PULL_DOWN");   
-    }
-    else if(-0.8>gamepad.axes[vertical_axis])
-    {
-        emit_joystick_cmd(portnr+"PULL_UP");
-    }
-    else
-    {
-        bReleaseY=true;
-    }
-
 
     if(gamepad.buttons.length > 15 && bReleaseY && bReleaseX)
     {
@@ -2434,6 +2447,74 @@ $('#choose_vjoy_dead_zone a').click(function ()
 });
 
 //--
+set_keycap_size(load_setting('keycap_size', '1.00'));
+function set_keycap_size(keycap_size) {
+    document.querySelector(':root').style.setProperty('--keycap_zoom', keycap_size);
+    $("#button_keycap_size").text(`keycap size=${keycap_size}`);
+}
+$('#choose_keycap_size a').click(function () 
+{
+    var keycap_size=$(this).text();
+    set_keycap_size(keycap_size);
+    save_setting('keycap_size',keycap_size);
+    $("#modal_settings").focus();
+});
+//--
+set_keyboard_bottom_margin(load_setting('keyboard_bottom_margin', '0px'));
+function set_keyboard_bottom_margin(keyboard_bottom_margin) {
+    document.querySelector(':root').style.setProperty('--keyboard_bottom_margin', keyboard_bottom_margin);
+    $("#button_keyboard_bottom_margin").text(`keyboard bottom margin=${keyboard_bottom_margin}`);
+}
+$('#choose_keyboard_bottom_margin a').click(function () 
+{
+    var keyboard_bottom_margin=$(this).text();
+    set_keyboard_bottom_margin(keyboard_bottom_margin);
+    save_setting('keyboard_bottom_margin',keyboard_bottom_margin);
+    $("#modal_settings").focus();
+});
+//----
+set_keyboard_sound_volumne(load_setting('keyboard_sound_volumne', '50'));
+function set_keyboard_sound_volumne(volumne) {
+    keyboard_sound_volumne = 0.01 * volumne;
+    $("#button_keyboard_sound_volumne").text(`key press sound volumne=${volumne}%`);
+}
+$('#choose_keyboard_sound_volumne a').click(function () 
+{
+    var sound_volumne=$(this).text();
+    set_keyboard_sound_volumne(sound_volumne);
+    save_setting('keyboard_sound_volumne',sound_volumne);
+    $("#modal_settings").focus();
+});
+//----
+set_keyboard_transparency(load_setting('keyboard_transparency', '0'));
+function set_keyboard_transparency(value) {
+    document.querySelector(':root').style.setProperty('--keyboard_opacity', `${100-value}%`);
+    $("#button_keyboard_transparency").text(`keyboard transparency=${value}%`);
+}
+$('#choose_keyboard_transparency a').click(function () 
+{
+    let val=$(this).text();
+    set_keyboard_transparency(val);
+    save_setting('keyboard_transparency',val);
+    $("#modal_settings").focus();
+});
+//---
+key_haptic_feedback_switch = $('#key_haptic_feedback');
+set_key_haptic_feedback = function(value){
+    if ('vibrate' in navigator) {
+        key_haptic_feedback = value;
+        $('#key_haptic_feedback').prop('checked', value);
+    } else {
+        key_haptic_feedback=false;
+        key_haptic_feedback_switch.prop('disabled', true);
+    }
+}
+
+set_key_haptic_feedback(load_setting('key_haptic_feedback', true));
+key_haptic_feedback_switch.change( function() {
+    save_setting('key_haptic_feedback', this.checked);
+    set_key_haptic_feedback(this.checked);
+});
 
 
 
@@ -2903,6 +2984,7 @@ $('.layer').change( function(event) {
         $("#modal_reset").modal('show');
     }
     document.getElementById('button_reset_confirmed').onclick = function() {
+        setTimeout(release_modifiers, 0);
         wasm_reset();
 
         if(!is_running())
@@ -3496,9 +3578,9 @@ $('.layer').change( function(event) {
         }
         else if(!port2.startsWith('mouse touch'))
         {
-            canvas.removeEventListener('touchstart',emulate_mouse_touchpad_start, false);
-            canvas.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
-            canvas.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
+            document.removeEventListener('touchstart',emulate_mouse_touchpad_start, false);
+            document.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
+            document.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
         }
         this.blur();
     }
@@ -3542,9 +3624,9 @@ $('.layer').change( function(event) {
         }
         else if(!port1.startsWith('mouse touch'))
         {
-            canvas.removeEventListener('touchstart',emulate_mouse_touchpad_start, false);
-            canvas.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
-            canvas.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
+            document.removeEventListener('touchstart',emulate_mouse_touchpad_start, false);
+            document.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
+            document.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
         }
         this.blur();
     }

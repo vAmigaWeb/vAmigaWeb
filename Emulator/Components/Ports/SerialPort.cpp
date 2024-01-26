@@ -126,7 +126,7 @@ SerialPort::_reset(bool hard)
     RESET_SNAPSHOT_ITEMS(hard)
 
     incoming = "";
-    outgoing = "";
+    outgoing = u"";
 }
 
 bool
@@ -189,13 +189,13 @@ SerialPort::readIncoming()
     }
 }
 
-string
+std::u16string
 SerialPort::readOutgoing()
 {
     {   SYNCHRONIZED
 
-        string result = outgoing;
-        outgoing = "";
+        std::u16string result = outgoing;
+        outgoing = u"";
         return result;
     }
 }
@@ -271,14 +271,14 @@ SerialPort::recordIncomingByte(u8 byte)
 }
 
 void
-SerialPort::recordOutgoingByte(u8 byte)
+SerialPort::recordOutgoingByte(u16 byte)
 {
     {   SYNCHRONIZED
 
         trace(SER_DEBUG, "Outgoing: %02X ('%c')\n", byte, isprint(byte) ? char(byte) : '?');
 
         // Record the incoming byte
-        outgoing += char(byte);
+        outgoing += byte;
 
         // Inform the GUI if the record buffer had been empty
         if (outgoing.length() == 1) msgQueue.put(MSG_SER_OUT);

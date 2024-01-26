@@ -100,20 +100,16 @@
     <div id="div_canvas" class="emscripten_border" style="width:100vw;height:100vh">
       <canvas class="emscripten" width="724" height="568" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     </div>
-    <div id="div_drive_select"></div>
+    <div id="div_drive_select" ontouchstart="event.stopPropagation()"></div>
     <!-- virtual keyboard-->
     <!-- 
       we pin the keyboard collapsable at the bottom and give it the full width 
     -->
     <div class="collapse" style="user-select: none;" id="virtual_keyboard">
       <div class="justify-content-center" id="vbk_scroll_area"
-        style="display: flex;flex-wrap: nowrap;overflow-x: auto;">
-        <div style="flex: 0 0 auto;padding-right: 15px;padding-left: 15px;position: relative;min-width: 0;max-width: 100%;">
-          <!-- 
-            the following absolute width defines the scrollable area
-            if it is to short then some keys on the outer egdes are clipped
-          -->
-          <div style="width:780px;" id="divKeyboardRows"></div>      
+        style="display: flex;flex-wrap: nowrap;overflow-x: auto;overflow-y: hidden">
+        <div style="display:flex;padding-top:2px;position: relative;min-width: 0;max-width: 100%">
+          <div id="divKeyboardRows"></div>
         </div>
       </div>
     </div>
@@ -130,7 +126,7 @@
       </svg>
     </button>
   
-    <div class="container-fluid collapse" id="navbar">
+    <div class="container-fluid collapse" id="navbar" ontouchstart="event.stopPropagation()">
     <div class="row mt-2 mb-1">
     <div class="col-8 px-0">
         <span style="width: 40px;display: inline-block;"></span>
@@ -367,7 +363,7 @@
     <!-- end of modal roms-->
 
     <!-- modal settings-->
-    <div class="modal fade" id="modal_settings" tabindex="-1" role="dialog" aria-labelledby="settingsModalLabel" aria-hidden="true">
+    <div class="modal fade" id="modal_settings" tabindex="-1" role="dialog" aria-labelledby="settingsModalLabel" aria-hidden="true" ontouchstart="event.stopPropagation()">
       <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
           <div class="modal-header">
@@ -404,7 +400,7 @@
             </div>
             <div class="custom-control custom-switch mt-1" >
               <input type="checkbox" class="custom-control-input" id="pixel_art_switch"/>
-              <label class="custom-control-label" for="pixel_art_switch"  data-toggle="tooltip" data-placement="right" title="on safari software rendering must be activated for pixel art">pixel art</label>
+              <label class="custom-control-label" for="pixel_art_switch"  data-toggle="tooltip" data-placement="right">pixel art</label>
             </div>
             <div class="dropdown mr-1 mt-2">
               <span style="font-size: small">use shader rendering for full resolution in interlace modes</span>
@@ -629,6 +625,73 @@ touch screen settings for virtual keyboard
   <span>mix of both</span>&nbsp;tries to mix both worlds... i.e. exact timing and simultaneous presses but also scrolls keyboard when swiping the finger on keycaps. disadvantage: also does a keypress when only scrolling was intended 
 </div>
 </div>
+
+<div class="dropdown mr-1 mt-4">
+  <button id="button_keycap_size" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    keycap size=1.0
+  </button>
+  <div id="choose_keycap_size" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+    <a class="dropdown-item" href="#">0.70</a>
+    <a class="dropdown-item" href="#">0.75</a>
+    <a class="dropdown-item" href="#">0.80</a>
+    <a class="dropdown-item" href="#">0.85</a>
+    <a class="dropdown-item" href="#">0.90</a>
+    <a class="dropdown-item" href="#">0.95</a>
+    <a class="dropdown-item" href="#">1.00</a>
+    <a class="dropdown-item" href="#">1.10</a>
+    <a class="dropdown-item" href="#">1.20</a>
+    <a class="dropdown-item" href="#">1.30</a>
+  </div>
+</div>
+<div class="dropdown mr-1 mt-4">
+  <button id="button_keyboard_bottom_margin" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    keyboard bottom margin=0px
+  </button>
+  <div id="choose_keyboard_bottom_margin" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+    <a class="dropdown-item" href="#">0px</a>
+    <a class="dropdown-item" href="#">5px</a>
+    <a class="dropdown-item" href="#">10px</a>
+    <a class="dropdown-item" href="#">15px</a>
+    <a class="dropdown-item" href="#">20px</a>
+    <a class="dropdown-item" href="#">25px</a>
+  </div>
+</div>
+
+<div class="dropdown mr-1 mt-4">
+  <button id="button_keyboard_transparency" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    keyboard transparency=0%
+  </button>
+  <div id="choose_keyboard_transparency" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+    <a class="dropdown-item" href="#">0</a>
+    <a class="dropdown-item" href="#">25</a>
+    <a class="dropdown-item" href="#">50</a>
+    <a class="dropdown-item" href="#">60</a>
+    <a class="dropdown-item" href="#">75</a>
+    <a class="dropdown-item" href="#">80</a>
+    <a class="dropdown-item" href="#">85</a>
+  </div>
+</div>
+
+<div class="dropdown mr-1 mt-4">
+  <button id="button_keyboard_sound_volumne" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    key press sound feedback=50%
+  </button>
+  <div id="choose_keyboard_sound_volumne" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+    <a class="dropdown-item" href="#">0</a>
+    <a class="dropdown-item" href="#">5</a>
+    <a class="dropdown-item" href="#">25</a>
+    <a class="dropdown-item" href="#">50</a>
+    <a class="dropdown-item" href="#">75</a>
+    <a class="dropdown-item" href="#">100</a>
+  </div>
+</div>
+
+<div class="custom-control custom-switch mt-2" >
+  <input type="checkbox" class="custom-control-input" id="key_haptic_feedback"/>
+  <label class="custom-control-label" for="key_haptic_feedback"  data-toggle="tooltip" data-placement="right" title="">haptic key press feedback</label>
+</div>
+
+
 
             <div class="custom-control custom-switch mt-5">
               <input type="checkbox" class="custom-control-input" id="cb_debug_output" />

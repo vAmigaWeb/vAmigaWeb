@@ -11,7 +11,6 @@
 
 #include "SerialPortTypes.h"
 #include "SubComponent.h"
-
 namespace vamiga {
 
 #define TXD_MASK (1 << 2)
@@ -38,7 +37,7 @@ class SerialPort : public SubComponent {
 
     // Temporary storage for incoming and outgoing bytes
     string incoming;
-    string outgoing;
+    std::u16string outgoing;
 
 
     //
@@ -154,10 +153,9 @@ private:
     //
 
 public:
-
     // Reads and removes the contents of one of the record buffers
     string readIncoming();
-    string readOutgoing();
+    std::u16string readOutgoing();
 
     // Reads and removes a single byte from one of the record buffers
     int readIncomingByte();
@@ -169,7 +167,7 @@ private:
 
     // Called by the UART when a byte has been received or sent
     void recordIncomingByte(u8 byte);
-    void recordOutgoingByte(u8 byte);
+    void recordOutgoingByte(u16 byte);
 
     // Dumps a byte to RetroShell
     void dumpByte(u8 byte);
