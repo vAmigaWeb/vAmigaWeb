@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -58,7 +58,8 @@ Sequencer::initDasEventTable()
             p[0x33] = DAS_S7_2;
         }
 
-        p[0xDF] = DAS_SDMA;
+        // p[0xDF] = DAS_SDMA;
+        p[0xE1] = DAS_SDMA;
         p[0x66] = DAS_TICK;
 
         // p[0x10] = DAS_HSYNC; // Same cycle as A2

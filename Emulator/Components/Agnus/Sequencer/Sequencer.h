@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -159,7 +159,10 @@ public:
     DDFState ddfInitial;
     DDFState ddf;
 
-    
+    // Remembers the cycle when BPRUN goes up the first time
+    isize bprunUp;
+
+
     //
     // Display Window (DIW)
     //
@@ -225,16 +228,11 @@ private:
 
 private:
 
+    void _initialize() override;
     void _reset(bool hard) override;
 
     template <class T>
-    void applyToPersistentItems(T& worker)
-    {
-        
-    }
-
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
+    void serialize(T& worker)
     {
 
         worker
@@ -248,16 +246,17 @@ private:
 
         << ddfstrt
         << ddfstop
-        >> ddfInitial
-        >> ddf
-        
+        << ddfInitial
+        << ddf
+        << bprunUp
+
         << diwstrt
         << diwstop
         << diwhigh
         << vstrt
         << vstop
 
-        >> sigRecorder
+        << sigRecorder
 
         << hsyncActions;
     }

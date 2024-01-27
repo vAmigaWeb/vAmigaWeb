@@ -1,22 +1,22 @@
-
 // -----------------------------------------------------------------------------
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
 
 #include "Constants.h"
+#include "Serialization.h"
 #include "FloppyDiskTypes.h"
 #include <vector>
 
 namespace vamiga {
 
-struct GeometryDescriptor {
+struct GeometryDescriptor : util::Serializable {
 
     // Constants
     static constexpr isize cMin = HDR_C_MIN;
@@ -78,7 +78,7 @@ struct GeometryDescriptor {
     void checkCompatibility() const;
 };
 
-struct PartitionDescriptor {
+struct PartitionDescriptor : util::Serializable {
 
     string name;
     u32 flags = 0;
@@ -130,7 +130,7 @@ struct PartitionDescriptor {
     void checkCompatibility(const GeometryDescriptor &geo) const;
 };
 
-struct DriverDescriptor {
+struct DriverDescriptor : util::Serializable {
 
     u32 dosType = 0;
     u32 dosVersion = 0;

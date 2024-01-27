@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -125,8 +125,8 @@ SerialPort::_reset(bool hard)
 {
     RESET_SNAPSHOT_ITEMS(hard)
 
-    incoming = "";
-    outgoing = u"";
+    incoming.clear();
+    outgoing.clear();
 }
 
 bool
@@ -178,13 +178,13 @@ SerialPort::setPort(u32 mask, bool value)
     if ((oldPort ^ port) & RXD_MASK) uart.rxdHasChanged(value);
 }
 
-string
+std::u16string
 SerialPort::readIncoming()
 {
     {   SYNCHRONIZED
 
-        string result = incoming;
-        incoming = "";
+        auto result = incoming;
+        incoming.clear();
         return result;
     }
 }
@@ -194,8 +194,8 @@ SerialPort::readOutgoing()
 {
     {   SYNCHRONIZED
 
-        std::u16string result = outgoing;
-        outgoing = u"";
+        auto result = outgoing;
+        outgoing.clear();
         return result;
     }
 }
@@ -253,7 +253,7 @@ SerialPort::readOutgoingPrintableByte()
 }
 
 void
-SerialPort::recordIncomingByte(u8 byte)
+SerialPort::recordIncomingByte(int byte)
 {
     {   SYNCHRONIZED
 
@@ -271,14 +271,14 @@ SerialPort::recordIncomingByte(u8 byte)
 }
 
 void
-SerialPort::recordOutgoingByte(u16 byte)
+SerialPort::recordOutgoingByte(int byte)
 {
     {   SYNCHRONIZED
 
         trace(SER_DEBUG, "Outgoing: %02X ('%c')\n", byte, isprint(byte) ? char(byte) : '?');
 
         // Record the incoming byte
-        outgoing += byte;
+        outgoing += char(byte);
 
         // Inform the GUI if the record buffer had been empty
         if (outgoing.length() == 1) msgQueue.put(MSG_SER_OUT);
@@ -289,7 +289,7 @@ SerialPort::recordOutgoingByte(u16 byte)
 }
 
 void
-SerialPort::dumpByte(u8 byte)
+SerialPort::dumpByte(int byte)
 {
     if (isprint(byte) || byte == '\n') {
         retroShell << (char)byte;

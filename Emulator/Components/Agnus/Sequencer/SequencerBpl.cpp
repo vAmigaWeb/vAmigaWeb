@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -90,6 +90,7 @@ Sequencer::computeBplEventsFast(const SigRecorder &sr, DDFState &state)
 
     // Erase all events
     for (isize i = 0; i < HPOS_CNT; i++) bplEvent[i] = EVENT_NONE;
+    bprunUp = LONG_MAX;
 
     // Add drawing flags
     auto odd = agnus.scrollOdd;
@@ -153,7 +154,9 @@ template <bool ecs> void
 Sequencer::computeBplEventsSlow(const SigRecorder &sr, DDFState &state)
 {
     trace(SEQ_DEBUG, "Slow path\n");
-    
+
+    bprunUp = LONG_MAX;
+
     // Iterate over all recorder signals
     for (isize i = 0, cycle = 0;; i++) {
         
@@ -195,7 +198,7 @@ Sequencer::computeBplEvents(isize strt, isize stop, DDFState &state)
     for (isize j = strt; j < stop; j++) {
 
         assert(j >= 0 && j <= HPOS_MAX);
-        
+
         EventID id;
 
         auto counter = state.cnt << 1 | (j & 1);
@@ -203,7 +206,7 @@ Sequencer::computeBplEvents(isize strt, isize stop, DDFState &state)
         /*
          if (agnus.pos.v == 115) trace(true, "%d: %d %d %d %d %d %d %d %d %d %d\n", j, state.bpv, state.bmapen, state.shw, state.rhw, state.bphstart, state.bphstop, state.bprun, state.lastFu, state.bmctl, counter);
          */
-        
+
         if (counter == 0) {
 
             if (state.lastFu) {
@@ -227,9 +230,9 @@ Sequencer::computeBplEvents(isize strt, isize stop, DDFState &state)
 
             id = fetch[state.lastFu ? 1 : 0][counter];
             if (IS_ODD(j)) state.cnt = (state.cnt + 1) & 3;
-            
+
         } else {
-            
+
             id = EVENT_NONE;
             state.cnt = 0;
         }
@@ -239,8 +242,11 @@ Sequencer::computeBplEvents(isize strt, isize stop, DDFState &state)
 
         if ((jj & mask) == (agnus.scrollOdd & mask))  id = (EventID)(id | 1);
         if ((jj & mask) == (agnus.scrollEven & mask)) id = (EventID)(id | 2);
-        
+
         bplEvent[j] = id;
+
+        // Remember the first cycle where BPRUN went up
+        if (state.bprun) bprunUp = std::min(bprunUp, j);
     }
 }
 

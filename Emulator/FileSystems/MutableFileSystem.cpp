@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -33,8 +33,8 @@ MutableFileSystem::init(FileSystemDescriptor &layout)
 {
     init((isize)layout.numBlocks);
     
-    if constexpr (FS_DEBUG) { layout.dump(); }
-    
+    if (FS_DEBUG) { layout.dump(); }
+
     // Copy layout parameters
     dos         = layout.dos;
     bsize       = layout.bsize;
@@ -53,7 +53,7 @@ MutableFileSystem::init(FileSystemDescriptor &layout)
     for (isize i = 0; i < numBlocks(); i++) assert(blocks[i] != nullptr);
     
     // Print some debug information
-    if constexpr (FS_DEBUG) { dump(Category::State); }
+    if (FS_DEBUG) { dump(Category::State); }
 }
 
 void

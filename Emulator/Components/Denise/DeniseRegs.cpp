@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -23,61 +23,7 @@ Denise::setDIWSTRT(u16 value)
     // -- -- -- -- -- -- -- -- H7 H6 H5 H4 H3 H2 H1 H0  and  H8 = 0
     
     diwstrt = value;
-    isize newDiwHstrt = LO_BYTE(value);
-
-    // Invalidate the horizontal coordinate if it is out of range
-    if (newDiwHstrt < 2) {
-        
-        trace(DIW_DEBUG, "newDiwHstrt is too small\n");
-        newDiwHstrt = INT16_MAX;
-    }
-    
-    /* Check if the change takes effect in the current rasterline.
-     *
-     *     cur: Current coordinate
-     *     old: Old trigger coordinate
-     *     val: New trigger coordinate
-     *
-     * The following cases have to be taken into accout:
-     *
-     *    1) cur < old < val : Change takes effect in this rasterline
-     *    2) cur < val < old : Change takes effect in this rasterline
-     *    3) val < cur < old : No hit in this line
-     *    4) val < old < cur : Already triggered. Nothing to do
-     *    5) old < cur < val : Already triggered. Nothing to do
-     *    6) old < val < cur : Already triggered. Nothing to do
-     */
-
-    isize cur = 2 * agnus.pos.h;
-    isize old = hflopOn;
-    isize val = newDiwHstrt;
-
-    if (cur <= old) {
-
-        if (val < cur) {
-
-            // (3)
-            trace(DIW_DEBUG, "Won't trigger in this line\n");
-            hflopOn = INT16_MAX;
-
-        } else {
-
-            // (1) and (2)
-            trace(DIW_DEBUG, "Will trigger at %ld\n", val);
-            hflopOn = val;
-        }
-
-    } else {
-
-        // (4), (5), (6)
-        trace(DIW_DEBUG, "Already triggered at %ld\n", old);
-    }
-
-    hstrt = val;
-    trace(DIW_DEBUG, "hstrt = %ld, hflopOn = %ld\n", hstrt, hflopOn);
-
-    // Inform the debugger about the changed display window
-    debugger.updateDiwH(hstrt, hstop);
+    setHSTRT(LO_BYTE(value));
 }
 
 void
@@ -89,45 +35,7 @@ Denise::setDIWSTOP(u16 value)
     // -- -- -- -- -- -- -- -- H7 H6 H5 H4 H3 H2 H1 H0  and  H8 = 1
 
     diwstop = value;
-    isize newDiwHstop = LO_BYTE(value) | 0x100;
-
-    // Invalidate the coordinate if it is out of range
-    if (newDiwHstop > 0x1C7) {
-
-        trace(DIW_DEBUG, "newDiwHstop is too large\n");
-        newDiwHstop = INT16_MAX;
-    }
-
-    isize cur = 2 * agnus.pos.h;
-    isize old = hflopOff;
-    isize val = newDiwHstop;
-
-    if (cur <= old) {
-
-        if (val < cur) {
-
-            // (3)
-            trace(DIW_DEBUG, "Won't trigger in this line\n");
-            hflopOff = INT16_MAX;
-
-        } else {
-
-            // (1) and (2)
-            trace(DIW_DEBUG, "Will trigger at %ld\n", val);
-            hflopOff = val;
-        }
-
-    } else {
-
-        // (4), (5), (6)
-        trace(DIW_DEBUG, "Already triggered at %ld\n", old);
-    }
-
-    hstop = val;
-    trace(DIW_DEBUG, "hstop = %ld, hflopOff = %ld\n", hstop, hflopOff);
-
-    // Inform the debugger about the changed display window
-    debugger.updateDiwH(hstrt, hstop);
+    setHSTOP(LO_BYTE(value) | 0x100);
 }
 
 void
@@ -142,15 +50,28 @@ Denise::setDIWHIGH(u16 value)
     //     (stop)                  (strt)
 
     diwhigh = value;
+    setHSTRT(LO_BYTE(diwstrt) | (GET_BIT(diwhigh,  5) ? 0x100 : 0x000));
+    setHSTOP(LO_BYTE(diwstop) | (GET_BIT(diwhigh, 13) ? 0x100 : 0x000));
+}
 
-    hstrt = LO_BYTE(diwstrt) | (GET_BIT(diwhigh,  5) ? 0x100 : 0x000);
-    hstop = LO_BYTE(diwstop) | (GET_BIT(diwhigh, 13) ? 0x100 : 0x000);
+void
+Denise::setHSTRT(isize val)
+{
+    trace(DIW_DEBUG, "setHSTRT(%lx)\n", val);
 
-    if (hstrt > 0x1C7) hstrt = INT16_MAX;
-    if (hstop > 0x1C7) hstop = INT16_MAX;
+    // Record register change
+    diwChanges.insert(agnus.pos.pixel(), RegChange { REG_DIWSTRT, (u16)val });
+    markBorderBufferAsDirty();
+}
 
-    // Inform the debugger about the changed display window
-    debugger.updateDiwH(hstrt, hstop);
+void
+Denise::setHSTOP(isize val)
+{
+    trace(DIW_DEBUG, "setHSTOP(%lx)\n", val);
+
+    // Record register change
+    diwChanges.insert(agnus.pos.pixel(), RegChange { REG_DIWSTOP, (u16)val });
+    markBorderBufferAsDirty();    
 }
 
 u16
@@ -413,7 +334,7 @@ Denise::pokeSPRxDATB(u16 value)
     sprChanges[x/2].insert(pos, RegChange { SET_SPR0DATB + x, value });
 }
 
-template <Accessor s, isize xx> void
+template <isize xx, Accessor s> void
 Denise::pokeCOLORxx(u16 value)
 {
     trace(COLREG_DEBUG, "pokeCOLOR%02ld(%X)\n", xx, value);
@@ -526,69 +447,69 @@ template void Denise::pokeSPRxDATB<5>(u16 value);
 template void Denise::pokeSPRxDATB<6>(u16 value);
 template void Denise::pokeSPRxDATB<7>(u16 value);
 
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 0>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 0>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 1>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 1>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 2>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 2>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 3>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 3>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 4>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 4>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 5>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 5>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 6>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 6>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 7>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 7>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 8>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 8>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 9>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 9>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 10>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 10>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 11>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 11>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 12>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 12>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 13>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 13>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 14>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 14>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 15>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 15>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 16>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 16>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 17>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 17>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 18>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 18>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 19>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 19>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 20>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 20>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 21>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 21>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 22>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 22>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 23>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 23>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 24>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 24>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 25>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 25>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 26>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 26>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 27>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 27>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 28>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 28>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 29>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 29>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 30>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 30>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_CPU, 31>(u16 value);
-template void Denise::pokeCOLORxx<ACCESSOR_AGNUS, 31>(u16 value);
+template void Denise::pokeCOLORxx<0, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<0, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<1, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<1, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<2, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<2, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<3, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<3, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<4, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<4, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<5, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<5, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<6, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<6, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<7, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<7, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<8, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<8, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<9, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<9, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<10, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<10, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<11, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<11, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<12, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<12, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<13, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<13, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<14, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<14, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<15, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<15, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<16, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<16, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<17, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<17, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<18, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<18, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<19, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<19, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<20, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<20, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<21, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<21, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<22, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<22, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<23, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<23, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<24, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<24, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<25, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<25, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<26, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<26, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<27, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<27, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<28, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<28, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<29, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<29, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<30, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<30, ACCESSOR_AGNUS>(u16 value);
+template void Denise::pokeCOLORxx<31, ACCESSOR_CPU>(u16 value);
+template void Denise::pokeCOLORxx<31, ACCESSOR_AGNUS>(u16 value);
 
 }

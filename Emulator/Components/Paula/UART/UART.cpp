@@ -154,12 +154,11 @@ UART::copyToTransmitShiftRegister()
     assert(transmitShiftReg == 0);
     assert(transmitBuffer != 0);
 
-    // Record the outgoing byte
-    auto byte = u8(transmitBuffer & 0xFF);
+    // Record outgoing data
     recordOutgoingByte(transmitBuffer);
 
     // Send the byte to the null modem cable
-    remoteManager.serServer << char(byte);
+    remoteManager.serServer << char(transmitBuffer);
 
     // Move the contents of the transmit buffer into the shift register
     transmitShiftReg = transmitBuffer;
@@ -181,9 +180,8 @@ UART::copyFromReceiveShiftRegister()
     receiveBuffer = receiveShiftReg;
     receiveShiftReg = 0;
 
-    // Record the incoming byte
-    auto byte = u8(receiveBuffer & 0xFF);
-    recordIncomingByte(byte);
+    // Record incoming data
+    recordIncomingByte(receiveBuffer);
 
     // Update the overrun bit
     ovrun = GET_BIT(paula.intreq, 11);
@@ -222,13 +220,13 @@ UART::rxdHasChanged(bool value)
 }
 
 void
-UART::recordIncomingByte(u8 byte)
+UART::recordIncomingByte(int byte)
 {
     serialPort.recordIncomingByte(byte);
 }
 
 void
-UART::recordOutgoingByte(u16 byte)
+UART::recordOutgoingByte(int byte)
 {
     serialPort.recordOutgoingByte(byte);
 }

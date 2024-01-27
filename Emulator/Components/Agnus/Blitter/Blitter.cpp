@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -18,27 +18,7 @@ namespace vamiga {
 
 Blitter::Blitter(Amiga& ref) : SubComponent(ref)
 {
-    // Initialize the fill pattern tables
-    for (isize carryIn = 0; carryIn < 2; carryIn++) {
-        
-        for (isize byte = 0; byte < 256; byte++) {
-            
-            u8 carry = (u8)carryIn;
-            u8 inclPattern = (u8)byte;
-            u8 exclPattern = (u8)byte;
-            
-            for (isize bit = 0; bit < 8; bit++) {
-                
-                inclPattern |= carry << bit; // inclusive fill
-                exclPattern ^= carry << bit; // exclusive fill
-                
-                if (byte & (1 << bit)) carry = !carry;
-            }
-            fillPattern[0][carryIn][byte] = inclPattern;
-            fillPattern[1][carryIn][byte] = exclPattern;
-            nextCarryIn[carryIn][byte] = carry;
-        }
-    }
+
 }
 
 void
@@ -46,6 +26,28 @@ Blitter::_initialize()
 {
     CoreComponent::_initialize();
     
+    // Initialize the fill pattern tables
+    for (isize carryIn = 0; carryIn < 2; carryIn++) {
+
+        for (isize byte = 0; byte < 256; byte++) {
+
+            u8 carry = (u8)carryIn;
+            u8 inclPattern = (u8)byte;
+            u8 exclPattern = (u8)byte;
+
+            for (isize bit = 0; bit < 8; bit++) {
+
+                inclPattern |= carry << bit; // inclusive fill
+                exclPattern ^= carry << bit; // exclusive fill
+
+                if (byte & (1 << bit)) carry = !carry;
+            }
+            fillPattern[0][carryIn][byte] = inclPattern;
+            fillPattern[1][carryIn][byte] = exclPattern;
+            nextCarryIn[carryIn][byte] = carry;
+        }
+    }
+
     initFastBlitter();
     initSlowBlitter();
 }
@@ -56,6 +58,7 @@ Blitter::_reset(bool hard)
     RESET_SNAPSHOT_ITEMS(hard)
 
     if (hard) {
+        
         blitcount = 1;
         copycount = 0;
         linecount = 0;
@@ -65,7 +68,7 @@ Blitter::_reset(bool hard)
 void
 Blitter::_run()
 {
-    if constexpr (BLT_MEM_GUARD) {
+    if (BLT_MEM_GUARD) {
 
         memguard.resize(mem.getConfig().chipSize);
         memguard.clear();
@@ -135,7 +138,7 @@ Blitter::doMintermLogic(u16 a, u16 b, u16 c, u8 minterm) const
 {
     u16 result = doMintermLogicQuick(a, b, c, minterm);
 
-    if constexpr (BLT_DEBUG) {
+    if (BLT_DEBUG) {
         
         u16 result2 = 0;
         
@@ -508,7 +511,7 @@ Blitter::beginBlit()
 
     if (bltconLINE()) {
 
-        if constexpr (BLT_CHECKSUM) {
+        if (BLT_CHECKSUM) {
             
             linecount++;
             check1 = check2 = util::fnvInit32();
@@ -527,7 +530,7 @@ Blitter::beginBlit()
 
     } else {
 
-        if constexpr (BLT_CHECKSUM) {
+        if (BLT_CHECKSUM) {
             
             copycount++;
             check1 = check2 = util::fnvInit32();
@@ -609,7 +612,7 @@ Blitter::endBlit()
     debug(BLTTIM_DEBUG, "(%ld,%ld) Blitter terminates\n", agnus.pos.v, agnus.pos.h);
     
     running = false;
-    if constexpr (BLT_MEM_GUARD) blitcount++;
+    if (BLT_MEM_GUARD) blitcount++;
     
     // Clear the Blitter slot
     agnus.cancel<SLOT_BLT>();

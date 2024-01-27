@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -21,25 +21,7 @@ std::fstream HardDrive::wtStream[4];
 
 HardDrive::HardDrive(Amiga& ref, isize nr) : Drive(ref, nr)
 {
-    string path;
-    
-    if (nr == 0) path = INITIAL_HD0;
-    if (nr == 1) path = INITIAL_HD1;
-    if (nr == 2) path = INITIAL_HD2;
-    if (nr == 3) path = INITIAL_HD3;
-    
-    if (path != "") {
 
-        try {
-            
-            auto hdf = HDFFile(path);
-            init(hdf);
-
-        } catch (...) {
-            
-            warn("Cannot open HDF file %s\n", path.c_str());
-        }
-    }
 }
 
 HardDrive::~HardDrive()
@@ -166,7 +148,7 @@ HardDrive::init(const HDFFile &hdf)
     
     // Print some debug information
     debug(HDR_DEBUG, "%zu (needed) file system drivers\n", drivers.size());
-    if constexpr (HDR_DEBUG) {
+    if (HDR_DEBUG) {
         for (auto &driver : drivers) driver.dump();
     }
 }
@@ -186,11 +168,37 @@ HardDrive::getDescription() const
 }
 
 void
+HardDrive::_initialize()
+{
+    CoreComponent::_initialize();
+
+    string path;
+
+    if (nr == 0) path = INITIAL_HD0;
+    if (nr == 1) path = INITIAL_HD1;
+    if (nr == 2) path = INITIAL_HD2;
+    if (nr == 3) path = INITIAL_HD3;
+
+    if (path != "") {
+
+        try {
+
+            auto hdf = HDFFile(path);
+            init(hdf);
+
+        } catch (...) {
+
+            warn("Cannot open HDF file %s\n", path.c_str());
+        }
+    }
+}
+
+void
 HardDrive::_reset(bool hard)
 {
     RESET_SNAPSHOT_ITEMS(hard)
     
-    if constexpr (FORCE_HDR_MODIFIED) { modified = true; }
+    if (FORCE_HDR_MODIFIED) { modified = true; }
 }
 
 void
@@ -273,7 +281,7 @@ HardDrive::connect()
 
         } catch (VAError &e) {
 
-            warn("Error: %s\n", e.what());
+            warn("%s\n", e.what());
         }
     }
     
@@ -531,7 +539,7 @@ HardDrive::defaultName(isize partition)
 void
 HardDrive::format(FSVolumeType fsType, string name)
 {
-    if constexpr (HDR_DEBUG) {
+    if (HDR_DEBUG) {
 
         msg("Formatting hard drive\n");
         msg("    File system : %s\n", FSVolumeTypeEnum::key(fsType));

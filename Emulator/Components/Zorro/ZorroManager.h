@@ -43,7 +43,7 @@ private:
     
 public:
     
-    ZorroManager(Amiga& ref);
+    using SubComponent::SubComponent;
     
     
     //
@@ -65,9 +65,7 @@ private:
     void _reset(bool hard) override { RESET_SNAPSHOT_ITEMS(hard) }
 
     template <class T>
-    void applyToPersistentItems(T& worker) { }
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true) { }
+    void serialize(T& worker) { }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
     u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }

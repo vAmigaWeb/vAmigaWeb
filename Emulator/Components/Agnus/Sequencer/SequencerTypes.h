@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -12,6 +12,8 @@
 #include "Aliases.h"
 
 #ifdef __cplusplus
+
+#include "Serialization.h"
 
 static constexpr u16 SIG_NONE           = 0b0000000000;
 static constexpr u16 SIG_CON            = 0b0000000001;
@@ -25,7 +27,7 @@ static constexpr u16 SIG_SHW            = 0b0010000000;
 static constexpr u16 SIG_RHW            = 0b0100000000;
 static constexpr u16 SIG_DONE           = 0b1000000000;
 
-struct DDFState
+struct DDFState : util::Serializable
 {
     bool bpv = false;
     bool bmapen = false;

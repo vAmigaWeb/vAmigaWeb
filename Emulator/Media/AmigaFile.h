@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -111,9 +111,10 @@ public:
     // Returns the type of this file
     virtual FileType type() const { return FILETYPE_UNKNOWN; }
 
-    // Returns a textual description of the file size
+    // Returns the file size
+    virtual isize size() { return data.size; }
     virtual string sizeAsString();
-    
+
     // Returns a fingerprint (hash value) for this file
     virtual u64 fnv64() const { return data.fnv64(); }
     virtual u32 crc32() const { return data.crc32(); }

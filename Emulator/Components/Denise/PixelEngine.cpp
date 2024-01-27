@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -17,15 +17,6 @@
 #include <fstream>
 
 namespace vamiga {
-
-PixelEngine::PixelEngine(Amiga& ref) : SubComponent(ref)
-{
-    // Create random background noise pattern
-    noise.alloc(2 * PIXELS);
-    for (isize i = 0; i < noise.size; i++) {
-        noise[i] = rand() % 2 ? FrameBuffer::black : FrameBuffer::white;
-    }
-}
 
 void
 PixelEngine::clearAll()
@@ -57,10 +48,16 @@ PixelEngine::_initialize()
 {
     CoreComponent::_initialize();
 
+    // Create a random noise pattern for the background
+    noise.alloc(2 * PIXELS);
+    for (isize i = 0; i < noise.size; i++) {
+        noise[i] = rand() % 2 ? FrameBuffer::black : FrameBuffer::white;
+    }
+
     // Setup ECS BRDRBLNK color
     palette[64] = TEXEL(GpuColor(0x00, 0x00, 0x00).rawValue);
     
-    // Setup some debug colors
+    // Setup debug colors
     palette[65] = TEXEL(GpuColor(0xD0, 0x00, 0x00).rawValue);
     palette[66] = TEXEL(GpuColor(0xA0, 0x00, 0x00).rawValue);
     palette[67] = TEXEL(GpuColor(0x90, 0x00, 0x00).rawValue);
@@ -439,10 +436,16 @@ PixelEngine::colorize(isize line)
 void
 PixelEngine::colorize(Texel *dst, Pixel from, Pixel to)
 {
-    u8 *mbuf = denise.mBuffer;
+    auto *mbuf = denise.mBuffer;
+    auto *bbuf = denise.bBuffer;
 
+    /*
     for (Pixel i = from; i < to; i++) {
         dst[i] = palette[mbuf[i]];
+    }
+    */
+    for (Pixel i = from; i < to; i++) {
+        dst[i] = palette[bbuf[i] == 0xFF ? mbuf[i] : bbuf[i]];
     }
 }
 
@@ -450,13 +453,14 @@ void
 PixelEngine::colorizeSHRES(Texel *dst, Pixel from, Pixel to)
 {
     auto *mbuf = denise.mBuffer;
+    auto *bbuf = denise.bBuffer;
     auto *zbuf = denise.zBuffer;
 
     if constexpr (sizeof(Texel) == 4) {
 
         // Output two super-hires pixels as a single texel
         for (Pixel i = from; i < to; i++) {
-            dst[i] = palette[mbuf[i]];
+            dst[i] = palette[bbuf[i] == 0xFF ? mbuf[i] : bbuf[i]];
         }
 
     } else {
@@ -466,7 +470,12 @@ PixelEngine::colorizeSHRES(Texel *dst, Pixel from, Pixel to)
 
             u32 *p = (u32 *)(dst + i);
 
-            if (Denise::isSpritePixel(zbuf[i])) {
+            if (bbuf[i] != 0xFF) {
+
+                p[0] =
+                p[1] = u32(palette[bbuf[i]]);
+
+            } else if (Denise::isSpritePixel(zbuf[i])) {
 
                 p[0] =
                 p[1] = u32(palette[mbuf[i]]);
@@ -483,16 +492,24 @@ PixelEngine::colorizeSHRES(Texel *dst, Pixel from, Pixel to)
 void
 PixelEngine::colorizeHAM(Texel *dst, Pixel from, Pixel to, AmigaColor& ham)
 {
-    u8 *bbuf = denise.bBuffer;
-    u8 *ibuf = denise.iBuffer;
-    u8 *mbuf = denise.mBuffer;
+    auto *dbuf = denise.dBuffer;
+    auto *ibuf = denise.iBuffer;
+    auto *mbuf = denise.mBuffer;
+    auto *bbuf = denise.bBuffer;
 
     for (Pixel i = from; i < to; i++) {
+
+        // Check for border pixels
+        if (bbuf[i] != 0xFF) {
+
+            dst[i] = palette[bbuf[i]];
+            continue;
+        }
 
         u8 index = ibuf[i];
         assert(isPaletteIndex(index));
 
-        switch ((bbuf[i] >> 4) & 0b11) {
+        switch ((dbuf[i] >> 4) & 0b11) {
 
             case 0b00: // Get color from register
 

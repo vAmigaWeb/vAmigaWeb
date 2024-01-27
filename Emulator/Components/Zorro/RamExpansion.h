@@ -43,21 +43,14 @@ private:
     void _reset(bool hard) override;
     
     template <class T>
-    void applyToPersistentItems(T& worker)
+    void serialize(T& worker)
     {
+        if (util::isSoftResetter(worker)) return;
 
-    }
+        worker
 
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
-    {
-        if (hard) {
-            
-            worker
-            
-            << state
-            << baseAddr;
-        }
+        << state
+        << baseAddr;
     }
     
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }

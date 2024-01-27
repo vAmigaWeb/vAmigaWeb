@@ -2,15 +2,16 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
 
 #include "SerialPortTypes.h"
 #include "SubComponent.h"
+
 namespace vamiga {
 
 #define TXD_MASK (1 << 2)
@@ -36,7 +37,7 @@ class SerialPort : public SubComponent {
     u32 port = 0;
 
     // Temporary storage for incoming and outgoing bytes
-    string incoming;
+    std::u16string incoming;
     std::u16string outgoing;
 
 
@@ -69,19 +70,17 @@ private:
     void _inspect() const override;
     
     template <class T>
-    void applyToPersistentItems(T& worker)
-    {
-        worker
-
-        << config.device;
-    }
-
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
+    void serialize(T& worker)
     {
         worker
 
         << port;
+
+        if (util::isResetter(worker)) return;
+
+        worker
+
+        << config.device;
     }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
@@ -153,8 +152,9 @@ private:
     //
 
 public:
+
     // Reads and removes the contents of one of the record buffers
-    string readIncoming();
+    std::u16string readIncoming();
     std::u16string readOutgoing();
 
     // Reads and removes a single byte from one of the record buffers
@@ -166,11 +166,11 @@ public:
 private:
 
     // Called by the UART when a byte has been received or sent
-    void recordIncomingByte(u8 byte);
-    void recordOutgoingByte(u16 byte);
+    void recordIncomingByte(int byte);
+    void recordOutgoingByte(int byte);
 
     // Dumps a byte to RetroShell
-    void dumpByte(u8 byte);
+    void dumpByte(int byte);
 };
 
 }

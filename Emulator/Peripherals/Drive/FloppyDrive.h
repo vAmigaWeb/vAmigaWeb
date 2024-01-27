@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -113,42 +113,40 @@ private:
     
 private:
     
+    void _initialize() override;
     void _reset(bool hard) override;
     void _inspect() const override;
     
     template <class T>
-    void applyToPersistentItems(T& worker)
+    void serialize(T& worker)
     {
+        if (util::isSoftResetter(worker)) return;
+
+        worker
+
+        << head.cylinder
+        << head.head
+        << head.offset
+        << motor
+        << switchCycle
+        << switchSpeed
+        << idCount
+        << idBit
+        << latestStepUp
+        << latestStepDown
+        << latestStep
+        << dskchange
+        << dsklen
+        << prb
+        << cylinderHistory;
+
+        if (util::isResetter(worker)) return;
+
         worker
 
         << config.type
         << config.mechanics
         << config.rpm;
-    }
-
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
-    {
-        if (hard) {
-            
-            worker
-            
-            << head.cylinder
-            << head.head
-            << head.offset
-            << motor
-            << switchCycle
-            << switchSpeed
-            << idCount
-            << idBit
-            << latestStepUp
-            << latestStepDown
-            << latestStep
-            << dskchange
-            << dsklen
-            << prb
-            << cylinderHistory;
-        }
     }
 
     isize _size() override;

@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -81,6 +81,8 @@ DeniseDebugger::recordDiwH(isize hstrt, isize hstop)
 
         maxViewPort.hstrt = hstrt;
         maxViewPort.hstop = hstop;
+
+        trace(DIW_DEBUG, "recordDiwH: (%ld,%ld)\n", maxViewPort.hstrt, maxViewPort.hstop);
     }
 }
 
@@ -101,6 +103,8 @@ DeniseDebugger::updateDiwH(isize hstrt, isize hstop)
 
         maxViewPort.hstrt = std::min(maxViewPort.hstrt, hstrt);
         maxViewPort.hstop = std::max(maxViewPort.hstop, hstop);
+
+        trace(DIW_DEBUG, "updateDiwH: (%ld,%ld)\n", maxViewPort.hstrt, maxViewPort.hstop);
     }
 }
 

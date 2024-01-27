@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -158,7 +158,9 @@ public:
     // Recorded DMA usage for all cycles in the current rasterline
     BusOwner busOwner[HPOS_CNT] = { };
 
-    
+    // Remembers the last write to SPRxCTL (EXPERIMENTAL)
+    u8 lastCtlWrite[8] = { };
+
     //
     // Signals from other components
     //
@@ -227,36 +229,19 @@ private:
     void _inspect() const override;
 
     template <class T>
-    void applyToPersistentItems(T& worker)
+    void serialize(T& worker)
     {
-        worker
-
-        << config.revision
-        << config.slowRamMirror
-        << ptrMask;
-    }
-
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
-    {
-        if (hard) {
-            
-            worker
-
-            << clock;
-        }
-
         worker
         
         << trigger
         << id
         << data
         << nextTrigger
-        >> changeRecorder
+        << changeRecorder
         << syncEvent
         
-        >> pos
-        >> latchedPos
+        << pos
+        << latchedPos
         
         << bplcon0
         << bplcon0Initial
@@ -277,6 +262,7 @@ private:
         
         << busValue
         << busOwner
+        << lastCtlWrite
 
         << audxDR
         << audxDSR
@@ -285,6 +271,20 @@ private:
         << sprVStrt
         << sprVStop
         << sprDmaState;
+
+        if (util::isSoftResetter(worker)) return;
+
+        worker
+
+        << clock;
+
+        if (util::isResetter(worker)) return;
+
+        worker
+
+        << config.revision
+        << config.slowRamMirror
+        << ptrMask;
     }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
@@ -420,6 +420,9 @@ private:
     // Executes the second sprite DMA cycle
     template <isize nr> void executeSecondSpriteCycle();
 
+    // Checks whether the sprite DMA cycle is blocked by bitplane DMA
+    bool spriteCycleIsBlocked();
+
     // Updates the sprite DMA status in cycle 0xDF
     void updateSpriteDMA();
 
@@ -539,8 +542,11 @@ public:
     void pokeBPL2MOD(u16 value);
     void setBPL2MOD(u16 value);
     
-    template <int x> void pokeSPRxPOS(u16 value);
-    template <int x> void pokeSPRxCTL(u16 value);
+    template <int x, Accessor> void pokeSPRxPOS(u16 value);
+    template <int x> void setSPRxPOS(u16 value);
+
+    template <int x, Accessor> void pokeSPRxCTL(u16 value);
+    template <int x> void setSPRxCTL(u16 value);
 
     void pokeBEAMCON0(u16 value);
 

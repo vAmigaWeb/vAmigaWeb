@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -59,8 +59,8 @@ Agnus::_reset(bool hard)
     diskController.scheduleFirstDiskEvent();
     scheduleFirstBplEvent();
     scheduleFirstDasEvent();
-    scheduleRel<SLOT_SRV>(MSEC(500), SRV_LAUNCH_DAEMON);
-    scheduleAbs<SLOT_WBT>(Cycle(amiga.getConfig().warpBoot), WBT_DISABLE);
+    scheduleRel<SLOT_SRV>(SEC(0.5), SRV_LAUNCH_DAEMON);
+    scheduleAbs<SLOT_WBT>(SEC(amiga.getConfig().warpBoot), WBT_DISABLE);
     if (insEvent) scheduleRel <SLOT_INS> (0, insEvent);
 }
 
@@ -494,20 +494,20 @@ template <isize nr> void
 Agnus::executeFirstSpriteCycle()
 {
     trace(SPR_DEBUG, "executeFirstSpriteCycle<%ld>\n", nr);
-    
+
     if (pos.v == sprVStop[nr]) {
 
         sprDmaState[nr] = SPR_DMA_IDLE;
 
-        if (busOwner[pos.h] == BUS_NONE) {
+        if (!spriteCycleIsBlocked()) {
 
             // Read in the next control word (POS part)
             if (sprdma()) {
-                
+
                 auto value = doSpriteDmaRead<nr>();
-                agnus.pokeSPRxPOS<nr>(value);
+                agnus.pokeSPRxPOS<nr, ACCESSOR_AGNUS>(value);
                 denise.pokeSPRxPOS<nr>(value);
-                
+
             } else {
 
                 busOwner[pos.h] = BUS_BLOCKED;
@@ -516,7 +516,7 @@ Agnus::executeFirstSpriteCycle()
 
     } else if (sprDmaState[nr] == SPR_DMA_ACTIVE) {
 
-        if (busOwner[pos.h] == BUS_NONE) {
+        if (!spriteCycleIsBlocked()) {
 
             // Read in the next data word (part A)
             if (sprdma()) {
@@ -541,13 +541,13 @@ Agnus::executeSecondSpriteCycle()
 
         sprDmaState[nr] = SPR_DMA_IDLE;
 
-        if (busOwner[pos.h] == BUS_NONE) {
+        if (!spriteCycleIsBlocked()) {
 
             if (sprdma()) {
                 
                 // Read in the next control word (CTL part)
                 auto value = doSpriteDmaRead<nr>();
-                agnus.pokeSPRxCTL<nr>(value);
+                agnus.pokeSPRxCTL<nr, ACCESSOR_AGNUS>(value);
                 denise.pokeSPRxCTL<nr>(value);
                 
             } else {
@@ -558,7 +558,7 @@ Agnus::executeSecondSpriteCycle()
 
     } else if (sprDmaState[nr] == SPR_DMA_ACTIVE) {
 
-        if (busOwner[pos.h] == BUS_NONE) {
+        if (!spriteCycleIsBlocked()) {
 
             if (sprdma()) {
                 
@@ -571,6 +571,16 @@ Agnus::executeSecondSpriteCycle()
                 busOwner[pos.h] = BUS_BLOCKED;
             }
         }
+    }
+}
+
+bool 
+Agnus::spriteCycleIsBlocked()
+{
+    if (isOCS()) {
+        return sequencer.bprunUp <= pos.h + 1;
+    } else {
+        return sequencer.bprunUp <= pos.h;
     }
 }
 
@@ -637,6 +647,9 @@ Agnus::eolHandler()
 
     // Clear the bus usage table
     for (isize i = 0; i < HPOS_CNT; i++) busOwner[i] = BUS_NONE;
+
+    // Clear other variables
+    for (isize i = 0; i < 8; i++) lastCtlWrite[i] = 0xFF;
 
     // Schedule the first BPL and DAS events
     scheduleFirstBplEvent();

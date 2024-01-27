@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -21,25 +21,7 @@ namespace vamiga {
 
 FloppyDrive::FloppyDrive(Amiga& ref, isize nr) : Drive(ref, nr)
 {
-    string path;
-    
-    if (nr == 0) path = INITIAL_DF0;
-    if (nr == 1) path = INITIAL_DF1;
-    if (nr == 2) path = INITIAL_DF2;
-    if (nr == 3) path = INITIAL_DF3;
-    
-    if (path != "") {
-        
-        try {
-            
-            auto adf = ADFFile(path);
-            disk = std::make_unique<FloppyDisk>(adf);
-            
-        } catch (...) {
-            
-            warn("Cannot open ADF file %s\n", path.c_str());
-        }
-    }
+
 }
 
 const char *
@@ -47,6 +29,32 @@ FloppyDrive::getDescription() const
 {
     assert(usize(nr) < 4);
     return nr == 0 ? "Df0" : nr == 1 ? "Df1" : nr == 2 ? "Df2" : "Df3";
+}
+
+void
+FloppyDrive::_initialize()
+{
+    CoreComponent::_initialize();
+
+    string path;
+
+    if (nr == 0) path = INITIAL_DF0;
+    if (nr == 1) path = INITIAL_DF1;
+    if (nr == 2) path = INITIAL_DF2;
+    if (nr == 3) path = INITIAL_DF3;
+
+    if (path != "") {
+
+        try {
+
+            auto adf = ADFFile(path);
+            disk = std::make_unique<FloppyDisk>(adf);
+
+        } catch (...) {
+
+            warn("Cannot open ADF file %s\n", path.c_str());
+        }
+    }
 }
 
 void
@@ -295,8 +303,7 @@ FloppyDrive::_size()
 {
     util::SerCounter counter;
 
-    applyToPersistentItems(counter);
-    applyToResetItems(counter);
+    serialize(counter);
     
     // Add the size of the boolean indicating whether a disk is inserted
     counter.count += sizeof(bool);
@@ -305,7 +312,7 @@ FloppyDrive::_size()
 
         // Add the disk type and disk state
         counter << disk->getDiameter() << disk->getDensity();
-        disk->applyToPersistentItems(counter);
+        disk->serialize(counter);
     }
 
     return counter.count;
@@ -318,8 +325,7 @@ FloppyDrive::_load(const u8 *buffer)
     isize result;
     
     // Read own state
-    applyToPersistentItems(reader);
-    applyToResetItems(reader);
+    serialize(reader);
 
     // Check if the snapshot includes a disk
     bool diskInSnapshot; reader << diskInSnapshot;
@@ -348,8 +354,7 @@ FloppyDrive::_save(u8 *buffer)
     isize result;
     
     // Write own state
-    applyToPersistentItems(writer);
-    applyToResetItems(writer);
+    serialize(writer);
 
     // Indicate whether this drive has a disk is inserted
     writer << hasDisk();
@@ -360,7 +365,7 @@ FloppyDrive::_save(u8 *buffer)
         writer << disk->getDiameter() << disk->getDensity();
 
         // Write the disk's state
-        disk->applyToPersistentItems(writer);
+        disk->serialize(writer);
     }
     
     result = (isize)(writer.ptr - buffer);

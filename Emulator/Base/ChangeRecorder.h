@@ -2,15 +2,18 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
 
 #include "RingBuffer.h"
+#include "Serialization.h"
 #include "AgnusTypes.h"
+#include "AmigaTypes.h"
+#include <functional>
 
 namespace vamiga {
 
@@ -142,7 +145,7 @@ enum RegChangeID : i32
     SET_SERDAT
 };
 
-struct RegChange
+struct RegChange : util::Serializable
 {
     u32 addr;
     u16 value;
@@ -162,14 +165,31 @@ struct RegChange
 template <isize capacity>
 struct RegChangeRecorder : public util::SortedRingBuffer<RegChange, capacity>
 {
+    /*
     template <class W>
     void operator<<(W& worker)
     {
-        worker >> this->elements << this->r << this->w << this->keys;
+        // worker >> this->elements << this->r << this->w << this->keys;
+        worker << this->elements << this->r << this->w << this->keys;
     }
-    
+    */
+
     Cycle trigger() {
         return this->isEmpty() ? NEVER : this->keys[this->r];
+    }
+
+    void apply(const std::function<void(i64 k, RegChange &e)> &func) {
+
+        for (auto i = this->r; i != this->w; i = this->next(i)) {
+            func(this->keys[i], this->elements[i]);
+        }
+    }
+
+    void dump() {
+
+        apply([] (i64 k, RegChange &e) {
+            fprintf(stderr, "%lld: %s = %d\n", k, ChipsetRegEnum::key(e.addr), e.value);
+        });
     }
 };
 
@@ -181,12 +201,6 @@ struct RegChangeRecorder : public util::SortedRingBuffer<RegChange, capacity>
 struct SigRecorder : public util::SortedArray<u32, 256>
 {
     bool modified = false;
-    
-    template <class W>
-    void operator<<(W& worker)
-    {
-        worker << this->modified << this->elements << this->w << this->keys;
-    }
     
     void insert(i64 key, u32 signal) {
 
