@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -29,7 +29,7 @@ struct ScriptInterruption: util::Exception {
     using Exception::Exception;
 };
 
-class Interpreter: SubComponent
+class Interpreter: public SubComponent
 {
     enum class Shell { Command, Debug };
 
@@ -37,10 +37,10 @@ class Interpreter: SubComponent
     Shell shell = Shell::Command;
 
     // Commands of the command shell
-    Command *commandShellRoot = new Command();
+    Command commandShellRoot; //  = new Command();
 
     // Commands of the debug shell
-    Command *debugShellRoot = new Command();
+    Command debugShellRoot; //  = new Command();
 
     
     //
@@ -49,7 +49,7 @@ class Interpreter: SubComponent
 
 public:
     
-    Interpreter(Amiga &ref);
+    using SubComponent::SubComponent;
 
 private:
     
@@ -74,6 +74,7 @@ private:
     
 private:
     
+    void _initialize() override;
     void _reset(bool hard) override { }
     
     

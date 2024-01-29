@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -70,26 +70,23 @@ private:
     void _reset(bool hard) override;
     
     template <class T>
-    void applyToPersistentItems(T& worker)
+    void serialize(T& worker)
     {
+        if (util::isSoftResetter(worker)) return;
+
+        worker
+
+        << timeDiff
+        << reg
+        << lastCall
+        << lastMeasure
+        << lastMeasuredValue;
+
+        if (util::isResetter(worker)) return;
+
         worker
 
         << config.model;
-    }
-
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
-    {
-        if (hard) {
-            
-            worker
-            
-            << timeDiff
-            << reg
-            << lastCall
-            << lastMeasure
-            << lastMeasuredValue;
-        }
     }
     
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }

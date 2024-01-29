@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -71,70 +71,68 @@ private:
     void _trackOff() override;
     
     template <class T>
-    void applyToPersistentItems(T& worker)
+    void serialize(T& worker)
     {
+        if (util::isSoftResetter(worker)) return;
+
         worker
 
+        // Items from CPU class
+        << debt
+        << slowCycles
+
+        // Items from Moira class
+        << clock
+        << reg.pc
+        << reg.pc0
+        << reg.sr.t1
+        << reg.sr.t0
+        << reg.sr.s
+        << reg.sr.m
+        << reg.sr.x
+        << reg.sr.n
+        << reg.sr.z
+        << reg.sr.v
+        << reg.sr.c
+        << reg.sr.ipl
+        << reg.r
+        << reg.usp
+        << reg.isp
+        << reg.msp
+        << reg.ipl
+        << reg.vbr
+        << reg.sfc
+        << reg.dfc
+        << reg.cacr
+        << reg.caar
+
+        << queue.irc
+        << queue.ird
+
+        << ipl
+        << fcl
+        << fcSource
+        << exception
+        << cp
+        << loopModeDelay
+        << readBuffer
+        << writeBuffer
+        << flags;
+
+        if (util::isResetter(worker)) return;
+
+        worker
+
+        // Persistent items
         << config.revision
         << config.dasmRevision
         << config.overclocking
         << config.regResetVal;
     }
 
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
-    {
-        if (hard) {
-            
-            worker
-
-            // Items from CPU class
-            << debt
-            << slowCycles
-
-            // Items from Moira class
-            << clock
-            << reg.pc
-            << reg.pc0
-            << reg.sr.t1
-            << reg.sr.t0
-            << reg.sr.s
-            << reg.sr.m
-            << reg.sr.x
-            << reg.sr.n
-            << reg.sr.z
-            << reg.sr.v
-            << reg.sr.c
-            << reg.sr.ipl
-            << reg.r
-            << reg.usp
-            << reg.isp
-            << reg.msp
-            << reg.ipl
-            << reg.vbr
-            << reg.sfc
-            << reg.dfc
-            << reg.cacr
-            << reg.caar
-
-            << queue.irc
-            << queue.ird
-
-            << ipl
-            << fcl
-            << fcSource
-            << exception
-            << cp
-            << loopModeDelay
-            << readBuffer
-            << writeBuffer
-            << flags;
-        }
-    }
-
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
     u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override;
+    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
     isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
     isize didLoadFromBuffer(const u8 *buffer) override;
     

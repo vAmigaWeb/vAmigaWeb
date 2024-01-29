@@ -8,8 +8,6 @@
 template <Core C> void
 Moira::writeStackFrameAEBE(StackFrame &frame)
 {
-    // assert(C == C68000);
-
     // Push PC
     push<C, Word>((u16)frame.pc);
     push<C, Word>(frame.pc >> 16);
@@ -321,6 +319,9 @@ Moira::execException(ExceptionType exc, int nr)
 template <Core C> void
 Moira::execException(ExceptionType exc, int nr)
 {
+    // printf("Moira::execException(%d, %d)\n", exc, nr);
+    // if (exc == 11) debugger.stepInto();
+
     u16 status = getSR();
 
     // Determine the exception vector number

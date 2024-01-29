@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -15,7 +15,9 @@
 #ifdef __MACH__
 #include <mach/mach_time.h>
 #endif
-
+#ifdef __EMSCRIPTEN__    
+#include <emscripten.h>
+#endif
 
 namespace util {
 
@@ -63,6 +65,33 @@ Time::sleepUntil()
     static struct mach_timebase_info tb = timebaseInfo();
     mach_wait_until(ticks * tb.denom / tb.numer);
 }
+
+#elif defined(__EMSCRIPTEN__)
+Time
+Time::now()
+{
+    return (uint64_t)(emscripten_get_now()*1000000.0);
+}
+
+std::tm
+Time::local(const std::time_t &time)
+{
+    std::tm local {};
+    localtime_r(&time, &local);
+    
+    return local;
+}
+
+void
+Time::sleep()
+{
+}
+
+void
+Time::sleepUntil()
+{
+}
+
 
 #elif defined(__unix__)
 

@@ -2,14 +2,15 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
 
 #include "SubComponent.h"
+#include "Buffer.h"
 #include "Chrono.h"
 #include "FFmpeg.h"
 #include "Muxer.h"
@@ -109,10 +110,7 @@ private:
     void _reset(bool hard) override;
 
     template <class T>
-    void applyToPersistentItems(T& worker) { }
-
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true) { }
+    void serialize(T& worker) { }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
     u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }

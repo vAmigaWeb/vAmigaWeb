@@ -686,7 +686,9 @@ extern "C" int main(int argc, char** argv) {
 
   printf("adding a listener to vAmiga message queue...\n");
 
-  wrapper->amiga->msgQueue.setListener(wrapper->amiga, &theListener);
+//  wrapper->amiga->msgQueue.setListener(wrapper->amiga, &theListener);
+  wrapper->amiga->launch(wrapper->amiga, &theListener);
+  
   wrapper->amiga->defaults.setFallback(OPT_HDC_CONNECT, 0, false);
 
 //  wrapper->amiga->defaults.setFallback(OPT_FILTER_TYPE, FILTER_NONE);
@@ -709,7 +711,6 @@ extern "C" int main(int argc, char** argv) {
   wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
 
   wrapper->amiga->configure(OPT_DRIVE_CONNECT,/*df1*/ 1, /*enable*/true);
-
   wrapper->run();
 
   return 0;

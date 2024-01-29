@@ -60,16 +60,16 @@ Moira::~Moira()
 void
 Moira::setModel(Model cpuModel, Model dasmModel)
 {
-    // Only proceed if the model changes
-    if (this->cpuModel == cpuModel && this->dasmModel == dasmModel) return;
+    if (this->cpuModel != cpuModel || this->dasmModel != dasmModel) {
+        
+        this->cpuModel = cpuModel;
+        this->dasmModel = dasmModel;
 
-    this->cpuModel = cpuModel;
-    this->dasmModel = dasmModel;
-
-    createJumpTable(cpuModel, dasmModel);
-
-    reg.cacr &= cacrMask();
-    flags &= ~CPU_IS_LOOPING;
+        createJumpTable(cpuModel, dasmModel);
+        
+        reg.cacr &= cacrMask();
+        flags &= ~CPU_IS_LOOPING;
+    }
 }
 
 void
@@ -101,7 +101,7 @@ Moira::setNumberFormat(DasmStyle &style, const DasmNumberFormat &value)
 }
 
 bool
-Moira::hasCPI()
+Moira::hasCPI() const
 {
     switch (cpuModel) {
 
@@ -114,7 +114,7 @@ Moira::hasCPI()
 }
 
 bool
-Moira::hasMMU()
+Moira::hasMMU() const
 {
     switch (cpuModel) {
 
@@ -127,7 +127,7 @@ Moira::hasMMU()
 }
 
 bool
-Moira::hasFPU()
+Moira::hasFPU() const
 {
     switch (cpuModel) {
 
@@ -196,8 +196,6 @@ Moira::reset()
     fcl = 0;
     fcSource = 0;
 
-    fpu = { };
-
     SYNC(16);
 
     // Read the initial (supervisor) stack pointer from memory
@@ -216,6 +214,7 @@ Moira::reset()
     SYNC(2);
     prefetch<C>();
 
+    // Reset subcomponents
     debugger.reset();
 
     // Inform the delegate
@@ -379,7 +378,7 @@ Moira::processException(const std::exception &exc)
             throw df;
         }
 
-    } catch (DoubleFault & df) {
+    } catch (DoubleFault &df) {
 
         halt();
         return;

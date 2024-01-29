@@ -68,31 +68,29 @@ private:
     
 private:
     
+    void _initialize() override;
     void _reset(bool hard) override;
     
     template <class T>
-    void applyToPersistentItems(T& worker)
+    void serialize(T& worker)
     {
+        if (util::isSoftResetter(worker)) return;
+
         worker
-        
+
+        << baseAddr
+        << state
+        << hdcState
+        << numPartitions
+        << pointer;
+
+        if (util::isResetter(worker)) return;
+
+        worker
+
         << config.connected;
     }
 
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
-    {
-        if (hard) {
-            
-            worker
-            
-            << baseAddr
-            << state
-            << hdcState
-            << numPartitions
-            << pointer;
-        }
-    }
-    
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
     u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
     isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }

@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -74,10 +74,7 @@ Headless::main(int argc, char *argv[])
 
     // Read the input script
     Script script(keys["arg1"]);
-    
-    // Register message receiver
-    // amiga.msgQueue.setListener(this, vamiga::process);
-
+        
     // Launch the emulator thread
     amiga.launch(this, vamiga::process);
 

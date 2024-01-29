@@ -2,19 +2,22 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
 
 #include "Macros.h"
 #include "MemUtils.h"
-#include "Buffer.h"
+#include <cassert>
+#include <concepts>
 #include <vector>
 
 namespace util {
+
+class Serializable { };
 
 //
 // Basic memory buffer I/O
@@ -95,7 +98,6 @@ inline void writeDouble(u8 *& buf, double value)
 inline void writeString(u8 *& buf, string value)
 {
     auto len = value.length();
-    assert(len < 256);
     write8(buf, u8(len));
     value.copy((char *)buf, len);
     buf += len;
@@ -140,14 +142,7 @@ public:
     COUNT64(const unsigned long long)
     COUNTD(const float)
     COUNTD(const double)
-       
-    template <class T>
-    auto& operator<<(Allocator<T> &a)
-    {
-        count += 8 + a.size;
-        return *this;
-    }
-    
+
     auto& operator<<(string &v)
     {
         auto len = v.length();
@@ -173,15 +168,6 @@ public:
         return *this;
     }
 
-    template <class T>
-    auto& operator>>(std::vector <T> &v)
-    {
-        auto len = v.size();
-        for(usize i = 0; i < len; i++) *this >> v[i];
-        count += 8;
-        return *this;
-    }
-
     template <class T, isize N>
     SerCounter& operator<<(T (&v)[N])
     {
@@ -190,20 +176,11 @@ public:
         }
         return *this;
     }
-        
-    template <class T>
-    SerCounter& operator>>(T &v)
+
+    template <std::derived_from<Serializable> T>
+    SerCounter& operator<<(T &v)
     {
         v << *this;
-        return *this;
-    }
-    
-    template <class T, isize N>
-    SerCounter& operator>>(T (&v)[N])
-    {
-        for(isize i = 0; i < N; ++i) {
-            v[i] << *this;
-        }
         return *this;
     }
 };
@@ -242,14 +219,7 @@ public:
     CHECK(const unsigned long long)
     CHECK(const float)
     CHECK(const double)
-       
-    template <class T>
-    auto& operator<<(Allocator<T> &a)
-    {
-        hash = util::fnvIt64(hash, a.fnv64());
-        return *this;
-    }
-        
+
     auto& operator<<(string &v)
     {
         auto len = v.length();
@@ -276,16 +246,6 @@ public:
         return *this;
     }
 
-    template <class T>
-    auto& operator>>(std::vector <T> &v)
-    {
-        isize len = isize(v.size());
-        for (isize i = 0; i < len; i++) {
-            *this >> v[i];
-        }
-        return *this;
-    }
-
     template <class T, isize N>
     SerChecker& operator<<(T (&v)[N])
     {
@@ -294,20 +254,11 @@ public:
         }
         return *this;
     }
-    
-    template <class T>
-    SerChecker& operator>>(T &v)
+
+    template <std::derived_from<Serializable> T>
+    SerChecker& operator<<(T &v)
     {
         v << *this;
-        return *this;
-    }
-    
-    template <class T, isize N>
-    SerChecker& operator>>(T (&v)[N])
-    {
-        for(isize i = 0; i < N; ++i) {
-            v[i] << *this;
-        }
         return *this;
     }
 };
@@ -335,9 +286,7 @@ public:
 
     const u8 *ptr;
 
-    SerReader(const u8 *p) : ptr(p)
-    {
-    }
+    SerReader(const u8 *p) : ptr(p) { }
 
     DESERIALIZE8(bool)
     DESERIALIZE8(char)
@@ -353,16 +302,6 @@ public:
     DESERIALIZE64(unsigned long long)
     DESERIALIZED(float)
     DESERIALIZED(double)
-
-    template <class T>
-    auto& operator<<(Allocator<T> &a)
-    {
-        i64 len;
-        *this << len;
-        a.init(ptr, isize(len));
-        ptr += len;
-        return *this;
-    }
 
     auto& operator<<(string &v)
     {
@@ -396,21 +335,7 @@ public:
         }
         return *this;
     }
-    
-    template <class T>
-    auto& operator>>(std::vector <T> &v)
-    {
-        i64 len;
-        *this << len;
-        v.clear();
-        v.reserve(len);
-        for (isize i = 0; i < len; i++) {
-            v.push_back(T());
-            *this >> v.back();
-        }
-        return *this;
-    }
-    
+
     template <class T, isize N>
     SerReader& operator<<(T (&v)[N])
     {
@@ -419,27 +344,18 @@ public:
         }
         return *this;
     }
-    
-    template <class T>
-    SerReader& operator>>(T &v)
-    {
-        v << *this;
-        return *this;
-    }
-    
-    template <class T, isize N>
-    SerReader& operator>>(T (&v)[N])
-    {
-        for(isize i = 0; i < N; ++i) {
-            v[i] << *this;
-        }
-        return *this;
-    }
-    
+
     void copy(void *dst, isize n)
     {
         std::memcpy(dst, (void *)ptr, n);
         ptr += n;
+    }
+
+    template <std::derived_from<Serializable> T>
+    SerReader& operator<<(T &v)
+    {
+        v << *this;
+        return *this;
     }
 };
 
@@ -466,9 +382,7 @@ public:
 
     u8 *ptr;
 
-    SerWriter(u8 *p) : ptr(p)
-    {
-    }
+    SerWriter(u8 *p) : ptr(p) { }
 
     SERIALIZE8(const bool)
     SERIALIZE8(const char)
@@ -484,15 +398,6 @@ public:
     SERIALIZE64(const unsigned long long)
     SERIALIZED(const float)
     SERIALIZED(const double)
-
-    template <class T>
-    auto& operator<<(Allocator<T> &a)
-    {
-        *this << i64(a.size);
-        a.copy(ptr);
-        ptr += a.size;
-        return *this;
-    }
 
     auto& operator<<(const string &v)
     {
@@ -520,17 +425,6 @@ public:
         return *this;
     }
 
-    template <class T>
-    auto& operator>>(std::vector <T> &v)
-    {
-        auto len = v.size();
-        *this << i64(len);
-        for (usize i = 0; i < len; i++) {
-            *this >> v[i];
-        }
-        return *this;
-    }
-    
     template <class T, isize N>
     SerWriter& operator<<(T (&v)[N])
     {
@@ -540,26 +434,17 @@ public:
         return *this;
     }
 
-    template <class T>
-    SerWriter& operator>>(T &v)
-    {
-        v << *this;
-        return *this;
-    }
-    
-    template <class T, isize N>
-    SerWriter& operator>>(T (&v)[N])
-    {
-        for(isize i = 0; i < N; ++i) {
-            v[i] << *this;
-        }
-        return *this;
-    }
-    
     void copy(const void *src, isize n)
     {
         std::memcpy((void *)ptr, src, n);
         ptr += n;
+    }
+
+    template <std::derived_from<Serializable> T>
+    SerWriter& operator<<(T &v)
+    {
+        v << *this;
+        return *this;
     }
 };
 
@@ -577,11 +462,11 @@ return *this; \
 
 class SerResetter
 {
-public:
+protected:
 
-    SerResetter()
-    {
-    }
+    SerResetter() { };
+
+public:
 
     RESET(bool)
     RESET(char)
@@ -597,13 +482,6 @@ public:
     RESET(unsigned long long)
     RESET(float)
     RESET(double)
-
-    template <class T>
-    auto& operator<<(Allocator<T> &a)
-    {
-        a.clear();
-        return *this;
-    }
 
     auto& operator<<(string &v)
     {
@@ -625,13 +503,6 @@ public:
         return *this;
     }
 
-    template <class T>
-    auto& operator>>(std::vector <T> &v)
-    {
-        v.clear();
-        return *this;
-    }
-    
     template <class T, isize N>
     SerResetter& operator<<(T (&v)[N])
     {
@@ -641,21 +512,39 @@ public:
         return *this;
     }
 
-    template <class T>
-    SerResetter& operator>>(T &v)
+    template <std::derived_from<Serializable> T>
+    SerResetter& operator<<(T &v)
     {
         v << *this;
         return *this;
     }
-    
-    template <class T, isize N>
-    SerResetter& operator>>(T (&v)[N])
-    {
-        for(isize i = 0; i < N; ++i) {
-            v[i] << *this;
-        }
-        return *this;
-    }
 };
+
+class SerSoftResetter : public SerResetter
+{
+public:
+    SerSoftResetter() { }
+};
+
+class SerHardResetter : public SerResetter
+{
+public:
+    SerHardResetter() { }
+};
+
+template <class T>
+static constexpr bool isSoftResetter(T &worker) {
+    return std::is_same_v<T, SerSoftResetter>;
+}
+
+template <class T>
+static constexpr bool isHardResetter(T &worker) {
+    return std::is_same_v<T, SerHardResetter>;
+}
+
+template <class T>
+static constexpr bool isResetter(T &worker) {
+    return isSoftResetter(worker) || isHardResetter(worker);
+}
 
 }

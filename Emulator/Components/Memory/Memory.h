@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -13,6 +13,7 @@
 #include "SubComponent.h"
 #include "RomFileTypes.h"
 #include "MemUtils.h"
+#include "Buffer.h"
 
 using util::Allocator;
 using util::Buffer;
@@ -224,19 +225,7 @@ private:
     void _reset(bool hard) override;
     
     template <class T>
-    void applyToPersistentItems(T& worker)
-    {
-        worker
-        
-        << config.slowRamDelay
-        << config.bankMap
-        << config.ramInitPattern
-        << config.unmappingType
-        << config.extStart;
-    }
-
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
+    void serialize(T& worker)
     {
         worker
 
@@ -244,6 +233,16 @@ private:
         << cpuMemSrc
         << agnusMemSrc
         << dataBus;
+
+        if (util::isResetter(worker)) return;
+
+        worker
+
+        << config.slowRamDelay
+        << config.bankMap
+        << config.ramInitPattern
+        << config.unmappingType
+        << config.extStart;
     }
 
     isize _size() override;

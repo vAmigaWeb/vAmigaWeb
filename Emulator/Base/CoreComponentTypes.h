@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -183,9 +183,10 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
             case OPT_DMA_DEBUG_COLOR:       return "DMA_DEBUG_COLOR";
 
             case OPT_CPU_REVISION:          return "CPU_REVISION";
+            case OPT_CPU_DASM_REVISION:     return "OPT_CPU_DASM_REVISION";
+            case OPT_CPU_DASM_SYNTAX:       return "OPT_CPU_DASM_SYNTAX";
             case OPT_CPU_OVERCLOCKING:      return "CPU_OVERCLOCKING";
             case OPT_CPU_RESET_VAL:         return "CPU_RESET_VAL";
-            case OPT_CPU_DASM_SYNTAX:       return "CPU_DASM_SYNTAX";
 
             case OPT_RTC_MODEL:             return "RTC_MODEL";
 

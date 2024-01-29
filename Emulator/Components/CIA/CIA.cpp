@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -23,7 +23,10 @@ namespace vamiga {
 
 CIA::CIA(int n, Amiga& ref) : SubComponent(ref), nr(n)
 {    
-    subComponents = std::vector<CoreComponent *> { &tod };
+    subComponents = std::vector<CoreComponent *> {
+
+        &tod
+    };
 }
 
 void
@@ -51,7 +54,7 @@ CIA::_reset(bool hard)
     latchB = 0xFFFF;
     
     // UAE initializes CRB with 4 (which I think is wrong)
-    if constexpr (MIMIC_UAE) crb = 0x4;
+    if (MIMIC_UAE) crb = 0x4;
 
     updatePA();
     updatePB();

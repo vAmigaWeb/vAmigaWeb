@@ -104,21 +104,8 @@ private:
     void _inspect() const override;
     
     template <class T>
-    void applyToPersistentItems(T& worker)
+    void serialize(T& worker)
     {
-        
-    }
-
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
-    {
-        if (hard) {
-            
-            worker
-            
-            << clock;
-        }
-
         worker
         
         << state
@@ -135,6 +122,12 @@ private:
         << intreq2
         << enablePenlo
         << enablePenhi;
+
+        if (util::isSoftResetter(worker)) return;
+
+        worker
+
+        << clock;
     }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }

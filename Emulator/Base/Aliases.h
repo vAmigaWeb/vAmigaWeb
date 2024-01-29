@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -41,9 +41,9 @@ typedef u32 Block;
 //
 
 // Converts a certain unit to master cycles
-#define USEC(delay)           (Cycle(delay) * 28)
-#define MSEC(delay)           (Cycle(delay) * 28000)
-#define SEC(delay)            (Cycle(delay) * 28000000)
+#define USEC(delay)           (Cycle((i64)delay * 28))
+#define MSEC(delay)           (Cycle((i64)delay * 28000))
+#define SEC(delay)            (Cycle((double)delay * 28000000))
 
 #define CPU_CYCLES(cycles)    (Cycle(cycles) << 2)
 #define CIA_CYCLES(cycles)    (Cycle(cycles) * 40)

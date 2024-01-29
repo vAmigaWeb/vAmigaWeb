@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -12,10 +12,11 @@
 #include "BeamTypes.h"
 #include "AmigaTypes.h"
 #include "Constants.h"
+#include "Serialization.h"
 
 namespace vamiga {
 
-struct Beam
+struct Beam : util::Serializable
 {
     // The vertical and horizontal beam position
     isize v = 0;
@@ -142,7 +143,7 @@ struct Beam
 
 
     //
-    // Converting positions to pixel locations
+    // Converting positions
     //
 
     // Translates a DMA cycle to a pixel position

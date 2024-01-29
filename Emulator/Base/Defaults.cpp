@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -87,7 +87,7 @@ Defaults::Defaults()
     setFallback(OPT_DRIVE_TYPE, { 0, 1, 2, 3 }, DRIVE_DD_35);
     setFallback(OPT_DRIVE_MECHANICS, { 0, 1, 2, 3 }, MECHANICS_A1010);
     setFallback(OPT_DRIVE_RPM, { 0, 1, 2, 3 }, 300);
-    setFallback(OPT_DISK_SWAP_DELAY, { 0, 1, 2, 3 }, MSEC(1800));
+    setFallback(OPT_DISK_SWAP_DELAY, { 0, 1, 2, 3 }, SEC(1.8));
     setFallback(OPT_DRIVE_PAN, { 0, 2 }, 100);
     setFallback(OPT_DRIVE_PAN, { 1, 3 }, 300);
     setFallback(OPT_STEP_VOLUME, { 0, 1, 2, 3 }, 50);

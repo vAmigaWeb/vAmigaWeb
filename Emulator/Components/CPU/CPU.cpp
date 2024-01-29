@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #include "config.h"
@@ -14,12 +14,10 @@
 #include "IOUtils.h"
 #include "Memory.h"
 #include "MsgQueue.h"
-#include "softfloat.h"
 
 //
 // Moira
 //
-
 
 namespace vamiga::moira {
 
@@ -97,7 +95,7 @@ Moira::read16OnReset(u32 addr) const
 void
 Moira::write8(u32 addr, u8 val) const
 {
-    if constexpr (XFILES) {
+    if (XFILES) {
         if (addr - reg.pc < 5) xfiles("write8 close to PC %x\n", reg.pc);
     }
     mem.poke8 <ACCESSOR_CPU> (addr, val);
@@ -106,7 +104,7 @@ Moira::write8(u32 addr, u8 val) const
 void
 Moira::write16(u32 addr, u16 val) const
 {
-    if constexpr (XFILES) {
+    if (XFILES) {
         if (addr - reg.pc < 5) xfiles("write16 close to PC %x\n", reg.pc);
     }
     mem.poke16 <ACCESSOR_CPU> (addr, val);
@@ -141,7 +139,13 @@ Moira::willExecute(const char *func, Instr I, Mode M, Size S, u16 opcode)
             break;
 
         default:
+        {
+            
+            char str[128];
+            disassemble(str, reg.pc0);
+            printf("%s\n", str);
             break;
+        }
     }
 }
 
@@ -365,6 +369,8 @@ CPU::resetConfig()
     std::vector <Option> options = {
 
         OPT_CPU_REVISION,
+        OPT_CPU_DASM_REVISION,
+        OPT_CPU_DASM_SYNTAX,
         OPT_CPU_OVERCLOCKING,
         OPT_CPU_RESET_VAL
     };
@@ -545,25 +551,6 @@ CPU::_dump(Category category, std::ostream& os) const
         os << util::tab("Last exception");
         os << util::dec(exception);
     }
-
-    if (category == Category::Fpu) {
-        
-        os << util::tab("FPIAR");
-        os << util::hex(fpu.fpiar) << std::endl;
-        os << util::tab("FPSR");
-        os << util::hex(fpu.fpsr) << std::endl;
-        os << util::tab("FPCR");
-        os << util::hex(fpu.fpcr) << std::endl;
-
-        /*
-         for (isize i = 0; i < 8; i++) {
-
-         auto value = softfloat::floatx80_to_float32(fpu.fpr[i].raw);
-         os << util::tab("FP" + std::to_string(i));
-         os << util::hex(u32(value)) << std::endl;
-         }
-         */
-    }
     
     if (category == Category::Breakpoints) {
 
@@ -639,24 +626,14 @@ CPU::_trackOff()
 }
 
 isize
-CPU::_load(const u8 *buffer)
-{
-    auto oldModel = config.revision;
-
-    util::SerReader reader(buffer);
-    applyToPersistentItems(reader);
-    applyToResetItems(reader);
-
-    if (oldModel != config.revision) {
-        createJumpTable(cpuModel, dasmModel);
-    }
-
-    return isize(reader.ptr - buffer);
-}
-
-isize
 CPU::didLoadFromBuffer(const u8 *buffer)
 {
+    auto cpuModel = (moira::Model)config.revision;
+    auto dasmModel = (moira::Model)config.dasmRevision;
+
+    // Rectify the CPU type
+    setModel(cpuModel, dasmModel);
+
     /* Because we don't save breakpoints and watchpoints in a snapshot, the
      * CPU flags for checking breakpoints and watchpoints can be in a corrupt
      * state after loading. These flags need to be updated according to the
@@ -741,7 +718,7 @@ CPU::disassembleWords(u32 addr, isize len)
 {
     static char result[64];
 
-    dump16(result, addr, len);
+    dump16(result, addr, (int)len);
     return result;
 }
 

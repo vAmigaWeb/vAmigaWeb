@@ -17,7 +17,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Add the emulator library
-add_library(vAmigaCore Components/Amiga.cpp)
+add_library(vAmigaCore Components/Amiga.cpp config.cpp)
 
 # Add the console app (vAmiga Headless)
 #add_executable(vAmigaConsole Headless.cpp)
@@ -37,7 +37,7 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   target_compile_options(vAmigaCore PUBLIC -Wno-unused-parameter)
   target_compile_options(vAmigaCore PUBLIC -fconcepts)
   target_compile_options(vAmigaCore PUBLIC -Wno-restrict)
-  target_compile_options(vAmigaCore PUBLIC -Wno-dangling-pointer)
+  # target_compile_options(vAmigaCore PUBLIC -Wno-dangling-pointer)
   target_compile_options(vAmigaCore PUBLIC -Wno-array-bounds)
 else()
   target_compile_options(vAmigaCore PRIVATE -Wall -Werror)
@@ -49,7 +49,7 @@ else()
 	  target_compile_options(vAmigaCore PRIVATE -sWASM_WORKERS)
   endif()
   
-  #  target_compile_options(vAmigaCore PRIVATE -g) 
+  #target_compile_options(vAmigaCore PRIVATE -g) 
   set_target_properties(vAmigaCore PROPERTIES LINK_FLAGS "-O3 -mnontrapping-fptoint -fwasm-exceptions" )
 endif()
 
@@ -69,7 +69,7 @@ add_subdirectory(Utilities)
 # Add libraries
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
-target_link_libraries(vAmigaCore xdms softfloat Threads::Threads)
+target_link_libraries(vAmigaCore xdms Threads::Threads)
 
 # Add tests
 add_test(NAME SelfTest COMMAND vAmigaConsole --selftest)

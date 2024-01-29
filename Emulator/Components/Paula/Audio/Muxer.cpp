@@ -24,8 +24,6 @@ Muxer::Muxer(Amiga& ref) : SubComponent(ref)
 
         &filter
     };
-    
-    setSampleRate(44100);
 }
 
 void
@@ -72,6 +70,14 @@ Muxer::_dump(Category category, std::ostream& os) const
         os << tab("Fill level");
         os << fillLevelAsString(stream.fillLevel()) << std::endl;
     }
+}
+
+void
+Muxer::_initialize()
+{
+    CoreComponent::_initialize();
+
+    setSampleRate(44100);
 }
 
 void
@@ -347,7 +353,7 @@ Muxer::synthesize(Cycle clock, long count, double cyclesPerSample)
         float ch1 = sampler[1].interpolate <method> ((Cycle)cycle) * vol[1];
         float ch2 = sampler[2].interpolate <method> ((Cycle)cycle) * vol[2];
         float ch3 = sampler[3].interpolate <method> ((Cycle)cycle) * vol[3];
-        
+
         // Compute left channel output
         double l =
         ch0 * (1 - pan[0]) + ch1 * (1 - pan[1]) +

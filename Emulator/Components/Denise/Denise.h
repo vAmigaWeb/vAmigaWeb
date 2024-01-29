@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -64,39 +64,25 @@ public:
     u16 diwstop;
     u16 diwhigh;
 
-    // Display window coordinates (extracted from DIWSTRT and DIWSTOP)
+    // Display window coordinates (extracted from DIWSTRT, DIWSTOP, and DIWHIGH)
     isize hstrt;
     isize hstop;
     
     /* Denise contains a flipflop controlling the horizontal display window.
      * It is cleared inside the border area and set inside the display area:
      *
-     *   1. When hpos matches the position in DIWSTRT, the flipflop is set.
-     *   2. When hpos matches the position in DIWSTOP, the flipflop is reset.
-     *   3. The smallest recognised value for DIWSTRT is $02.
-     *   4. The largest recognised value for DIWSTOP is $(1)C7.
+     *   - When hpos matches the position in DIWSTRT, the flipflop is set.
+     *   - When hpos matches the position in DIWSTOP, the flipflop is reset.
      *
-     * The value of this variable is updated at the beginning of each DMA line
-     * and cannot change thereafter. It stores the value of the horizontal DIW
-     * flipflop as it was at the beginning of the rasterline. To find out the
-     * value of the horizontal flipflop inside or at the end of a rasterline,
-     * hFlopOn and hFlopOff need to be evaluated.
+     * Because Denise counts ... -> $1C6 -> $1C7 -> $002 -> $003 -> ...
+     *
+     *   - The smallest recognised value for DIWSTRT is $002.
+     *   - The largest recognised value for DIWSTOP is $1C7.
      */
     bool hflop;
 
-    /* At the end of a DMA line, these variable conains the pixel coordinates
-     * where the hpos counter matched diwHstrt or diwHstop, respectively. A
-     * value of INT16_MAX indicates that no matching event took place.
-     */
-    isize hflopOn;
-    isize hflopOff;
-
-    /* At the end of a DMA line, the values of hflop, hflopOn, and hflopOff are
-     * preserved in these variables. Their values are used later on in function
-     * drawBorder() */
-    bool hflopPrev;
-    isize hflopOnPrev;
-    isize hflopOffPrev;
+    // Indicates whether the border mask needs an update
+    isize borderBufferIsDirty;
 
     // Bitplane control registers
     u16 bplcon0;
@@ -156,6 +142,9 @@ public:
     // Ringbuffers recording sprite register changes (one for each sprite pair)
     RegChangeRecorder<128> sprChanges[4];
 
+    // Ringbuffer recording DIW register changes
+    RegChangeRecorder<128> diwChanges;
+
 
     //
     // Sprites
@@ -177,7 +166,7 @@ public:
     u16 ssra[8];
     u16 ssrb[8];
     
-    /* Indicates which sprites are curently armed. An armed sprite is a sprite
+    /* Indicates which sprites are currently armed. An armed sprite is a sprite
      * that will be drawn in this line.
      */
     u8 armed;
@@ -214,15 +203,22 @@ public:
     // Rasterline data
     //
 
-    /* Four important buffers are involved in the generation of pixel data:
+    /* Multiple buffers are involved in the generation of pixel data:
      *
-     * bBuffer: The bitplane data buffer
+     * dBuffer: Data buffer
      *
      * While emulating the DMA cycles of a single rasterline, Denise writes
      * the fetched bitplane data into this buffer. It contains the raw
      * bitplane bits coming out the 6 serial shift registers.
      *
-     * iBuffer: The color index buffer
+     * bBuffer: Border pixel buffer
+     *
+     * This buffer is used to determine whether a border pixel has to be drawn.
+     * If the buffer contains a value of 0xFF, border drawing is off for this
+     * pixel. Otherwise, the buffer contains the number of the color register
+     * storing the border color.
+     *
+     * iBuffer: Color index buffer
      *
      * At the end of each rasterline, Denise translates the fetched bitplane
      * data to color register indices. In single-playfield mode, this is a
@@ -230,14 +226,14 @@ public:
      * be split into two color indices. Only one of them is kept depending on
      * the playfield priority bit.
      *
-     * mBuffer: The multiplexed color index buffer
+     * mBuffer: Multiplexed color index buffer
      *
      * This buffer contains the data from the iBuffer, multiplexed with the
      * color index data coming from the sprite synthesizer.
      *
-     * zBuffer: The pixel depth buffer
+     * zBuffer: Pixel depth buffer
      *
-     * When the bBuffer is translated into the iBuffer, a depth buffer is build.
+     * When the dBuffer is translated into the iBuffer, a depth buffer is build.
      * This buffer serves multiple purposes.
      *
      * 1. The depth buffer is utilized to manage display priority. For example,
@@ -261,6 +257,7 @@ public:
      *  SPx : Set if the pixel is solid in sprite x.
      *  _x_ : Playfield priority derived from the current value in BPLCON2.
      */
+    u8 dBuffer[HPIXELS + (4 * 16) + 8];
     u8 bBuffer[HPIXELS + (4 * 16) + 8];
     u8 iBuffer[HPIXELS + (4 * 16) + 8];
     u8 mBuffer[HPIXELS + (4 * 16) + 8];
@@ -334,26 +331,8 @@ private:
     void _inspect() const override;
     
     template <class T>
-    void applyToPersistentItems(T& worker)
+    void serialize(T& worker)
     {
-        worker
-
-        << config.revision
-        << config.clxSprSpr
-        << config.clxSprPlf
-        << config.clxPlfPlf;
-    }
-
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
-    {
-        if (hard) {
-            
-            worker
-            
-            << clock;
-        }
-
         worker
         
         << diwstrt
@@ -362,11 +341,7 @@ private:
         << hstrt
         << hstop
         << hflop
-        << hflopOn
-        << hflopOff
-        << hflopPrev
-        << hflopOnPrev
-        << hflopOffPrev
+        << borderBufferIsDirty
         << bplcon0
         << bplcon1
         << bplcon2
@@ -385,8 +360,9 @@ private:
         << shiftReg
         << armedOdd
         << armedEven
-        >> conChanges
-        >> sprChanges
+        << conChanges
+        << sprChanges
+        << diwChanges
 
         << sprdata
         << sprdatb
@@ -400,6 +376,21 @@ private:
         << wasArmed
         << spriteClipBegin
         << spriteClipEnd;
+
+        if (util::isSoftResetter(worker)) return;
+
+        worker
+
+        << clock;
+
+        if (util::isResetter(worker)) return;
+
+        worker
+
+        << config.revision
+        << config.clxSprSpr
+        << config.clxSprPlf
+        << config.clxPlfPlf;
     }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }
@@ -505,10 +496,13 @@ private:
     // Determines the color register index for drawing the border
     void updateBorderColor();
 
-    // Draws the horizontal border
-    void drawBorder();
+    // Updates the border pixel mask (called by the hsync handler)
+    void updateBorderBuffer();
 
-    
+    // Marks the border buffer dirty for a specific number of lines
+    void markBorderBufferAsDirty(isize lines = 2);
+
+
     //
     // Drawing sprites
     //
@@ -589,6 +583,14 @@ public:
     void setDIWSTOP(u16 value);
     void setDIWHIGH(u16 value);
 
+private:
+
+    // Called by setDIWSTRT, setDIWSTOP, setDIWHIGH
+    void setHSTRT(isize value);
+    void setHSTOP(isize value);
+
+public:
+
     u16 peekJOY0DATR() const;
     u16 peekJOY1DATR() const;
     void pokeJOYTEST(u16 value);
@@ -620,7 +622,7 @@ public:
     template <isize x> void pokeSPRxDATA(u16 value);
     template <isize x> void pokeSPRxDATB(u16 value);
     
-    template <Accessor s, isize xx> void pokeCOLORxx(u16 value);
+    template <isize xx, Accessor s> void pokeCOLORxx(u16 value);
     
     
     //

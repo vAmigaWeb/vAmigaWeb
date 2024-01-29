@@ -192,17 +192,13 @@ private:
     void _reset(bool hard) override { RESET_SNAPSHOT_ITEMS(hard) }
     
     template <class T>
-    void applyToPersistentItems(T& worker)
+    void serialize(T& worker)
     {
+        if (util::isResetter(worker)) return;
+
         worker
 
         << config.filterType;
-    }
-    
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
-    {
-        
     }
 
     isize _size() override { COMPUTE_SNAPSHOT_SIZE }

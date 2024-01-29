@@ -73,13 +73,7 @@ private:
     void _inspect() const override;
     
     template <class T>
-    void applyToPersistentItems(T& worker)
-    {
-        
-    }
-    
-    template <class T>
-    void applyToResetItems(T& worker, bool hard = true)
+    void serialize(T& worker)
     {
         worker
 
@@ -162,10 +156,10 @@ public:
 private:
 
     // Called when a byte has been received
-    void recordIncomingByte(u8 byte);
+    void recordIncomingByte(int byte);
 
     // Called when a byte has been sent
-    void recordOutgoingByte(u16 byte);
+    void recordOutgoingByte(int byte);
 
 
     //
