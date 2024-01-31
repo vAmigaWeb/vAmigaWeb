@@ -230,7 +230,9 @@ Amiga::resetConfig()
         OPT_WARP_BOOT,
         OPT_WARP_MODE,
         OPT_SYNC_MODE,
-        OPT_PROPOSED_FPS
+        OPT_VSYNC,
+        OPT_TIME_LAPSE,
+        OPT_TIME_SLICES
     };
 
     for (auto &option : options) {
@@ -259,9 +261,17 @@ Amiga::getConfigItem(Option option) const
 
             return config.syncMode;
 
-        case OPT_PROPOSED_FPS:
+        case OPT_VSYNC:
 
-            return config.proposedFps;
+            return config.vsync;
+
+        case OPT_TIME_LAPSE:
+
+            return config.timeLapse;
+
+        case OPT_TIME_SLICES:
+
+            return config.timeSlices;
 
         case OPT_AGNUS_REVISION:
         case OPT_SLOW_RAM_MIRROR:
@@ -271,6 +281,7 @@ Amiga::getConfigItem(Option option) const
 
         case OPT_DENISE_REVISION:
         case OPT_VIEWPORT_TRACKING:
+        case OPT_FRAME_SKIPPING:
         case OPT_HIDDEN_BITPLANES:
         case OPT_HIDDEN_SPRITES:
         case OPT_HIDDEN_LAYERS:
@@ -321,6 +332,7 @@ Amiga::getConfigItem(Option option) const
         case OPT_SAMPLING_METHOD:
         case OPT_AUDVOLL:
         case OPT_AUDVOLR:
+        case OPT_AUD_FASTPATH:
         case OPT_FILTER_TYPE:
 
             return paula.muxer.getConfigItem(option);
@@ -343,6 +355,7 @@ Amiga::getConfigItem(Option option) const
         case OPT_CIA_REVISION:
         case OPT_TODBUG:
         case OPT_ECLOCK_SYNCING:
+        case OPT_CIA_IDLE_SLEEP:
 
             return ciaA.getConfigItem(option);
 
@@ -472,13 +485,27 @@ Amiga::setConfigItem(Option option, i64 value)
             config.syncMode = SyncMode(value);
             return;
 
-        case OPT_PROPOSED_FPS:
+        case OPT_VSYNC:
 
-            if (value < 25 || value > 120) {
-                throw VAError(ERROR_OPT_INVARG, "25...120");
+            config.vsync = bool(value);
+            return;
+
+        case OPT_TIME_LAPSE:
+
+            if (value < 50 || value > 200) {
+                throw VAError(ERROR_OPT_INVARG, "50...200");
             }
 
-            config.proposedFps = isize(value);
+            config.timeLapse = isize(value);
+            return;
+
+        case OPT_TIME_SLICES:
+
+            if (value < 1 || value > 4) {
+                throw VAError(ERROR_OPT_INVARG, "1...4");
+            }
+
+            config.timeSlices = isize(value);
             return;
 
         default:
@@ -507,6 +534,7 @@ Amiga::configure(Option option, i64 value)
         OPT_HDR_STEP_VOLUME,
         OPT_AUDVOLL,
         OPT_AUDVOLR,
+        OPT_AUD_FASTPATH,
         OPT_AUDPAN,
         OPT_AUDVOL
     };
@@ -520,7 +548,9 @@ Amiga::configure(Option option, i64 value)
         case OPT_WARP_BOOT:
         case OPT_WARP_MODE:
         case OPT_SYNC_MODE:
-        case OPT_PROPOSED_FPS:
+        case OPT_VSYNC:
+        case OPT_TIME_LAPSE:
+        case OPT_TIME_SLICES:
 
             setConfigItem(option, value);
             break;
@@ -534,6 +564,7 @@ Amiga::configure(Option option, i64 value)
 
         case OPT_DENISE_REVISION:
         case OPT_VIEWPORT_TRACKING:
+        case OPT_FRAME_SKIPPING:
         case OPT_HIDDEN_BITPLANES:
         case OPT_HIDDEN_SPRITES:
         case OPT_HIDDEN_LAYERS:
@@ -625,6 +656,7 @@ Amiga::configure(Option option, i64 value)
         case OPT_FILTER_TYPE:
         case OPT_AUDVOLL:
         case OPT_AUDVOLR:
+        case OPT_AUD_FASTPATH:
 
             paula.muxer.setConfigItem(option, value);
             break;
@@ -659,6 +691,7 @@ Amiga::configure(Option option, i64 value)
         case OPT_CIA_REVISION:
         case OPT_TODBUG:
         case OPT_ECLOCK_SYNCING:
+        case OPT_CIA_IDLE_SLEEP:
 
             ciaA.setConfigItem(option, value);
             ciaB.setConfigItem(option, value);
@@ -781,7 +814,8 @@ Amiga::configure(Option option, long id, i64 value)
         case OPT_CIA_REVISION:
         case OPT_TODBUG:
         case OPT_ECLOCK_SYNCING:
-
+        case OPT_CIA_IDLE_SLEEP:
+            
             assert(id == 0 || id == 1);
             if (id == 0) ciaA.setConfigItem(option, value);
             if (id == 1) ciaB.setConfigItem(option, value);
@@ -966,6 +1000,51 @@ Amiga::_inspect() const
     }
 }
 
+double 
+Amiga::nativeRefreshRate() const
+{
+    switch (config.type) {
+
+        case PAL:   return 50.0;
+        case NTSC:  return 60.0;
+
+        default:
+            fatalError;
+    }
+}
+
+i64
+Amiga::nativeMasterClockFrequency() const
+{
+    switch (config.type) {
+
+        case PAL:   return CLK_FREQUENCY_PAL;
+        case NTSC:  return CLK_FREQUENCY_NTSC;
+
+        default:
+            fatalError;
+    }
+}
+
+double
+Amiga::refreshRate() const
+{
+    if (config.syncMode == SYNC_PULSED && config.vsync) {
+
+        return host.getHostRefreshRate();
+
+    } else {
+
+        return nativeRefreshRate() * config.timeLapse / 100.0;
+    }
+}
+
+i64
+Amiga::masterClockFrequency() const
+{
+    return nativeMasterClockFrequency() * config.timeLapse / 100;
+}
+
 void
 Amiga::_dump(Category category, std::ostream& os) const
 {
@@ -980,8 +1059,7 @@ Amiga::_dump(Category category, std::ostream& os) const
         os << tab("Warp boot");
         os << dec(config.warpBoot) << " seconds" << std::endl;
         os << tab("Sync mode");
-        os << SyncModeEnum::key(config.syncMode);
-        if (config.syncMode == SYNC_FIXED_FPS) os << " (" << config.proposedFps << " fps)";
+        os << SyncModeEnum::key(config.syncMode) << std::endl;
         os << std::endl;
     }
 
@@ -1005,8 +1083,8 @@ Amiga::_dump(Category category, std::ostream& os) const
         os << flt(masterClockFrequency() / float(1000000.0)) << " MHz" << std::endl;
         os << tab("Thread state");
         os << ExecutionStateEnum::key(state) << std::endl;
-        os << tab("Thread mode");
-        os << ThreadModeEnum::key(getThreadMode()) << std::endl;
+        os << tab("Sync mode");
+        os << SyncModeEnum::key(getSyncMode()) << std::endl;
         os << std::endl;
 
         os << tab("Frame");
@@ -1209,10 +1287,10 @@ Amiga::save(u8 *buffer)
     return result;
 }
 
-ThreadMode
-Amiga::getThreadMode() const
+SyncMode
+Amiga::getSyncMode() const
 {
-    return config.syncMode == SYNC_VSYNC ? THREAD_PULSED : THREAD_ADAPTIVE;
+    return config.syncMode;
 }
 
 void
@@ -1320,44 +1398,26 @@ Amiga::execute()
     }
 }
 
-double
-Amiga::refreshRate() const
+util::Time
+Amiga::sliceDelay() const
 {
-    switch (config.syncMode) {
-
-        case SYNC_NATIVE_FPS:   return config.type == PAL ? 50.0 : 60.0;
-        case SYNC_FIXED_FPS:    return config.proposedFps;
-        case SYNC_VSYNC:        return host.getHostRefreshRate();
-
-        default:
-            fatalError;
-    }
+    return util::Time::seconds(100.0) / nativeRefreshRate() / config.timeLapse / config.timeSlices;
 }
 
 isize
-Amiga::missingFrames(util::Time base) const
+Amiga::missingSlices() const
 {
+    // In VSYNC mode, compute exactly one frame per wakeup call
+    if (config.vsync) return config.timeSlices;
+
     // Compute the elapsed time
-    auto elapsed = util::Time::now() - base;
+    auto elapsed = util::Time::now() - baseTime;
 
-    // Compute which frame should have been reached by now
-    auto targetFrame = elapsed.asNanoseconds() * i64(refreshRate()) / 1000000000;
+    // Compute which slice should be reached by now
+    auto target = config.timeSlices * elapsed.asNanoseconds() * i64(refreshRate()) / 1000000000;
 
-    // Compute the number of missing frames
-    return isize(targetFrame - agnus.pos.frame);
-}
-
-i64
-Amiga::masterClockFrequency() const
-{
-    switch (config.type) {
-
-        case PAL:   return i64(CLK_FREQUENCY_PAL * (refreshRate() / 50.0));
-        case NTSC:  return i64(CLK_FREQUENCY_NTSC * (refreshRate() / 60.0));
-
-        default:
-            fatalError;
-    }
+    // Compute the number of missing slices
+    return isize(target - sliceCounter);
 }
 
 void
@@ -1541,6 +1601,19 @@ Amiga::takeUserSnapshot()
     msgQueue.put(MSG_USER_SNAPSHOT_TAKEN);
 }
 
+void 
+Amiga::eolHandler()
+{
+    // Get the maximum number of rasterlines
+    auto lines = agnus.isPAL() ? VPOS_CNT_PAL : VPOS_CNT_NTSC;
+
+    // Check if we need to sync the thread
+    if (agnus.pos.v % ((lines / config.timeSlices) + 1) == 0) {
+
+        setFlag(RL::SYNC_THREAD);
+    }
+}
+
 void
 Amiga::setAlarmAbs(Cycle trigger, i64 payload)
 {
@@ -1656,6 +1729,7 @@ Amiga::setDebugVariable(const string &name, int val)
     else if (name == "MIMIC_UAE")        MIMIC_UAE       = val;
 
     else if (name == "RUN_DEBUG")        RUN_DEBUG       = val;
+    else if (name == "TIM_DEBUG")        TIM_DEBUG       = val;
     else if (name == "WARP_DEBUG")       WARP_DEBUG      = val;
     else if (name == "QUEUE_DEBUG")      QUEUE_DEBUG     = val;
     else if (name == "SNP_DEBUG")        SNP_DEBUG       = val;
@@ -1701,7 +1775,6 @@ Amiga::setDebugVariable(const string &name, int val)
     else if (name == "INTREG_DEBUG")     INTREG_DEBUG    = val;
     else if (name == "INT_DEBUG")        INT_DEBUG       = val;
 
-    else if (name == "CIA_ON_STEROIDS")  CIA_ON_STEROIDS = val;
     else if (name == "CIAREG_DEBUG")     CIAREG_DEBUG    = val;
     else if (name == "CIASER_DEBUG")     CIASER_DEBUG    = val;
     else if (name == "CIA_DEBUG")        CIA_DEBUG       = val;

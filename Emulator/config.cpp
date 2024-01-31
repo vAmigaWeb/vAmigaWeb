@@ -18,6 +18,7 @@ debugflag MIMIC_UAE       = 0; // Enable to compare debug logs with UAE
 
 // Runloop
 debugflag RUN_DEBUG       = 0; // Run loop, component states
+debugflag TIM_DEBUG       = 0; // Thread synchronization
 debugflag WARP_DEBUG      = 0; // Warp mode
 debugflag QUEUE_DEBUG     = 0; // Message queue
 debugflag SNP_DEBUG       = 0; // Serialization (snapshots)
@@ -71,7 +72,6 @@ debugflag INTREG_DEBUG    = 0; // Interrupt registers
 debugflag INT_DEBUG       = 0; // Interrupt logic
 
 // CIAs
-debugflag CIA_ON_STEROIDS = 0; // Keep the CIAs awake all the time
 debugflag CIAREG_DEBUG    = 0; // CIA registers
 debugflag CIASER_DEBUG    = 0; // CIA serial register
 debugflag CIA_DEBUG       = 0; // CIA execution

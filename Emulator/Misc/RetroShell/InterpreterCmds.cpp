@@ -239,12 +239,25 @@ Interpreter::initCommandShell(Command &root)
         amiga.configure(OPT_SYNC_MODE, parseEnum <SyncModeEnum> (argv));
     });
 
-    root.add({"amiga", "set", "fps"}, { Arg::value },
-             "Sets the frames per seconds",
+    root.add({"amiga", "set", "vsync"}, { Arg::onoff },
+             "Enables or disables VSYNC",
              [this](Arguments& argv, long value) {
 
-        amiga.configure(OPT_PROPOSED_FPS, parseNum(argv));
-        amiga.configure(OPT_SYNC_MODE, SYNC_FIXED_FPS);
+        amiga.configure(OPT_VSYNC, parseBool(argv));
+    });
+
+    root.add({"amiga", "set", "timelapse"}, { Arg::value },
+             "Increases or decreases the native frame rate",
+             [this](Arguments& argv, long value) {
+
+        amiga.configure(OPT_TIME_LAPSE, parseNum(argv));
+    });
+
+    root.add({"amiga", "set", "timeslices"}, { Arg::value },
+             "Sets how often the thread starts and stops per frame",
+             [this](Arguments& argv, long value) {
+
+        amiga.configure(OPT_TIME_SLICES, parseNum(argv));
     });
 
     root.add({"amiga", "power"}, { Arg::onoff },
@@ -472,8 +485,17 @@ Interpreter::initCommandShell(Command &root)
             amiga.configure(OPT_ECLOCK_SYNCING, value, parsed);
 
         }, i);
+
+        root.add({cia, "set", "idling"}, { Arg::boolean },
+                 "Turns idle-logic on or off",
+                 [this](Arguments& argv, long value) {
+
+            auto parsed = parseBool(argv);
+            amiga.configure(OPT_CIA_IDLE_SLEEP, value, parsed);
+
+        }, i);
     }
-    
+
     
     //
     // Agnus
@@ -565,6 +587,13 @@ Interpreter::initCommandShell(Command &root)
              [this](Arguments& argv, long value) {
 
         amiga.configure(OPT_VIEWPORT_TRACKING, parseBool(argv));
+    });
+
+    root.add({"denise", "set", "frameskip"}, { Arg::value },
+             "Sets the number of skipped frames in warp mode",
+             [this](Arguments& argv, long value) {
+
+        amiga.configure(OPT_FRAME_SKIPPING, parseNum(argv));
     });
 
     root.add({"denise", "set", "clxsprspr"}, { Arg::boolean },
@@ -848,6 +877,13 @@ Interpreter::initCommandShell(Command &root)
              [this](Arguments& argv, long value) {
 
         amiga.configure(OPT_AUDPAN, 3, parseNum(argv));
+    });
+
+    root.add({"paula", "audio", "set", "fastpath"}, { Arg::value },
+             "Enables or disables the fast path if no audio is playing",
+             [this](Arguments& argv, long value) {
+
+        amiga.configure(OPT_AUD_FASTPATH, parseBool(argv));
     });
 
 

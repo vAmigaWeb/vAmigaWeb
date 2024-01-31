@@ -34,13 +34,16 @@ Defaults::Defaults()
     setFallback(OPT_VIDEO_FORMAT, PAL);
     setFallback(OPT_WARP_BOOT, 0);
     setFallback(OPT_WARP_MODE, WARP_NEVER);
-    setFallback(OPT_SYNC_MODE, SYNC_NATIVE_FPS);
-    setFallback(OPT_PROPOSED_FPS, 60);
+    setFallback(OPT_SYNC_MODE, SYNC_PULSED);
+    setFallback(OPT_VSYNC, false);
+    setFallback(OPT_TIME_LAPSE, 100);
+    setFallback(OPT_TIME_SLICES, 1);
     setFallback(OPT_AGNUS_REVISION, AGNUS_ECS_1MB);
     setFallback(OPT_SLOW_RAM_MIRROR, true);
     setFallback(OPT_PTR_DROPS, true);
     setFallback(OPT_DENISE_REVISION, DENISE_OCS);
     setFallback(OPT_VIEWPORT_TRACKING, true);
+    setFallback(OPT_FRAME_SKIPPING, 16);
     setFallback(OPT_PALETTE, PALETTE_COLOR);
     setFallback(OPT_BRIGHTNESS, 50);
     setFallback(OPT_CONTRAST, 100);
@@ -113,6 +116,7 @@ Defaults::Defaults()
     setFallback(OPT_CIA_REVISION, CIA_MOS_8520_DIP);
     setFallback(OPT_TODBUG, true);
     setFallback(OPT_ECLOCK_SYNCING, true);
+    setFallback(OPT_CIA_IDLE_SLEEP, true);
     setFallback(OPT_ACCURATE_KEYBOARD, true);
     setFallback(OPT_PULLUP_RESISTORS, true);
     setFallback(OPT_SHAKE_DETECTION, true);
@@ -127,6 +131,7 @@ Defaults::Defaults()
     setFallback(OPT_AUDVOL, { 0, 1, 2, 3 }, 100);
     setFallback(OPT_AUDVOLL, 50);
     setFallback(OPT_AUDVOLR, 50);
+    setFallback(OPT_AUD_FASTPATH, true);
     setFallback(OPT_DIAG_BOARD, false);
     setFallback(OPT_SRV_PORT, SERVER_SER, 8080);
     setFallback(OPT_SRV_PROTOCOL, SERVER_SER, SRVPROT_DEFAULT);

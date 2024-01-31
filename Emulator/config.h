@@ -15,15 +15,15 @@
 
 // Version number
 #define VER_MAJOR 2
-#define VER_MINOR 5
+#define VER_MINOR 6
 #define VER_SUBMINOR 0
-#define VER_BETA 0
+#define VER_BETA 1
 
 // Snapshot version number
 #define SNP_MAJOR 2
-#define SNP_MINOR 5
+#define SNP_MINOR 6
 #define SNP_SUBMINOR 0
-#define SNP_BETA 0
+#define SNP_BETA 1
 
 // Uncomment this setting in a release build
 #define RELEASEBUILD
@@ -138,6 +138,7 @@ extern debugflag MIMIC_UAE;
 
 // Runloop
 extern debugflag RUN_DEBUG;
+extern debugflag TIM_DEBUG;
 extern debugflag WARP_DEBUG;
 extern debugflag QUEUE_DEBUG;
 extern debugflag SNP_DEBUG;
@@ -191,7 +192,6 @@ extern debugflag INTREG_DEBUG;
 extern debugflag INT_DEBUG;
 
 // CIAs
-extern debugflag CIA_ON_STEROIDS;
 extern debugflag CIAREG_DEBUG;
 extern debugflag CIASER_DEBUG;
 extern debugflag CIA_DEBUG;

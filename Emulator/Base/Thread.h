@@ -16,10 +16,13 @@
 
 namespace vamiga {
 
-/* This class manages the emulator thread that runs side by side with the GUI.
- * The thread exists during the lifetime of the emulator instance, but may not
- * execute the emulator all the time. The exact behavior is controlled by the
- * internal state. Five states are distinguished:
+/* This class manages the emulator thread that runs alongside the GUI. The
+ * thread exists during the emulator's lifetime but, depending on the internal
+ * state may not always run the emulator.
+ *
+ * 1. Thread states:
+ *
+ * The following states are distinguished:
  *
  *        Off: The emulator is turned off
  *     Paused: The emulator is turned on, but not running
@@ -76,26 +79,27 @@ namespace vamiga {
  * ------------------------------------------------------------------------
  * halt()     | --        | halted    | _halt()
  *
- * When an instance of the Thread class is created, a new thread is started
- * which executes the thread's main() function. This function executes
- * a loop which periodically calls function execute(). After each iteration,
- * the thread is put to sleep to synchronize timing.
+ * Inside the main() function, the thread executes an infinite loop that
+ * periodically calls function execute(). After each iteration, the thread is
+ * put to sleep to synchronize timing.
+ *
+ * 2. Suspend / Resume:
  *
  * The Thread class provides a suspend-resume mechanism for pausing the thread
- * temporarily. This functionality is utilized frequently by the GUI to carry
- * out atomic operations that cannot be performed while the emulator is running.
- * To pause the emulator temporarily, the critical code section can be embedded
- * in a suspend/resume block like this:
+ * temporarily. The GUI utilizes this functionality to carry out atomic
+ * operations that must not be performed while the emulator runs. To pause the
+ * emulator temporarily, critical code sections can be embedded in a
+ * suspend/resume block like so:
  *
  *       suspend();
  *       do something with the internal state;
  *       resume();
  *
- * It it safe to nest multiple suspend/resume blocks, but it is essential
- * that each call to suspend() is followed by a call to resume(). As a result,
- * the critical code section must not be exited in the middle, e.g., by
- * throwing an exception. It is therefore recommended to use the SUSPENDED
- * macro which is exit-safe. It is used in the following way:
+ * It is safe to nest multiple suspend/resume blocks, but it is essential that
+ * each call to suspend() is followed by a call to resume(). As a result, the
+ * critical code section must not be exited in the middle, e.g., by throwing an
+ * exception. It is therefore recommended to use the exit-safe SUSPENDED macro.
+ * It is used in the following way:
  *
  *    {  SUSPENDED
  *
@@ -103,41 +107,49 @@ namespace vamiga {
  *       return or throw an exceptions as you like;
  *    }
  *
- * The Thread class is also responsible for timing synchronization. I.e., it
- * has to ensure that the proper amount of frames are executed per second.
- * Three different synchronization modes are supported:
+ * 3. Synchronization:
+ *
+ * The Thread class is responsible for timing synchronization. I.e., it has to
+ * ensure that the proper number of frames is executed per second. Two
+ * synchronization modes are supported:
  *
  * - Periodic:
  *
- *   In periodic mode the thread puts itself to sleep and utilizes a timer to
- *   schedule a wakeup call. In this mode, no further action has to be taken
- *   by the GUI. This method had been the default mode used by vAmiga up to
- *   version 2.3.
+ *   In periodic mode, the thread puts itself to sleep and utilizes a timer to
+ *   schedule a wakeup call. The GUI does not have to take further action. This
+ *   method was the default mode used by earlier versions of the emulator.
  *
  * - Pulsed:
  *
- *   In pulsed mode, the thread waits for an external wake-up signal that has
- *   to be sent by the GUI. When the wake-up signal is received, a single frame
- *   is computed. vAmiga uses this mode to implement VSYNC.
+ *   In pulsed mode, the thread waits for an external wakeup signal the GUI is
+ *   supposed to send after each VSYNC tick. When the signal is received, the
+ *   thread calls missingSlices(), which has to be provided by the subclass.
+ *   This function tells the thread the number of time slices it needs to
+ *   compute.
  *
- * - Adaptive:
+ * The number of time slices per frame controls the size of a single
+ * computation chunk. Per default, the emulator computes an entire frame in a
+ * single chunk. That is, it computes a frame, sleeps, computes a frame, sleeps,
+ * and so on. A frame can be time-sliced to make the emulator more responsive
+ * and let it react faster to external events such as joystick movements. For
+ * example, if the number of time slices per frame is set to two, the thread
+ * computes the first half of the current frame, sleeps, computes the second
+ * half of the current frame, sleeps, and so on. Note that an increased number
+ * of time slices increases CPU load and jitter, even in pulsed mode. Jitter
+ * may increase because time slices are distributed equally between two wake-up
+ * events. Hence, later chunks are computed closer to the next wake-up event
+ * and may, therefore, interfere with the VSYNC event of the host computer.
  *
- *   In adaptive mode, the thread waits for an external wake-up signal just as
- *   it does in pulsed mode. When the wake-up signal comes in, the thread
- *   computes the number of missing frames based on the current time and the
- *   time the thread had been lauchen. Then it executes all missing frames or
- *   resynchronizes if the number of missing frames is way off. Adaptive mode
- *   has been introduced in vAmiga 2.4 as a replacement for Pulsed mode.
+ * 4. Warp mode:
  *
- * To speed up emulation (e.g., during disk accesses), the emulator may be put
- * into warp mode. In this mode, timing synchronization is disabled causing the
- * emulator to run as fast as possible.
- *
- * Similar to warp mode, the emulator may be put into track mode. This mode is
- * enabled when the GUI debugger is opend and disabled when the debugger is
- * closed. In track mode, several time-consuming tasks are performed that are
- * usually left out. E.g., the CPU tracks all executed instructions and stores
- * the recorded information in a trace buffer.
+ * Emulation can be sped up by activating warp mode (e.g., during disk
+ * accesses). In this mode, timing synchronization is disabled, letting the
+ * emulator run as fast as possible. Similar to warp mode, the emulator can
+ * enter track mode. This mode is enabled when the user opens the GUI debugger
+ * and disabled when the debugger is closed. In track mode, several
+ * time-consuming tasks are performed that are usually left out. E.g., the CPU
+ * tracks all executed instructions and stores the recorded information in a
+ * trace buffer.
  */
 
 class Thread : public CoreComponent, util::Wakeable {
@@ -159,21 +171,27 @@ protected:
     u8 track = 0;
 
     // Counters
-    isize loopCounter = 0;
     isize suspendCounter = 0;
+    isize sliceCounter = 0;
 
-    // Reference time stamp for adaptive sync
+    // Time stamps for calculating wakeup times
     util::Time baseTime;
-
-    // Time stamp for adjusting execution speed
+    util::Time deltaTime;
     util::Time targetTime;
 
+    // Number of time slices that need to be computed
+    isize missing = 0;
+    
     // Clocks for measuring the CPU load
     util::Clock nonstopClock;
     util::Clock loadClock;
 
-    // The current CPU load (%)
+    // The current CPU load in percent
     double cpuLoad = 0.0;
+
+    // Debug clocks
+    util::Clock execClock;
+    util::Clock wakeupClock;
 
     
     //
@@ -194,25 +212,31 @@ public:
 
 private:
     
-    template <ThreadMode M> void execute();
-    template <ThreadMode M> void sleep();
+    // The code to be executed in each iteration (implemented by the subclass)
+    virtual void execute() = 0;
+
+    // Interval between two time slices (provided by the subclass)
+    virtual util::Time sliceDelay() const = 0;
+
+    // Number of overdue time slices (used in pulsed sync mode)
+    virtual isize missingSlices() const = 0;
+
+    // Rectifies an out-of-sync condition by resetting all counters and clocks
+    void resync();
+
+    // Executes a single time slice (if one is pending)
+    template <SyncMode M> void execute();
+
+    // Suspends the thread until the next time slice is due
+    template <SyncMode M> void sleep();
 
     // The main entry point (called when the thread is created)
     void main();
 
-    // The code to be executed in each iteration (implemented by the subclass)
-    virtual void execute() = 0;
+public:
 
-    // Target frame rate of this thread (provided by the subclass)
-    virtual double refreshRate() const = 0;
-
-    // Returns the number of frames to compute (provided by the subclass)
-    virtual isize missingFrames(util::Time base) const = 0;
-    
     // Returns true if this functions is called from within the emulator thread
     bool isEmulatorThread() { return std::this_thread::get_id() == thread.get_id(); }
-
-public:
     
     // Performs a state change
     void switchState(ExecutionState newState);
@@ -272,9 +296,9 @@ protected:
 public:
 
     // Provides the current sync mode
-    virtual ThreadMode getThreadMode() const = 0;
+    virtual SyncMode getSyncMode() const = 0;
 
-    // Awakes the thread if it runs in pulse mode
+    // Awakes the thread if it runs in pulse mode or adaptive mode
     void wakeUp();
 
 private:
