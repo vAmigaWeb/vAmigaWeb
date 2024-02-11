@@ -1836,7 +1836,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
   if(strcmp(option,"warp_to_frame") == 0 )
   {
     auto warp_to_frame= util::parseNum(value);
-    wrapper->amiga->configure(OPT_WARP_BOOT, SEC(warp_to_frame)/(wrapper->amiga->agnus.isPAL()?50:60));
+    wrapper->amiga->configure(OPT_WARP_BOOT, warp_to_frame/(wrapper->amiga->agnus.isPAL()?50:60));
     wrapper->amiga->reset(false); //agnus.reset() schedules warp_off therefore we have to reset here after changing warp_boot 
     return config_result;
   }
