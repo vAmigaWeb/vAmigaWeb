@@ -856,9 +856,9 @@ function configure_file_dialog(reset=false)
                     var list='<ul id="ui_file_list" class="list-group">';
                     var mountable_count=0;
                     zip.forEach(function (relativePath, zipfile){
-                        if(!relativePath.startsWith("__MACOSX"))
+                        if(!relativePath.startsWith("__MACOSX") && !zipfile.dir)
                         {
-                            var mountable = relativePath.toLowerCase().match(/[.](zip|adf|hdf|dms|exe|vAmiga)$/i);
+                            let mountable = true; //relativePath.toLowerCase().match(/[.](zip|adf|hdf|dms|exe|vAmiga)$/i) || true;
                             list+='<li '+
                             (mountable ? 'id="li_fileselect'+mountable_count+'"':'')
                             +' class="list-group-item list-group-item-action'+ 
@@ -880,9 +880,12 @@ function configure_file_dialog(reset=false)
                         $(this).parent().find('li').removeClass('active');
                         $(this).addClass('active');
                         $("#button_insert_file").attr("disabled", true);
-                        var path = $(this).text();
-                        uncompress_progress='0';
-                        zip.file(path).async("uint8array", 
+                        let path = $(this).text();
+                        let f=zip.file(path);
+                        if(f!==null)
+                        {
+                            uncompress_progress='0';
+                            f.async("uint8array", 
                             function updateCallback(metadata) {
                                 //console.log("progression: " + metadata.percent.toFixed(2) + " %");
                                 let current_progress=metadata.percent.toFixed(0);
@@ -893,6 +896,10 @@ function configure_file_dialog(reset=false)
                                 }
                             }).then(function (u8) {
                                 file_slot_file_name=path;
+                                if(!path.toLowerCase().match(/[.](zip|adf|hdf|dms|exe|vAmiga)$/i))
+                                {
+                                    file_slot_file_name+=".disk";
+                                }
                                 file_slot_file=u8;
 
                                 if(mountable_count==1)
@@ -906,6 +913,7 @@ function configure_file_dialog(reset=false)
                                 }
                                 uncompress_progress=null;
                             });
+                        }
                     });
                     if(mountable_count>1)
                     {
@@ -957,10 +965,25 @@ function configure_file_dialog(reset=false)
                 $("#button_insert_file").html("mount file"+return_icon);
                 $("#button_insert_file").attr("disabled", true);
             }
-            else if(file_slot_file_name.match(/[.](adf|hdf|dms|exe|vAmiga)$/i))
+            else if(file_slot_file_name.match(/[.](adf|hdf|dms|exe|vAmiga|disk)$/i))
             {
                 prompt_for_drive();
             }
+            else
+            {
+                const header =new TextDecoder().decode(file_slot_file.subarray(0,8));
+                if(header == "UAE-1ADF"||header == "UAE--ADF")
+                {//extended adf
+                    file_slot_file_name+=".adf";
+                    prompt_for_drive();
+                }
+                else
+                {
+                    file_slot_file_name+=".disk";
+                    prompt_for_drive();
+                }
+            }
+
         }    
     } catch(e) {
         console.log(e);
@@ -983,7 +1006,7 @@ function prompt_for_drive()
         }
     }
 
-    if(file_slot_file_name.match(/[.](adf|dms|exe)$/i))
+    if(file_slot_file_name.match(/[.](adf|dms|exe|disk)$/i))
     {
         let df_count=0;
         for(let i = 0; i<4;i++)
@@ -996,9 +1019,16 @@ function prompt_for_drive()
         }
         else
         {
-            let drv_html=`${cancel}
-            <div id="drive_select_file" class="gc_choice_text">insert <span class="mx-2 px-2">${file_slot_file_name}</span> into</div>
-            <div id="drive_select_choice">`;
+            let drv_html=
+                file_slot_file_name.endsWith('.disk')?
+                `${cancel}
+                <div id="drive_select_file" class="gc_choice_text">import file <span class="mx-2 px-2">${file_slot_file_name.replace(".disk","")}</span> as disk into</div>`
+                :
+                `${cancel}
+                <div id="drive_select_file" class="gc_choice_text">insert <span class="mx-2 px-2">${file_slot_file_name}</span> into</div>`;
+                       
+            drv_html+=`<div id="drive_select_choice">`;
+
             for(var dn=0;dn<df_count;dn++)
             {
                 drv_html+=`<button type="button" class="btn btn-primary m-1 mb-2" style="width:20vw" onclick="insert_file(${dn});show_drive_select(false);">df${dn}:</button>`;

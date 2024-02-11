@@ -16,6 +16,7 @@
 #include "HDFFile.h"
 #include "Snapshot.h"
 #include "EADFFile.h"
+#include "OtherFile.h"
 
 #include "MemUtils.h"
 
@@ -1226,34 +1227,53 @@ extern "C" void wasm_set_display(const char *name)
 std::unique_ptr<FloppyDisk> load_disk(const char* filename, u8 *blob, long len)
 {
   try {
+    printf("file content starts with %.*s\n",8, blob );
+
     if (DMSFile::isCompatible(filename)) {
       printf("%s - Loading DMS file\n", filename);
       DMSFile dms{blob, len};
       return std::make_unique<FloppyDisk>(dms);
     }
-    if (ADFFile::isCompatible(filename)) {
-      printf("%s - Loading ADF file\n", filename);
-      try {
-        ADFFile adf{blob, len};
-        return std::make_unique<FloppyDisk>(adf);
-      } catch (const VAError& e) {
-        // Maybe it's an extended ADF?
-        printf("Error loading %s - %s. Trying to load as extended ADF\n", filename, e.what());
+
+    if (strcmp((char*)blob, "UAE--ADF")==0 || strcmp((char*)blob, "UAE-1ADF")==0) {
+        printf("compatible extadf\n");
         EADFFile ext{blob, len};
         return std::make_unique<FloppyDisk>(ext);
-      }
     }
+
+    if (ADFFile::isCompatible(filename)) {
+      printf("%s - Loading ADF file\n", filename);
+      ADFFile adf{blob, len};
+      return std::make_unique<FloppyDisk>(adf);
+    }
+  
     if (EXEFile::isCompatible(filename)) {
       printf("%s - Loading EXE file\n", filename);
       EXEFile exe{blob, len};
       return std::make_unique<FloppyDisk>(exe);
     }
+
+    if (OtherFile::isCompatible(filename)) {
+      if(len > 1710000)
+      { 
+        EM_ASM(
+        {
+          alert(`Error loading ${UTF8ToString($0)} to disk - sorry, only files below 1.71MB can be mounted as disk.`);
+        }, filename);
+      }
+      else {
+        printf("%s - import as disk\n", filename);
+        OtherFile other{filename,blob, len};
+        return std::make_unique<FloppyDisk>(other);
+      }
+    }
+
   } catch (const VAError& e) {
     printf("Error loading %s - %s\n", filename, e.what());
     EM_ASM(
     {
-        alert( UTF8ToString($0) );
-    }, e.what() );    
+      alert(`Error loading ${UTF8ToString($0)} - ${UTF8ToString($1)}`);
+    }, filename, e.what());    
   }
   return {};
 }
