@@ -23,8 +23,10 @@ enum_long(OPT)
     OPT_WARP_BOOT,
     OPT_WARP_MODE,
     OPT_SYNC_MODE,
-    OPT_PROPOSED_FPS,
-    
+    OPT_VSYNC,
+    OPT_TIME_LAPSE,
+    OPT_TIME_SLICES,
+
     // Agnus
     OPT_AGNUS_REVISION,
     OPT_SLOW_RAM_MIRROR,
@@ -33,7 +35,8 @@ enum_long(OPT)
     // Denise
     OPT_DENISE_REVISION,
     OPT_VIEWPORT_TRACKING,
-    
+    OPT_FRAME_SKIPPING,
+
     // Pixel engine
     OPT_PALETTE,
     OPT_BRIGHTNESS,
@@ -113,7 +116,8 @@ enum_long(OPT)
     OPT_CIA_REVISION,
     OPT_TODBUG,
     OPT_ECLOCK_SYNCING,
-    
+    OPT_CIA_IDLE_SLEEP,
+
     // Keyboard
     OPT_ACCURATE_KEYBOARD,
     
@@ -134,7 +138,8 @@ enum_long(OPT)
     OPT_AUDVOL,
     OPT_AUDVOLL,
     OPT_AUDVOLR,
-    
+    OPT_AUD_FASTPATH,
+
     // Expansion boards
     OPT_DIAG_BOARD,
     
@@ -150,7 +155,7 @@ typedef OPT Option;
 struct OptionEnum : util::Reflection<OptionEnum, Option>
 {    
     static constexpr long minVal = 0;
-    static constexpr long maxVal = OPT_AUDVOLR;
+    static constexpr long maxVal = OPT_SRV_VERBOSE;
     static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "OPT"; }
@@ -162,7 +167,9 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
             case OPT_WARP_BOOT:             return "WARP_BOOT";
             case OPT_WARP_MODE:             return "WARP_MODE";
             case OPT_SYNC_MODE:             return "SYNC_MODE";
-            case OPT_PROPOSED_FPS:          return "PROPOSED_FPS";
+            case OPT_VSYNC:                 return "VSYNC";
+            case OPT_TIME_LAPSE:            return "TIME_LAPSE";
+            case OPT_TIME_SLICES:           return "TIME_SLICES";
 
             case OPT_AGNUS_REVISION:        return "AGNUS_REVISION";
             case OPT_SLOW_RAM_MIRROR:       return "SLOW_RAM_MIRROR";
@@ -170,6 +177,7 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
                 
             case OPT_DENISE_REVISION:       return "DENISE_REVISION";
             case OPT_VIEWPORT_TRACKING:     return "VIEWPORT_TRACKING";
+            case OPT_FRAME_SKIPPING:        return "OPT_FRAME_SKIPPING";
                 
             case OPT_PALETTE:               return "PALETTE";
             case OPT_BRIGHTNESS:            return "BRIGHTNESS";
@@ -237,7 +245,8 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
             case OPT_CIA_REVISION:          return "CIA_REVISION";
             case OPT_TODBUG:                return "TODBUG";
             case OPT_ECLOCK_SYNCING:        return "ECLOCK_SYNCING";
-                
+            case OPT_CIA_IDLE_SLEEP:        return "CIA_IDLE_SLEEP";
+
             case OPT_ACCURATE_KEYBOARD:     return "ACCURATE_KEYBOARD";
 
             case OPT_PULLUP_RESISTORS:      return "PULLUP_RESISTORS";
@@ -254,6 +263,7 @@ struct OptionEnum : util::Reflection<OptionEnum, Option>
             case OPT_AUDVOL:                return "AUDVOL";
             case OPT_AUDVOLL:               return "AUDVOLL";
             case OPT_AUDVOLR:               return "AUDVOLR";
+            case OPT_AUD_FASTPATH:          return "AUD_FASTPATH";
 
             case OPT_DIAG_BOARD:            return "DIAG_BOARD";
 

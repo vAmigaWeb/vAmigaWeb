@@ -226,8 +226,12 @@ private:
         worker
 
         << config.type
+        << config.warpMode
+        << config.warpBoot
         << config.syncMode
-        << config.proposedFps;
+        << config.vsync
+        << config.timeLapse
+        << config.timeSlices;
     }
 
 public:
@@ -249,15 +253,13 @@ private:
 
 private:
 
-    ThreadMode getThreadMode() const override;
+    SyncMode getSyncMode() const override;
 
 public:
     void execute() override;
 
-    double refreshRate() const override;
-    isize missingFrames(util::Time base) const override;
-
-    i64 masterClockFrequency() const; // TODO: MOVE TO ANOTHER SECTION (NOT A THREAD METHOD)
+    util::Time sliceDelay() const override;
+    isize missingSlices() const override;
 
 
     //
@@ -302,7 +304,19 @@ public:
     void setInspectionTarget(InspectionTarget target, Cycle trigger = 0);
     void removeInspectionTarget() { setInspectionTarget(INSPECTION_NONE); }
 
+    // Returns the native refresh rate of the emulated Amiga (50Hz or 60Hz)
+    double nativeRefreshRate() const;
 
+    // Returns the native master clock frequency
+    i64 nativeMasterClockFrequency() const;
+
+    // Returns the emulated refresh rate
+    double refreshRate() const;
+
+    // Returns the master clock frequency based on the emulated refresh rate
+    i64 masterClockFrequency() const;
+
+    
     //
     // Running the emulator
     //
@@ -382,10 +396,13 @@ private:
 
 
     //
-    // Handling alarms
+    // Managing events
     //
 
 public:
+
+    // End-of-line handler
+    void eolHandler();
 
     /* Alarms are scheduled notifications set by the client (GUI). Once the
      * trigger cycle of an alarm has been reached, the emulator sends a

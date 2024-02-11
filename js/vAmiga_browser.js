@@ -1,5 +1,5 @@
-const vAmigaWeb_version="2.5.0"; //minimum requirement for snapshot version to be compatible
-const compatible_snapshot_version_format=/^(2[.]5[.]0)$/g
+const vAmigaWeb_version="2.6.0"; //minimum requirement for snapshot version to be compatible
+const compatible_snapshot_version_format=/^(2[.]6[.]0)$/g
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 
