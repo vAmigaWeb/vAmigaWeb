@@ -1022,7 +1022,7 @@ function prompt_for_drive()
             let drv_html=
                 file_slot_file_name.endsWith('.disk')?
                 `${cancel}
-                <div id="drive_select_file" class="gc_choice_text">import file <span class="mx-2 px-2">${file_slot_file_name.replace(".disk","")}</span> as disk into</div>`
+                <div id="drive_select_file" class="gc_choice_text">import <span class="mx-2 px-2">${file_slot_file_name.replace(".disk","")}</span> as disk and insert into</div>`
                 :
                 `${cancel}
                 <div id="drive_select_file" class="gc_choice_text">insert <span class="mx-2 px-2">${file_slot_file_name}</span> into</div>`;
