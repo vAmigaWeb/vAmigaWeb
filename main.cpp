@@ -1226,54 +1226,45 @@ extern "C" void wasm_set_display(const char *name)
 
 std::unique_ptr<FloppyDisk> load_disk(const char* filename, u8 *blob, long len)
 {
-  try {
-    printf("file content starts with %.*s\n",8, blob );
+  printf("file content starts with %.*s\n",8, blob );
 
-    if (DMSFile::isCompatible(filename)) {
-      printf("%s - Loading DMS file\n", filename);
-      DMSFile dms{blob, len};
-      return std::make_unique<FloppyDisk>(dms);
-    }
+  if (DMSFile::isCompatible(filename)) {
+    printf("%s - Loading DMS file\n", filename);
+    DMSFile dms{blob, len};
+    return std::make_unique<FloppyDisk>(dms);
+  }
 
-    if (strcmp((char*)blob, "UAE--ADF")==0 || strcmp((char*)blob, "UAE-1ADF")==0) {
-        printf("compatible extadf\n");
-        EADFFile ext{blob, len};
-        return std::make_unique<FloppyDisk>(ext);
-    }
+  if (strcmp((char*)blob, "UAE--ADF")==0 || strcmp((char*)blob, "UAE-1ADF")==0) {
+      printf("compatible extadf\n");
+      EADFFile ext{blob, len};
+      return std::make_unique<FloppyDisk>(ext);
+  }
 
-    if (ADFFile::isCompatible(filename)) {
-      printf("%s - Loading ADF file\n", filename);
-      ADFFile adf{blob, len};
-      return std::make_unique<FloppyDisk>(adf);
-    }
-  
-    if (EXEFile::isCompatible(filename)) {
-      printf("%s - Loading EXE file\n", filename);
-      EXEFile exe{blob, len};
-      return std::make_unique<FloppyDisk>(exe);
-    }
+  if (ADFFile::isCompatible(filename)) {
+    printf("%s - Loading ADF file\n", filename);
+    ADFFile adf{blob, len};
+    return std::make_unique<FloppyDisk>(adf);
+  }
 
-    if (OtherFile::isCompatible(filename)) {
-      if(len > 1710000)
-      { 
-        EM_ASM(
-        {
-          alert(`Error loading ${UTF8ToString($0)} to disk - sorry, only files below 1.71MB can be mounted as disk.`);
-        }, filename);
-      }
-      else {
-        printf("%s - import as disk\n", filename);
-        OtherFile other{filename,blob, len};
-        return std::make_unique<FloppyDisk>(other);
-      }
-    }
+  if (EXEFile::isCompatible(filename)) {
+    printf("%s - Loading EXE file\n", filename);
+    EXEFile exe{blob, len};
+    return std::make_unique<FloppyDisk>(exe);
+  }
 
-  } catch (const VAError& e) {
-    printf("Error loading %s - %s\n", filename, e.what());
-    EM_ASM(
-    {
-      alert(`Error loading ${UTF8ToString($0)} - ${UTF8ToString($1)}`);
-    }, filename, e.what());    
+  if (OtherFile::isCompatible(filename)) {
+    if(len > 1710000)
+    { 
+      EM_ASM(
+      {
+        alert(`Error loading ${UTF8ToString($0)} to disk - sorry, only files below 1.71MB can be mounted as disk.`);
+      }, filename);
+    }
+    else {
+      printf("%s - import as disk\n", filename);
+      OtherFile other{filename,blob, len};
+      return std::make_unique<FloppyDisk>(other);
+    }
   }
   return {};
 }
@@ -1286,18 +1277,31 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
   {
     return "";
   }
-  if (auto disk = load_disk(name, blob, len)) {
-    if(drive_number==0)
-      wrapper->amiga->df0.swapDisk(std::move(disk));
-    else if(drive_number==1)
-      wrapper->amiga->df1.swapDisk(std::move(disk));
-    else if(drive_number==2)
-      wrapper->amiga->df2.swapDisk(std::move(disk));
-    else if(drive_number==3)
-      wrapper->amiga->df3.swapDisk(std::move(disk));
+  try{
+    if (auto disk = load_disk(name, blob, len)) {
+      if(drive_number>0)
+      {//configure correct disk drive type (df0 does only accept DD, no HD)
+        wrapper->amiga->configure(OPT_DRIVE_TYPE, drive_number, disk->density==DENSITY_DD? DRIVE_DD_35:DRIVE_HD_35 );
+      }
+      if(drive_number==0)
+        wrapper->amiga->df0.swapDisk(std::move(disk));
+      else if(drive_number==1)
+        wrapper->amiga->df1.swapDisk(std::move(disk));
+      else if(drive_number==2)
+        wrapper->amiga->df2.swapDisk(std::move(disk));
+      else if(drive_number==3)
+        wrapper->amiga->df3.swapDisk(std::move(disk));
 
-    return "";
+      return "";
+    }
+  } catch (const VAError& e) {
+    printf("Error loading %s - %s\n", filename, e.what());
+    EM_ASM(
+    {
+      alert(`Error loading ${UTF8ToString($0)} - ${UTF8ToString($1)}`);
+    }, filename, e.what());    
   }
+
 
   if (HDFFile::isCompatible(filename)) {
     printf("is hdf\n");
