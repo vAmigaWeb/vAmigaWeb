@@ -967,7 +967,15 @@ function configure_file_dialog(reset=false)
             }
             else if(file_slot_file_name.match(/[.](adf|hdf|dms|exe|vAmiga|disk)$/i))
             {
-                prompt_for_drive();
+                if(df_mount_list.includes(file_slot_file_name) || hd_mount_list.includes(file_slot_file_name))
+                {
+                    let drive_number= df_mount_list.indexOf(file_slot_file_name);
+                    if(drive_number<0)
+                        drive_number=hd_mount_list.indexOf(file_slot_file_name);
+                    insert_file(drive_number);
+                }
+                else
+                    prompt_for_drive();            
             }
             else
             {
