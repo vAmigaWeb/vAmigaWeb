@@ -4,13 +4,14 @@
   "start_url": "/",
   "scope": ".",
   "display": "fullscreen",
-  "background_color": "black",
-  "theme_color": "black",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "icons": [
     {
       "src": "img/icon_borderless_x413.png",
       "type": "image/png",
-      "sizes": "413x413"
+      "sizes": "413x413",
+      "purpose": "any"
     },
     {
       "src": "img/icon_maskable_x512.png",
@@ -18,5 +19,6 @@
       "sizes": "512x512",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "description": "Commodore Amiga Emulator"
 }

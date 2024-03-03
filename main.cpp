@@ -1283,8 +1283,18 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
       {//configure correct disk drive type (df0 does only accept DD, no HD)
         wrapper->amiga->configure(OPT_DRIVE_TYPE, drive_number, disk->density==DENSITY_DD? DRIVE_DD_35:DRIVE_HD_35 );
       }
-      if(drive_number==0)
-        wrapper->amiga->df0.swapDisk(std::move(disk));
+
+      if(drive_number==0){
+        if(disk->density == DENSITY_DD)
+        {
+          wrapper->amiga->df0.swapDisk(std::move(disk));
+        }
+        else
+          EM_ASM(
+          {
+            alert(`'${UTF8ToString($0)}' is a HD disk which is not compatible with df0 - sorry, df0 only supports DD disks, please mount disk in df1 - df3, which beside DD also support HD disks.`);
+          }, filename);
+      }
       else if(drive_number==1)
         wrapper->amiga->df1.swapDisk(std::move(disk));
       else if(drive_number==2)
