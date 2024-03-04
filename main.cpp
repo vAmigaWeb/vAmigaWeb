@@ -1292,7 +1292,8 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
         else
           EM_ASM(
           {
-            alert(`'${UTF8ToString($0)}' is a HD disk which is not compatible with df0 - sorry, df0 only supports DD disks, please mount disk in df1 - df3, which beside DD also support HD disks.`);
+            let_drive_select_stay_open=true;
+            alert(`'${UTF8ToString($0)}' is a HD disk which is not compatible with df0. AmigaOS only supports DD disks in df0, please mount disk in df1 - df3, which beside DD also support HD disks.`);
           }, filename);
       }
       else if(drive_number==1)

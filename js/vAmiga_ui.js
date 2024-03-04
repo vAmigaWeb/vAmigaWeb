@@ -1001,8 +1001,14 @@ function configure_file_dialog(reset=false)
 function prompt_for_drive()
 {
     let cancel=`<div class="close" style="position:absolute;top:0.2em;right:0.4em;cursor:pointer" onclick="show_drive_select(false)">×</div>`;
-
+    let_drive_select_stay_open=false;
     show_drive_select=(show)=>{
+        if(let_drive_select_stay_open)
+        {
+            let_drive_select_stay_open=false;
+            if(!show) return;
+        }
+
         document.getElementById("div_drive_select").setAttribute('class', `slide-${show?"in":"out"}`);
         if(show)
         {
