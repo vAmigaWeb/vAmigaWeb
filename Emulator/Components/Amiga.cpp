@@ -93,6 +93,8 @@ Amiga::Amiga()
         &cpu,
         &remoteManager,
         &retroShell,
+//        &debugger,
+//        &osDebugger,
         &regressionTester,
         &msgQueue
     };
@@ -1060,7 +1062,12 @@ Amiga::_dump(Category category, std::ostream& os) const
         os << dec(config.warpBoot) << " seconds" << std::endl;
         os << tab("Sync mode");
         os << SyncModeEnum::key(config.syncMode) << std::endl;
-        os << std::endl;
+        os << tab("VSYNC");
+        os << bol(config.vsync) << std::endl;
+        os << tab("Time lapse");
+        os << dec(config.timeLapse) << "%" << std::endl;
+        os << tab("Time slices");
+        os << dec(config.timeSlices) << std::endl;
     }
 
     if (category == Category::State) {
@@ -1077,14 +1084,18 @@ Amiga::_dump(Category category, std::ostream& os) const
         os << bol(isTracking()) << std::endl;
         os << std::endl;
 
-        os << tab("Refresh rate");
-        os << dec(isize(refreshRate())) << " Fps" << std::endl;
-        os << tab("Master clock frequency");
-        os << flt(masterClockFrequency() / float(1000000.0)) << " MHz" << std::endl;
         os << tab("Thread state");
         os << ExecutionStateEnum::key(state) << std::endl;
-        os << tab("Sync mode");
-        os << SyncModeEnum::key(getSyncMode()) << std::endl;
+        os << tab("Refresh rate");
+        os << dec(isize(refreshRate())) << " Fps" << std::endl;
+        os << tab("Native master clock");
+        os << flt(nativeMasterClockFrequency() / float(1000000.0)) << " MHz" << std::endl;
+        os << tab("Emulated master clock");
+        os << flt(masterClockFrequency() / float(1000000.0)) << " MHz" << std::endl;
+        os << tab("Native refresh rate");
+        os << flt(nativeRefreshRate()) << " Fps" << std::endl;
+        os << tab("Emulated refresh rate");
+        os << flt(refreshRate()) << " Fps" << std::endl;
         os << std::endl;
 
         os << tab("Frame");
@@ -1436,6 +1447,7 @@ Amiga::clearFlag(u32 flag)
     flags &= ~flag;
 }
 
+/*
 void
 Amiga::stopAndGo()
 {
@@ -1465,6 +1477,7 @@ Amiga::stepOver()
     // Inform the GUI
     msgQueue.put(MSG_STEP);
 }
+*/
 
 void
 Amiga::updateWarpState()

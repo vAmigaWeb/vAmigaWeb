@@ -93,6 +93,86 @@ Interpreter::autoComplete(Arguments &argv)
     }
 }
 
+bool 
+Interpreter::isBool(const string &argv) 
+{
+    return util::isBool(argv);
+}
+
+bool
+Interpreter::isOnOff(const string  &argv) 
+{
+    return util::isOnOff(argv);
+}
+
+long
+Interpreter::isNum(const string &argv) 
+{
+    return util::isNum(argv);
+}
+
+bool
+Interpreter::parseBool(const string &argv)
+{
+    return util::parseBool(argv);
+}
+
+bool
+Interpreter::parseBool(const string &argv, bool fallback)
+{
+    try { return parseBool(argv); } catch(...) { return fallback; }
+}
+
+bool
+Interpreter::parseOnOff(const string &argv) 
+{
+    return util::parseOnOff(argv);
+}
+
+bool
+Interpreter::parseOnOff(const string &argv, bool fallback)
+{
+    try { return parseOnOff(argv); } catch(...) { return fallback; }
+}
+
+long
+Interpreter::parseNum(const string &argv) 
+{
+    return util::parseNum(argv);
+}
+
+long
+Interpreter::parseNum(const string &argv, long fallback)
+{
+    try { return parseNum(argv); } catch(...) { return fallback; }
+}
+
+string
+Interpreter::parseSeq(const string &argv) 
+{
+    return util::parseSeq(argv);
+}
+
+string
+Interpreter::parseSeq(const string &argv, const string &fallback)
+{
+    try { return parseSeq(argv); } catch(...) { return fallback; }
+}
+
+/*
+template <typename T> long
+Interpreter::parseEnum(const string &argv) 
+{
+    return util::parseEnum<T>(argv);
+}
+
+template <typename T> long
+Interpreter::parseEnum(const string &argv, long fallback)
+{
+    try { return parseEnum<T>(argv); } catch(...) { return fallback; }
+}
+*/
+
 Command &
 Interpreter::getRoot()
 {
@@ -222,7 +302,7 @@ Interpreter::help(const Command& current)
 
     // Print the usage string
     usage(current);
-    
+
     // Determine tabular positions to align the output
     isize tab = 0;
     for (auto &it : current.subCommands) {
@@ -237,7 +317,7 @@ Interpreter::help(const Command& current)
         // Only proceed if the command is visible
         if (it.hidden) continue;
 
-        // Print group description (when a new group begins)
+        // Print group description when a new group begins
         if (group != it.group) {
 
             group = it.group;
@@ -253,7 +333,7 @@ Interpreter::help(const Command& current)
         retroShell << it.fullName;
         retroShell.tab(tab);
         retroShell << " : ";
-        retroShell << it.help;
+        retroShell << it.help.second;
         retroShell << '\n';
     }
 

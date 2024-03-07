@@ -185,7 +185,7 @@ UART::copyFromReceiveShiftRegister()
 
     // Update the overrun bit
     ovrun = GET_BIT(paula.intreq, 11);
-    if (ovrun) { trace(SER_DEBUG, "OVERRUN BIT IS 1\n"); }
+    if (ovrun) trace(SER_DEBUG, "OVERRUN BIT IS 1\n");
 
     // Trigger the RBF interrupt (Read Buffer Full)
     trace(SER_DEBUG, "Triggering RBF interrupt\n");
@@ -216,6 +216,29 @@ UART::rxdHasChanged(bool value)
 
         // Schedule the event
         agnus.scheduleRel<SLOT_RXD>(delay, RXD_BIT);
+    }
+}
+
+void 
+UART::operator<<(char c)
+{
+    *this << string{c};
+}
+
+void
+UART::operator<<(const string &s)
+{
+    {   SYNCHRONIZED
+
+        // Add the text
+        for (auto &c : s) {
+
+            payload += c;
+            if (c == '\n') payload += '\r';
+        }
+
+        // Start the reception process if needed
+        if (!agnus.hasEvent<SLOT_RXD>()) agnus.scheduleImm<SLOT_RXD>(RXD_BIT);
     }
 }
 

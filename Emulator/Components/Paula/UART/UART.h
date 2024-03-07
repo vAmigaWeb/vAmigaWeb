@@ -43,6 +43,9 @@ class UART : public SubComponent {
     // Bit reception counter
     u8 recCnt;
 
+    // Experimental
+    string payload;
+
 
     //
     // Initializing
@@ -152,6 +155,10 @@ public:
 
     // Called when the RXD port pin changes it's value
     void rxdHasChanged(bool value);
+
+    // Feeds text into the UART
+    void operator<<(char c);
+    void operator<<(const string &s);
 
 private:
 
