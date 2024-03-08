@@ -15,23 +15,31 @@
 namespace vamiga {
 
 std::vector<string> Command::groups;
+isize Command::currentGroup = 0;
 
 void
-Command::newGroup(const string &description, const string &postfix)
+Command::setGroup(const string &description, const string &postfix)
 {
-    groups.push_back(description.empty() ? "" : description + postfix);
-}
+    auto name = description.empty() ? "" : description + postfix;
 
-void
-Command::add(const std::vector<string> &tokens,
-             const string &help)
-{
-    add(tokens, help, nullptr);
+    for (isize i = 0; i < isize(groups.size()); i++) {
+        if (name == groups[i]) { currentGroup = i; }
+    }
+    currentGroup = groups.size();
+    groups.push_back(name);
 }
 
 void
 Command::add(const std::vector<string> &tokens,
              const string &help,
+             std::function<void (Arguments&, long)> func, long param)
+{
+    add(tokens, { }, { }, { tokens.back(), help }, func, param);
+}
+
+void
+Command::add(const std::vector<string> &tokens,
+             std::pair<const string &, const string &> help,
              std::function<void (Arguments&, long)> func, long param)
 {
     add(tokens, { }, { }, help, func, param);
@@ -41,6 +49,15 @@ void
 Command::add(const std::vector<string> &tokens,
              const std::vector<string> &arguments,
              const string &help,
+             std::function<void (Arguments&, long)> func, long param)
+{
+    add(tokens, arguments, { }, { tokens.back(), help }, func, param);
+}
+
+void
+Command::add(const std::vector<string> &tokens,
+             const std::vector<string> &arguments,
+             std::pair<const string &, const string &> help,
              std::function<void (Arguments&, long)> func, long param)
 {
     add(tokens, arguments, { }, help, func, param);
@@ -53,6 +70,16 @@ Command::add(const std::vector<string> &tokens,
              const string &help,
              std::function<void (Arguments&, long)> func, long param)
 {
+    add(tokens, requiredArgs, optionalArgs, { tokens.back(), help }, func, param);
+}
+
+void
+Command::add(const std::vector<string> &tokens,
+             const std::vector<string> &requiredArgs,
+             const std::vector<string> &optionalArgs,
+             std::pair<const string &, const string &> help,
+             std::function<void (Arguments&, long)> func, long param)
+{
     assert(!tokens.empty());
 
     // Traverse the node tree
@@ -62,17 +89,48 @@ Command::add(const std::vector<string> &tokens,
     // Create the instruction
     Command d;
     d.name = tokens.back();
-    d.fullName = (cmd->fullName.empty() ? "" : cmd->fullName + " ") + tokens.back();
-    d.group = isize(groups.size()) - 1;
+    // d.fullName = (cmd->fullName.empty() ? "" : cmd->fullName + " ") + tokens.back();
+    d.fullName = (cmd->fullName.empty() ? "" : cmd->fullName + " ") + help.first;
+    d.group = currentGroup;
     d.requiredArgs = requiredArgs;
     d.optionalArgs = optionalArgs;
     d.help = help;
     d.callback = func;
     d.param = param;
-    d.hidden = help.empty() || help.at(0) == '*';
+    d.hidden = help.second.empty();
 
     // Register the instruction
     cmd->subCommands.push_back(d);
+}
+
+void 
+Command::clone(const string &alias,
+           const std::vector<string> &tokens,
+           long param)
+{
+    clone(alias, tokens, "", param);
+}
+
+void
+Command::clone(const string &alias, const std::vector<string> &tokens, const string &help, long param)
+{
+    assert(!tokens.empty());
+
+    // Find the command to clone
+    Command *cmd = seek(std::vector<string> { tokens.begin(), tokens.end() });
+    assert(cmd != nullptr);
+
+    // Assemble the new token list
+    auto newTokens = std::vector<string> { tokens.begin(), tokens.end() - 1 };
+    newTokens.push_back(alias);
+
+    // Create the instruction
+    add(newTokens, 
+        cmd->requiredArgs,
+        cmd->optionalArgs,
+        help,
+        cmd->callback,
+        param);
 }
 
 const Command *

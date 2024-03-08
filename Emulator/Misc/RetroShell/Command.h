@@ -24,22 +24,31 @@ namespace Arg {
 static const std::string address    = "<address>";
 static const std::string boolean    = "{ true | false }";
 static const std::string command    = "<command>";
+static const std::string dst        = "<destination>";
+static const std::string ignores    = "<ignores>";
 static const std::string kb         = "<kb>";
+static const std::string nr         = "<nr>";
 static const std::string onoff      = "{ on | off }";
 static const std::string path       = "<path>";
 static const std::string process    = "<process>";
 static const std::string seconds    = "<seconds>";
 static const std::string value      = "<value>";
+static const std::string count      = "<count>";
+static const std::string sequence   = "<byte sequence>";
+static const std::string src        = "<source>";
 static const std::string volume     = "<volume>";
 
 };
 
 struct Command {
 
-    //Textual descriptions of all command groups
+    // Textual descriptions of all command groups
     static std::vector<string> groups;
 
-    // Command group of this command
+    // Currently selected group (used in command registration)
+    static isize currentGroup;
+
+    // Group of this command
     isize group;
 
     // Name of this command (e.g., "eject")
@@ -48,15 +57,15 @@ struct Command {
     // Full name of this command (e.g., "df0 eject")
     string fullName;
 
+    // Help description for this command
+    std::pair<string, string> help;
+
     // List of required arguments
     std::vector<string> requiredArgs;
 
     // List of optional arguments
     std::vector<string> optionalArgs;
 
-    // Help message for this command
-    string help;
-    
     // List of subcommands
     std::vector<Command> subCommands;
     
@@ -75,26 +84,48 @@ struct Command {
     //
 
     // Creates a new command group
-    void newGroup(const string &description, const string &postfix = ":");
+    void setGroup(const string &description, const string &postfix = ":");
 
     // Creates a new node in the command tree
     void add(const std::vector<string> &tokens,
-             const string &help);
+             const string &help,
+             std::function<void (Arguments&, long)> func = nullptr, long param = 0);
 
     void add(const std::vector<string> &tokens,
-             const string &help,
-             std::function<void (Arguments&, long)> func, long param = 0);
+             std::pair<const string &, const string &> help,
+             std::function<void (Arguments&, long)> func = nullptr, long param = 0);
 
     void add(const std::vector<string> &tokens,
              const std::vector<string> &args,
              const string &help,
-             std::function<void (Arguments&, long)> func, long param = 0);
+             std::function<void (Arguments&, long)> func = nullptr, long param = 0);
+
+    void add(const std::vector<string> &tokens,
+             const std::vector<string> &args,
+             std::pair<const string &, const string &> help,
+             std::function<void (Arguments&, long)> func = nullptr, long param = 0);
 
     void add(const std::vector<string> &tokens,
              const std::vector<string> &requiredArgs,
              const std::vector<string> &optionalArgs,
              const string &help,
-             std::function<void (Arguments&, long)> func, long param = 0);
+             std::function<void (Arguments&, long)> func = nullptr, long param = 0);
+
+    void add(const std::vector<string> &tokens,
+             const std::vector<string> &requiredArgs,
+             const std::vector<string> &optionalArgs,
+             std::pair<const string &, const string &> help,
+             std::function<void (Arguments&, long)> func = nullptr, long param = 0);
+
+
+    void clone(const string &alias,
+               const std::vector<string> &tokens,
+               long param = 0);
+
+    void clone(const string &alias,
+               const std::vector<string> &tokens,
+               const string &help,
+               long param = 0);
 
     // Returns arguments counts
     isize minArgs() const { return isize(requiredArgs.size()); }

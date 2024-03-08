@@ -49,6 +49,11 @@ RetroShell::operator<<(char value)
 {
     storage << value;
     remoteManager.rshServer << value;
+
+    if (serialPort.getConfig().device == SPD_COMMANDER) {
+
+        serialPort << value;
+    }
     needsDisplay();
     return *this;
 }
@@ -58,6 +63,11 @@ RetroShell::operator<<(const string& value)
 {
     storage << value;
     remoteManager.rshServer << value;
+
+    if (serialPort.getConfig().device == SPD_COMMANDER) {
+
+        serialPort << value;
+    }
     needsDisplay();
     return *this;
 }
@@ -405,7 +415,7 @@ RetroShell::execUserCommand(const string &command)
             if (amiga.isRunning()) {
                 amiga.pause();
             } else {
-                amiga.stepInto();
+                debugger.stepInto();
             }
         }
 

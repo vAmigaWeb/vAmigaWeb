@@ -224,6 +224,27 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
             $('#button_run').click();   
         }
     }
+    else if(cmd == 'warp_always')
+    {
+        if(execute)
+        {
+            wasm_configure('WARP_MODE', 'WARP_ALWAYS');
+        }
+    }
+    else if(cmd == 'warp_never')
+    {
+        if(execute)
+        {
+            wasm_configure('WARP_MODE', 'WARP_NEVER');
+        }
+    }
+    else if(cmd == 'warp_auto')
+    {
+        if(execute)
+        {
+            wasm_configure('WARP_MODE', 'WARP_AUTO');
+        }
+    }
     else if(cmd.match(/^[0-9]+ms$/) != null)
     {
         if(execute)

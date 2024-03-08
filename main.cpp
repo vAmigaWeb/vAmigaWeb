@@ -1900,6 +1900,14 @@ extern "C" const char* wasm_configure(char* option, char* _value)
     {
       wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <DeniseRevisionEnum>(value));
     }
+    else if( strcmp(option,"WARP_MODE") == 0)
+    {
+      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <WarpModeEnum>(value));
+    }
+    else if( strcmp(option,"SER_DEVICE") == 0)
+    {
+      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum<SerialPortDeviceEnum>(value));
+    }
     else if ( strcmp(option,"BLITTER_ACCURACY") == 0 ||
               strcmp(option,"DRIVE_SPEED") == 0  ||
               strcmp(option,"CHIP_RAM") == 0  ||

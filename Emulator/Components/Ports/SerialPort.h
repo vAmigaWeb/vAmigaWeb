@@ -163,6 +163,10 @@ public:
     int readIncomingPrintableByte();
     int readOutgoingPrintableByte();
 
+    // Feed a string into the UART
+    void operator<<(char c);
+    void operator<<(const string &s);
+
 private:
 
     // Called by the UART when a byte has been received or sent
