@@ -17,6 +17,7 @@ let call_param_wait_for_kickstart_injection=null;
 let call_param_kickstart_rom_url=null;
 
 let startup_script_executed=false;
+let on_ready_to_run=()=>{};
 let df_mount_list=[];//to auto mount disks from zip e.g. ["Batman_Rises_disk1.adf","Batman_Rises_disk2.adf"];
 let hd_mount_list=[];
 
@@ -370,6 +371,7 @@ function message_handler(msg, data, data2)
     //UTF8ToString(cores_msg);
     if(msg == "MSG_READY_TO_RUN")
     {
+        try{on_ready_to_run()} catch(error){console.error(error)}
         if(call_param_warpto !=null && call_param_url==null){
             wasm_configure("warp_to_frame", `${call_param_warpto}`);
         }
