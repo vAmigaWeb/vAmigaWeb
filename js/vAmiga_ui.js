@@ -2016,12 +2016,11 @@ function InitWrappers() {
             //check if any roms should be preloaded first... 
             if(event.data.kickstart_rom !== undefined)
             {
-                let byteArray = event.data.kickstart_rom;
-                wasm_loadfile("kick.rom_file", byteArray);
+                wasm_loadfile("kick.rom_file", event.data.kickstart_rom);
                 //copy_to_local_storage(rom_type, byteArray);
                 if(event.data.kickstart_ext !== undefined)
                 {
-                    wasm_loadfile("kick.rom_ext_file", byteArray);
+                    wasm_loadfile("kick.rom_ext_file", event.data.kickstart_ext);
                 }
                 with_reset=true;
             }
