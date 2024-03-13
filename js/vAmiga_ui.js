@@ -2017,8 +2017,12 @@ function InitWrappers() {
             if(event.data.kickstart_rom !== undefined)
             {
                 let byteArray = event.data.kickstart_rom;
-                let rom_type=wasm_loadfile("kick.rom_file", byteArray);
+                wasm_loadfile("kick.rom_file", byteArray);
                 //copy_to_local_storage(rom_type, byteArray);
+                if(event.data.kickstart_ext !== undefined)
+                {
+                    wasm_loadfile("kick.rom_ext_file", byteArray);
+                }
                 with_reset=true;
             }
             if(with_reset){
