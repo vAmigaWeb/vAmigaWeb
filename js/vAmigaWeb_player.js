@@ -33,6 +33,10 @@
         {
             file_descriptor.kickstart_rom = new Uint8Array(await (await fetch(ssfile.kickstart_rom_url)).arrayBuffer());
         }
+        if(ssfile.kickstart_ext_url !== undefined)
+        {
+            file_descriptor.kickstart_ext = new Uint8Array(await (await fetch(ssfile.kickstart_ext_url)).arrayBuffer());
+        }
 
         if(ssfile.name !== undefined)
         {
