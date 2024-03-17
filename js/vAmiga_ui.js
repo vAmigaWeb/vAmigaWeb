@@ -18,6 +18,8 @@ let call_param_kickstart_rom_url=null;
 
 let startup_script_executed=false;
 let on_ready_to_run=()=>{};
+let on_hdr_step=(drive_number, cylinder)=>{};
+let on_power_led_dim=()=>{};
 let df_mount_list=[];//to auto mount disks from zip e.g. ["Batman_Rises_disk1.adf","Batman_Rises_disk2.adf"];
 let hd_mount_list=[];
 
@@ -466,8 +468,12 @@ function message_handler(msg, data, data2)
     else if(msg == "MSG_HDR_STEP")
     {
         play_sound(audio_hd_step);
-        //   console.log(`MSG_DRIVE_STEP ${data} ${data2}`);
         $("#drop_zone").html(`dh${data} ${data2}`);
+        on_hdr_step(data, data2);
+    }
+    else if(msg == "MSG_POWER_LED_DIM")
+    {
+        on_power_led_dim();
     }
     else if(msg == "MSG_SNAPSHOT_RESTORED")
     {
