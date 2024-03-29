@@ -1,0 +1,72 @@
+<span style="display: flex;justify-content: center;">example how to embed an Amiga file, which requires a cbm kickstart</span> 
+
+<!-- vAmigaWeb-block start -->
+<script src="js/vAmigaWeb_player.js"></script>
+
+<script>
+        vAmigaWeb_player.vAmigaWeb_url='./';  //the emulator files are in the same folder as the run.html
+
+        document.addEventListener('DOMContentLoaded', function() {
+            vAmigaWeb_player.setup('teaser_pic', 
+            {
+                kickstart_rom_required:  [1.3],
+                samesite_file: {
+                    //url:'./doc/media/tbl_eon_party.zip',name:'tbl.zip',
+                    url:'./tbl_eon_party.zip',name:'tbl.zip',
+                    mount_kickstart_in_dfn: 1
+                },
+                config:{
+                    AROS:true,
+                    wait_for_kickstart_injection:false,
+                    navbar:false,   //you can also enable this and disable the players toolbar (see styles section above)
+                    wide:true,
+                    startup_script: `df_mount_list=['tbl_eon_party_ver_disk1.adf']`
+                }
+            });
+        });
+
+</script>
+
+<style>
+	body {
+        background-color: darkgray;
+	    color: white;
+	}	
+    #player_container {
+        background-color: darkgray;
+    }
+    #vAmigaWeb {
+        border:none;
+    }
+    .player_icon_btn {
+        background-color: transparent;
+        color: white;
+        margin-right: 15px;
+        cursor: pointer;
+    }
+    .btn_play {
+        color: #2575ff;
+        cursor: pointer;
+    }
+
+    @media (orientation: landscape) {
+        #container {
+            width: 30vw;
+        }
+    }    
+    @media (orientation: portrait) {
+        #container {
+            width: 50vw;
+        }
+    }
+</style>
+
+<div  style="display: flex;align-items: center;justify-content: center;">
+    <div id="container" style="position: relative;">
+        <img id="teaser_pic" style="width:100%" src="https://vamiganet.github.io/footage/eon-small.jpg" />
+        <div id="teaser_pic_overlay" style="position: absolute;top:0;left:0;width:100%;height:100%"></div>
+    </div>
+</div>
+<br>
+
+<!-- vAmigaWeb-block end -->

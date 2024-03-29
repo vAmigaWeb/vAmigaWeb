@@ -22,9 +22,8 @@
         function FromBase64(str) {
                 return atob(str).split('').map(function (c) { return c.charCodeAt(0); });
         }
-        let file_descriptor={
-                cmd: "load"
-        }
+        let file_descriptor=ssfile;
+        file_descriptor.cmd="load";
         if(ssfile.kickstart_rom_base64 !== undefined)
         {
             file_descriptor.kickstart_rom = Uint8Array.from(FromBase64(ssfile.kickstart_rom_base64));
@@ -36,6 +35,14 @@
         if(ssfile.kickstart_ext_url !== undefined)
         {
             file_descriptor.kickstart_ext = new Uint8Array(await (await fetch(ssfile.kickstart_ext_url)).arrayBuffer());
+        }
+        if(ssfile.kickstart_rom !== undefined)
+        {
+            file_descriptor.kickstart_rom = ssfile.kickstart_rom;
+        }
+        if(ssfile.kickstart_ext !== undefined)
+        {
+            file_descriptor.kickstart_ext = ssfile.kickstart_ext;
         }
 
         if(ssfile.name !== undefined)
@@ -154,7 +161,7 @@ ${this.audio_locked_icon}
 <svg id="btn_keyboard" class="player_icon_btn" onclick="vAmigaWeb_player.toggle_keyboard();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
 ${this.keyboard_icon}
 </svg>`;
-if(address.toLowerCase().indexOf(".zip")>0)
+if(address.toLowerCase().indexOf(".zip")>0 || this.samesite_file != null && this.samesite_file.name.endsWith(".zip"))
 {
     emuview_html += 
     `<svg id="btn_zip" class="player_icon_btn" style="margin-top:4px;margin-left:auto" onclick="vAmigaWeb_player.open_zip();return false;" xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
@@ -337,6 +344,96 @@ ${this.overlay_on_icon}
     exec: function(the_function, the_param) { 
         let function_as_string=`(${the_function.toString()})(${the_param == undefined?'':"'"+the_param+"'"});`;
         this.send_script(function_as_string);  
-    }
+    },
+    registered_setups: {},
+    setup: function(id,setup_config){
+        this.registered_setups[id]=setup_config;
 
+        this.loadScript(`${this.vAmigaWeb_url}js/dexie.min.js` , 
+        async function(){
+            var db = new Dexie("kickstarts");
+            db.version(1).stores({
+              kickstart: "id"
+            });
+
+            await db.open();
+            //check if kickstart is in local db
+            let ks = await (db.kickstart.where('id').equals(setup_config.kickstart_rom_required[0]).toArray());
+            
+            if(ks.length==0)
+            {
+                    let lock=`<svg xmlns="http://www.w3.org/2000/svg" style="fill:white;width:100%" viewBox="0 0 448 512" ><path d="M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zm-104 0H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z"></path></svg>`;
+                let overlay=document.getElementById(`${id}_overlay`);
+                overlay.innerHTML=`
+                <input type="file" id="fileInput" style="display:none">
+                <div id="drop_zone" style="display:grid;grid-template-columns: repeat(3, 1fr); width:100%;height:100%"
+                    onclick="document.getElementById('fileInput').click()"
+                >
+                  <div style="grid-column:1/span 3;text-align:center">kickstart ${setup_config.kickstart_rom_required} required</div>
+                  <div style="grid-column:2/2">${lock}</div>
+                  <div style="grid-column:1/span3;text-align:center">select kickstart file with a click or drag file into here</div>
+                </div>
+                `;
+                function import_kickstart(file){
+                    const reader = new FileReader();            
+                    reader.onload = function(event) {
+                        const arrayBuffer = event.target.result;
+                        const kick_rom = new Uint8Array(arrayBuffer);
+                        db.kickstart.add({id: setup_config.kickstart_rom_required[0], rom: kick_rom});
+                    };
+            
+                    reader.readAsArrayBuffer(file);
+                    vAmigaWeb_player.setup(id,setup_config);
+                }
+                function handleDrop(event) {
+                    event.preventDefault();
+                    var file = event.dataTransfer.files[0];
+                    import_kickstart(file);
+                }
+                function handleDragOver(event) {
+                    event.preventDefault();
+                }
+                overlay.addEventListener('drop', handleDrop, false);
+                overlay.addEventListener('dragover', handleDragOver, false);
+                document.getElementById('fileInput').addEventListener('change', function(event) {
+                    const file = event.target.files[0];
+                    import_kickstart(file);
+                });
+                return;
+            }
+            
+            if(ks[0].id==setup_config.kickstart_rom_required[0])
+            {
+                let the_play=`<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-play-circle" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/><path d="M6.271 5.055a.5.5 0 0 1 .52.038l3.5 2.5a.5.5 0 0 1 0 .814l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .271-.445"/></svg>`;
+                let overlay=document.getElementById(`${id}_overlay`);
+                vAmigaWeb_player.delete_rom=(rom_id)=>{ 
+                    db.kickstart.delete(rom_id);
+                    vAmigaWeb_player.setup(id,setup_config);
+                }
+                overlay.innerHTML=`
+                <div style="display:grid;grid-template-columns: repeat(3, 1fr); width:100%;height:100%">
+
+                <div style="grid-column:1/span3;text-align:end;" >
+                  <span>kickstart ${setup_config.kickstart_rom_required}</span>
+                  <svg onclick="vAmigaWeb_player.delete_rom(${setup_config.kickstart_rom_required})" class="bi bi-trash-fill" fill="currentColor" height="1.1em" viewBox="0 0 16 16" width="1.1em" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z" fill-rule="evenodd"></path></svg>                
+                </div>
+
+                <div id="play_button" style="grid-column: 2/2"
+                    ontouchstart="touched=true"
+                    onclick="let touch=(typeof touched!='undefined')?touched:false;touched=false;vAmigaWeb_player.load_setup('${id}', {touch:touch})"
+                >${the_play}</div>
+                <div style="grid-column: 2/2"></div>
+                `;
+                setup_config.samesite_file.kickstart_rom = ks[0].rom;
+
+            }
+        });
+    },
+    load_setup(setup_name, optional_params={touch:false}){
+        let element = document.getElementById(setup_name);
+        vAmigaWeb_player.samesite_file=this.registered_setups[setup_name].samesite_file;
+        let config=this.registered_setups[setup_name].config;
+        config.touch=optional_params.touch;
+        vAmigaWeb_player.load(element,encodeURIComponent(JSON.stringify(config)));
+    }
 }
