@@ -2019,22 +2019,20 @@ function InitWrappers() {
             }
 
             let with_reset=false;
+            //put whdload kickemu into disk drive
+            if(event.data.mount_kickstart_in_dfn &&
+                event.data.mount_kickstart_in_dfn >=0 )
+            {
+                wasm_loadfile("kick-rom.disk", event.data.kickemu_rom, event.data.mount_kickstart_in_dfn);
+            }
             //check if any roms should be preloaded first... 
             if(event.data.kickstart_rom !== undefined)
             {
-                if(event.data.mount_kickstart_in_dfn &&
-                    event.data.mount_kickstart_in_dfn >=0 )
+                wasm_loadfile("kick.rom_file", event.data.kickstart_rom);
+                //copy_to_local_storage(rom_type, byteArray);
+                if(event.data.kickstart_ext !== undefined)
                 {
-                    wasm_loadfile("kick-rom.disk", event.data.kickstart_rom, event.data.mount_kickstart_in_dfn);
-                }
-                else
-                {
-                    wasm_loadfile("kick.rom_file", event.data.kickstart_rom);
-                    //copy_to_local_storage(rom_type, byteArray);
-                    if(event.data.kickstart_ext !== undefined)
-                    {
-                        wasm_loadfile("kick.rom_ext_file", event.data.kickstart_ext);
-                    }
+                    wasm_loadfile("kick.rom_ext_file", event.data.kickstart_ext);
                 }
                 with_reset=true;
             }

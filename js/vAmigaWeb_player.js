@@ -415,7 +415,7 @@ ${this.overlay_on_icon}
 
                 <div style="grid-column:1/span3;text-align:end;" >
                   <span>kickstart ${setup_config.kickstart_rom_required}</span>
-                  <svg onclick="vAmigaWeb_player.delete_rom(${setup_config.kickstart_rom_required})" class="bi bi-trash-fill" fill="currentColor" height="1.1em" viewBox="0 0 16 16" width="1.1em" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z" fill-rule="evenodd"></path></svg>                
+                  <svg onclick="vAmigaWeb_player.delete_rom(${setup_config.kickstart_rom_required})" class="bi bi-trash-fill" fill="currentColor" height="0.8em" viewBox="0 0 16 16" width="0.8em" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z" fill-rule="evenodd"></path></svg>                
                 </div>
 
                 <div id="play_button" style="grid-column: 2/2"
@@ -424,8 +424,14 @@ ${this.overlay_on_icon}
                 >${the_play}</div>
                 <div style="grid-column: 2/2"></div>
                 `;
-                setup_config.samesite_file.kickstart_rom = ks[0].rom;
-
+                if(setup_config.samesite_file.mount_kickstart_in_dfn)
+                {
+                    setup_config.samesite_file.kickemu_rom = ks[0].rom;
+                }
+                else
+                {
+                    setup_config.samesite_file.kickstart_rom = ks[0].rom;
+                }
             }
         });
     },
