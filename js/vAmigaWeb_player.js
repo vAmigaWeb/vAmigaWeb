@@ -414,8 +414,8 @@ ${this.overlay_on_icon}
                 <div style="display:grid;grid-template-columns: repeat(3, 1fr); width:100%;height:100%">
 
                 <div style="grid-column:1/span3;text-align:end;" >
-                  <span>kickstart ${setup_config.kickstart_rom_required}</span>
-                  <svg onclick="vAmigaWeb_player.delete_rom(${setup_config.kickstart_rom_required})" style="cursor:pointer" fill="currentColor" height="0.8em" viewBox="0 0 16 16" width="0.8em" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z" fill-rule="evenodd"></path></svg>                
+                  <span title="local stored kickstart rom found">kickstart ${setup_config.kickstart_rom_required}</span>
+                  <svg onclick="vAmigaWeb_player.delete_rom(${setup_config.kickstart_rom_required})" style="cursor:pointer" fill="currentColor" height="1.1em" viewBox="0 -7 16 22" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z" fill-rule="evenodd"></path></svg>                
                 </div>
 
                 <div id="play_button" style="grid-column: 2/2;cursor:pointer"
