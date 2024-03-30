@@ -366,7 +366,7 @@ ${this.overlay_on_icon}
                 let overlay=document.getElementById(`${id}_overlay`);
                 overlay.innerHTML=`
                 <input type="file" id="fileInput" style="display:none">
-                <div id="drop_zone" style="display:grid;grid-template-columns: repeat(3, 1fr); width:100%;height:100%"
+                <div id="drop_zone" style="display:grid;grid-template-columns: repeat(3, 1fr); width:100%;height:100%;cursor:pointer"
                     onclick="document.getElementById('fileInput').click()"
                 >
                   <div style="grid-column:1/span 3;text-align:center">kickstart ${setup_config.kickstart_rom_required} required</div>
@@ -415,10 +415,10 @@ ${this.overlay_on_icon}
 
                 <div style="grid-column:1/span3;text-align:end;" >
                   <span>kickstart ${setup_config.kickstart_rom_required}</span>
-                  <svg onclick="vAmigaWeb_player.delete_rom(${setup_config.kickstart_rom_required})" class="bi bi-trash-fill" fill="currentColor" height="0.8em" viewBox="0 0 16 16" width="0.8em" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z" fill-rule="evenodd"></path></svg>                
+                  <svg onclick="vAmigaWeb_player.delete_rom(${setup_config.kickstart_rom_required})" style="cursor:pointer" fill="currentColor" height="0.8em" viewBox="0 0 16 16" width="0.8em" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5a.5.5 0 0 0-1 0v7a.5.5 0 0 0 1 0v-7z" fill-rule="evenodd"></path></svg>                
                 </div>
 
-                <div id="play_button" style="grid-column: 2/2"
+                <div id="play_button" style="grid-column: 2/2;cursor:pointer"
                     ontouchstart="touched=true"
                     onclick="let touch=(typeof touched!='undefined')?touched:false;touched=false;vAmigaWeb_player.load_setup('${id}', {touch:touch})"
                 >${the_play}</div>
