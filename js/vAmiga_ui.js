@@ -15,6 +15,7 @@ let call_param_url=null;
 let call_param_display=null;
 let call_param_wait_for_kickstart_injection=null;
 let call_param_kickstart_rom_url=null;
+let call_param_kickstart_ext_url=null;
 
 let startup_script_executed=false;
 let on_ready_to_run=()=>{};
@@ -163,6 +164,7 @@ function get_parameter_link()
         call_param_display=call_obj.display === undefined ? null : call_obj.display;
         call_param_wait_for_kickstart_injection=call_obj.wait_for_kickstart_injection === undefined ? null : call_obj.wait_for_kickstart_injection;
         call_param_kickstart_rom_url=call_obj.kickstart_rom_url === undefined ? null : call_obj.kickstart_rom_url;
+        call_param_kickstart_ext_url=call_obj.kickstart_ext_url === undefined ? null : call_obj.kickstart_ext_url;
         call_param_gpu = call_obj.gpu === undefined ? null : call_obj.gpu;
 
         if(call_obj.touch)
@@ -413,7 +415,11 @@ function message_handler(msg, data, data2)
             else if(call_param_kickstart_rom_url != null)
             {//this needs to be samesite or cross origin with CORS enabled
                 let byteArray=new Uint8Array(await (await fetch(call_param_kickstart_rom_url)).arrayBuffer());
-                let rom_type=wasm_loadfile("kick.rom_file", byteArray);
+                wasm_loadfile("kick.rom_file", byteArray);
+                if(call_param_kickstart_ext_url != null)
+                {
+                    wasm_loadfile("kick.rom_ext_file", new Uint8Array(await (await fetch(call_param_kickstart_ext_url)).arrayBuffer()));
+                }
                 wasm_reset();
             }
             //try to load currently user selected kickstart
