@@ -111,6 +111,7 @@ add_custom_target(publish
 	COMMAND ${CMAKE_COMMAND} -E rm -f  ${PUBLISH_FOLDER}/*.json
 	COMMAND ${CMAKE_COMMAND} -E rm -f  ${PUBLISH_FOLDER}/index.html
 	COMMAND ${CMAKE_COMMAND} -E rm -f  ${PUBLISH_FOLDER}/run.html
+	COMMAND ${CMAKE_COMMAND} -E rm -f  ${PUBLISH_FOLDER}/runcbm.html
 	COMMAND ${CMAKE_COMMAND} -E copy vAmiga.html ${PUBLISH_FOLDER}/index.html
     COMMAND ${CMAKE_COMMAND} -E copy vAmiga.js ${PUBLISH_FOLDER}
     #the following line is only needed for the worker build
@@ -122,6 +123,7 @@ add_custom_target(publish
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../roms ${PUBLISH_FOLDER}/roms
 	COMMAND ${CMAKE_COMMAND} -E copy_directory ../sounds ${PUBLISH_FOLDER}/sounds
 	COMMAND ${CMAKE_COMMAND} -E copy ../run.html ${PUBLISH_FOLDER}
+	COMMAND ${CMAKE_COMMAND} -E copy ../runcbm.html ${PUBLISH_FOLDER}
 	COMMAND ${CMAKE_COMMAND} -E copy sw.js ${PUBLISH_FOLDER}
 	COMMAND ${CMAKE_COMMAND} -E copy ../manifest.json ${PUBLISH_FOLDER}
 	DEPENDS vAmiga
