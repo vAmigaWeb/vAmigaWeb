@@ -317,27 +317,32 @@ function get_parameter_link()
 
 var parameter_link__already_checked=false;
 var parameter_link_mount_in_df0=false;
-function load_parameter_link()
+async function load_parameter_link()
 {
     if($('#modal_roms').is(":visible"))
     {
-        return;
+        return null;
     }
 
     if(parameter_link__already_checked)
-      return;
+      return null;
     
     parameter_link__already_checked=true;
     var parameter_link = get_parameter_link();
     if(parameter_link != null)
     {
         parameter_link_mount_in_df0=parameter_link.match(/[.](adf|hdf|dms|exe)$/i);
-        get_data_collector("csdb").run_link("call_parameter", 0,parameter_link);            
+        //get_data_collector("csdb").run_link("call_parameter", 0,parameter_link);            
+        let response = await fetch(parameter_link);
+        file_slot_file_name = decodeURIComponent(response.url.match(".*/(.*)$")[1]);
+        file_slot_file = new Uint8Array( await response.arrayBuffer());
+
+        configure_file_dialog(reset=true);
     }
+    return parameter_link;
 }
 
 
-var wasm_first_run=null;
 var required_roms_loaded =false;
 
 var last_drive_event=0;
@@ -380,8 +385,8 @@ function message_handler(msg, data, data2)
             wasm_configure("warp_to_frame", `${call_param_warpto}`);
         }
         //start it async
-        setTimeout(function() { try{wasm_first_run=Date.now(); wasm_run();}catch(e){}},100);
-        setTimeout(function() { 
+        //setTimeout(()=>{try{wasm_run();}catch(e){}},100);
+        setTimeout(async function() { 
             try{
                 if(call_param_navbar=='hidden')
                 {
@@ -389,7 +394,16 @@ function message_handler(msg, data, data2)
                         $("#button_show_menu").click();
                     },500);
                 }
-                load_parameter_link();
+                let url = await load_parameter_link();
+
+                if(url == null && hd_mount_list.length==0 && df_mount_list.length==0)
+                { //when there is no media url to load, power on the Amiga directly here
+                  //otherwise it will be started after media is inserted 
+                  setTimeout(function(){
+                    try{wasm_run();running=true;}catch(e){}
+                  },100);
+                } 
+                
                 if(call_param_wide != null)
                 {
                     use_wide_screen = call_param_wide;
@@ -2109,7 +2123,6 @@ function InitWrappers() {
             if(!has_pointer_lock_fallback)
             {
                 add_pointer_lock_fallback();      
-                has_pointer_lock_fallback=true;
             }
             return;
         }
@@ -2117,7 +2130,8 @@ function InitWrappers() {
         {
             try_to_lock_pointer++;
             try {
-                await canvas.requestPointerLock();           
+                if(has_pointer_lock_fallback) {remove_pointer_lock_fallback();}
+                await canvas.requestPointerLock();
                 try_to_lock_pointer=0;
             } catch (error) {
                 await sleep(100);
@@ -2130,6 +2144,7 @@ function InitWrappers() {
         document.addEventListener("mousemove", updatePosition_fallback, false); 
         document.addEventListener("mousedown", mouseDown, false);
         document.addEventListener("mouseup", mouseUp, false);
+        has_pointer_lock_fallback=true;
     };
     window.remove_pointer_lock_fallback=()=>{
         document.removeEventListener("mousemove", updatePosition_fallback, false); 
@@ -2137,6 +2152,7 @@ function InitWrappers() {
         document.removeEventListener("mouseup", mouseUp, false);
         has_pointer_lock_fallback=false;
     };
+    document.addEventListener('pointerlockerror', add_pointer_lock_fallback, false);
 
     // Hook pointer lock state change events for different browsers
     document.addEventListener('pointerlockchange', lockChangeAlert, false);
@@ -3062,7 +3078,7 @@ $('.layer').change( function(event) {
     }
 
 
-    running=true;
+    running=false;
     emulator_currently_runs=false;
     $("#button_run").click(function() {
         hide_all_tooltips();
@@ -3117,7 +3133,7 @@ $('.layer').change( function(event) {
         var execute_load = async function(drive){
             var filetype = wasm_loadfile(file_slot_file_name, file_slot_file, drive);
 
-            //if it is a disk from a multi disk zip file, apptitle should be the name of the zip file only
+           //if it is a disk from a multi disk zip file, apptitle should be the name of the zip file only
             //instead of disk1, disk2, etc....
             if(last_zip_archive_name !== null)
             {

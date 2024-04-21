@@ -82,7 +82,7 @@
                 if(event.data.msg == "render_run_state")
                 {
                     this.render_run_state(event.data.value);
-                    if(event.data.value == true && this.samesite_file != null)
+                    if(this.samesite_file != null)
                     {
                         this.inject_samesite_app_into_iframe();
                     }
@@ -161,7 +161,7 @@ ${this.audio_locked_icon}
 <svg id="btn_keyboard" class="player_icon_btn" onclick="vAmigaWeb_player.toggle_keyboard();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
 ${this.keyboard_icon}
 </svg>`;
-if(address.toLowerCase().indexOf(".zip")>0 || this.samesite_file != null && this.samesite_file.name.endsWith(".zip"))
+if(address.toLowerCase().indexOf(".zip")>0 || this.samesite_file != null && this.samesite_file.name != null && this.samesite_file.name.endsWith(".zip"))
 {
     emuview_html += 
     `<svg id="btn_zip" class="player_icon_btn" style="margin-top:4px;margin-left:auto" onclick="vAmigaWeb_player.open_zip();return false;" xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
