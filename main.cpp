@@ -2001,3 +2001,10 @@ extern "C" void wasm_write_byte_to_ser(u8 byte_to_send)
     }
     wrapper->amiga->remoteManager.serServer.processIncomingByte(byte_to_send);
 }
+
+
+extern "C" double wasm_activity()
+{
+    auto dma = wrapper->amiga->agnus.getStats();
+    return dma.blitterActivity;
+}
