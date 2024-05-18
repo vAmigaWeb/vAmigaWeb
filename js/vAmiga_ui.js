@@ -4504,11 +4504,13 @@ release_key('ControlLeft');`;
             $('#div_canvas').append(btn_html);
             action_scripts["ck"+element.id] = element.script;
 
+            let custom_key_el = document.getElementById(`ck${element.id}`);
             if(lock_action_button == true)
             {//when action buttons locked
              //process the mouse/touch events immediatly, there is no need to guess the gesture
                 let action_function = function(e) 
-                {   
+                {
+                    e.stopImmediatePropagation();
                     e.preventDefault();
                     var action_script = action_scripts['ck'+element.id];
 
@@ -4522,16 +4524,21 @@ release_key('ControlLeft');`;
                 };
                 let mark_as_released = function(e) 
                 {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
                     get_running_script(element.id).action_button_released = true;
                 };
 
-                $('#ck'+element.id).mousedown(action_function).on({'touchstart' : action_function});
-                $('#ck'+element.id).mouseup(mark_as_released).on({'touchend' : mark_as_released});
+                custom_key_el.addEventListener("pointerdown", action_function,false);
+                custom_key_el.addEventListener("pointerup", mark_as_released,false);
+                custom_key_el.addEventListener("touchstart",(e)=>e.stopImmediatePropagation())            
             }
             else
             {
-                $('#ck'+element.id).click(function() 
-                {       
+                custom_key_el.addEventListener("click",(e)=>
+                {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
                     //at the end of a drag ignore the click
                     if(just_dragged)
                         return;
@@ -4588,13 +4595,9 @@ release_key('ControlLeft');`;
             yOffset["ck"+element.id] = element.currentY;
         });
 
-        container.addEventListener("touchstart", dragStart, false);
-        container.addEventListener("touchend", dragEnd, false);
-        container.addEventListener("touchmove", drag, false);
-
-        container.addEventListener("mousedown", dragStart, false);
-        container.addEventListener("mouseup", dragEnd, false);
-        container.addEventListener("mousemove", drag, false);
+        container.addEventListener("pointerdown", dragStart, false);
+        container.addEventListener("pointerup", dragEnd, false);
+        container.addEventListener("pointermove", drag, false);
     }
 
 
@@ -4860,3 +4863,25 @@ function hide_all_tooltips()
     $('[data-toggle="tooltip"]').tooltip('hide');
 }
     
+let activity_intervall=null;
+function show_activity()
+{
+    $("#activity").html(
+`
+<div style="height: 100vh;width: 70vw;display: grid;grid-template-columns: repeat(12, 1fr);grid-template-rows: repeat(100, 1fr);grid-column-gap: 5px;">
+  <div style="grid-row: 1 / 50;border-radius: 5px 5px 0 0;background-color: #ff4136"></div>
+  <div style="grid-row: 1 / 60;border-radius: 5px 5px 0 0;background-color: #ff4136"></div>
+  <div style="grid-row: 1 / 70;border-radius: 5px 5px 0 0;background-color: #ff4136"></div>
+  <div style="grid-row: 1 / 80;border-radius: 5px 5px 0 0;background-color: #ff4136"></div>
+</div>`
+);
+    activity_intervall = setInterval(()=>{
+        //let a=_wasm_activity();
+        //$("#activity").text(`${(a ).toFixed(2)}`);
+    },100);
+}
+function hide_activity()
+{
+    $("#activity").html(``);
+    clearInterval(activity_intervall);
+}
