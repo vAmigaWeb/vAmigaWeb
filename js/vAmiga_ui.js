@@ -1614,6 +1614,7 @@ function restore_manual_state(port)
 
 
 function InitWrappers() {
+    try{add_pencil_support_for_elements_which_need_it();} catch(e) {console.error(e)}
     wasm_loadfile = function (file_name, file_buffer, drv_number=0) {
         var file_slot_wasmbuf = Module._malloc(file_buffer.byteLength);
         Module.HEAPU8.set(file_buffer, file_slot_wasmbuf);
@@ -3329,32 +3330,6 @@ $('.layer').change( function(event) {
         //document.getElementById('canvas').focus();
     });
 
-/*
-    var delete_cache = () =>{
-    caches.keys().then(keys => {
-        console.log('opening cache:'+keys);
-        return Promise.all(keys
-            .map(key => {
-                caches.open(key).then(function(cache) { 
-                    cache.keys().then(function(cached_requests) { 
-                      for(req_in_cache of cached_requests)
-                      {
-                        //console.log(req_in_cache.url);
-                        if(req_in_cache.url.match('/webservice/')!= null)
-                        {
-                           console.log('delete -> '+req_in_cache.url); 
-                           cache.delete(req_in_cache);
-                        } 
-                      }
-                    });
-                });
-            })
-        );
-    });
-    }
-    delete_cache();
-*/    
-
     set_color_palette(load_setting('color_palette', 'color'));
     function set_color_palette(color_palette) {
         $("#button_color_palette").text(color_palette.replace("_", " "));
@@ -4884,4 +4859,49 @@ function hide_activity()
 {
     $("#activity").html(``);
     clearInterval(activity_intervall);
+}
+
+add_pencil_support = (element) => {
+    let isPointerDown = false;
+    let pointerId = null;
+
+    element.addEventListener('pointerdown', (event) => {
+        if (event.pointerType === 'pen') {
+        isPointerDown = true;
+        pointerId = event.pointerId;
+        }
+    });
+
+    element.addEventListener('pointerup', (event) => {
+        if (isPointerDown && event.pointerId === pointerId) {
+        isPointerDown = false;
+        pointerId = null;
+
+        const clickEvent = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+        });
+
+        element.focus();
+        element.dispatchEvent(clickEvent);      
+        }
+    });
+
+    element.addEventListener('pointercancel', (event) => {
+        if (event.pointerType === 'pen') {
+        isPointerDown = false;
+        pointerId = null;
+        }
+    });
+}
+function add_pencil_support_for_elements_which_need_it()
+{
+    let elements_which_need_pencil_support=
+        ["button_show_menu","button_run", "button_reset", "button_take_snapshot",
+        "button_snapshots", "button_keyboard", "button_custom_key", "drop_zone",
+        "button_fullscreen", "button_settings", "port1", "port2" ]
+    for(let element_id of elements_which_need_pencil_support)
+    {
+        add_pencil_support(document.getElementById(element_id));
+    }
 }
