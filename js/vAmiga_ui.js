@@ -1028,7 +1028,7 @@ function configure_file_dialog(reset=false)
 
 function prompt_for_drive()
 {
-    let cancel=`<div class="close" style="position:absolute;top:0.2em;right:0.4em;cursor:pointer" onclick="show_drive_select(false)">×</div>`;
+    let cancel=`<div id="prompt_drive_cancel" class="close" style="position:absolute;top:0.2em;right:0.4em;cursor:pointer" onclick="show_drive_select(false)">×</div>`;
     let_drive_select_stay_open=false;
     show_drive_select=(show)=>{
         if(let_drive_select_stay_open)
@@ -1041,6 +1041,8 @@ function prompt_for_drive()
         if(show)
         {
             $("#div_drive_select").show();
+            add_pencil_support_to_childs(document.getElementById("drive_select_choice"));
+            add_pencil_support(document.getElementById("prompt_drive_cancel"));
         }
         else
         {
@@ -4893,6 +4895,12 @@ add_pencil_support = (element) => {
         pointerId = null;
         }
     });
+}
+function add_pencil_support_to_childs(element) {
+    element.childNodes.forEach(child => {
+        if (child.nodeType === Node.ELEMENT_NODE)
+          add_pencil_support(child);
+    });  
 }
 function add_pencil_support_for_elements_which_need_it()
 {
