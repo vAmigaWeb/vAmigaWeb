@@ -4390,8 +4390,10 @@ release_key('ControlLeft');`;
                 }
                 custom_keys.push(new_button);
 
-                $('#lock_action_button_switch').prop('checked', false);
                 lock_action_button=false;
+                $('#lock_action_button_switch').prop('checked', lock_action_button);
+                $('#move_action_buttons_switch').prop('checked',!lock_action_button);
+
 
                 install_custom_keys();
                 create_new_custom_key=false;
