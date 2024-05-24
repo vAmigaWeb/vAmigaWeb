@@ -895,10 +895,10 @@ touch screen settings for virtual keyboard
             <br>
             compose an action sequence, for example<br>
             <ul>
-            <li><b><i>loop5{j2fire1=>120ms=>j2fire0=>90ms}</i></b>&nbsp;which will shoot 5 times</li>
-            <li>or a literal action enclosed in single quotes e.g. <b>'I am an Amiga.'</b></li>
-            <li>or key combos e.g. CTRL+W &nbsp;<b>pressControlLeft=>W=>releaseControlLeft</b></li>
-            <li>or&nbsp;<b>A=>await_action_button_released=>B</li> for A on button down and B on button up in locked mode (see settings)</li> 
+            <li><b class="select-all" onclick="copy_to_clipboard(this)">loop5{j2fire1=>120ms=>j2fire0=>90ms}</b>&nbsp;which will shoot 5 times</li>
+            <li>or a literal action enclosed in single quotes e.g. <b class="select-all" onclick="copy_to_clipboard(this)">'I am an Amiga.'</b></li>
+            <li>or key combos e.g. CTRL+W &nbsp;<b class="select-all" onclick="copy_to_clipboard(this)">pressControlLeft=>W=>releaseControlLeft</b></li>
+            <li>or&nbsp;<b class="select-all" onclick="copy_to_clipboard(this)">pressA=>await_action_button_released=>releaseA</li> for A keydown on button down and A keyup on button up in locked mode (see settings or below)</li> 
             <li>for more complex tasks you can also choose to add a javascript ...</li>
             </ul>
 
@@ -982,10 +982,13 @@ touch screen settings for virtual keyboard
 
             </div>
 
-              
-            
-             ...  after created you can change the position of the action button by dragging ... when clicking the action button with a long press it 
-goes into edit mode which takes you right back to here ...
+            <div class="custom-control custom-switch">
+                <input type="checkbox" class="custom-control-input" id="move_action_buttons_switch" />
+                 <label class="custom-control-label" for="move_action_buttons_switch">
+                  moveable action buttons
+                 </label>
+            </div>
+            <div id="move_action_buttons_label" class="movable_button_label" style="margin-top: 0.5em;"></div>
 
           </div>
           <div class="modal-footer">
