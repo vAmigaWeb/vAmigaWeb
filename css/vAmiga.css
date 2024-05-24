@@ -45,6 +45,15 @@
     outline: none;
 }
 
+.select-all {
+    user-select: all;
+    -webkit-user-select: all;
+    font-style: italic;
+}
+.select-all:hover {
+    background: #555;
+}
+
 .pixel_art{
     image-rendering: pixelated;
     image-rendering: crisp-edges;
@@ -206,7 +215,7 @@ color: #aaa !important;
     background-color:var(--darkbg);
 }
 
-.gc_choice_text span, .vbk_choice_text span, .vjoy_choice_text span {
+.movable_button_label span, .gc_choice_text span, .vbk_choice_text span, .vjoy_choice_text span {
     background-color: var(--gray);
     border-radius: 6px;
     padding-left: 4px;

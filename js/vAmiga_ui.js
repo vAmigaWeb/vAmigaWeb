@@ -2409,9 +2409,6 @@ function InitWrappers() {
         menu_button_fade_in();
     }});
 
-
-
-
 //----
     lock_action_button_switch = $('#lock_action_button_switch');
     lock_action_button=load_setting('lock_action_button', false);
@@ -2420,8 +2417,30 @@ function InitWrappers() {
         lock_action_button=this.checked;
         install_custom_keys();
         save_setting('lock_action_button', lock_action_button);
+        $('#move_action_buttons_switch').prop('checked',!lock_action_button);
     });
-//----
+
+    $('#move_action_buttons_switch').prop('checked',!lock_action_button);
+
+    let set_move_action_buttons_label=()=>{
+        $('#move_action_buttons_label').html(
+            lock_action_button ? 
+            `All <span>'action button' positions are now locked</span>… <span>scripts can trigger actions when the button is released</span>… <span>long press edit mode is disabled</span> (instead use the <span>+</span> from the top menu bar and choose any buttons from the dropdown to edit)`
+            :
+            `Once created, you can <span>move any 'action button' by dragging</span>… A <span>long press will enter 'edit mode'</span>… While 'moveable action buttons' is switched on, <span>scripts can not detect release</span> state (to allow this, you must disable the long press gesture by turning 'moveable action buttons' off)`
+        );
+    }
+    set_move_action_buttons_label();
+    $('#move_action_buttons_switch').change( 
+        ()=>{
+                lock_action_button=!lock_action_button;
+                set_move_action_buttons_label();
+                install_custom_keys();
+                lock_action_button_switch.prop('checked', lock_action_button);
+            }
+    ); 
+
+    //----
 let set_game_controller_buttons_choice = function (choice) {
     $(`#button_game_controller_type_choice`).text('button count='+choice);
     joystick_button_count=choice;
@@ -4052,7 +4071,6 @@ $('.layer').change( function(event) {
                 button_delete_shortcut.prop('disabled',btn_def.key == "");
                 $('#button_padding').prop('disabled', btn_def.title=='');
                 $('#button_opacity').prop('disabled', btn_def.title=='');
-     
                 //show errors
                 validate_action_script();
             }
@@ -4078,7 +4096,6 @@ $('.layer').change( function(event) {
                 $('#check_app_scope').change( set_scope_label ); 
             }
 
-            
             if(is_running())
             {
                 wasm_halt();
@@ -4475,7 +4492,10 @@ release_key('ControlLeft');`;
             {
                 btn_html += 'opacity:'+element.opacity+' !important;';
             }
-
+            if(!lock_action_button)
+            {
+                btn_html += 'box-shadow: 0.2em 0.2em 0.6em rgba(0, 0, 0, 0.9);';
+            }
 
             btn_html += 'touch-action:none">'+html_encode(element.title)+'</button>';
 
@@ -4685,7 +4705,7 @@ release_key('ControlLeft');`;
 
         if(!just_dragged)
         {
-            const magnetic_force=5.3;
+            const magnetic_force=5.25;
             just_dragged = Math.abs(xOffset[e.target.id]-currentX)>magnetic_force || Math.abs(yOffset[e.target.id]-currentY)>magnetic_force;
         }
         if(just_dragged)
@@ -4920,4 +4940,13 @@ function add_pencil_support_for_elements_which_need_it()
     {
         add_pencil_support(document.getElementById(element_id));
     }
+}
+
+function copy_to_clipboard(element) {
+    var textToCopy = element.innerText;
+    navigator.clipboard.writeText(textToCopy).then(function() {
+        alert(`copied to clipboard: ${textToCopy}`);
+    }, function(err) {
+        console.error(err);
+    });
 }
