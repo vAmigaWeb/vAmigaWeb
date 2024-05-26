@@ -2701,6 +2701,27 @@ $(`#choose_display a`).click(function ()
 
 //----------
 
+activity_monitor_switch
+
+activity_monitor_switch = $('#activity_monitor_switch');
+set_activity_monitor = function(value){
+    if(value)
+    {
+        show_activity();
+    }
+    else
+    {
+        hide_activity(); 
+    }
+    activity_monitor_switch.prop('checked', value);
+}    
+set_activity_monitor(load_setting('activity_monitor', false));
+activity_monitor_switch.change( function() {
+    
+    save_setting('activity_monitor', this.checked);
+    set_activity_monitor(this.checked);
+});
+//----------
     pixel_art_switch = $('#pixel_art_switch');
     set_pixel_art = function(value){
         if(value)
@@ -4870,29 +4891,6 @@ function hide_all_tooltips()
     $('[data-toggle="tooltip"]').tooltip('hide');
 }
     
-let activity_intervall=null;
-function show_activity()
-{
-    $("#activity").html(
-`
-<div style="height: 100vh;width: 70vw;display: grid;grid-template-columns: repeat(12, 1fr);grid-template-rows: repeat(100, 1fr);grid-column-gap: 5px;">
-  <div style="grid-row: 1 / 50;border-radius: 5px 5px 0 0;background-color: #ff4136"></div>
-  <div style="grid-row: 1 / 60;border-radius: 5px 5px 0 0;background-color: #ff4136"></div>
-  <div style="grid-row: 1 / 70;border-radius: 5px 5px 0 0;background-color: #ff4136"></div>
-  <div style="grid-row: 1 / 80;border-radius: 5px 5px 0 0;background-color: #ff4136"></div>
-</div>`
-);
-    activity_intervall = setInterval(()=>{
-        //let a=_wasm_activity();
-        //$("#activity").text(`${(a ).toFixed(2)}`);
-    },100);
-}
-function hide_activity()
-{
-    $("#activity").html(``);
-    clearInterval(activity_intervall);
-}
-
 add_pencil_support = (element) => {
     let isPointerDown = false;
     let pointerId = null;
@@ -4951,4 +4949,64 @@ function copy_to_clipboard(element) {
     }, function(err) {
         console.error(err);
     });
+}
+
+//--- activity stuff
+let activity_intervall=null;
+function show_activity()
+{
+    $("#activity").remove();
+    $("body").append(
+`
+<style>
+  .bar {
+    --scale: 100;
+    --start: calc(var(--scale) + 1 - var(--barval));
+    grid-row: var(--start) / 100;
+    border-radius: 5px 5px 0 0;
+    background-image: linear-gradient(to top, rgba(50,50,50,0.6), rgba(200,200,200,0.6));
+  }
+</style>
+
+<div id="activity" style="
+position: absolute;bottom: 0;left: 0;background-color: rgba(200, 200, 200, 0.0)">
+    <div id="bla" style="height: 4em;width: 6em;display: grid;grid-template-columns: repeat(20, 1fr);
+    grid-template-rows: repeat(100, 1fr);grid-column-gap: 0.5px;">
+    </div>
+    <div style="display:flex;justify-content:center;
+    background: linear-gradient(to top, rgba(50,50,50,0.6), rgb(200,200,200,0.6));
+    -webkit-text-fill-color: transparent;
+    -webkit-background-clip: text;font-size: small;">Blitter DMA</div>
+</div>`
+);
+    let bla = [];
+    for(let i=0;i<20;i++)
+    {
+        $("#bla").append(
+            `<div id="bl${i}" class="bar" style="--barval:0;grid-column:${i+1};"></div>`
+        );
+        bla.push(document.querySelector(`#bl${i}`));
+    }
+
+    activity_intervall = setInterval(()=>{
+        if(!running) return;
+        
+        let value=_wasm_activity();
+
+        value = (Math.log(1+19*value) / Math.log(20)) * 22;
+        if(value>100)
+        {
+            value=100;
+        }
+        for(let i=0;i<20-1;i++)
+        {
+            bla[i].style.setProperty("--barval", bla[i+1].style.getPropertyValue("--barval"));
+        }
+        bla[20-1].style.setProperty("--barval", value);
+    },400);
+}
+function hide_activity()
+{
+    $("#activity").remove();
+    clearInterval(activity_intervall);
 }
