@@ -532,8 +532,8 @@ var collectors = {
         },
         copy_autosnapshot_to_canvas: function(snapshot_data, canvas){ 
             var ctx = canvas.getContext("2d");
-            canvas.width = snapshot_data[13]*256+ snapshot_data[12];
-            canvas.height = snapshot_data[17]*256+ snapshot_data[16];
+            canvas.width = snapshot_data[13+4]*256+ snapshot_data[12+4];
+            canvas.height = snapshot_data[17+4]*256+ snapshot_data[16+4];
             imgData=ctx.createImageData(canvas.width,canvas.height);
 
             var data = imgData.data;
