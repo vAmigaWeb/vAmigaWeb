@@ -4961,7 +4961,13 @@ function add_monitor(id, label)
     `
 <div>
     <div id="monitor_${id}" style="height: 4em;width: 6em;display: grid;grid-template-columns: repeat(20, 1fr);
-        grid-template-rows: repeat(100, 1fr);grid-column-gap: 0.5px;">
+        grid-template-rows: repeat(100, 1fr);grid-column-gap: 0.5px;
+        --color_start:50,50,50;--color_end:200,200,200;
+        background: linear-gradient(to top, rgba(var(--color_start),0.05), rgba(var(--color_end),0.05));        
+        border: var(--color_end);
+        border-style: none;
+        border-radius: 0.5em 0.5em 0 0;
+        ">
     </div>
     <div style="display:flex;justify-content:center;
         background: linear-gradient(to top, rgba(50,50,50,0.6), rgb(200,200,200,0.6));
@@ -4972,14 +4978,37 @@ function add_monitor(id, label)
     `
     );
 
+    color=[];
+    color.copper={start: '51,51,0', end:'255,255,0'}
+    color.blitter={start: `50,${parseInt('cc',16)*0.2},0`, end:`${parseInt('ff',16)},${parseInt('cc',16)},0`}
+    color.disk={start: `0,51,0`, end:`0,255,0`}
+    color.audio={start: '50,0,50', end:'255,0,255'}
+    color.sprite={start: `0,${parseInt('88',16)*0.2},51`, end:`0,${parseInt('88',16)},255`}
+    color.bitplane={start: '0,50,50', end:'0,255,255'}
+
+
     document.querySelector(`#monitor_${id}`).addEventListener('click', 
-        ()=>dma_debug(id)
+        (e)=>{
+            if(dma_channels[id] !==true )
+            {
+                e.currentTarget.style.setProperty("--color_start",color[id].start);
+                e.currentTarget.style.setProperty("--color_end",color[id].end);   
+            }
+            else
+            {
+                e.currentTarget.style.setProperty("--color_start",'50,50,50');
+                e.currentTarget.style.setProperty("--color_end",'200,200,200');   
+            }
+            dma_debug(id);
+        }
     );
     dma_channel_history[id] = [];
     for(let i=0;i<20;i++)
     {
         $(`#monitor_${id}`).append(
-            `<div id="${id}_bar_${i}" class="bar" style="--barval:0;grid-column:${i+1};"></div>`
+            `<div id="${id}_bar_${i}" class="bar" style="
+            background: linear-gradient(to top, rgba(var(--color_start),0.5), rgba(var(--color_end),0.5));
+            --barval:0;grid-column:${i+1};"></div>`
         );
         dma_channel_history[id].push(document.querySelector(`#${id}_bar_${i}`));
     }
@@ -5042,8 +5071,8 @@ function show_activity()
     --scale: 100;
     --start: calc(var(--scale) + 1 - var(--barval));
     grid-row: var(--start) / 100;
-    border-radius: 5px 5px 0 0;
-    background-image: linear-gradient(to top, rgba(50,50,50,0.6), rgba(200,200,200,0.6));
+    border-radius: 1px 1px 0 0;
+    background-image: linear-gradient(to top, rgba(var(--color_start),0.6), rgba(var(--color_end),0.6));
   }
 </style>
 
@@ -5051,8 +5080,6 @@ function show_activity()
 style="position: absolute;
 display:grid;grid-template-columns: repeat(8, 1fr);grid-column-gap: 1em;
 bottom: 0;left: 0;background-color: rgba(200, 200, 200, 0.0)">
-
-
 </div>`
 );
 
@@ -5065,10 +5092,8 @@ bottom: 0;left: 0;background-color: rgba(200, 200, 200, 0.0)">
     add_monitor("audio", "Audio DMA");
     add_monitor("sprite", "Sprite DMA");
     add_monitor("bitplane", "Bitplane DMA");
-
-
     add_monitor("chipRam", "chipRam DMA");
-  
+
  }
 function hide_activity()
 {
