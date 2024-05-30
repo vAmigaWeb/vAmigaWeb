@@ -4952,7 +4952,7 @@ function copy_to_clipboard(element) {
     });
 }
 
-//--- activity stuff
+//--- activity monitors and dma bus visualisation
 let activity_intervall=null;
 
 function add_monitor(id, label)
@@ -4989,6 +4989,7 @@ function add_monitor(id, label)
 
     document.querySelector(`#monitor_${id}`).addEventListener('click', 
         (e)=>{
+            let id=e.currentTarget.id.replace('monitor_','');
             if(dma_channels[id] !==true )
             {
                 e.currentTarget.style.setProperty("--color_start",color[id].start);
@@ -5027,24 +5028,28 @@ function add_monitor(id, label)
         waveformL:10, waveformR:11
     }
 
-    activity_intervall = setInterval(()=>{
-        if(!running) return;
-        
-        let value=_wasm_activity(activity_id[id]);
+    if(!activity_intervall)
+    {
+        activity_intervall = setInterval(()=>{
+            if(!running) return;
+            
+            for(id in dma_channels){
+                let value=_wasm_activity(activity_id[id]);
 
-        value = (Math.log(1+19*value) / Math.log(20)) * 100;
-        if(value>100)
-        {
-            value=100;
-        }
-        for(let i=0;i<20-1;i++)
-        {
-            dma_channel_history[id][i].style.setProperty("--barval", dma_channel_history[id][i+1].style.getPropertyValue("--barval"));
-        }
-        dma_channel_history[id][20-1].style.setProperty("--barval", value);
-    },400);
+                value = (Math.log(1+19*value) / Math.log(20)) * 100;
+                if(value>100)
+                {
+                    value=100;
+                }
+                for(let i=0;i<20-1;i++)
+                {
+                    dma_channel_history[id][i].style.setProperty("--barval", dma_channel_history[id][i+1].style.getPropertyValue("--barval"));
+                }
+                dma_channel_history[id][20-1].style.setProperty("--barval", value);
+            }
+        },400);
+    }
 }
-
 
 
 function show_activity()
@@ -5059,6 +5064,15 @@ function show_activity()
     wasm_configure_key("DMA_DEBUG_CHANNEL", "REFRESH", "0");
 
 
+    dma_channels={
+        copper: false,
+        blitter: false,
+        disk:false,
+        audio:false,
+        sprite:false,
+        bitplane:false,
+        chipRam:false
+    };
 
 
     wasm_configure("DMA_DEBUG_ENABLE","1");
@@ -5101,9 +5115,9 @@ function hide_activity()
 
     $("#activity").remove();
     clearInterval(activity_intervall);
+    activity_intervall=null;
 }
 
-dma_channels=[];
 function dma_debug(channel)
 {
 /**
