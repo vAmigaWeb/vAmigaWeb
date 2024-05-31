@@ -1733,6 +1733,7 @@ function InitWrappers() {
     wasm_eject_disk = Module.cwrap('wasm_eject_disk', 'undefined', ['string']);
     wasm_export_disk = Module.cwrap('wasm_export_disk', 'string', ['string']);
     wasm_configure = Module.cwrap('wasm_configure', 'string', ['string', 'string']);
+    wasm_configure_key = Module.cwrap('wasm_configure_key', 'string', ['string', 'string', 'string']);
     wasm_write_string_to_ser = Module.cwrap('wasm_write_string_to_ser', 'undefined', ['string']);
     wasm_print_error = Module.cwrap('wasm_print_error', 'undefined', ['number']);
     wasm_power_on = Module.cwrap('wasm_power_on', 'string', ['number']);
@@ -4951,10 +4952,137 @@ function copy_to_clipboard(element) {
     });
 }
 
-//--- activity stuff
+//--- activity monitors and dma bus visualisation
 let activity_intervall=null;
+
+function add_monitor(id, label)
+{
+    $("#activity").append(
+    `
+<div>
+    <div id="monitor_${id}" style="height: 4em;width: 6em;display: grid;grid-template-columns: repeat(20, 1fr);
+        grid-template-rows: repeat(100, 1fr);grid-column-gap: 0.5px;
+        --color_start:50,50,50;--color_end:200,200,200;
+        background: linear-gradient(to top, rgba(var(--color_start),0.05), rgba(var(--color_end),0.05));        
+        border: var(--color_end);
+        border-style: none;
+        border-radius: 0.5em 0.5em 0 0;
+        ">
+    </div>
+    <div style="display:flex;justify-content:center;
+        background: linear-gradient(to top, rgba(50,50,50,0.6), rgb(200,200,200,0.6));
+        -webkit-text-fill-color: transparent;
+        -webkit-background-clip: text;font-size: small;">${label}
+    </div>
+<div>
+    `
+    );
+
+    color=[];
+    color.copper={start: '51,51,0', end:'255,255,0'}
+    color.blitter={start: `50,${parseInt('cc',16)*0.2},0`, end:`${parseInt('ff',16)},${parseInt('cc',16)},0`}
+    color.disk={start: `0,51,0`, end:`0,255,0`}
+    color.audio={start: '50,0,50', end:'255,0,255'}
+    color.sprite={start: `0,${parseInt('88',16)*0.2},51`, end:`0,${parseInt('88',16)},255`}
+    color.bitplane={start: '0,50,50', end:'0,255,255'}
+    color.CPU={start: '50,50,50', end:'255,255,255'}
+
+
+    document.querySelector(`#monitor_${id}`).addEventListener('click', 
+        (e)=>{
+            let id=e.currentTarget.id.replace('monitor_','');
+            if(id=="chipRam")
+                id="CPU";
+            
+            if(dma_channels[id] !==true )
+            {
+                e.currentTarget.style.setProperty("--color_start",color[id].start);
+                e.currentTarget.style.setProperty("--color_end",color[id].end);   
+            }
+            else
+            {
+                e.currentTarget.style.setProperty("--color_start",'50,50,50');
+                e.currentTarget.style.setProperty("--color_end",'200,200,200');   
+            }
+            dma_debug(id);
+        }
+    );
+    dma_channel_history[id] = [];
+    for(let i=0;i<20;i++)
+    {
+        $(`#monitor_${id}`).append(
+            `<div id="${id}_bar_${i}" class="bar" style="
+            background: linear-gradient(to top, rgba(var(--color_start),0.5), rgba(var(--color_end),0.5));
+            --barval:0;grid-column:${i+1};"></div>`
+        );
+        dma_channel_history[id].push(document.querySelector(`#${id}_bar_${i}`));
+    }
+
+    const activity_id = {
+        copper: 0,
+        blitter: 1,
+        disk: 2,
+        audio: 3,
+        sprite: 4,
+        bitplane: 5,
+        chipRam: 6,
+        slowRam: 7,
+        fastRam: 8,
+        kickRom: 9,
+        waveformL:10, waveformR:11
+    }
+
+    if(!activity_intervall)
+    {
+        activity_intervall = setInterval(()=>{
+            if(!running) return;
+            
+            for(id in dma_channels){
+                if(dma_channel_history[id]===undefined)
+                    continue;
+                let value=_wasm_activity(activity_id[id]);
+
+                value = (Math.log(1+19*value) / Math.log(20)) * 100;
+                if(value>100)
+                {
+                    value=100;
+                }
+                for(let i=0;i<20-1;i++)
+                {
+                    dma_channel_history[id][i].style.setProperty("--barval", dma_channel_history[id][i+1].style.getPropertyValue("--barval"));
+                }
+                dma_channel_history[id][20-1].style.setProperty("--barval", value);
+            }
+        },400);
+    }
+}
+
+
 function show_activity()
 {
+    wasm_configure_key("DMA_DEBUG_CHANNEL", "COPPER", "0");
+    wasm_configure_key("DMA_DEBUG_CHANNEL", "BLITTER", "0");
+    wasm_configure_key("DMA_DEBUG_CHANNEL", "DISK", "0");
+    wasm_configure_key("DMA_DEBUG_CHANNEL", "AUDIO", "0");
+    wasm_configure_key("DMA_DEBUG_CHANNEL", "SPRITE", "0");
+    wasm_configure_key("DMA_DEBUG_CHANNEL", "BITPLANE", "0");
+    wasm_configure_key("DMA_DEBUG_CHANNEL", "CPU", "0");
+    wasm_configure_key("DMA_DEBUG_CHANNEL", "REFRESH", "0");
+
+
+    dma_channels={
+        copper: false,
+        blitter: false,
+        disk:false,
+        audio:false,
+        sprite:false,
+        bitplane:false,
+        chipRam:false
+    };
+
+
+    wasm_configure("DMA_DEBUG_ENABLE","1");
+
     $("#activity").remove();
     $("body").append(
 `
@@ -4963,50 +5091,61 @@ function show_activity()
     --scale: 100;
     --start: calc(var(--scale) + 1 - var(--barval));
     grid-row: var(--start) / 100;
-    border-radius: 5px 5px 0 0;
-    background-image: linear-gradient(to top, rgba(50,50,50,0.6), rgba(200,200,200,0.6));
+    border-radius: 1px 1px 0 0;
+    background-image: linear-gradient(to top, rgba(var(--color_start),0.6), rgba(var(--color_end),0.6));
   }
 </style>
 
-<div id="activity" style="
-position: absolute;bottom: 0;left: 0;background-color: rgba(200, 200, 200, 0.0)">
-    <div id="bla" style="height: 4em;width: 6em;display: grid;grid-template-columns: repeat(20, 1fr);
-    grid-template-rows: repeat(100, 1fr);grid-column-gap: 0.5px;">
-    </div>
-    <div style="display:flex;justify-content:center;
-    background: linear-gradient(to top, rgba(50,50,50,0.6), rgb(200,200,200,0.6));
-    -webkit-text-fill-color: transparent;
-    -webkit-background-clip: text;font-size: small;">Blitter DMA</div>
+<div id="activity"
+style="position: absolute;
+display:grid;grid-template-columns: repeat(8, 1fr);grid-column-gap: 1em;
+bottom: 0;left: 0;background-color: rgba(200, 200, 200, 0.0)">
 </div>`
 );
-    let bla = [];
-    for(let i=0;i<20;i++)
-    {
-        $("#bla").append(
-            `<div id="bl${i}" class="bar" style="--barval:0;grid-column:${i+1};"></div>`
-        );
-        bla.push(document.querySelector(`#bl${i}`));
-    }
 
-    activity_intervall = setInterval(()=>{
-        if(!running) return;
-        
-        let value=_wasm_activity();
 
-        value = (Math.log(1+19*value) / Math.log(20)) * 22;
-        if(value>100)
-        {
-            value=100;
-        }
-        for(let i=0;i<20-1;i++)
-        {
-            bla[i].style.setProperty("--barval", bla[i+1].style.getPropertyValue("--barval"));
-        }
-        bla[20-1].style.setProperty("--barval", value);
-    },400);
-}
+    dma_channel_history = [];
+
+    add_monitor("blitter", "Blitter DMA");
+    add_monitor("copper", "Copper DMA");
+    add_monitor("disk", "Disk DMA");
+    add_monitor("audio", "Audio DMA");
+    add_monitor("sprite", "Sprite DMA");
+    add_monitor("bitplane", "Bitplane DMA");
+    add_monitor("chipRam", "CPU (chipRam)");
+
+ }
 function hide_activity()
 {
+    wasm_configure("DMA_DEBUG_ENABLE","0");
+
     $("#activity").remove();
     clearInterval(activity_intervall);
+    activity_intervall=null;
+}
+
+function dma_debug(channel)
+{
+/**
+ * activity monitor on => all aktivity monitorings are enabled 
+ * they will be rendered black and white
+ * on touch werden they become colored and the dma bus activity will be visualized (dma debugger)
+ * again touch and they become black white  and dma channel visualisation on that particular channel will be disabled
+ 
+Settings
+ (x) activity monitor
+ (x) tap on monitor to visualise dma channel
+*/
+    if(channel=="chipRam")
+        channel="CPU";
+
+
+    if(dma_channels[channel]=== undefined)
+    {
+        dma_channels[channel]=false;
+    }
+
+    dma_channels[channel]=!dma_channels[channel];
+   
+    wasm_configure_key("DMA_DEBUG_CHANNEL", channel, dma_channels[channel] ? "1" : "0");
 }
