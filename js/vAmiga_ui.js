@@ -4985,11 +4985,15 @@ function add_monitor(id, label)
     color.audio={start: '50,0,50', end:'255,0,255'}
     color.sprite={start: `0,${parseInt('88',16)*0.2},51`, end:`0,${parseInt('88',16)},255`}
     color.bitplane={start: '0,50,50', end:'0,255,255'}
+    color.CPU={start: '50,50,50', end:'255,255,255'}
 
 
     document.querySelector(`#monitor_${id}`).addEventListener('click', 
         (e)=>{
             let id=e.currentTarget.id.replace('monitor_','');
+            if(id=="chipRam")
+                id="CPU";
+            
             if(dma_channels[id] !==true )
             {
                 e.currentTarget.style.setProperty("--color_start",color[id].start);
@@ -5034,6 +5038,8 @@ function add_monitor(id, label)
             if(!running) return;
             
             for(id in dma_channels){
+                if(dma_channel_history[id]===undefined)
+                    continue;
                 let value=_wasm_activity(activity_id[id]);
 
                 value = (Math.log(1+19*value) / Math.log(20)) * 100;
@@ -5106,7 +5112,7 @@ bottom: 0;left: 0;background-color: rgba(200, 200, 200, 0.0)">
     add_monitor("audio", "Audio DMA");
     add_monitor("sprite", "Sprite DMA");
     add_monitor("bitplane", "Bitplane DMA");
-    add_monitor("chipRam", "chipRam DMA");
+    add_monitor("chipRam", "CPU (chipRam)");
 
  }
 function hide_activity()

@@ -2050,7 +2050,6 @@ extern "C" void wasm_write_byte_to_ser(u8 byte_to_send)
 extern "C" double wasm_activity(u8 id)
 {
     double value=0.0;
-    printf("activity_id: %u\n",id);
     auto dma = wrapper->amiga->agnus.getStats();
     if(id==0)
       value= dma.copperActivity /(313 *120);
@@ -2088,7 +2087,7 @@ extern "C" double wasm_activity(u8 id)
     }
 
 
-    printf("activity_id: %u, %lf\n",id, value);
+//    printf("activity_id: %u, %lf\n",id, value);
 
     return value;
 }
