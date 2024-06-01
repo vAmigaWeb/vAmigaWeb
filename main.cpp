@@ -2047,7 +2047,7 @@ extern "C" void wasm_write_byte_to_ser(u8 byte_to_send)
     wrapper->amiga->remoteManager.serServer.processIncomingByte(byte_to_send);
 }
 
-extern "C" double wasm_activity(u8 id)
+extern "C" double wasm_activity(u8 id, u8 read_or_write)
 {
     double value=0.0;
     auto dma = wrapper->amiga->agnus.getStats();
@@ -2082,12 +2082,36 @@ extern "C" double wasm_activity(u8 id)
         addValues(Monitors.Monitor.kickRom, kickR, kickW)*/
         auto mem = wrapper->amiga->mem.getStats();
         auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
-        auto chipR = float(mem.chipReads.accumulated + mem.chipWrites.accumulated)  / max;
-        value= chipR;
+        value = float(
+          read_or_write == 0 ? mem.chipReads.accumulated : mem.chipWrites.accumulated
+          )  / max;
+    }
+    else if(id==7)
+    {
+        auto mem = wrapper->amiga->mem.getStats();
+        auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
+        value= float(
+          read_or_write == 0 ? mem.slowReads.accumulated : mem.slowWrites.accumulated
+          )  / max;
+    }
+    else if(id==8)
+    {
+        auto mem = wrapper->amiga->mem.getStats();
+        auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
+        value = float(
+          read_or_write == 0 ? mem.fastReads.accumulated : mem.fastWrites.accumulated
+          )  / max;
+    }
+    else if(id==9)
+    {
+        auto mem = wrapper->amiga->mem.getStats();
+        auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
+        value = float(
+          read_or_write == 0 ? mem.kickReads.accumulated : mem.kickWrites.accumulated
+          )  / max;
     }
 
-
-//    printf("activity_id: %u, %lf\n",id, value);
+  //  printf("activity_id: %u, rw: %u =%lf\n",id, read_or_write,value);
 
     return value;
 }

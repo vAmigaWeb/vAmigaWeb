@@ -588,7 +588,55 @@ button[id^="detail_run"] {
 .monitor_grid {
     height: auto;
     width: 100vw;
+    position: absolute;
+    display:grid;grid-template-columns: repeat(10, 1fr);grid-column-gap: 0.5em;
+    bottom: 0;left: 0;background-color: rgba(200, 200, 200, 0.0)
 }
+
 .monitor {
     height: 12vh;
+    display: grid;grid-template-columns: repeat(20, 1fr);
+    grid-template-rows: repeat(100, 1fr);grid-column-gap: 0.5px;
+    --color_start:50,50,50;--color_end:200,200,200;
+    background: linear-gradient(to top, rgba(var(--color_start),0.3), rgba(var(--color_end),0.3));        
+    border: var(--color_end);
+    border-style: none;
+    border-radius: 0.5em 0.5em 0 0;
+}
+@media (max-width: 1023px) {
+    .monitor_grid {
+        display:grid;grid-template-columns: repeat(5, 1fr);grid-column-gap: 0.5em;
+    }       
+    .monitor {
+        height: 10vh;
+    }
+}
+.monitor_label {
+    display:flex;justify-content:center;
+    background: linear-gradient(to top, rgba(50,50,50,0.6), rgb(200,200,200,0.6));
+    -webkit-text-fill-color: transparent;
+    -webkit-background-clip: text;font-size: smaller;
+    background-clip: text;font-size: smaller;
+}
+
+.bar {
+    --scale: 100;
+    --start: calc(var(--scale) + 1 - var(--barval));
+    grid-row: var(--start) / 100;
+    border-radius: 1px 1px 0 0;
+    background: linear-gradient(to top, rgba(var(--color_start),0.6), rgba(var(--color_end),0.6));
+}
+
+.bar_splitted_upper {
+    --scale: 100;
+    --start: calc(var(--scale) + 1 - var(--barval));
+    grid-row: calc(var(--start) / 2) / 50;
+    border-radius: 1px 1px 0 0;
+    background: linear-gradient(to top, rgba(0,150,0.4), rgba(0,255,0,0.4));
+}
+.bar_splitted_lower {
+    --end: var(--barval);
+    grid-row: 50 / calc(calc(var(--end) / 2) + 50);
+    border-radius: 1px 1px 0 0;
+    background: linear-gradient(to top, rgba(150,0,0,0.4), rgba(255,0,0,0.4));
 }
