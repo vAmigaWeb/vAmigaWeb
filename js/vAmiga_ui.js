@@ -4960,10 +4960,10 @@ function add_monitor(id, label)
     $("#activity").append(
     `
 <div>
-    <div id="monitor_${id}" style="height: 4em;width: 6em;display: grid;grid-template-columns: repeat(20, 1fr);
+    <div id="monitor_${id}" class="monitor" style="display: grid;grid-template-columns: repeat(20, 1fr);
         grid-template-rows: repeat(100, 1fr);grid-column-gap: 0.5px;
         --color_start:50,50,50;--color_end:200,200,200;
-        background: linear-gradient(to top, rgba(var(--color_start),0.05), rgba(var(--color_end),0.05));        
+        background: linear-gradient(to top, rgba(var(--color_start),0.3), rgba(var(--color_end),0.3));        
         border: var(--color_end);
         border-style: none;
         border-radius: 0.5em 0.5em 0 0;
@@ -5060,6 +5060,8 @@ function add_monitor(id, label)
 
 function show_activity()
 {
+    $("#activity_help").show();
+
     wasm_configure_key("DMA_DEBUG_CHANNEL", "COPPER", "0");
     wasm_configure_key("DMA_DEBUG_CHANNEL", "BLITTER", "0");
     wasm_configure_key("DMA_DEBUG_CHANNEL", "DISK", "0");
@@ -5096,9 +5098,9 @@ function show_activity()
   }
 </style>
 
-<div id="activity"
+<div id="activity" class="monitor_grid"
 style="position: absolute;
-display:grid;grid-template-columns: repeat(8, 1fr);grid-column-gap: 1em;
+display:grid;grid-template-columns: repeat(7, 1fr);grid-column-gap: 0.5em;
 bottom: 0;left: 0;background-color: rgba(200, 200, 200, 0.0)">
 </div>`
 );
@@ -5122,6 +5124,7 @@ function hide_activity()
     $("#activity").remove();
     clearInterval(activity_intervall);
     activity_intervall=null;
+    $("#activity_help").hide();
 }
 
 function dma_debug(channel)

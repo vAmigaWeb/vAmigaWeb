@@ -2082,7 +2082,7 @@ extern "C" double wasm_activity(u8 id)
         addValues(Monitors.Monitor.kickRom, kickR, kickW)*/
         auto mem = wrapper->amiga->mem.getStats();
         auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
-        auto chipR = float(mem.chipReads.accumulated) / max;
+        auto chipR = float(mem.chipReads.accumulated + mem.chipWrites.accumulated)  / max;
         value= chipR;
     }
 
