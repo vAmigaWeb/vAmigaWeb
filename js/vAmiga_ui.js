@@ -4955,26 +4955,14 @@ function copy_to_clipboard(element) {
 //--- activity monitors and dma bus visualisation
 let activity_intervall=null;
 
-function add_monitor(id, label)
+function add_monitor(id, label, splitted=false)
 {
     $("#activity").append(
     `
-<div>
-    <div id="monitor_${id}" class="monitor" style="display: grid;grid-template-columns: repeat(20, 1fr);
-        grid-template-rows: repeat(100, 1fr);grid-column-gap: 0.5px;
-        --color_start:50,50,50;--color_end:200,200,200;
-        background: linear-gradient(to top, rgba(var(--color_start),0.3), rgba(var(--color_end),0.3));        
-        border: var(--color_end);
-        border-style: none;
-        border-radius: 0.5em 0.5em 0 0;
-        ">
-    </div>
-    <div style="display:flex;justify-content:center;
-        background: linear-gradient(to top, rgba(50,50,50,0.6), rgb(200,200,200,0.6));
-        -webkit-text-fill-color: transparent;
-        -webkit-background-clip: text;font-size: small;">${label}
-    </div>
-<div>
+        <div>
+            <div id="monitor_${id}" class="monitor"></div>
+            <div class="monitor_label">${label}</div>
+        <div>
     `
     );
 
@@ -4991,7 +4979,7 @@ function add_monitor(id, label)
     document.querySelector(`#monitor_${id}`).addEventListener('click', 
         (e)=>{
             let id=e.currentTarget.id.replace('monitor_','');
-            if(id=="chipRam")
+            if(id.includes("Ram") || id.includes("Rom"))
                 id="CPU";
             
             if(dma_channels[id] !==true )
@@ -5010,12 +4998,32 @@ function add_monitor(id, label)
     dma_channel_history[id] = [];
     for(let i=0;i<20;i++)
     {
-        $(`#monitor_${id}`).append(
-            `<div id="${id}_bar_${i}" class="bar" style="
-            background: linear-gradient(to top, rgba(var(--color_start),0.5), rgba(var(--color_end),0.5));
-            --barval:0;grid-column:${i+1};"></div>`
-        );
-        dma_channel_history[id].push(document.querySelector(`#${id}_bar_${i}`));
+        if(splitted==false)
+        {
+            $(`#monitor_${id}`).append(
+                `<div id="${id}_bar_${i}" class="bar" 
+                  style="--barval:0;grid-column:${i+1};"></div>`
+            );
+            dma_channel_history[id].push(document.querySelector(`#${id}_bar_${i}`));
+        }
+        else
+        {
+            $(`#monitor_${id}`).append(
+                `<div id="${id}_bar_${i}_upper" class="bar_splitted_upper" 
+                  style="--barval:0;grid-column:${i+1};"></div>`
+            );
+            $(`#monitor_${id}`).append(
+                `<div id="${id}_bar_${i}_lower" class="bar_splitted_lower" 
+                  style="--barval:0;grid-column:${i+1};"></div>`
+            );
+            dma_channel_history[id].push(
+                [
+                    document.querySelector(`#${id}_bar_${i}_upper`),
+                    document.querySelector(`#${id}_bar_${i}_lower`)
+                ]
+            );
+        }
+        
     }
 
     const activity_id = {
@@ -5041,17 +5049,33 @@ function add_monitor(id, label)
                 if(dma_channel_history[id]===undefined)
                     continue;
                 let value=_wasm_activity(activity_id[id]);
-
                 value = (Math.log(1+19*value) / Math.log(20)) * 100;
-                if(value>100)
+                value = value>100 ? 100: value;
+
+                if(Array.isArray(dma_channel_history[id][0]))
                 {
-                    value=100;
+                    for(let i=0;i<20-1;i++)
+                    {
+                        dma_channel_history[id][i][0].style.setProperty("--barval", 
+                        dma_channel_history[id][i+1][0].style.getPropertyValue("--barval"));
+                        dma_channel_history[id][i][1].style.setProperty("--barval", 
+                        dma_channel_history[id][i+1][1].style.getPropertyValue("--barval"));
+                    }
+                    dma_channel_history[id][20-1][0].style.setProperty("--barval", value);
+                
+                    value=_wasm_activity(activity_id[id],1);
+                    value = (Math.log(1+19*value) / Math.log(20)) * 100;
+                    value = value>100 ? 100: value;    
+                    dma_channel_history[id][20-1][1].style.setProperty("--barval", value);
                 }
-                for(let i=0;i<20-1;i++)
+                else
                 {
-                    dma_channel_history[id][i].style.setProperty("--barval", dma_channel_history[id][i+1].style.getPropertyValue("--barval"));
+                    for(let i=0;i<20-1;i++)
+                    {
+                        dma_channel_history[id][i].style.setProperty("--barval", dma_channel_history[id][i+1].style.getPropertyValue("--barval"));
+                    }
+                    dma_channel_history[id][20-1].style.setProperty("--barval", value);
                 }
-                dma_channel_history[id][20-1].style.setProperty("--barval", value);
             }
         },400);
     }
@@ -5079,32 +5103,18 @@ function show_activity()
         audio:false,
         sprite:false,
         bitplane:false,
-        chipRam:false
+        chipRam:false,
+        slowRam:false,
+        fastRam:false,
+        kickRom:false,
+
     };
 
 
     wasm_configure("DMA_DEBUG_ENABLE","1");
 
     $("#activity").remove();
-    $("body").append(
-`
-<style>
-  .bar {
-    --scale: 100;
-    --start: calc(var(--scale) + 1 - var(--barval));
-    grid-row: var(--start) / 100;
-    border-radius: 1px 1px 0 0;
-    background-image: linear-gradient(to top, rgba(var(--color_start),0.6), rgba(var(--color_end),0.6));
-  }
-</style>
-
-<div id="activity" class="monitor_grid"
-style="position: absolute;
-display:grid;grid-template-columns: repeat(7, 1fr);grid-column-gap: 0.5em;
-bottom: 0;left: 0;background-color: rgba(200, 200, 200, 0.0)">
-</div>`
-);
-
+    $("body").append(`<div id="activity" class="monitor_grid"></div>`);
 
     dma_channel_history = [];
 
@@ -5114,7 +5124,10 @@ bottom: 0;left: 0;background-color: rgba(200, 200, 200, 0.0)">
     add_monitor("audio", "Audio DMA");
     add_monitor("sprite", "Sprite DMA");
     add_monitor("bitplane", "Bitplane DMA");
-    add_monitor("chipRam", "CPU (chipRam)");
+    add_monitor("chipRam", "CPU (chipRAM)", true);
+    add_monitor("slowRam", "CPU (slowRAM)", true);
+    add_monitor("fastRam", "CPU (fastRAM)", true);
+    add_monitor("kickRom", "CPU (kickROM)", true);
 
  }
 function hide_activity()
@@ -5137,9 +5150,9 @@ function dma_debug(channel)
  
 Settings
  (x) activity monitor
- (x) tap on monitor to visualise dma channel
+ (x?) tap on monitor to visualise dma channel
 */
-    if(channel=="chipRam")
+    if(channel.includes("Ram") || channel.includes("Rom"))
         channel="CPU";
 
 
