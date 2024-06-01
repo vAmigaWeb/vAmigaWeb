@@ -583,3 +583,12 @@ button[id^="detail_run"] {
 	position : relative;
 	overflow : hidden;
 }
+
+
+.monitor_grid {
+    height: auto;
+    width: 100vw;
+}
+.monitor {
+    height: 12vh;
+}
