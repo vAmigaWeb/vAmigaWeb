@@ -4996,6 +4996,7 @@ function add_monitor(id, label, splitted=false)
         }
     );
     dma_channel_history[id] = [];
+    dma_channel_history_values[id] = [];
     for(let i=0;i<20;i++)
     {
         if(splitted==false)
@@ -5005,6 +5006,7 @@ function add_monitor(id, label, splitted=false)
                   style="--barval:0;grid-column:${i+1};"></div>`
             );
             dma_channel_history[id].push(document.querySelector(`#${id}_bar_${i}`));
+            dma_channel_history_values[id].push(0);
         }
         else
         {
@@ -5022,6 +5024,7 @@ function add_monitor(id, label, splitted=false)
                     document.querySelector(`#${id}_bar_${i}_lower`)
                 ]
             );
+            dma_channel_history_values[id].push([0,0]);
         }
         
     }
@@ -5050,31 +5053,58 @@ function add_monitor(id, label, splitted=false)
                     continue;
                 let value=_wasm_activity(activity_id[id]);
                 value = (Math.log(1+19*value) / Math.log(20)) * 100;
-                value = value>100 ? 100: value;
+                value = value>100 ? 100: Math.round(value);
 
                 if(Array.isArray(dma_channel_history[id][0]))
                 {
                     for(let i=0;i<20-1;i++)
                     {
-                        dma_channel_history[id][i][0].style.setProperty("--barval", 
-                        dma_channel_history[id][i+1][0].style.getPropertyValue("--barval"));
-                        dma_channel_history[id][i][1].style.setProperty("--barval", 
-                        dma_channel_history[id][i+1][1].style.getPropertyValue("--barval"));
+                        let newer_upper_value=dma_channel_history_values[id][i+1][0];
+                        if(dma_channel_history_values[id][i][0] !==newer_upper_value)
+                        {
+                            dma_channel_history[id][i][0].style.setProperty("--barval", newer_upper_value);
+                            dma_channel_history_values[id][i][0]=newer_upper_value;
+                        }
+
+                        let newer_lower_value=dma_channel_history_values[id][i+1][1];
+                        if(dma_channel_history_values[id][i][1] !==newer_lower_value)
+                        {
+                            dma_channel_history[id][i][1].style.setProperty("--barval", newer_lower_value);
+                            dma_channel_history_values[id][i][1]=newer_lower_value;
+                        }
                     }
-                    dma_channel_history[id][20-1][0].style.setProperty("--barval", value);
-                
+
+                    if(value !== dma_channel_history_values[id][20-1][0])
+                    {         
+                        dma_channel_history_values[id][20-1][0]= value;           
+                        dma_channel_history[id][20-1][0].style.setProperty("--barval", value);
+                    }
+
                     value=_wasm_activity(activity_id[id],1);
                     value = (Math.log(1+19*value) / Math.log(20)) * 100;
-                    value = value>100 ? 100: value;    
-                    dma_channel_history[id][20-1][1].style.setProperty("--barval", value);
+                    value = value>100 ? 100: Math.round(value);    
+                    if(value !== dma_channel_history_values[id][20-1][1])
+                    {         
+                        dma_channel_history_values[id][20-1][1]= value;  
+                        dma_channel_history[id][20-1][1].style.setProperty("--barval", value);
+                    }
                 }
                 else
                 {
                     for(let i=0;i<20-1;i++)
                     {
-                        dma_channel_history[id][i].style.setProperty("--barval", dma_channel_history[id][i+1].style.getPropertyValue("--barval"));
+                        let newer_value = dma_channel_history_values[id][i+1];
+                        if(dma_channel_history_values[id][i] !== newer_value)
+                        {
+                            dma_channel_history[id][i].style.setProperty("--barval", newer_value);
+                            dma_channel_history_values[id][i]=newer_value;
+                        }
                     }
-                    dma_channel_history[id][20-1].style.setProperty("--barval", value);
+                    if(value !== dma_channel_history_values[id][20-1])
+                    {
+                        dma_channel_history_values[id][20-1]= value;
+                        dma_channel_history[id][20-1].style.setProperty("--barval", value);
+                    }
                 }
             }
         },400);
@@ -5117,6 +5147,7 @@ function show_activity()
     $("body").append(`<div id="activity" class="monitor_grid"></div>`);
 
     dma_channel_history = [];
+    dma_channel_history_values = [];
 
     add_monitor("blitter", "Blitter DMA");
     add_monitor("copper", "Copper DMA");
