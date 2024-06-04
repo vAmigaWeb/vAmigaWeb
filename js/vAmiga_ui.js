@@ -4174,7 +4174,7 @@ $('.layer').change( function(event) {
             $('#add_timer_action a').click(on_add_action);
             
             //system action
-            var list_actions=['toggle_run', 'take_snapshot', 'restore_last_snapshot', 'swap_joystick', 'keyboard', 'fullscreen', 'menubar', 'pause', 'run', 'clipboard_paste', 'warp_always', 'warp_never', 'warp_auto'];
+            var list_actions=['toggle_run','toggle_warp','take_snapshot', 'restore_last_snapshot', 'swap_joystick', 'keyboard', 'fullscreen', 'menubar', 'pause', 'run', 'clipboard_paste', 'warp_always', 'warp_never', 'warp_auto', 'activity_monitor', 'toggle_action_buttons'];
             html_action_list='';
             list_actions.forEach(element => {
                 html_action_list +='<a class="dropdown-item" href="#">'+element+'</a>';
@@ -5075,7 +5075,7 @@ function add_monitor(id, label, splitted=false)
                     }
 
                     if(value !== dma_channel_history_values[id][20-1][0])
-                    {         
+                    {    
                         dma_channel_history_values[id][20-1][0]= value;           
                         dma_channel_history[id][20-1][0].style.setProperty("--barval", value);
                     }
