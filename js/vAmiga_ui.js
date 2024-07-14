@@ -375,6 +375,12 @@ set_serial_port_out_handler((data) => {
     window.parent.postMessage({ msg: 'serial_port_out', value: data},"*");
 });
 function message_handler(msg, data, data2)
+{   
+    queueMicrotask(()=>{
+        message_handler_queue_worker( msg, data, data2 )
+    });
+}
+function message_handler_queue_worker(msg, data, data2)
 {
     //console.log(`js receives msg:${msg} data:${data}`);
     //UTF8ToString(cores_msg);
