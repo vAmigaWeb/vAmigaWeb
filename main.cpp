@@ -913,10 +913,19 @@ extern "C" void wasm_eject_disk(const char *drive_name)
 
 }
 
-
-
+DiskFile *export_disk=NULL;
+extern "C" void wasm_delete_disk()
+{
+  if(export_disk!=NULL)
+  {
+    delete export_disk;
+    export_disk=NULL;
+    if(log_on) printf("disk memory deleted\n");
+  }
+}
 extern "C" char* wasm_export_disk(const char *drive_name)
 {
+  wasm_delete_disk();
   Buffer<u8> *data=NULL;
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"size\": 0 }");
 
@@ -926,9 +935,8 @@ extern "C" char* wasm_export_disk(const char *drive_name)
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-
-    ADFFile *adf = new ADFFile(wrapper->amiga->df0);
-    data=&(adf->data);
+    export_disk = new ADFFile(wrapper->amiga->df0);
+    data=&(export_disk->data);
   }
   else if(strcmp(drive_name,"df1") == 0)
   {
@@ -936,8 +944,8 @@ extern "C" char* wasm_export_disk(const char *drive_name)
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-    ADFFile *adf = new ADFFile(wrapper->amiga->df1);
-    data=&(adf->data);
+    export_disk = new ADFFile(wrapper->amiga->df1);
+    data=&(export_disk->data);
   }
   else if(strcmp(drive_name,"df2") == 0)
   {
@@ -945,8 +953,8 @@ extern "C" char* wasm_export_disk(const char *drive_name)
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-    ADFFile *adf = new ADFFile(wrapper->amiga->df2);
-    data=&(adf->data);
+    export_disk = new ADFFile(wrapper->amiga->df2);
+    data=&(export_disk->data);
   }
   else if(strcmp(drive_name,"df3") == 0)
   {
@@ -954,8 +962,8 @@ extern "C" char* wasm_export_disk(const char *drive_name)
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-    ADFFile *adf = new ADFFile(wrapper->amiga->df3);
-    data=&(adf->data);
+    export_disk = new ADFFile(wrapper->amiga->df3);
+    data=&(export_disk->data);
   }
   else if (strcmp(drive_name,"dh0") == 0)
   {
@@ -964,8 +972,8 @@ extern "C" char* wasm_export_disk(const char *drive_name)
       return wasm_pull_user_snapshot_file_json_result;
     }
 
-    HDFFile *hdf = new HDFFile(wrapper->amiga->hd0);
-    data=&(hdf->data);
+    export_disk = new HDFFile(wrapper->amiga->hd0);
+    data=&(export_disk->data);
   }
   else if (strcmp(drive_name,"dh1") == 0)
   {
@@ -974,8 +982,8 @@ extern "C" char* wasm_export_disk(const char *drive_name)
       return wasm_pull_user_snapshot_file_json_result;
     }
 
-    HDFFile *hdf = new HDFFile(wrapper->amiga->hd1);
-    data=&(hdf->data);
+    export_disk = new HDFFile(wrapper->amiga->hd1);
+    data=&(export_disk->data);
   }
   else if (strcmp(drive_name,"dh2") == 0)
   {
@@ -984,8 +992,8 @@ extern "C" char* wasm_export_disk(const char *drive_name)
       return wasm_pull_user_snapshot_file_json_result;
     }
 
-    HDFFile *hdf = new HDFFile(wrapper->amiga->hd2);
-    data=&(hdf->data);
+    export_disk = new HDFFile(wrapper->amiga->hd2);
+    data=&(export_disk->data);
   }
   else if (strcmp(drive_name,"dh3") == 0)
   {
@@ -994,8 +1002,8 @@ extern "C" char* wasm_export_disk(const char *drive_name)
       return wasm_pull_user_snapshot_file_json_result;
     }
 
-    HDFFile *hdf = new HDFFile(wrapper->amiga->hd3);
-    data=&(hdf->data);
+    export_disk = new HDFFile(wrapper->amiga->hd3);
+    data=&(export_disk->data);
   }
   
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",

@@ -375,6 +375,12 @@ set_serial_port_out_handler((data) => {
     window.parent.postMessage({ msg: 'serial_port_out', value: data},"*");
 });
 function message_handler(msg, data, data2)
+{   
+    queueMicrotask(()=>{
+        message_handler_queue_worker( msg, data, data2 )
+    });
+}
+function message_handler_queue_worker(msg, data, data2)
 {
     //console.log(`js receives msg:${msg} data:${data}`);
     //UTF8ToString(cores_msg);
@@ -3316,6 +3322,8 @@ $('.layer').change( function(event) {
             let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
             let filebuffer = d64_buffer.slice(0,d64_obj.size);
             let blob_data = new Blob([filebuffer], {type: 'application/octet-binary'});
+            Module._wasm_delete_disk();
+            
             const url = window.URL.createObjectURL(blob_data);
             const a = document.createElement('a');
             a.style.display = 'none';
@@ -3339,6 +3347,8 @@ $('.layer').change( function(event) {
             let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
             let filebuffer = d64_buffer.slice(0,d64_obj.size);
             let blob_data = new Blob([filebuffer], {type: 'application/octet-binary'});
+            Module._wasm_delete_disk();
+
             const url = window.URL.createObjectURL(blob_data);
             const a = document.createElement('a');
             a.style.display = 'none';
