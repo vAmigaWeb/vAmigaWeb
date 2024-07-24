@@ -125,6 +125,20 @@ background-color: var(--green) !important;
     color: var(--lightgray) !important;
 }
 
+#select_other_group {
+    background-color: inherit !important;
+    border-color: var(--darkbg);
+    color: var(--darkbg) !important;
+    margin-bottom: 1em;
+}
+    
+[data-theme="dark"] #select_other_group {
+    border-color: var(--lightgray);
+    color: var(--lightgray) !important;
+}
+
+
+
 #stored_roms, #stored_exts {
     background-color: inherit !important;
     border-color: var(--darkbg);
@@ -215,7 +229,7 @@ color: #aaa !important;
     background-color:var(--darkbg);
 }
 
-.movable_button_label span, .gc_choice_text span, .vbk_choice_text span, .vjoy_choice_text span {
+.help_text span, .movable_button_label span, .gc_choice_text span, .vbk_choice_text span, .vjoy_choice_text span {
     background-color: var(--gray);
     border-radius: 6px;
     padding-left: 4px;

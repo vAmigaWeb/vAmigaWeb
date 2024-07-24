@@ -1,4 +1,5 @@
-let global_apptitle="vAmiga - start screen"
+const default_app_title="vAmiga - start screen";
+let global_apptitle=default_app_title;
 let call_param_openROMS=false;
 let call_param_gpu=null;
 let call_param_navbar=null;
@@ -2417,6 +2418,30 @@ function InitWrappers() {
     }});
 
 //----
+    auto_selecting_app_title_switch = $('#auto_selecting_app_title_switch');
+    auto_selecting_app_title=load_setting('auto_selecting_app_title', true);
+    auto_selecting_app_title_switch.prop('checked', auto_selecting_app_title);
+    auto_selecting_help = ()=>{
+        if(auto_selecting_app_title)
+            {
+                $("#auto_select_on_help").show();
+                $("#auto_select_off_help").hide();
+            }
+            else
+            {
+                $("#auto_select_on_help").hide();
+                $("#auto_select_off_help").show();
+            }    
+    }
+    auto_selecting_help();
+    
+    
+    auto_selecting_app_title_switch.change( function() {
+        auto_selecting_app_title=this.checked;
+        save_setting('auto_selecting_app_title', auto_selecting_app_title);
+        auto_selecting_help();
+    });
+    //----
     lock_action_button_switch = $('#lock_action_button_switch');
     lock_action_button=load_setting('lock_action_button', false);
     lock_action_button_switch.prop('checked', lock_action_button);
@@ -3187,28 +3212,30 @@ $('.layer').change( function(event) {
         var execute_load = async function(drive){
             var filetype = wasm_loadfile(file_slot_file_name, file_slot_file, drive);
 
-           //if it is a disk from a multi disk zip file, apptitle should be the name of the zip file only
-            //instead of disk1, disk2, etc....
-            if(last_zip_archive_name !== null)
+            if(auto_selecting_app_title)
             {
-                global_apptitle = last_zip_archive_name;
-            }
-            else
-            {
-                global_apptitle = file_slot_file_name;
-            }
-
-            get_custom_buttons(global_apptitle, 
-                function(the_buttons) {
-                    custom_keys = the_buttons;
-                    for(let param_button of call_param_buttons)
-                    {
-                        custom_keys.push(param_button);
-                    }
-                    install_custom_keys();
+                //if it is a disk from a multi disk zip file, apptitle should be the name of the zip file only
+                //instead of disk1, disk2, etc....
+                if(last_zip_archive_name !== null)
+                {
+                    global_apptitle = last_zip_archive_name;
                 }
-            );
+                else
+                {
+                    global_apptitle = file_slot_file_name;
+                }
 
+                get_custom_buttons(global_apptitle, 
+                    function(the_buttons) {
+                        custom_keys = the_buttons;
+                        for(let param_button of call_param_buttons)
+                        {
+                            custom_keys.push(param_button);
+                        }
+                        install_custom_keys();
+                    }
+                );
+            }
             if(call_param_dialog_on_disk == false)
             {//loading is probably done by scripting
             }
@@ -3987,7 +4014,7 @@ $('.layer').change( function(event) {
             bind_custom_key();    
         });
 
-        bind_custom_key = function () {
+        bind_custom_key = async function () {
             $('#choose_padding a').click(function () 
             {
                  $('#button_padding').text('btn size = '+ $(this).text() ); 
@@ -4033,19 +4060,91 @@ $('.layer').change( function(event) {
                         ${key_display}
                     </div>
                 </div></a>`;
-             }
+            }
             
+            group_list = await stored_groups();
+            group_list = group_list.filter((g)=> g !== '__global_scope__');
+            if(!group_list.includes(global_apptitle))
+            {
+                group_list.push(global_apptitle);
+            }
+            other_groups=``;
+            for(group_name of group_list)
+            {   
+                other_groups+=`
+            <option ${group_name === global_apptitle?"selected":""} value="${group_name}">${group_name}</option>
+            `;
+            }
 
-            $("#other_buttons").html(`
+            $('#select_other_group').tooltip('hide');
+
+            if($("#other_buttons").html().length==0)
+            {
+                $("#other_buttons").html(`
                 <div class="dropdown">
                     <button id="button_other_action" class="ml-4 py-0 btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     list (${custom_keys.length})
                     </button>
-                    <div id="choose_action" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <div id="choose_action" style="min-width:250px" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    
+                    <div style="width:100%;display:flex;justify-content:center">
+                        <select onclick="event.stopPropagation();" id="select_other_group" 
+                            style="width:95%"
+                            class="custom-select" data-placement="left" data-toggle="tooltip" title="action button group">
+                        ${other_groups}
+                        </select>
+                    </div>
+                    <div id="other_buttons_content">
                     ${otherButtons}
                     </div>
-                </div>`);
-            $("#button_other_action").prop('disabled',custom_keys.length==0);
+                    <div class="mt-3 px-2" style="width:100%;display: grid;grid-template-columns: 1.5fr 1fr;">
+                    <button type="button" id="button_delete_group" class="btn btn-danger justify-start">delete group</button>
+                    <button type="button" id="button_new_group" class="btn btn-primary justify-end" style="grid-column:2/2">+ group</button>
+                    </div>
+
+                    </div>
+                </div>`
+                );
+
+                document.getElementById("button_delete_group").addEventListener("click",
+                    (e)=>{
+                        e.stopPropagation();
+                        if(confirm(`delete all actions specific to group ${global_apptitle}?`))
+                        {
+                            delete_button_group(global_apptitle);
+                            switch_to_other_group(default_app_title);                       
+                        }    
+                    }, false
+                );
+                document.getElementById("button_new_group").addEventListener("click",
+                    (e)=>{
+                        e.stopPropagation();    
+                        let new_group_name = prompt(`group name`);
+                        if(new_group_name!==null)
+                        {
+                            save_new_empty_group(new_group_name);
+                            switch_to_other_group(new_group_name);
+                        }
+                    }, false
+                );
+                document.getElementById('select_other_group').onchange = function() {
+                    let title=document.getElementById('select_other_group').value; 
+                    switch_to_other_group(title)
+                }
+            }
+            else
+            {
+                $("#button_other_action").html(`list (${custom_keys.length})`);
+                $("#other_buttons_content").html(otherButtons);
+                $("#select_other_group").html(other_groups);
+            }
+
+            //dont show delete group when on default group and no actions in it
+            if(otherButtons.length===0 && global_apptitle === default_app_title)
+                $("#button_delete_group").hide();
+            else
+                $("#button_delete_group").show();
+
 
             $('#choose_action a').click(function () 
             {
@@ -4062,6 +4161,27 @@ $('.layer').change( function(event) {
                 bind_custom_key();
                 reset_validate();
             });
+
+
+            switch_to_other_group=(title)=>
+            {
+                global_apptitle = title; 
+             
+                get_custom_buttons(global_apptitle, 
+                    function(the_buttons) {
+                        custom_keys = the_buttons;
+                        for(let param_button of call_param_buttons)
+                        {
+                            custom_keys.push(param_button);
+                        }
+
+                        create_new_custom_key=true;
+                        
+                        install_custom_keys();
+                        bind_custom_key();
+                    }
+                );
+            }
 
             reset_validate();
             if(create_new_custom_key)
@@ -4083,7 +4203,9 @@ $('.layer').change( function(event) {
             {
                 var btn_def = custom_keys.find(el=> ('ck'+el.id) == haptic_touch_selected.id);
 
-                $('#button_reset_position').prop('disabled', btn_def.currentX==0 && btn_def.currentY==0);
+                $('#button_reset_position').prop('disabled', 
+                    btn_def.currentX !== undefined &&
+                    btn_def.currentX==0 && btn_def.currentY==0);
      
                 set_script_language(btn_def.lang);
                 $('#input_button_text').val(btn_def.title);
