@@ -154,6 +154,13 @@ async function get_stored_app_titles(callback_fn)
       }
   };    
 }
+function stored_app_titles() {
+  return new Promise((resolve, reject) => {
+    get_stored_app_titles((result) => {
+        resolve(result);
+    });
+  });
+}
 
 function get_snapshots_for_app_title(app_title)
 {
@@ -271,6 +278,11 @@ function save_setting(name, value) {
 
 
 //-------------- custom buttons
+
+function save_new_empty_group(the_name) {
+  save_custom_buttons_scope(the_name, []);
+}
+
 
 function save_custom_buttons(the_name, the_data) {
   var app_specific_data=[];
@@ -422,6 +434,35 @@ async function get_custom_buttons_app_scope(the_app_title, callback_fn)
 }
 
 
+async function get_stored_groups(callback_fn)
+{
+  let transaction = (await db()).transaction("custom_buttons"); // readonly
+  let custom_buttons = transaction.objectStore("custom_buttons");
+
+  let request = custom_buttons.getAllKeys();
+
+  request.onsuccess = function() {
+      if (request.result !== undefined) {
+          callback_fn(request.result);
+      } else {
+          console.log("No titles found");
+      }
+  };    
+}
+function stored_groups() {
+  return new Promise((resolve, reject) => {
+    get_stored_groups((result) => {
+        resolve(result);
+    });
+  });
+}
+
+async function delete_button_group(key)
+{
+  let tx_apps = (await db()).transaction("custom_buttons", 'readwrite'); 
+  let custom_buttons = tx_apps.objectStore("custom_buttons");
+  custom_buttons.delete(key);
+}
 
 //--- roms
 async function save_rom(the_name, extension_or_rom, the_data) {
