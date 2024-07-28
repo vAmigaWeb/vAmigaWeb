@@ -4037,11 +4037,7 @@ $('.layer').change( function(event) {
                 editor.focus();
             });
 
-            let otherButtons="";
-            if(!create_new_custom_key){
-                otherButtons+=`<a class="dropdown-item" href="#" id="choose_new">&lt;new&gt;</a>`;
-            }
-                        
+            let otherButtons=`<a class="dropdown-item ${create_new_custom_key?"active":""}" href="#" id="choose_new">&lt;new&gt;</a>`;
             for(let otherBtn of custom_keys)
             {
                 let keys = otherBtn.key.split('+');
@@ -4052,7 +4048,7 @@ $('.layer').change( function(event) {
                     ${html_encode(key)}
                     </div>`;
                 }
-                otherButtons+=`<a class="dropdown-item" href="#" id="choose_${otherBtn.id}">
+                otherButtons+=`<a class="dropdown-item ${!create_new_custom_key &&haptic_touch_selected.id == 'ck'+otherBtn.id ? 'active':''}" href="#" id="choose_${otherBtn.id}">
                 <div style="display:flex;justify-content:space-between">
                     <div>${html_encode(otherBtn.title)}</div>
                     <div style="display:flex;margin-left:0.3em;" 
@@ -4149,8 +4145,11 @@ $('.layer').change( function(event) {
             $('#choose_action a').click(function () 
             {
                 let btn_id = this.id.replace("choose_","");
-                if(btn_id == "new")
+                if(btn_id == "new"){
+                    if(create_new_custom_key)
+                        return;
                     create_new_custom_key=true;
+                }
                 else
                 {
                     create_new_custom_key=false;
