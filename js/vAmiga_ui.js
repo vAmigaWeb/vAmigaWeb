@@ -2442,33 +2442,42 @@ function InitWrappers() {
         auto_selecting_help();
     });
     //----
-    lock_action_button_switch = $('#lock_action_button_switch');
-    lock_action_button=load_setting('lock_action_button', false);
-    lock_action_button_switch.prop('checked', lock_action_button);
-    lock_action_button_switch.change( function() {
-        lock_action_button=this.checked;
+    movable_action_buttons_in_settings_switch = $('#movable_action_buttons_in_settings_switch');
+    movable_action_buttons=load_setting('movable_action_buttons', true);
+ 
+    movable_action_buttons_in_settings_switch.prop('checked', movable_action_buttons);
+    movable_action_buttons_in_settings_switch.change( function() {
+        movable_action_buttons=this.checked;
         install_custom_keys();
-        save_setting('lock_action_button', lock_action_button);
-        $('#move_action_buttons_switch').prop('checked',!lock_action_button);
+        save_setting('movable_action_buttons', movable_action_buttons);
+        $('#move_action_buttons_switch').prop('checked',movable_action_buttons);
+        set_move_action_buttons_label();
     });
 
-    $('#move_action_buttons_switch').prop('checked',!lock_action_button);
+    $('#move_action_buttons_switch').prop('checked',movable_action_buttons);
 
     let set_move_action_buttons_label=()=>{
         $('#move_action_buttons_label').html(
-            lock_action_button ? 
-            `All <span>'action button' positions are now locked</span>… <span>scripts can trigger actions when the button is released</span>… <span>long press edit mode is disabled</span> (instead use the <span>+</span> from the top menu bar and choose any buttons from the dropdown to edit)`
-            :
+            movable_action_buttons ? 
             `Once created, you can <span>move any 'action button' by dragging</span>… A <span>long press will enter 'edit mode'</span>… While 'moveable action buttons' is switched on, <span>scripts can not detect release</span> state (to allow this, you must disable the long press gesture by turning 'moveable action buttons' off)`
+            :
+            `All <span>'action button' positions are now locked</span>… <span>scripts are able to trigger actions when the button is released</span>… <span>long press edit mode is disabled</span> (instead use the <span>+</span> from the top menu bar and choose any buttons from the list to edit)`
+        );
+        $('#move_action_buttons_label_settings').html(
+            movable_action_buttons ? 
+            `long press to enter edit mode. movable by dragging. action scripts are unable to detect buttons release state.`
+            :
+            `action button positions locked. action scripts can detect release state. Long press edit gesture disabled, use <span>+</span> from the top menu bar and choose any buttons from list to edit`
         );
     }
     set_move_action_buttons_label();
     $('#move_action_buttons_switch').change( 
         ()=>{
-                lock_action_button=!lock_action_button;
+                movable_action_buttons=!movable_action_buttons;
                 set_move_action_buttons_label();
                 install_custom_keys();
-                lock_action_button_switch.prop('checked', lock_action_button);
+                movable_action_buttons_in_settings_switch.prop('checked', movable_action_buttons);
+                save_setting('movable_action_buttons', movable_action_buttons);
             }
     ); 
 
@@ -3310,7 +3319,7 @@ $('.layer').change( function(event) {
                 wasm_eject_disk("dh"+this.id.at(-1));
                 $("#button_eject_hd"+this.id.at(-1)).hide();
             });
-        }   
+        }
     });
 
     document.getElementById('button_take_snapshot').onclick = function() 
@@ -4037,11 +4046,7 @@ $('.layer').change( function(event) {
                 editor.focus();
             });
 
-            let otherButtons="";
-            if(!create_new_custom_key){
-                otherButtons+=`<a class="dropdown-item" href="#" id="choose_new">&lt;new&gt;</a>`;
-            }
-                        
+            let otherButtons=`<a class="dropdown-item ${create_new_custom_key?"active":""}" href="#" id="choose_new">&lt;new&gt;</a>`;
             for(let otherBtn of custom_keys)
             {
                 let keys = otherBtn.key.split('+');
@@ -4052,7 +4057,7 @@ $('.layer').change( function(event) {
                     ${html_encode(key)}
                     </div>`;
                 }
-                otherButtons+=`<a class="dropdown-item" href="#" id="choose_${otherBtn.id}">
+                otherButtons+=`<a class="dropdown-item ${!create_new_custom_key &&haptic_touch_selected.id == 'ck'+otherBtn.id ? 'active':''}" href="#" id="choose_${otherBtn.id}">
                 <div style="display:flex;justify-content:space-between">
                     <div>${html_encode(otherBtn.title)}</div>
                     <div style="display:flex;margin-left:0.3em;" 
@@ -4149,8 +4154,11 @@ $('.layer').change( function(event) {
             $('#choose_action a').click(function () 
             {
                 let btn_id = this.id.replace("choose_","");
-                if(btn_id == "new")
+                if(btn_id == "new"){
+                    if(create_new_custom_key)
+                        return;
                     create_new_custom_key=true;
+                }
                 else
                 {
                     create_new_custom_key=false;
@@ -4544,9 +4552,9 @@ release_key('ControlLeft');`;
                 }
                 custom_keys.push(new_button);
 
-                lock_action_button=false;
-                $('#lock_action_button_switch').prop('checked', lock_action_button);
-                $('#move_action_buttons_switch').prop('checked',!lock_action_button);
+                movable_action_buttons=true;
+                $('#movable_action_buttons_in_settings_switch').prop('checked', movable_action_buttons);
+                $('#move_action_buttons_switch').prop('checked',movable_action_buttons);
 
 
                 install_custom_keys();
@@ -4648,7 +4656,7 @@ release_key('ControlLeft');`;
             {
                 btn_html += 'opacity:'+element.opacity+' !important;';
             }
-            if(!lock_action_button)
+            if(movable_action_buttons)
             {
                 btn_html += 'box-shadow: 0.2em 0.2em 0.6em rgba(0, 0, 0, 0.9);';
             }
@@ -4659,7 +4667,7 @@ release_key('ControlLeft');`;
             action_scripts["ck"+element.id] = element.script;
 
             let custom_key_el = document.getElementById(`ck${element.id}`);
-            if(lock_action_button == true)
+            if(!movable_action_buttons)
             {//when action buttons locked
              //process the mouse/touch events immediatly, there is no need to guess the gesture
                 let action_function = function(e) 
@@ -4683,9 +4691,14 @@ release_key('ControlLeft');`;
                     get_running_script(element.id).action_button_released = true;
                 };
 
-                custom_key_el.addEventListener("pointerdown", action_function,false);
+                custom_key_el.addEventListener("pointerdown", (e)=>{
+                    custom_key_el.setPointerCapture(e.pointerId);
+                    action_function(e);
+                },false);
                 custom_key_el.addEventListener("pointerup", mark_as_released,false);
-                custom_key_el.addEventListener("touchstart",(e)=>e.stopImmediatePropagation())            
+                custom_key_el.addEventListener("lostpointercapture", mark_as_released);
+                custom_key_el.addEventListener("touchstart",(e)=>e.stopImmediatePropagation());
+
             }
             else
             {
@@ -4707,7 +4720,7 @@ release_key('ControlLeft');`;
 
         });
 
-        if(lock_action_button==false)
+        if(movable_action_buttons)
         {
             install_drag();
         }

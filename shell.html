@@ -472,10 +472,12 @@
               <label class="custom-control-label" for="auto_snapshot_switch" data-toggle="tooltip" data-placement="top" title="you find auto snapshots in the first row of the snapshot browser">save auto snapshots</label>
             </div>
             <div class="custom-control custom-switch mt-1">
-              <input type="checkbox" class="custom-control-input" id="lock_action_button_switch" />
-              <label class="custom-control-label" for="lock_action_button_switch" data-toggle="tooltip" data-placement="top" title="only when locked no gestures detection is done and therefore events like touchstart/end mousedown/up are processed correctly.">lock action buttons (prevent dragging and long press)</label>
+              <input type="checkbox" class="custom-control-input" id="movable_action_buttons_in_settings_switch" />
+              <label class="custom-control-label" for="movable_action_buttons_in_settings_switch" data-toggle="tooltip" data-placement="top">movable action buttons</label>
             </div>
-            <div class="custom-control custom-switch mt-1">
+            <div id="move_action_buttons_label_settings" class="help_text" style="font-size: small"></div>
+
+            <div class="custom-control custom-switch mt-2">
               <input type="checkbox" class="custom-control-input" id="auto_selecting_app_title_switch" />
               <label class="custom-control-label" for="auto_selecting_app_title_switch" data-toggle="tooltip" data-placement="top">'auto selecting' action button groups on media insert</label>
             </div>
