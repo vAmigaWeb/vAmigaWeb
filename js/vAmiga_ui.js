@@ -4691,9 +4691,14 @@ release_key('ControlLeft');`;
                     get_running_script(element.id).action_button_released = true;
                 };
 
-                custom_key_el.addEventListener("pointerdown", action_function,false);
+                custom_key_el.addEventListener("pointerdown", (e)=>{
+                    custom_key_el.setPointerCapture(e.pointerId);
+                    action_function(e);
+                },false);
                 custom_key_el.addEventListener("pointerup", mark_as_released,false);
-                custom_key_el.addEventListener("touchstart",(e)=>e.stopImmediatePropagation())            
+                custom_key_el.addEventListener("lostpointercapture", mark_as_released);
+                custom_key_el.addEventListener("touchstart",(e)=>e.stopImmediatePropagation());
+
             }
             else
             {
