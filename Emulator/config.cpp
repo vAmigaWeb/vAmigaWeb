@@ -86,7 +86,7 @@ debugflag MFM_DEBUG       = 0; // Disk encoder / decoder
 debugflag FS_DEBUG        = 0; // File System Classes (OFS / FFS)
 
 // Hard Drives
-debugflag HDR_ACCEPT_ALL  = 0; // Disables hard drive layout checks
+debugflag HDR_ACCEPT_ALL  = 1; // Disables hard drive layout checks
 debugflag HDR_FS_LOAD_ALL = 0; // Don't filter out unneeded file systems
 debugflag WT_DEBUG        = 0; // Write-through mode
 

@@ -1277,6 +1277,17 @@ std::unique_ptr<FloppyDisk> load_disk(const char* filename, u8 *blob, long len)
   return {};
 }
 
+
+extern "C" const void wasm_mem_patch(u32 amiga_mem_address, u8 *blob, isize len)
+{
+  printf("wasm_mem_patch addr=0x%x, len=%ld, header bytes= %x, %x, %x\n", amiga_mem_address, len, blob[0],blob[1],blob[2]);
+  if(wrapper == NULL) return;
+
+  wrapper->amiga->mem.patch(amiga_mem_address, blob, len);
+  return;
+}
+
+
 extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_number)
 {
   printf("load drive=%d, file=%s len=%ld, header bytes= %x, %x, %x\n", drive_number, name, len, blob[0],blob[1],blob[2]);
