@@ -1625,9 +1625,16 @@ function restore_manual_state(port)
 function InitWrappers() {
     try{add_pencil_support_for_elements_which_need_it();} catch(e) {console.error(e)}
     wasm_loadfile = function (file_name, file_buffer, drv_number=0) {
-        var file_slot_wasmbuf = Module._malloc(file_buffer.byteLength);
+        let file_slot_wasmbuf = Module._malloc(file_buffer.byteLength);
         Module.HEAPU8.set(file_buffer, file_slot_wasmbuf);
-        var retVal=Module.ccall('wasm_loadFile', 'string', ['string','number','number', 'number'], [file_name,file_slot_wasmbuf,file_buffer.byteLength, drv_number]);
+        let retVal=Module.ccall('wasm_loadFile', 'string', ['string','number','number', 'number'], [file_name,file_slot_wasmbuf,file_buffer.byteLength, drv_number]);
+        Module._free(file_slot_wasmbuf);
+        return retVal;                    
+    }
+    wasm_mem_patch = function (amiga_mem_address, file_buffer) {
+        let file_slot_wasmbuf = Module._malloc(file_buffer.byteLength);
+        Module.HEAPU8.set(file_buffer, file_slot_wasmbuf);
+        let retVal=Module.ccall('wasm_mem_patch', 'string', ['number','number', 'number'], [amiga_mem_address, file_slot_wasmbuf,file_buffer.byteLength]);
         Module._free(file_slot_wasmbuf);
         return retVal;                    
     }
@@ -2055,10 +2062,14 @@ function InitWrappers() {
 
             let with_reset=false;
             //put whdload kickemu into disk drive
-            if(event.data.mount_kickstart_in_dfn &&
+            if(event.data.mount_kickstart_in_dfn !==undefined &&
                 event.data.mount_kickstart_in_dfn >=0 )
             {
                 wasm_loadfile("kick-rom.disk", event.data.kickemu_rom, event.data.mount_kickstart_in_dfn);
+            }
+            if(event.data.patch_kickstart_into_address !==undefined)
+            {
+                wasm_mem_patch(event.data.patch_kickstart_into_address, event.data.kickemu_rom);
             }
             //check if any roms should be preloaded first... 
             if(event.data.kickstart_rom !== undefined)
