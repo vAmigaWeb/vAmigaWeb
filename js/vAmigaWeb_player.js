@@ -349,6 +349,22 @@ ${this.overlay_on_icon}
     setup: function(id,setup_config){
         this.registered_setups[id]=setup_config;
 
+        let the_play=`<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-play-circle" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/><path d="M6.271 5.055a.5.5 0 0 1 .52.038l3.5 2.5a.5.5 0 0 1 0 .814l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .271-.445"/></svg>`;
+        let overlay=document.getElementById(`${id}_overlay`);
+
+        if(setup_config.kickstart_rom_required === undefined)
+        {
+            overlay.innerHTML=`
+            <div style="display:grid;grid-template-columns: repeat(3, 1fr); width:100%;height:100%">
+            <div style="grid-column:1/span3;text-align:end;"></div>
+            <div id="play_button" style="grid-column: 2/2;cursor:pointer"
+                ontouchstart="touched=true"
+                onclick="let touch=(typeof touched!='undefined')?touched:false;touched=false;vAmigaWeb_player.load_setup('${id}', {touch:touch})"
+            >${the_play}</div>
+            <div style="grid-column: 2/2"></div>
+            `;
+            return;
+        }
         this.loadScript(`${this.vAmigaWeb_url}js/dexie.min.js` , 
         async function(){
             var db = new Dexie("kickstarts");
@@ -362,8 +378,7 @@ ${this.overlay_on_icon}
             
             if(ks.length==0)
             {
-                    let lock=`<svg xmlns="http://www.w3.org/2000/svg" style="fill:white;width:100%" viewBox="0 0 448 512" ><path d="M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zm-104 0H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z"></path></svg>`;
-                let overlay=document.getElementById(`${id}_overlay`);
+                let lock=`<svg xmlns="http://www.w3.org/2000/svg" style="fill:white;width:100%" viewBox="0 0 448 512" ><path d="M400 224h-24v-72C376 68.2 307.8 0 224 0S72 68.2 72 152v72H48c-26.5 0-48 21.5-48 48v192c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V272c0-26.5-21.5-48-48-48zm-104 0H152v-72c0-39.7 32.3-72 72-72s72 32.3 72 72v72z"></path></svg>`;
                 overlay.innerHTML=`
                 <input type="file" id="fileInput" style="display:none">
                 <div id="drop_zone" style="display:grid;grid-template-columns: repeat(3, 1fr); width:100%;height:100%;cursor:pointer"
@@ -404,8 +419,6 @@ ${this.overlay_on_icon}
             
             if(ks[0].id==setup_config.kickstart_rom_required[0])
             {
-                let the_play=`<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-play-circle" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/><path d="M6.271 5.055a.5.5 0 0 1 .52.038l3.5 2.5a.5.5 0 0 1 0 .814l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .271-.445"/></svg>`;
-                let overlay=document.getElementById(`${id}_overlay`);
                 vAmigaWeb_player.delete_rom=(rom_id)=>{ 
                     db.kickstart.delete(rom_id);
                     vAmigaWeb_player.setup(id,setup_config);
