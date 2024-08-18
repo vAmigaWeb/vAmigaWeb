@@ -172,7 +172,7 @@
         </svg>
       </button>
       <form id="theFileInput" style="display: inline-block;">
-        <div id="drop_zone" class="px-1 u-full-width mr-1" data-toggle="tooltip" data-placement="bottom" title="drop .adf, .dms, .exe, .hdf .vAmiga or .zip files into here, or just click into the drop zone">
+        <div id="drop_zone" class="px-1 u-full-width mr-1" data-toggle="tooltip" data-placement="bottom" title="drop .adf, .dms, .exe, .hdf, .vAmiga, .st or .zip files into here, or just click into the drop zone">
           file slot
         </div>
         <!-- iOS won't work with accept=".g64,.d64,.crt,.prg,.bin" on d64 files -->
@@ -353,8 +353,47 @@
 
           </div>
           <div class="modal-footer">
-            <div class="justify-start"><button id="button_fetch_open_roms" type="button" class="btn btn-primary">install AROS <img style="width:2em" src="img/aros_half.png"/></button><a href="https://en.wikipedia.org/wiki/AROS_Research_Operating_System" target="_blank">&nbsp;learn more...</a></div>
+            <div class="justify-start">
+              <button class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                install free replacements
+              </button>
+              
+<div id="button_fetch_open_roms" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+  <style>
+    .grid-container {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 25px;
+    }
+  
+    .grid-container img {
+      justify-self: start;
+    }
+  
+    .grid-container a {
+      justify-self: end;
+    }
+  </style>
 
+  <div class="dropdown-item">
+    <div class="grid-container">
+      <span style="padding-right: 1.5em">AROS <img style="width:2em" src="img/aros_half.png"/></span>
+      <a href="https://en.wikipedia.org/wiki/AROS_Research_Operating_System" target="_blank" onclick="event.stopPropagation()">learn more...</a>
+    </div>
+  </div>
+  <div class="dropdown-item">
+    <div class="grid-container">
+      <img style="width:6em" src="img/emutos_header_shadow.png"/>   
+      <a href="https://emutos.sourceforge.io/" target="_blank" onclick="event.stopPropagation()">learn more...</a>
+    </div>
+  </div>
+</div>
+
+
+
+               
+            </div>
             <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
           </div>
         </div>

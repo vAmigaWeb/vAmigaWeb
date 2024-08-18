@@ -400,6 +400,7 @@ CPU::_reset(bool hard)
         
         // Initialize all data and address registers with the startup value
         for(int i = 0; i < 8; i++) reg.d[i] = reg.a[i] = config.regResetVal;
+        reg.a[7] = reg.isp;
         
         // Remove all previously recorded instructions
         debugger.clearLog();

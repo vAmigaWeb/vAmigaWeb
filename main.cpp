@@ -16,6 +16,7 @@
 #include "HDFFile.h"
 #include "Snapshot.h"
 #include "EADFFile.h"
+#include "STFile.h"
 #include "OtherFile.h"
 
 #include "MemUtils.h"
@@ -1259,7 +1260,11 @@ std::unique_ptr<FloppyDisk> load_disk(const char* filename, u8 *blob, long len)
     EXEFile exe{blob, len};
     return std::make_unique<FloppyDisk>(exe);
   }
-
+  if (STFile::isCompatible(filename)) {
+    printf("%s - Loading ST file\n", filename);
+    STFile st{blob, len};
+    return std::make_unique<FloppyDisk>(st);
+  }
   if (OtherFile::isCompatible(filename)) {
     if(len > 1710000)
     { 
@@ -1417,7 +1422,11 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
       wrapper->amiga->mem.loadRom(*rom); 
       
       printf("Loaded ROM image %s. %s\n", name, wrapper->amiga->mem.romTitle());
-       
+      if(strcmp(wrapper->amiga->mem.romTitle(),"EmuTOS")!=0)
+      {
+        printf("detected EmuTOS rom, setting drive speed to -1\n");
+        wrapper->amiga->configure(OPT_DRIVE_SPEED, -1);
+      }
 /*      wrapper->amiga->configure(OPT_HDC_CONNECT,
         //hd drive
         0, 

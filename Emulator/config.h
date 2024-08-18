@@ -103,7 +103,7 @@
 static const int NO_SEQ_FASTPATH = 0; // Disable sequencer fast path
 static const int NO_BPL_FASTPATH = 0; // Disable drawing fast path
 static const int DIAG_BOARD      = 0; // Plug in the diagnose board
-
+static const int ALLOW_ALL_ROMS  = 1; // Disable the magic bytes check
 
 //
 // Debug settings
