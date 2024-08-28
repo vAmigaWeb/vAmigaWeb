@@ -2642,16 +2642,18 @@ $('#choose_keycap_size a').click(function ()
     $("#modal_settings").focus();
 });
 //--
-set_keyboard_bottom_margin(load_setting('keyboard_bottom_margin', '0px'));
+set_keyboard_bottom_margin(load_setting('keyboard_bottom_margin_', 'auto'));
 function set_keyboard_bottom_margin(keyboard_bottom_margin) {
-    document.querySelector(':root').style.setProperty('--keyboard_bottom_margin', keyboard_bottom_margin);
+    document.querySelector(':root').style.
+        setProperty('--keyboard_bottom_margin', 
+            keyboard_bottom_margin==='auto' ? 'env(safe-area-inset-bottom)':keyboard_bottom_margin);
     $("#button_keyboard_bottom_margin").text(`keyboard bottom margin=${keyboard_bottom_margin}`);
 }
 $('#choose_keyboard_bottom_margin a').click(function () 
 {
     var keyboard_bottom_margin=$(this).text();
     set_keyboard_bottom_margin(keyboard_bottom_margin);
-    save_setting('keyboard_bottom_margin',keyboard_bottom_margin);
+    save_setting('keyboard_bottom_margin_',keyboard_bottom_margin);
     $("#modal_settings").focus();
 });
 //----
