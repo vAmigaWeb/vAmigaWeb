@@ -516,6 +516,7 @@ button[id^="detail_run"] {
     bottom:0;
     left:5%;
     width:90%;
+    padding-bottom: env(safe-area-inset-bottom);
     display:flex;
     flex-direction:column;
     justify-content:center;
