@@ -5149,7 +5149,7 @@ function add_monitor(id, label, splitted=false)
 {
     $("#activity").append(
     `
-        <div>
+        <div class="monitor_hull">
             <div id="monitor_${id}" class="monitor"></div>
             <div class="monitor_label">${label}</div>
         <div>
