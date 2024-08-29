@@ -605,7 +605,17 @@ button[id^="detail_run"] {
     width: 100vw;
     position: absolute;
     display:grid;grid-template-columns: repeat(10, 1fr);grid-column-gap: 0.5em;
-    bottom: 0;left: 0;background-color: rgba(200, 200, 200, 0.0)
+    bottom: 0;left: 0;background-color: rgba(200, 200, 200, 0.0);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.monitor_hull {
+    background-color: rgba(200, 200, 200, 0.8);
+    border-radius: 0.5em 0.5em 0 0;
+}
+
+[data-theme="dark"] .monitor_hull {
+    background-color: rgba(0, 0, 0, 0.8);
 }
 
 .monitor {
@@ -628,10 +638,14 @@ button[id^="detail_run"] {
 }
 .monitor_label {
     display:flex;justify-content:center;
-    background: linear-gradient(to top, rgba(50,50,50,0.6), rgb(200,200,200,0.6));
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgb(100, 100, 100, 1));
     -webkit-text-fill-color: transparent;
     -webkit-background-clip: text;font-size: smaller;
     background-clip: text;font-size: smaller;
+}
+[data-theme="dark"] .monitor_label {
+    background: linear-gradient(to top, rgba(100,100,100,0.8), rgb(200,200,200,1));
+    background-clip: text;
 }
 
 .bar {
