@@ -610,24 +610,28 @@ button[id^="detail_run"] {
 }
 
 .monitor_hull {
-    background-color: rgba(200, 200, 200, 0.8);
+    background-color: rgba(250, 250, 250, 0.8);
     border-radius: 0.5em 0.5em 0 0;
 }
 
 [data-theme="dark"] .monitor_hull {
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: rgba(0, 0, 0, 0.7);
 }
 
 .monitor {
     height: 12vh;
     display: grid;grid-template-columns: repeat(20, 1fr);
     grid-template-rows: repeat(100, 1fr);grid-column-gap: 0.5px;
-    --color_start:50,50,50;--color_end:200,200,200;
+    --color_start:50,50,50;--color_end:150,150,150;
     background: linear-gradient(to top, rgba(var(--color_start),0.3), rgba(var(--color_end),0.3));        
     border: var(--color_end);
     border-style: none;
     border-radius: 0.5em 0.5em 0 0;
 }
+[data-theme="dark"] .monitor {
+    --color_end:200,200,200;
+}
+
 @media (max-width: 1023px) {
     .monitor_grid {
         display:grid;grid-template-columns: repeat(5, 1fr);grid-column-gap: 0.5em;
