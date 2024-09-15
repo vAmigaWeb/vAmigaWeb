@@ -28,7 +28,6 @@ let on_power_led_dim=()=>{};
 let df_mount_list=[];//to auto mount disks from zip e.g. ["Batman_Rises_disk1.adf","Batman_Rises_disk2.adf"];
 let hd_mount_list=[];
 
-let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
 let use_wide_screen=false;
 let use_ntsc_pixel=false;
 let joystick_button_count=1;
@@ -470,6 +469,10 @@ function message_handler_queue_worker(msg, data, data2)
     else if(msg == "MSG_PAUSE")
     {
         emulator_currently_runs=false;
+    }
+    else if(msg === "MSG_WARP")
+    {
+        window.parent.postMessage({ msg: 'render_run_state', value: is_running(), is_warping:  Module._wasm_is_warping() },"*");
     }
     else if(msg == "MSG_VIDEO_FORMAT")
     {
@@ -960,6 +963,7 @@ function configure_file_dialog(reset=false)
                                 if(mountable_count==1)
                                 {//in case that there was only one mountable file in the zip, auto mount it
                                     configure_file_dialog(false);
+                                    window.parent.postMessage({ msg: 'hide_zip_folder'},"*");
                                 }
                                 else
                                 {//file is ready to insert
@@ -2011,7 +2015,7 @@ function InitWrappers() {
     window.addEventListener('message', event => {
         if(event.data == "poll_state")
         {
-            window.parent.postMessage({ msg: 'render_run_state', value: is_running()},"*");
+            window.parent.postMessage({ msg: 'render_run_state', value: is_running(), is_warping:  Module._wasm_is_warping() },"*");
             window.parent.postMessage({ msg: 'render_current_audio_state', 
                 value: audioContext == null ? 'suspended' : audioContext.state},"*"); 
         }
@@ -2380,22 +2384,6 @@ function InitWrappers() {
 
     installKeyboard();
     $("#button_keyboard").click(function(){
-        if(virtual_keyboard_clipping==false)
-        {
-            let body_width =$("body").innerWidth();
-            let vk_abs_width=750+25; //+25 border
-            let vk=$("#virtual_keyboard");
-
-            //calculate scaled width
-            let scaled= vk_abs_width/body_width;
-            if(scaled < 1)
-            {
-                scaled = 1;
-            }
-            vk.css("width", `${scaled*100}vw`);
-            vk.css("transform", `scale(${1/scaled})`);
-            vk.css("transform-origin", `left bottom`);    
-        }
         setTimeout( scaleVMCanvas, 500);
     });
 
