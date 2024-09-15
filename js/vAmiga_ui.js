@@ -470,6 +470,10 @@ function message_handler_queue_worker(msg, data, data2)
     {
         emulator_currently_runs=false;
     }
+    else if(msg === "MSG_WARP")
+    {
+        window.parent.postMessage({ msg: 'render_run_state', value: is_running(), is_warping:  Module._wasm_is_warping() },"*");
+    }
     else if(msg == "MSG_VIDEO_FORMAT")
     {
         $('#ntsc_pixel_ratio_switch').prop('checked', data==1);  
@@ -959,6 +963,7 @@ function configure_file_dialog(reset=false)
                                 if(mountable_count==1)
                                 {//in case that there was only one mountable file in the zip, auto mount it
                                     configure_file_dialog(false);
+                                    window.parent.postMessage({ msg: 'hide_zip_folder'},"*");
                                 }
                                 else
                                 {//file is ready to insert
@@ -2010,7 +2015,7 @@ function InitWrappers() {
     window.addEventListener('message', event => {
         if(event.data == "poll_state")
         {
-            window.parent.postMessage({ msg: 'render_run_state', value: is_running()},"*");
+            window.parent.postMessage({ msg: 'render_run_state', value: is_running(), is_warping:  Module._wasm_is_warping() },"*");
             window.parent.postMessage({ msg: 'render_current_audio_state', 
                 value: audioContext == null ? 'suspended' : audioContext.state},"*"); 
         }

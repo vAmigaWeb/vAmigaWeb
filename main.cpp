@@ -1113,6 +1113,15 @@ extern "C" void wasm_set_warp(unsigned on)
   }
 }
 
+
+extern "C" bool wasm_is_warping()
+{
+  return wrapper->amiga->isWarping();
+}
+
+
+
+
 extern "C" void wasm_set_display(const char *name)
 {
   if(log_on) printf("wasm_set_display('%s')\n",name);
@@ -1422,7 +1431,7 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
       wrapper->amiga->mem.loadRom(*rom); 
       
       printf("Loaded ROM image %s. %s\n", name, wrapper->amiga->mem.romTitle());
-      if(strcmp(wrapper->amiga->mem.romTitle(),"EmuTOS")!=0)
+      if(strncmp("EmuTOS",wrapper->amiga->mem.romTitle(),strlen("EmuTOS"))==0)
       {
         printf("detected EmuTOS rom, setting drive speed to -1\n");
         wrapper->amiga->configure(OPT_DRIVE_SPEED, -1);

@@ -82,6 +82,7 @@
                 if(event.data.msg == "render_run_state")
                 {
                     this.render_run_state(event.data.value);
+                    this.render_warp_state(event.data.is_warping);
                     if(this.samesite_file != null)
                     {
                         this.inject_samesite_app_into_iframe();
@@ -90,6 +91,10 @@
                 else if(event.data.msg == "render_current_audio_state")
                 {
                     this.render_current_audio_state(event.data.value);
+                }
+                else if(event.data.msg == "hide_zip_folder")
+                {
+                    $("#btn_zip").hide();
                 }
             });
             this.listens=true;
@@ -141,7 +146,8 @@
 <div id="player_container" style="display:flex;flex-direction:column;">
 <iframe id="vAmigaWeb" width="100%" height="100%" src="${this.vAmigaWeb_url}${params}#${address}">
 </iframe>
-<div style="display: flex"><svg id="stop_icon" class="player_icon_btn" onclick="vAmigaWeb_player.stop_emu_view();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
+<div style="display:grid;grid-template-columns: repeat(5, auto) 3fr repeat(3, auto);grid-gap: 0.25em;">
+<svg id="stop_icon" class="player_icon_btn" onclick="vAmigaWeb_player.stop_emu_view();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
     <path d="M6.5 5A1.5 1.5 0 0 0 5 6.5v3A1.5 1.5 0 0 0 6.5 11h3A1.5 1.5 0 0 0 11 9.5v-3A1.5 1.5 0 0 0 9.5 5h-3z"/>
     <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4z"/>
 </svg>`;
@@ -155,6 +161,10 @@ if(this.show_reset_icon)
 emuview_html += `<svg  id="toggle_icon" class="player_icon_btn" onclick="vAmigaWeb_player.toggle_run();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
 ${this.pause_icon}
 </svg>
+<svg id="btn_toggle_warp" class="player_icon_btn" style="" onclick="vAmigaWeb_player.toggle_warp();return false;" xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
+${this.warp_icon}
+</svg>
+
 <svg id="btn_unlock_audio" class="player_icon_btn" onclick="vAmigaWeb_player.toggle_audio();return false;" xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
 ${this.audio_locked_icon}
 </svg>
@@ -169,7 +179,12 @@ if(address.toLowerCase().indexOf(".zip")>0 || this.samesite_file != null && this
     </svg>`;
 }
 emuview_html += 
-`<svg id="btn_overlay" class="player_icon_btn" style="margin-top:4px;margin-left:auto" onclick="vAmigaWeb_player.toggle_overlay();return false;" xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
+`
+<svg id="btn_activity_monitor" class="player_icon_btn" style="margin-top:4px;margin-left:auto" onclick="vAmigaWeb_player.toggle_activity_monitor();return false;" xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
+${this.activity_icon}
+</svg>
+
+<svg id="btn_overlay" class="player_icon_btn" style="margin-top:4px;margin-left:auto" onclick="vAmigaWeb_player.toggle_overlay();return false;" xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16">
 ${this.overlay_on_icon}
 </svg>
 <a id="btn_open_in_extra_tab" title="open fullwindow in new browser tab" style="border:none;width:1.5em;margin-top:4px" onclick="vAmigaWeb_player.stop_emu_view();" href="${this.vAmigaWeb_url}${params}#${address}" target="blank">
@@ -242,6 +257,14 @@ ${this.overlay_on_icon}
     keyboard_icon:`<path d="M14 5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h12zM2 4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H2z"/><path d="M13 10.25a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm0-2a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm-5 0A.25.25 0 0 1 8.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 8 8.75v-.5zm2 0a.25.25 0 0 1 .25-.25h1.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-1.5a.25.25 0 0 1-.25-.25v-.5zm1 2a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm-5-2A.25.25 0 0 1 6.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 6 8.75v-.5zm-2 0A.25.25 0 0 1 4.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 4 8.75v-.5zm-2 0A.25.25 0 0 1 2.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 2 8.75v-.5zm11-2a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm-2 0a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm-2 0A.25.25 0 0 1 9.25 6h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 9 6.75v-.5zm-2 0A.25.25 0 0 1 7.25 6h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 7 6.75v-.5zm-2 0A.25.25 0 0 1 5.25 6h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 5 6.75v-.5zm-3 0A.25.25 0 0 1 2.25 6h1.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-1.5A.25.25 0 0 1 2 6.75v-.5zm0 4a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm2 0a.25.25 0 0 1 .25-.25h5.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-5.5a.25.25 0 0 1-.25-.25v-.5z"/>`,
     reset_icon:` <path d="M9.71 5.093a.5.5 0 0 1 .79.407v5a.5.5 0 0 1-.79.407L7 8.972V10.5a.5.5 0 0 1-1 0v-5a.5.5 0 0 1 1 0v1.528l2.71-1.935z"/>
   <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4z"/>`,
+    activity_icon: `
+  <path d="M4.5 12a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5zm3 0a.5.5 0 0 1-.5-.5v-4a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5zm3 0a.5.5 0 0 1-.5-.5v-6a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-.5.5z"/>
+  <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zm0 1h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1"/>`,
+    warp_icon: `
+  <path d="M8.79 5.093A.5.5 0 0 0 8 5.5v1.886L4.79 5.093A.5.5 0 0 0 4 5.5v5a.5.5 0 0 0 .79.407L8 8.614V10.5a.5.5 0 0 0 .79.407l3.5-2.5a.5.5 0 0 0 0-.814z"/>
+  <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1z"/>`,
+    warp_active_icon: `
+  <path d="M0 4v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H2a2 2 0 0 0-2 2m4.271 1.055a.5.5 0 0 1 .52.038L8 7.386V5.5a.5.5 0 0 1 .79-.407l3.5 2.5a.5.5 0 0 1 0 .814l-3.5 2.5A.5.5 0 0 1 8 10.5V8.614l-3.21 2.293A.5.5 0 0 1 4 10.5v-5a.5.5 0 0 1 .271-.445"/>`,
     is_overlay: false,
     toggle_overlay: function () {
         var container = $('#player_container');
@@ -286,6 +309,7 @@ ${this.overlay_on_icon}
         vAmigaWeb.postMessage("button_run()", "*");
     },
     last_run_state:null,
+    last_warp_state:null,
     render_run_state: function (is_running)
     {
         if(this.last_run_state == is_running)
@@ -296,10 +320,30 @@ ${this.overlay_on_icon}
         );
         this.last_run_state = is_running;
     },
+    render_warp_state: function (is_warping)
+    {
+        if(this.last_warp_state == is_warping)
+            return;
+
+        $("#btn_toggle_warp").html(
+            is_warping ? this.warp_active_icon: this.warp_icon 
+        );
+        this.last_warp_state = is_warping;
+    },
     toggle_keyboard: function()
     {			
         var vAmigaWeb = document.getElementById("vAmigaWeb").contentWindow;
-        vAmigaWeb.postMessage({cmd:"script", script:"action('keyboard');"}, "*");
+        vAmigaWeb.postMessage({cmd:"script", script:"action('keyboard')"}, "*");
+    },
+    toggle_activity_monitor: function()
+    {
+        var vAmigaWeb = document.getElementById("vAmigaWeb").contentWindow;
+        vAmigaWeb.postMessage({cmd:"script", script:"action('activity_monitor')"}, "*");
+    },
+    toggle_warp: function()
+    {
+        var vAmigaWeb = document.getElementById("vAmigaWeb").contentWindow;
+        vAmigaWeb.postMessage({cmd:"script", script:"action('toggle_warp')"}, "*");
     },
     toggle_audio: function()
     {			
