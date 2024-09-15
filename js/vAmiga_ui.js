@@ -28,7 +28,6 @@ let on_power_led_dim=()=>{};
 let df_mount_list=[];//to auto mount disks from zip e.g. ["Batman_Rises_disk1.adf","Batman_Rises_disk2.adf"];
 let hd_mount_list=[];
 
-let virtual_keyboard_clipping = true; //keyboard scrolls when it clips
 let use_wide_screen=false;
 let use_ntsc_pixel=false;
 let joystick_button_count=1;
@@ -2380,22 +2379,6 @@ function InitWrappers() {
 
     installKeyboard();
     $("#button_keyboard").click(function(){
-        if(virtual_keyboard_clipping==false)
-        {
-            let body_width =$("body").innerWidth();
-            let vk_abs_width=750+25; //+25 border
-            let vk=$("#virtual_keyboard");
-
-            //calculate scaled width
-            let scaled= vk_abs_width/body_width;
-            if(scaled < 1)
-            {
-                scaled = 1;
-            }
-            vk.css("width", `${scaled*100}vw`);
-            vk.css("transform", `scale(${1/scaled})`);
-            vk.css("transform-origin", `left bottom`);    
-        }
         setTimeout( scaleVMCanvas, 500);
     });
 

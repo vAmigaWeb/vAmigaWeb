@@ -299,7 +299,7 @@ ${this.overlay_on_icon}
     toggle_keyboard: function()
     {			
         var vAmigaWeb = document.getElementById("vAmigaWeb").contentWindow;
-        vAmigaWeb.postMessage({cmd:"script", script:"virtual_keyboard_clipping=false;action('keyboard');"}, "*");
+        vAmigaWeb.postMessage({cmd:"script", script:"action('keyboard');"}, "*");
     },
     toggle_audio: function()
     {			
