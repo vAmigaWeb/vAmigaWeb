@@ -472,7 +472,22 @@ function message_handler_queue_worker(msg, data, data2)
     }
     else if(msg === "MSG_WARP")
     {
-        window.parent.postMessage({ msg: 'render_run_state', value: is_running(), is_warping:  Module._wasm_is_warping() },"*");
+        let is_warping = Module._wasm_is_warping();
+        $("#button_ff").html(
+            is_warping ?
+            `
+<svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" fill="currentColor" class="bi bi-fast-forward-fill" viewBox="0 0 16 16">
+  <path d="M7.596 7.304a.802.802 0 0 1 0 1.392l-6.363 3.692C.713 12.69 0 12.345 0 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
+  <path d="M15.596 7.304a.802.802 0 0 1 0 1.392l-6.363 3.692C8.713 12.69 8 12.345 8 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
+</svg>`:
+`
+<svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" fill="currentColor" class="bi bi-fast-forward" viewBox="0 0 16 16">
+          <path d="M6.804 8 1 4.633v6.734zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C.713 12.69 0 12.345 0 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
+          <path d="M14.804 8 9 4.633v6.734zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C8.713 12.69 8 12.345 8 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
+</svg>
+`
+);
+        window.parent.postMessage({ msg: 'render_run_state', value: is_running(), is_warping:  is_warping },"*");
     }
     else if(msg == "MSG_VIDEO_FORMAT")
     {
@@ -3219,7 +3234,8 @@ $('.layer').change( function(event) {
         check_wake_lock();        
         //document.getElementById('canvas').focus();
     });
-
+    
+    $("#button_ff").click(()=> action('toggle_warp'));
 
     $('#modal_file_slot').on('hidden.bs.modal', function () {
         $("#filedialog").val(''); //clear file slot after file has been loaded
