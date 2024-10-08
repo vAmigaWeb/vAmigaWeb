@@ -1089,28 +1089,7 @@ extern "C" unsigned wasm_copy_into_sound_buffer()
 
 extern "C" void wasm_set_warp(unsigned on)
 {
-  warp_mode = (on == 1);
-/*
-  if(wrapper->amiga->iec.isTransferring() && 
-      (
-        (wrapper->amiga->isWarping() && warp_mode == false)
-        ||
-        (wrapper->amiga->isWarping() == false && warp_mode)
-      )
-  )
-  {
-*/
-  if(warp_mode == true)
-  {
-    wrapper->amiga->configure(OPT_WARP_MODE, WARP_AUTO); 
-  }
-
-
-  if(warp_mode == false && wrapper->amiga->isWarping())
-  {
-//      wrapper->amiga->warpOff();
-      wrapper->amiga->configure(OPT_WARP_MODE, WARP_NEVER); 
-  }
+  wrapper->amiga->configure(OPT_WARP_MODE, on == 1 ?WARP_AUTO:WARP_NEVER); 
 }
 
 
