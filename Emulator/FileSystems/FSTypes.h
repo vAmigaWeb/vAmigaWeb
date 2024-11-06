@@ -9,13 +9,11 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 
 enum_long(FS_VOLUME_TYPE)
 {
-    FS_NODOS    = -1,
-    
     FS_OFS      = 0,    // Original File System
     FS_FFS      = 1,    // Fast File System
     FS_OFS_INTL = 2,    // "International" (not supported)
@@ -23,23 +21,22 @@ enum_long(FS_VOLUME_TYPE)
     FS_OFS_DC   = 4,    // "Directory Cache" (not supported)
     FS_FFS_DC   = 5,    // "Directory Cache" (not supported)
     FS_OFS_LNFS = 6,    // "Long Filenames" (not supported)
-    FS_FFS_LNFS = 7     // "Long Filenames" (not supported)
+    FS_FFS_LNFS = 7,    // "Long Filenames" (not supported)
+    FS_NODOS
 };
 typedef FS_VOLUME_TYPE FSVolumeType;
 
 #ifdef __cplusplus
-struct FSVolumeTypeEnum : util::Reflection<FSVolumeTypeEnum, FSVolumeType>
+struct FSVolumeTypeEnum : vamiga::util::Reflection<FSVolumeTypeEnum, FSVolumeType>
 {
-    static constexpr long minVal = FS_NODOS;
-    static constexpr long maxVal = FS_FFS_LNFS;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-    
+    static constexpr long minVal = 0;
+    static constexpr long maxVal = FS_NODOS;
+
     static const char *prefix() { return "FS"; }
-    static const char *key(FSVolumeType value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
-            case FS_NODOS:     return "NODOS";
             case FS_OFS:       return "OFS";
             case FS_FFS:       return "FFS";
             case FS_OFS_INTL:  return "OFS_INTL";
@@ -48,6 +45,7 @@ struct FSVolumeTypeEnum : util::Reflection<FSVolumeTypeEnum, FSVolumeType>
             case FS_FFS_DC:    return "FFS_DC";
             case FS_OFS_LNFS:  return "OFS_LNFS";
             case FS_FFS_LNFS:  return "FFS_LNFS";
+            case FS_NODOS:     return "NODOS";
         }
         return "???";
     }
@@ -57,6 +55,7 @@ struct FSVolumeTypeEnum : util::Reflection<FSVolumeTypeEnum, FSVolumeType>
 inline bool isOFSVolumeType(long value)
 {
     switch (value) {
+
         case FS_OFS:
         case FS_OFS_INTL:
         case FS_OFS_DC:
@@ -68,6 +67,7 @@ inline bool isOFSVolumeType(long value)
 inline bool isFFSVolumeType(long value)
 {
     switch (value) {
+
         case FS_FFS:
         case FS_FFS_INTL:
         case FS_FFS_DC:
@@ -93,14 +93,13 @@ enum_long(FS_BLOCK_TYPE)
 typedef FS_BLOCK_TYPE FSBlockType;
 
 #ifdef __cplusplus
-struct FSBlockTypeEnum : util::Reflection<FSBlockTypeEnum, FSBlockType>
+struct FSBlockTypeEnum : vamiga::util::Reflection<FSBlockTypeEnum, FSBlockType>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = FS_DATA_BLOCK_FFS;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-    
+
     static const char *prefix() { return "FS"; }
-    static const char *key(FSBlockType value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -166,14 +165,13 @@ enum_long(FSI_TYPE)
 typedef FSI_TYPE FSItemType;
 
 #ifdef __cplusplus
-struct FSItemTypeEnum : util::Reflection<FSItemTypeEnum, FSItemType>
+struct FSItemTypeEnum : vamiga::util::Reflection<FSItemTypeEnum, FSItemType>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = FSI_BITMAP;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
     
     static const char *prefix() { return "FS"; }
-    static const char *key(FSItemType value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -234,3 +232,16 @@ typedef struct
     long lastErrorBlock;
 }
 FSErrorReport;
+
+typedef struct
+{
+    FSVolumeType dos;
+    bool ofs;
+    bool ffs;
+
+    isize blocks;
+    isize bytes;
+    isize bsize;
+}
+FSTraits;
+

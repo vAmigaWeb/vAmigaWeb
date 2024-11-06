@@ -9,7 +9,7 @@
 
 #include "config.h"
 #include "GdbServer.h"
-#include "Amiga.h"
+#include "Emulator.h"
 #include "CPU.h"
 #include "IOUtils.h"
 #include "Memory.h"
@@ -32,25 +32,6 @@ GdbServer::_dump(Category category, std::ostream& os) const
         os << tab("Code segment") << hex(codeSeg()) << std::endl;
         os << tab("Data segment") << hex(dataSeg()) << std::endl;
         os << tab("BSS segment") << hex(bssSeg()) << std::endl;
-    }
-}
-
-void
-GdbServer::resetConfig()
-{
-    assert(isPoweredOff());
-    auto &defaults = amiga.defaults;
-
-    std::vector <Option> options = {
-        
-        OPT_SRV_PORT,
-        OPT_SRV_PROTOCOL,
-        OPT_SRV_AUTORUN,
-        OPT_SRV_VERBOSE
-    };
-
-    for (auto &option : options) {
-        setConfigItem(option, defaults.get(option, SERVER_GDB));
     }
 }
 
@@ -99,7 +80,7 @@ GdbServer::doProcess(const string &payload)
         
         process(latestCmd);
         
-    } catch (VAError &err) {
+    } catch (Error &err) {
         
         auto msg = "GDB server error: " + string(err.what());
         debug(SRV_DEBUG, "%s\n", msg.c_str());
@@ -115,7 +96,7 @@ GdbServer::doProcess(const string &payload)
 void
 GdbServer::didStart()
 {
-    amiga.pause();
+    emulator.pause();
 }
 
 void

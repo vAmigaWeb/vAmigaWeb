@@ -17,14 +17,25 @@
 
 namespace vamiga {
 
-class RemoteManager : public SubComponent {
+class RemoteManager final : public SubComponent, public Inspectable<RemoteManagerInfo> {
+
+    Descriptions descriptions = {{
+
+        .name           = "RemoteManager",
+        .description    = "Remote Manager",
+        .shell          = "server"
+    }};
+
+    ConfigOptions options = {
+
+    };
 
 public:
     
     // The remote servers
-    SerServer serServer = SerServer(amiga);
-    RshServer rshServer = RshServer(amiga);
-    GdbServer gdbServer = GdbServer(amiga);
+    SerServer serServer = SerServer(amiga, SERVER_SER);
+    RshServer rshServer = RshServer(amiga, SERVER_RSH);
+    GdbServer gdbServer = GdbServer(amiga, SERVER_GDB);
     
     // Convenience wrapper
     std::vector <RemoteServer *> servers = {
@@ -39,16 +50,23 @@ public:
 public:
     
     RemoteManager(Amiga& ref);
-    // ~RemoteManager();
     
-    
+    RemoteManager& operator= (const RemoteManager& other) {
+
+        CLONE(serServer)
+        CLONE(rshServer)
+        CLONE(gdbServer)
+
+        return *this;
+    }
+
+
     //
     // Methods from CoreObject
     //
     
 protected:
     
-    const char *getDescription() const override { return "RemoteManager"; }
     void _dump(Category category, std::ostream& os) const override;
     
     
@@ -58,24 +76,31 @@ protected:
     
 private:
     
-    void _reset(bool hard) override { }
-    isize _size() override { return 0; }
-    u64 _checksum() override { return 0; }
-    isize _load(const u8 *buffer) override {return 0; }
-    isize _save(u8 *buffer) override { return 0; }
-    
-    
-    //
-    // Configuring
-    //
-    
+    template <class T> void serialize(T& worker) { } SERIALIZERS(serialize);
+        
 public:
 
-    i64 getConfigItem(Option option, long id) const;
-    void setConfigItem(Option option, i64 value);
-    void setConfigItem(Option option, long id, i64 value);
+    const Descriptions &getDescriptions() const override { return descriptions; }
 
-    
+
+    //
+    // Methods from Configurable
+    //
+
+public:
+
+    const ConfigOptions &getOptions() const override { return options; }
+
+
+    //
+    // Methods from Inspectable
+    //
+
+public:
+
+    void cacheInfo(RemoteManagerInfo &result) const override;
+
+
     //
     // Managing connections
     //

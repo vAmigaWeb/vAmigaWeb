@@ -115,8 +115,20 @@ static constexpr usize UPDATE_SIG_RECORDER  = 0b001;
 static constexpr usize UPDATE_BPL_TABLE     = 0b010;
 static constexpr usize UPDATE_DAS_TABLE     = 0b100;
 
-class Sequencer : public SubComponent
+class Sequencer final : public SubComponent
 {
+    Descriptions descriptions = {{
+
+        .type           = SequencerClass,
+        .name           = "Sequencer",
+        .description    = "Agnus Sequencer",
+        .shell          = ""
+    }};
+
+    ConfigOptions options = {
+
+    };
+
     friend class Agnus;
     
     //
@@ -207,36 +219,51 @@ public:
     
     Sequencer(Amiga& ref);
 
+    Sequencer& operator= (const Sequencer& other) {
+
+        CLONE(dmaDAS)
+        CLONE_ARRAY(fetch[0])
+        CLONE_ARRAY(fetch[1])
+        CLONE_ARRAY(bplEvent)
+        CLONE_ARRAY(dasEvent)
+        CLONE_ARRAY(nextBplEvent)
+        CLONE_ARRAY(nextDasEvent)
+
+        CLONE(ddfstrt)
+        CLONE(ddfstop)
+        CLONE(ddfInitial)
+        CLONE(ddf)
+        CLONE(bprunUp)
+
+        CLONE(diwstrt)
+        CLONE(diwstop)
+        CLONE(diwhigh)
+        CLONE(vstrt)
+        CLONE(vstop)
+
+        CLONE(sigRecorder)
+
+        CLONE(hsyncActions)
+
+        return *this;
+    }
+
 private:
     
     void initDasEventTable();
 
 
     //
-    // Methods from CoreObject
+    // Methods from Serializable
     //
 
 private:
-
-    const char *getDescription() const override { return "Sequencer"; }
-    void _dump(Category category, std::ostream& os) const override;
-
-
-    //
-    // Methods from CoreComponent
-    //
-
-private:
-
-    void _initialize() override;
-    void _reset(bool hard) override;
 
     template <class T>
     void serialize(T& worker)
     {
-
         worker
-        
+
         << dmaDAS
         << fetch
         << bplEvent
@@ -261,12 +288,36 @@ private:
         << hsyncActions;
     }
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
+    void operator << (SerResetter &worker) override;
+    void operator << (SerChecker &worker) override { serialize(worker); }
+    void operator << (SerCounter &worker) override { serialize(worker); }
+    void operator << (SerReader &worker) override { serialize(worker); }
+    void operator << (SerWriter &worker) override { serialize(worker); }
 
-    
+
+    //
+    // Methods from CoreComponent
+    //
+
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+private:
+
+    void _initialize() override;
+    void _dump(Category category, std::ostream& os) const override;
+
+
+    //
+    // Methods from Configurable
+    //
+
+public:
+
+    const ConfigOptions &getOptions() const override { return options; }
+
+
     //
     // Accessing registers (SequencerRegs.cpp)
     //

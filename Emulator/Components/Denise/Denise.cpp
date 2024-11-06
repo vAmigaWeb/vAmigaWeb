@@ -8,6 +8,7 @@
 // -----------------------------------------------------------------------------
 
 #include "config.h"
+#include "Emulator.h"
 #include "Denise.h"
 #include "Agnus.h"
 #include "Amiga.h"
@@ -25,10 +26,8 @@ Denise::Denise(Amiga& ref) : SubComponent(ref)
 }
 
 void
-Denise::_reset(bool hard)
+Denise::_didReset(bool hard)
 {
-    RESET_SNAPSHOT_ITEMS(hard)
-    
     std::memset(bBuffer, 0xFF, sizeof(bBuffer));
     std::memset(dBuffer, 0, sizeof(dBuffer));
     std::memset(iBuffer, 0, sizeof(iBuffer));
@@ -36,46 +35,21 @@ Denise::_reset(bool hard)
     std::memset(zBuffer, 0, sizeof(zBuffer));
 }
 
-void
-Denise::resetConfig()
-{
-    assert(isPoweredOff());
-    auto &defaults = amiga.defaults;
-
-    std::vector <Option> options = {
-        
-        OPT_DENISE_REVISION,
-        OPT_VIEWPORT_TRACKING,
-        OPT_FRAME_SKIPPING,
-        OPT_HIDDEN_BITPLANES,
-        OPT_HIDDEN_SPRITES,
-        OPT_HIDDEN_LAYERS,
-        OPT_HIDDEN_LAYER_ALPHA,
-        OPT_CLX_SPR_SPR,
-        OPT_CLX_SPR_PLF,
-        OPT_CLX_PLF_PLF
-    };
-
-    for (auto &option : options) {
-        setConfigItem(option, defaults.get(option));
-    }
-}
-
 i64
-Denise::getConfigItem(Option option) const
+Denise::getOption(Option option) const
 {
     switch (option) {
             
-        case OPT_DENISE_REVISION:     return config.revision;
-        case OPT_VIEWPORT_TRACKING:   return config.viewportTracking;
-        case OPT_FRAME_SKIPPING:      return config.frameSkipping;
-        case OPT_HIDDEN_BITPLANES:    return config.hiddenBitplanes;
-        case OPT_HIDDEN_SPRITES:      return config.hiddenSprites;
-        case OPT_HIDDEN_LAYERS:       return config.hiddenLayers;
-        case OPT_HIDDEN_LAYER_ALPHA:  return config.hiddenLayerAlpha;
-        case OPT_CLX_SPR_SPR:         return config.clxSprSpr;
-        case OPT_CLX_SPR_PLF:         return config.clxSprPlf;
-        case OPT_CLX_PLF_PLF:         return config.clxPlfPlf;
+        case OPT_DENISE_REVISION:           return config.revision;
+        case OPT_DENISE_VIEWPORT_TRACKING:  return config.viewportTracking;
+        case OPT_DENISE_FRAME_SKIPPING:     return config.frameSkipping;
+        case OPT_DENISE_HIDDEN_BITPLANES:   return config.hiddenBitplanes;
+        case OPT_DENISE_HIDDEN_SPRITES:     return config.hiddenSprites;
+        case OPT_DENISE_HIDDEN_LAYERS:      return config.hiddenLayers;
+        case OPT_DENISE_HIDDEN_LAYER_ALPHA: return config.hiddenLayerAlpha;
+        case OPT_DENISE_CLX_SPR_SPR:        return config.clxSprSpr;
+        case OPT_DENISE_CLX_SPR_PLF:        return config.clxSprPlf;
+        case OPT_DENISE_CLX_PLF_PLF:        return config.clxPlfPlf;
             
         default:
             fatalError;
@@ -83,61 +57,86 @@ Denise::getConfigItem(Option option) const
 }
 
 void
-Denise::setConfigItem(Option option, i64 value)
+Denise::checkOption(Option opt, i64 value)
+{
+    switch (opt) {
+
+        case OPT_DENISE_REVISION:
+
+            if (!DeniseRevisionEnum::isValid(value)) {
+                throw Error(VAERROR_OPT_INV_ARG, DeniseRevisionEnum::keyList());
+            }
+            return;
+
+        case OPT_DENISE_VIEWPORT_TRACKING:
+        case OPT_DENISE_FRAME_SKIPPING:
+        case OPT_DENISE_HIDDEN_BITPLANES:
+        case OPT_DENISE_HIDDEN_SPRITES:
+        case OPT_DENISE_HIDDEN_LAYERS:
+        case OPT_DENISE_HIDDEN_LAYER_ALPHA:
+        case OPT_DENISE_CLX_SPR_SPR:
+        case OPT_DENISE_CLX_SPR_PLF:
+        case OPT_DENISE_CLX_PLF_PLF:
+
+            return;
+
+        default:
+            throw(VAERROR_OPT_UNSUPPORTED);
+    }
+}
+
+void
+Denise::setOption(Option option, i64 value)
 {
     switch (option) {
             
         case OPT_DENISE_REVISION:
-            
-            if (!DeniseRevisionEnum::isValid(value)) {
-                throw VAError(ERROR_OPT_INVARG, DeniseRevisionEnum::keyList());
-            }
-            
+
             config.revision = (DeniseRevision)value;
             return;
 
-        case OPT_VIEWPORT_TRACKING:
+        case OPT_DENISE_VIEWPORT_TRACKING:
             
             config.viewportTracking = (bool)value;
             debugger.resetDIWTracker();
             return;
 
-        case OPT_FRAME_SKIPPING:
+        case OPT_DENISE_FRAME_SKIPPING:
 
             config.frameSkipping = (isize)value;
             return;
 
-        case OPT_HIDDEN_BITPLANES:
+        case OPT_DENISE_HIDDEN_BITPLANES:
             
             config.hiddenBitplanes = (u8)value;
             return;
 
-        case OPT_HIDDEN_SPRITES:
+        case OPT_DENISE_HIDDEN_SPRITES:
             
             config.hiddenSprites = (u8)value;
             return;
             
-        case OPT_HIDDEN_LAYERS:
+        case OPT_DENISE_HIDDEN_LAYERS:
             
             config.hiddenLayers = (u16)value;
             return;
             
-        case OPT_HIDDEN_LAYER_ALPHA:
+        case OPT_DENISE_HIDDEN_LAYER_ALPHA:
             
             config.hiddenLayerAlpha = (u8)value;
             return;
 
-        case OPT_CLX_SPR_SPR:
+        case OPT_DENISE_CLX_SPR_SPR:
             
             config.clxSprSpr = (bool)value;
             return;
             
-        case OPT_CLX_SPR_PLF:
+        case OPT_DENISE_CLX_SPR_PLF:
             
             config.clxSprPlf = (bool)value;
             return;
             
-        case OPT_CLX_PLF_PLF:
+        case OPT_DENISE_CLX_PLF_PLF:
             
             config.clxPlfPlf = (bool)value;
             return;
@@ -365,7 +364,7 @@ Denise::drawEven(Pixel offset)
 template <Resolution mode> void
 Denise::drawBoth(Pixel offset)
 {
-    if constexpr (NO_BPL_FASTPATH) {
+    if (BPL_ON_STEROIDS) {
 
         drawOdd <mode> (offset);
         drawEven <mode> (offset);
@@ -714,7 +713,7 @@ Denise::drawSprites()
         if (wasArmed & 0b00000011) drawSpritePair<0, R>();
         
         // Record sprite data in debug mode
-        if (amiga.isTracking()) debugger.recordSprites(wasArmed);
+        if (emulator.isTracking()) debugger.recordSprites(wasArmed);
     }
     
     /* If a sprite was armed, the code above has been executed which means
@@ -1337,7 +1336,7 @@ Denise::eofHandler()
     if (frameSkips == 0) {
 
         pixelEngine.swapBuffers();
-        frameSkips = amiga.isWarping() ? config.frameSkipping : 0;
+        frameSkips = emulator.isWarping() ? config.frameSkipping : 0;
 
     } else {
 

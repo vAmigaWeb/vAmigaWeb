@@ -14,8 +14,21 @@
 
 namespace vamiga {
 
-class RTC : public SubComponent {
+class RTC final : public SubComponent {
 
+    Descriptions descriptions = {{
+
+        .type           = RTCClass,
+        .name           = "RTC",
+        .description    = "Real-time Clock",
+        .shell          = "rtc"
+    }};
+
+    ConfigOptions options = {
+
+        OPT_RTC_MODEL
+    };
+    
     // The current configuration
     RTCConfig config = {};
 
@@ -43,36 +56,40 @@ class RTC : public SubComponent {
     
     
     //
-    // Constructing
+    // Methods
     //
-    
+
 public:
     
     using SubComponent::SubComponent;
     
-    
-    //
-    // Methods from CoreObject
-    //
-    
-private:
-    
-    const char *getDescription() const override { return "RTC"; }
-    void _dump(Category category, std::ostream& os) const override;
+    RTC& operator= (const RTC& other) {
+        
+        CLONE(timeDiff)
+        CLONE_ARRAY(reg[0])
+        CLONE_ARRAY(reg[1])
+        CLONE_ARRAY(reg[2])
+        CLONE_ARRAY(reg[3])
+        CLONE(lastCall)
+        CLONE(lastMeasure)
+        CLONE(lastMeasuredValue)
 
-    
+        CLONE(config)
+
+        return *this;
+    }
+
+
     //
-    // Methods from CoreComponent
+    // Methods from Serializable
     //
-    
+
 private:
-    
-    void _reset(bool hard) override;
-    
+        
     template <class T>
     void serialize(T& worker)
     {
-        if (util::isSoftResetter(worker)) return;
+        if (isSoftResetter(worker)) return;
 
         worker
 
@@ -82,32 +99,44 @@ private:
         << lastMeasure
         << lastMeasuredValue;
 
-        if (util::isResetter(worker)) return;
+        if (isResetter(worker)) return;
 
         worker
 
         << config.model;
     }
-    
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
 
-    
+    void operator << (SerResetter &worker) override;
+    void operator << (SerChecker &worker) override { serialize(worker); }
+    void operator << (SerCounter &worker) override { serialize(worker); }
+    void operator << (SerReader &worker) override { serialize(worker); }
+    void operator << (SerWriter &worker) override { serialize(worker); }
+
+
     //
-    // Configuring
+    // Methods from CoreComponent
     //
-    
+
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+private:
+
+    void _dump(Category category, std::ostream& os) const override;
+
+
+    //
+    // Methods from Configurable
+    //
+
 public:
     
     const RTCConfig &getConfig() const { return config; }
-    void resetConfig() override;
-    
-    i64 getConfigItem(Option option) const;
-    void setConfigItem(Option option, i64 value);
-    
-    bool isPresent() const { return config.model != RTC_NONE; }
+    const ConfigOptions &getOptions() const override { return options; }
+    i64 getOption(Option option) const override;
+    void checkOption(Option opt, i64 value) override;
+    void setOption(Option option, i64 value) override;
 
     
     //

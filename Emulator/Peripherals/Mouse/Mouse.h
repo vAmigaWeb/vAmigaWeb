@@ -42,7 +42,29 @@ public:
     bool isShakingRel(double dx);
 };
 
-class Mouse : public SubComponent {
+class Mouse final : public SubComponent {
+
+    Descriptions descriptions = {
+        {
+            .type           = MouseClass,
+            .name           = "Mouse1",
+            .description    = "Mouse in Port 1",
+            .shell          = "mouse1"
+        },
+        {
+            .type           = MouseClass,
+            .name           = "Mouse2",
+            .description    = "Mouse in Port 2",
+            .shell          = "mouse2"
+        }
+    };
+
+    ConfigOptions options = {
+
+        OPT_MOUSE_PULLUP_RESISTORS,
+        OPT_MOUSE_SHAKE_DETECTION,
+        OPT_MOUSE_VELOCITY
+    };
 
     // Reference to the control port this device belongs to
     ControlPort &port;
@@ -95,14 +117,30 @@ public:
     
     Mouse(Amiga& ref, ControlPort& pref);
     
-    
+    Mouse& operator= (const Mouse& other) {
+
+        CLONE(leftButton)
+        CLONE(middleButton)
+        CLONE(rightButton)
+        CLONE(mouseX)
+        CLONE(mouseY)
+        CLONE(oldMouseX)
+        CLONE(oldMouseY)
+        CLONE(targetX)
+        CLONE(targetY)
+
+        CLONE(config)
+
+        return *this;
+    }
+
+
     //
     // Methods from CoreObject
     //
     
 private:
     
-    const char *getDescription() const override;
     void _dump(Category category, std::ostream& os) const override;
     
     
@@ -112,35 +150,48 @@ private:
 
 private:
     
-    void _reset(bool hard) override;
-    
     template <class T>
     void serialize(T& worker)
     {
-        if (util::isResetter(worker)) return;
+        if (isResetter(worker)) {
 
-        worker 
+            worker 
 
-        << config.pullUpResistors;
-    }
+            << leftButton
+            << middleButton
+            << rightButton
+            << mouseX
+            << mouseY
+            << oldMouseX
+            << oldMouseY
+            << targetX
+            << targetY;
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
+        } else {
 
-    
+            worker
+
+            << config.pullUpResistors;
+        }
+
+    } SERIALIZERS(serialize);
+
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+
     //
-    // Configuring
+    // Methods from Configurable
     //
-    
+
 public:
     
     const MouseConfig &getConfig() const { return config; }
-    void resetConfig() override;
-
-    i64 getConfigItem(Option option) const;
-    void setConfigItem(Option option, i64 value);
+    const ConfigOptions &getOptions() const override { return options; }
+    i64 getOption(Option option) const override;
+    void checkOption(Option opt, i64 value) override;
+    void setOption(Option option, i64 value) override;
     
 private:
     

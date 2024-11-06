@@ -17,10 +17,38 @@
 namespace vamiga {
 
 template <isize nr>
-class StateMachine : public SubComponent {
+class StateMachine final : public SubComponent, public Inspectable<StateMachineInfo> {
 
-    // Result of the latest inspection
-    mutable StateMachineInfo info = {};
+    Descriptions descriptions = {
+        {
+            .type           = StateMachineClass,
+            .name           = "StateMachine1",
+            .description    = "Audio State Machine 1",
+            .shell          = ""
+        },
+        {
+            .type           = StateMachineClass,
+            .name           = "StateMachine2",
+            .description    = "Audio State Machine 2",
+            .shell          = ""
+        },
+        {
+            .type           = StateMachineClass,
+            .name           = "StateMachine3",
+            .description    = "Audio State Machine 3",
+            .shell          = ""
+        },
+        {
+            .type           = StateMachineClass,
+            .name           = "StateMachine4",
+            .description    = "Audio State Machine 4",
+            .shell          = ""
+        }
+    };
+
+    ConfigOptions options = {
+
+    };
 
 public:
 
@@ -83,31 +111,39 @@ public:
 
     StateMachine(Amiga& ref);
 
-    
-    //
-    // Methods from CoreObject
-    //
-    
-private:
-    
-    const char *getDescription() const override;
-    void _dump(Category category, std::ostream& os) const override;
+    StateMachine& operator= (const StateMachine& other) {
 
-    
+        CLONE(state)
+        CLONE(buffer)
+        CLONE(audlenLatch)
+        CLONE(audlen)
+        CLONE(audperLatch)
+        CLONE(audper)
+        CLONE(audvolLatch)
+        CLONE(audvol)
+        CLONE(auddat)
+        CLONE(audlcLatch)
+        CLONE(audDR)
+        CLONE(intreq2)
+        CLONE(enablePenlo)
+        CLONE(enablePenhi)
+        CLONE(clock)
+
+        return *this;
+    }
+
+
     //
-    // Methods from CoreComponent
+    // Methods from Serializable
     //
     
 private:
-    
-    void _reset(bool hard) override;
-    void _inspect() const override;
-    
+        
     template <class T>
     void serialize(T& worker)
     {
         worker
-        
+
         << state
         << buffer
         << audlenLatch
@@ -123,28 +159,46 @@ private:
         << enablePenlo
         << enablePenhi;
 
-        if (util::isSoftResetter(worker)) return;
+        if (isSoftResetter(worker)) return;
 
         worker
 
         << clock;
-    }
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
+    } SERIALIZERS(serialize);
 
-    
+
     //
-    // Analyzing
+    // Methods from CoreComponent
     //
-    
+
 public:
-    
-    StateMachineInfo getInfo() const { return CoreComponent::getInfo(info); }
 
-    
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+private:
+
+    void _dump(Category category, std::ostream& os) const override;
+
+
+    //
+    // Methods from Inspectable
+    //
+
+public:
+
+    void cacheInfo(StateMachineInfo &result) const override;
+
+
+    //
+    // Methods from Configurable
+    //
+
+public:
+
+    const ConfigOptions &getOptions() const override { return options; }
+
+
     //
     // Performing state machine actions
     //

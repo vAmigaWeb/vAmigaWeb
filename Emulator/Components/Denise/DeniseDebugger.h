@@ -15,7 +15,21 @@
 
 namespace vamiga {
 
-class DeniseDebugger: public SubComponent {
+class DeniseDebugger final : public SubComponent {
+
+    friend class Denise;
+    
+    Descriptions descriptions = {{
+
+        .type           = DeniseDebuggerClass,
+        .name           = "DeniseDebugger",
+        .description    = "Denise Debugger",
+        .shell          = ""
+    }};
+
+    ConfigOptions options = {
+
+    };
 
     // Largest viewport seen in the current frame (constantly changing)
     ViewPortInfo maxViewPort = { };
@@ -46,31 +60,43 @@ public:
     
     using SubComponent::SubComponent;
 
+    DeniseDebugger& operator= (const DeniseDebugger& other) {
 
+        return *this;
+    }
+
+    
     //
-    // Methods from CoreObject
+    // Methods from Serializable
     //
     
 private:
     
-    const char *getDescription() const override { return "DeniseDebugger"; }
-    void _dump(Category category, std::ostream& os) const override { };
-    
-    
+    template <class T> void serialize(T& worker) { } SERIALIZERS(serialize);
+
+
     //
     // Methods from CoreComponent
     //
 
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
 private:
     
+    void _dump(Category category, std::ostream& os) const override { };
     void _initialize() override;
-    void _reset(bool hard) override;
-    
-    isize _size() override { return 0; }
-    u64 _checksum() override { return 0; }
-    isize _load(const u8 *buffer) override { return 0; }
-    isize _save(u8 *buffer) override { return 0; }
-    
+
+
+    //
+    // Methods from Configurable
+    //
+
+public:
+
+    const ConfigOptions &getOptions() const override { return options; }
+
 
     //
     // Tracking sprites

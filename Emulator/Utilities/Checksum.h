@@ -9,9 +9,9 @@
 
 #pragma once
 
-#include "Types.h"
+#include "BasicTypes.h"
 
-namespace util {
+namespace vamiga::util {
 
 // Returns the FNV-1a seed value
 inline u32 fnvInit32() { return 0x811c9dc5; }

@@ -16,6 +16,20 @@ namespace vamiga {
 
 class ZorroBoard : public SubComponent {
     
+protected:
+    
+    Descriptions descriptions = {{
+
+        .type           = ZorroBoardClass,
+        .name           = "ZorroBoard",
+        .description    = "Zorro Board",
+        .shell          = ""
+    }};
+
+    ConfigOptions options = {
+
+    };
+
     friend class ZorroManager;
     
 protected:
@@ -24,7 +38,7 @@ protected:
     u32 baseAddr = 0;
     
     // Current state
-    BoardState state;
+    BoardState state = STATE_AUTOCONF;
     
     
     //
@@ -34,7 +48,7 @@ protected:
 public:
     
     using SubComponent::SubComponent;
-    
+
     
     //
     // Methods from CoreObject
@@ -44,7 +58,11 @@ protected:
 
     void _dump(Category category, std::ostream& os) const override;
 
+public:
 
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+    
     //
     // Querying
     //

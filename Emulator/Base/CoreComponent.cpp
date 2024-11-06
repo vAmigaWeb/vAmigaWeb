@@ -9,147 +9,106 @@
 
 #include "config.h"
 #include "CoreComponent.h"
+#include "Emulator.h"
+#include "Defaults.h"
 #include "Checksum.h"
+#include "Option.h"
 
 namespace vamiga {
 
-void
-CoreComponent::initialize()
+bool
+CoreComponent::operator== (CoreComponent &other)
 {
-    try {
-        
-        for (CoreComponent *c : subComponents) { c->initialize(); }
-        _initialize();
-        
-    } catch (std::exception &e) {
-
-        warn("Failed to initialize: %s\n", e.what());
-        fatalError;
-    }
+    return checksum(true) == other.checksum(true);
 }
 
-void
-CoreComponent::reset(bool hard)
+const char *
+CoreComponent::objectName() const
 {
-    for (CoreComponent *c : subComponents) { c->reset(hard); }
-    _reset(hard);
+    assert(isize(getDescriptions().size()) > objid);
+    return getDescriptions().at(objid).name;
 }
 
-void
-CoreComponent::inspect() const
+const char *
+CoreComponent::description() const
 {
-    for (CoreComponent *c : subComponents) { c->inspect(); }
-    _inspect();
+    assert(isize(getDescriptions().size()) > objid);
+    return getDescriptions().at(objid).description;
 }
 
-isize
-CoreComponent::size()
+const char *
+CoreComponent::shellName() const
 {
-    isize result = _size();
-    
-    // Add 8 bytes for the checksum
-    result += 8;
-    
-    for (CoreComponent *c : subComponents) { result += c->size(); }
-    return result;
+    assert(isize(getDescriptions().size()) > objid);
+    return getDescriptions().at(objid).shell;
 }
 
 u64
-CoreComponent::checksum()
+CoreComponent::checksum(bool recursive)
 {
-    u64 result = _checksum();
-    
-    // Compute checksums for all subcomponents
-    for (CoreComponent *c : subComponents) {
-        result = util::fnvIt64(result, c->checksum());
-    }
-    
-    return result;
+    SerChecker checker;
+
+    // Compute a checksum for the members of this component
+    *this << checker;
+
+    // Incoorporate subcomponents if requested
+    if (recursive) for (auto &c : subComponents) checker << c->checksum(recursive);
+
+    return checker.hash;
 }
 
-isize
-CoreComponent::load(const u8 *buffer)
+bool
+CoreComponent::isInitialized() const
 {
-    assert(!isRunning());
-    
-    const u8 *ptr = buffer;
-    
-    // Call the delegate
-    ptr += willLoadFromBuffer(ptr);
-
-    // Load internal state of all subcomponents
-    for (CoreComponent *c : subComponents) {
-        ptr += c->load(ptr);
-    }
-
-    // Load the checksum for this component
-    auto hash = util::read64(ptr);
-
-    // Load internal state of this component
-    ptr += _load(ptr);
-
-    // Call the delegate
-    ptr += didLoadFromBuffer(ptr);
-    isize result = (isize)(ptr - buffer);
-
-    // Check integrity
-    if (hash != _checksum() || FORCE_SNAP_CORRUPTED) {
-        throw VAError(ERROR_SNAP_CORRUPTED);
-    }
-    
-    debug(SNP_DEBUG, "Loaded %ld bytes (expected %ld)\n", result, size());
-    return result;
+    return emulator.isInitialized();
 }
 
-void
-CoreComponent::didLoad()
+bool
+CoreComponent::isPoweredOff() const
 {
-    assert(!isRunning());
-
-    for (CoreComponent *c : subComponents) {
-        c->didLoad();
-    }
-
-    _didLoad();
+    return emulator.isPoweredOff();
 }
 
-isize
-CoreComponent::save(u8 *buffer)
+bool
+CoreComponent::isPoweredOn() const
 {
-    u8 *ptr = buffer;
-    
-    // Call the delegate
-    ptr += willSaveToBuffer(ptr);
-    
-    // Save internal state of all subcomponents
-    for (CoreComponent *c : subComponents) {
-        ptr += c->save(ptr);
-    }
+    return emulator.isPoweredOn();
+}
 
-    // Save the checksum for this component
-    util::write64(ptr, _checksum());
-    
-    // Save the internal state of this component
-    ptr += _save(ptr);
+bool
+CoreComponent::isPaused() const
+{
+    return emulator.isPaused();
+}
 
-    // Call the delegate
-    ptr += didSaveToBuffer(ptr);
-    isize result = (isize)(ptr - buffer);
-    
-    debug(SNP_DEBUG, "Saved %ld bytes (expected %ld)\n", result, size());
-    assert(result == size());
+bool
+CoreComponent::isRunning() const
+{
+    return emulator.isRunning();
+}
 
-    return result;
+bool
+CoreComponent::isSuspended() const
+{
+    return emulator.isSuspended();
+}
+
+bool
+CoreComponent::isHalted() const
+{
+    return emulator.isHalted();
 }
 
 void
-CoreComponent::didSave()
-{        
-    for (CoreComponent *c : subComponents) {
-        c->didSave();
-    }
+CoreComponent::suspend()
+{
+    return emulator.suspend();
+}
 
-    _didSave();
+void
+CoreComponent::resume()
+{
+    return emulator.resume();
 }
 
 void
@@ -160,66 +119,286 @@ CoreComponent::isReady() const
 }
 
 void
+CoreComponent::resetConfig()
+{
+    postorderWalk([this](CoreComponent *c) {
+        c->Configurable::resetConfig(emulator.defaults, c->objid);
+    });
+}
+
+Configurable *
+CoreComponent::routeOption(Option opt, isize objid)
+{
+    if (this->objid == objid) {
+        for (auto &o : getOptions()) if (o == opt) return this;
+    }
+    for (auto &c : subComponents) {
+        if (auto result = c->routeOption(opt, objid); result) return result;
+    }
+
+    return nullptr;
+}
+
+i64
+CoreComponent::getFallback(Option opt) const
+{
+    return emulator.defaults.get(opt);
+}
+
+void
+CoreComponent::initialize()
+{
+    postorderWalk([](CoreComponent *c) { c->_initialize(); });
+}
+
+void
+CoreComponent::reset(bool hard)
+{
+    SerResetter resetter(hard);
+
+    {   SUSPENDED
+
+        // Call the pre-reset delegate
+        postorderWalk([hard](CoreComponent *c) { c->_willReset(hard); });
+
+        // Revert to a clean state
+        postorderWalk([&resetter](CoreComponent *c) { *c << resetter; });
+
+        // Call the post-reset delegate
+        postorderWalk([hard](CoreComponent *c) { c->_didReset(hard); });
+    }
+}
+
+void
 CoreComponent::powerOn()
 {
-    for (auto c : subComponents) { c->powerOn(); }
-    _powerOn();
+    postorderWalk([](CoreComponent *c) { c->_powerOn(); });
 }
 
 void
 CoreComponent::powerOff()
 {
-    for (auto c : subComponents) { c->powerOff(); }
-    _powerOff();
+    postorderWalk([](CoreComponent *c) { c->_powerOff(); });
 }
 
 void
 CoreComponent::run()
 {
-    for (auto c : subComponents) { c->run(); }
-    _run();
+    postorderWalk([](CoreComponent *c) { c->_run(); });
 }
 
 void
 CoreComponent::pause()
 {
-    for (auto c : subComponents) { c->pause(); }
-    _pause();
+    postorderWalk([](CoreComponent *c) { c->_pause(); });
 }
 
 void
 CoreComponent::halt()
 {
-    for (auto c : subComponents) { c->halt(); }
-    _halt();
+    postorderWalk([](CoreComponent *c) { c->_halt(); });
 }
 
 void
 CoreComponent::warpOn()
 {
-    for (auto c : subComponents) { c->warpOn(); }
-    _warpOn();
+    postorderWalk([](CoreComponent *c) { c->_warpOn(); });
 }
 
 void
 CoreComponent::warpOff()
 {
-    for (auto c : subComponents) { c->warpOff(); }
-    _warpOff();
+    postorderWalk([](CoreComponent *c) { c->_warpOff(); });
 }
 
 void
 CoreComponent::trackOn()
-{    
-    for (auto c : subComponents) { c->trackOn(); }
-    _trackOn();
+{
+    postorderWalk([](CoreComponent *c) { c->_trackOn(); });
 }
 
 void
 CoreComponent::trackOff()
 {
-    for (auto c : subComponents) { c->trackOff(); }
-    _trackOff();
+    postorderWalk([](CoreComponent *c) { c->_trackOff(); });
+}
+
+void
+CoreComponent::focus()
+{
+    postorderWalk([](CoreComponent *c) { c->_focus(); });
+}
+
+void
+CoreComponent::unfocus()
+{
+    postorderWalk([](CoreComponent *c) { c->_unfocus(); });
+}
+
+isize
+CoreComponent::size(bool recursive)
+{
+    // Count elements
+    SerCounter counter;
+    *this << counter;
+    isize result = counter.count;
+
+    // Add 8 bytes for the checksum
+    result += 8;
+    
+    // Add size of subcomponents if requested
+    if (recursive) for (CoreComponent *c : subComponents) { result += c->size(); }
+
+    return result;
+}
+
+isize
+CoreComponent::load(const u8 *buffer)
+{
+    assert(!isRunning());
+
+    isize result = 0;
+
+    postorderWalk([this, buffer, &result](CoreComponent *c) {
+
+        const u8 *ptr = buffer + result;
+
+        // Load the checksum for this component
+        auto hash = read64(ptr);
+
+        // Load the internal state of this component
+        SerReader reader(ptr); *c << reader;
+
+        // Determine the number of loaded bytes
+        isize count = (isize)(reader.ptr - (buffer + result));
+
+        // Check integrity
+        if (hash != c->checksum(false) || FORCE_SNAP_CORRUPTED) {
+            if (SNP_DEBUG) { fatalError; } else { throw Error(VAERROR_SNAP_CORRUPTED); }
+        }
+
+        debug(SNP_DEBUG >= 2, "Loaded %ld bytes (expected %ld)\n", count, c->size(false));
+        result += count;
+    });
+
+    postorderWalk([](CoreComponent *c) { c->_didLoad(); });
+
+    return result;
+}
+
+isize
+CoreComponent::save(u8 *buffer)
+{
+    isize result = 0;
+
+    postorderWalk([this, buffer, &result](CoreComponent *c) {
+
+        u8 *ptr = buffer + result;
+
+        // Save the checksum for this component
+        write64(ptr, c->checksum(false));
+
+        // Save the internal state of this component
+        SerWriter writer(ptr); *c << writer;
+
+        // Determine the number of written bytes
+        isize count = (isize)(writer.ptr - (buffer + result));
+
+        // Check integrity
+        if (count != c->size(false) || FORCE_SNAP_CORRUPTED) {
+            if (SNP_DEBUG) { fatalError; } else { throw Error(VAERROR_SNAP_CORRUPTED); }
+        }
+
+        debug(SNP_DEBUG >= 2, "Saved %ld bytes (expected %ld)\n", count, c->size(false));
+        result += count;
+    });
+
+    postorderWalk([](CoreComponent *c) { c->_didSave(); });
+
+    return result;
+}
+
+std::vector<CoreComponent *> 
+CoreComponent::collectComponents()
+{
+    std::vector<CoreComponent *> result;
+    collectComponents(result);
+    return result;
+}
+
+void
+CoreComponent::collectComponents(std::vector<CoreComponent *> &result)
+{
+    result.push_back(this);
+    for (auto &c : subComponents) c->collectComponents(result);
+}
+
+void
+CoreComponent::preoderWalk(std::function<void(CoreComponent *)> func)
+{
+    func(this);
+    for (auto &c : subComponents) c->preoderWalk(func);
+}
+
+void
+CoreComponent::postorderWalk(std::function<void(CoreComponent *)> func)
+{
+    for (auto &c : subComponents) c->postorderWalk(func);
+    func(this);
+}
+
+void
+CoreComponent::diff(CoreComponent &other)
+{
+    auto num = subComponents.size();
+    assert(num == other.subComponents.size());
+
+    // Compare all subcomponents
+    for (usize i = 0; i < num; i++) {
+        subComponents[i]->diff(*other.subComponents[i]);
+    }
+
+    // Compare this component
+    if (auto check1 = checksum(false), check2 = other.checksum(false); check1 != check2) {
+        msg("Checksum mismatch: %llx != %llx\n", check1, check2);
+    }
+}
+
+void
+CoreComponent::exportConfig(std::ostream& ss, bool diff) const
+{
+    bool first = true;
+
+    for (auto &opt: getOptions()) {
+
+        auto current = getOption(opt);
+        auto fallback = getFallback(opt);
+
+        if (!diff || current != fallback) {
+
+            if (first) {
+
+                ss << "# " << description() << std::endl << std::endl;
+                first = false;
+            }
+
+            auto cmd = "try " + string(shellName());
+            auto currentStr = OptionParser::asPlainString(opt, current);
+            auto fallbackStr = OptionParser::asPlainString(opt, fallback);
+
+            string line = cmd + " set " + OptionEnum::key(opt) + " " + currentStr;
+            string comment = diff ? fallbackStr : OptionEnum::help(opt);
+
+            ss << std::setw(40) << std::left << line << " # " << comment << std::endl;
+        }
+    }
+
+    if (!first) ss << std::endl;
+
+    for (auto &sub: subComponents) {
+
+        sub->exportConfig(ss, diff);
+    }
 }
 
 }

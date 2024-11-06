@@ -18,24 +18,9 @@
 
 namespace vamiga {
 
-HdController::HdController(Amiga& ref, HardDrive& hdr) : ZorroBoard(ref), drive(hdr)
+HdController::HdController(Amiga& ref, HardDrive& hdr) : ZorroBoard(ref, hdr.objid), drive(hdr)
 {
 
-}
-
-const char *
-HdController::getDescription() const
-{
-    switch (nr) {
-            
-        case 0: return "Hd0Con";
-        case 1: return "Hd1Con";
-        case 2: return "Hd2Con";
-        case 3: return "Hd3Con";
-
-        default:
-            fatalError;
-    }
 }
 
 void
@@ -47,8 +32,7 @@ HdController::_dump(Category category, std::ostream& os) const
     
     if (category == Category::Config) {
         
-        os << tab("Connected");
-        os << bol(config.connected) << std::endl;
+        dumpConfig(os);
     }
     
     if (category == Category::Stats) {
@@ -61,26 +45,30 @@ HdController::_dump(Category category, std::ostream& os) const
     }
 }
 
-void
-HdController::_initialize()
+void 
+HdController::cacheInfo(HdcInfo &result) const
 {
-    CoreComponent::_initialize();
+    result.nr = objid;
+    result.pluggedIn = pluggedIn();
+    result.state = getHdcState();
+}
 
-    nr = drive.getNr();
+void 
+HdController::cacheStats(HdcStats &result) const
+{
+    
 }
 
 void
-HdController::_reset(bool hard)
-{
-    RESET_SNAPSHOT_ITEMS(hard)
-    
+HdController::_didReset(bool hard)
+{    
     if (hard) {
         
         // Burn Expansion Rom
         rom.init(exprom, EXPROM_SIZE);
         
         // Make the device name unique
-        char dosName[] = "hrddrive?.device"; dosName[8] = char('0' + nr);
+        char dosName[] = "hrddrive?.device"; dosName[8] = char('0' + objid);
         rom.patch("virtualhd.device", dosName);
 
         // Patch Kickstart Rom (1.2 only)
@@ -95,26 +83,8 @@ HdController::_reset(bool hard)
     }
 }
 
-void
-HdController::resetConfig()
-{
-    assert(isPoweredOff());
-    auto &defaults = amiga.defaults;
-
-    nr = drive.getNr();
-    
-    std::vector <Option> options = {
-        
-        OPT_HDC_CONNECT
-    };
-
-    for (auto &option : options) {
-        setConfigItem(option, defaults.get(option, nr));
-    }
-}
-
 i64
-HdController::getConfigItem(Option option) const
+HdController::getOption(Option option) const
 {
     switch (option) {
             
@@ -126,31 +96,43 @@ HdController::getConfigItem(Option option) const
 }
 
 void
-HdController::setConfigItem(Option option, i64 value)
+HdController::checkOption(Option opt, i64 value)
+{
+    switch (opt) {
+
+        case OPT_HDC_CONNECT:
+
+            if (!isPoweredOff()) {
+                throw Error(VAERROR_OPT_LOCKED);
+            }
+            return;
+
+        default:
+            throw(VAERROR_OPT_UNSUPPORTED);
+    }
+}
+
+void
+HdController::setOption(Option option, i64 value)
 {
     switch (option) {
 
         case OPT_HDC_CONNECT:
-            
-            if (!isPoweredOff()) {
-                throw VAError(ERROR_OPT_LOCKED);
-            }
-            
-            if (bool(value) == config.connected) {
-                break;
-            }
 
-            if (value) {
-                
-                config.connected = true;
-                drive.connect();
-                msgQueue.put(MSG_HDC_CONNECT, DriveMsg { i16(nr), true, 0, 0 } );
+            if (bool(value) != config.connected) {
 
-            } else {
-                
-                config.connected = false;
-                drive.disconnect();
-                msgQueue.put(MSG_HDC_CONNECT, DriveMsg { i16(nr), false, 0, 0 } );
+                if (value) {
+
+                    config.connected = true;
+                    drive.connect();
+                    msgQueue.put(MSG_HDC_CONNECT, DriveMsg { i16(objid), true, 0, 0 } );
+
+                } else {
+
+                    config.connected = false;
+                    drive.disconnect();
+                    msgQueue.put(MSG_HDC_CONNECT, DriveMsg { i16(objid), false, 0, 0 } );
+                }
             }
             return;
 
@@ -176,7 +158,7 @@ HdController::updateMemSrcTables()
 }
 
 bool
-HdController::isCompatible(u32 crc32)
+HdController::isCompatible(u32 crc32) const
 {
     switch (crc32) {
             
@@ -206,7 +188,7 @@ HdController::isCompatible(u32 crc32)
 }
 
 bool
-HdController::isCompatible()
+HdController::isCompatible() const
 {
     return isCompatible(mem.romFingerprint());
 }
@@ -215,7 +197,7 @@ void
 HdController::resetHdcState()
 {
     hdcState = HDC_UNDETECTED;
-    msgQueue.put(MSG_HDC_STATE, HdcMsg { i16(nr), hdcState });
+    msgQueue.put(MSG_HDC_STATE, HdcMsg { i16(objid), hdcState });
 }
 
 void
@@ -226,7 +208,7 @@ HdController::changeHdcState(HdcState newState)
         debug(HDR_DEBUG, "Changing state to %s\n", HdcStateEnum::key(newState));
         
         hdcState = newState;
-        msgQueue.put(MSG_HDC_STATE, HdcMsg { i16(nr), hdcState });
+        msgQueue.put(MSG_HDC_STATE, HdcMsg { i16(objid), hdcState });
     }
 }
 
@@ -430,15 +412,15 @@ HdController::processInit(u32 ptr)
         name[0] = 'D';
         name[1] = 'H';
 
-        if (nr == 0) {
-            
+        if (objid == 0) {
+
             name[2] = '0' + char(partition);
             name[3] = 0;
             name[4] = 0;
 
         } else {
 
-            name[2] = '0' + char(nr);
+            name[2] = '0' + char(objid);
             name[3] = '0' + char(partition);
             name[4] = 0;
 
@@ -590,7 +572,7 @@ HdController::processInfoReq(u32 ptr)
         debug(HDR_DEBUG, "Requested info for driver %d\n", num);
 
         if (num >= drive.drivers.size()) {
-            throw VAError(ERROR_HDC_INIT, "Invalid driver number: " + std::to_string(num));
+            throw Error(VAERROR_HDC_INIT, "Invalid driver number: " + std::to_string(num));
         }
         auto &driver = drive.drivers[num];
 
@@ -603,7 +585,7 @@ HdController::processInfoReq(u32 ptr)
         // We accept up to three hunks
         auto numHunks = descr.numHunks();
         if (numHunks == 0 || numHunks > 3) {
-            throw VAError(ERROR_HUNK_CORRUPTED);
+            throw Error(VAERROR_HUNK_CORRUPTED);
         }
         
         // Pass the hunk information back to the driver
@@ -614,7 +596,7 @@ HdController::processInfoReq(u32 ptr)
             mem.patch(u32(ptr + fsinfo_hunk + 4 * i), descr.hunks[i].memRaw);
         }
 
-    } catch (VAError &e) {
+    } catch (Error &e) {
 
         warn("processInfoReq: %s\n", e.what());
     }
@@ -635,7 +617,7 @@ HdController::processInitSeg(u32 ptr)
         debug(HDR_DEBUG, "Processing driver %d\n", num);
 
         if (num >= drive.drivers.size()) {
-            throw VAError(ERROR_HDC_INIT, "Invalid driver number: " + std::to_string(num));
+            throw Error(VAERROR_HDC_INIT, "Invalid driver number: " + std::to_string(num));
         }
 
         // Read driver
@@ -646,7 +628,7 @@ HdController::processInitSeg(u32 ptr)
         // We accept up to three hunks
         auto numHunks = descr.numHunks();
         if (numHunks == 0 || numHunks > 3) {
-            throw VAError(ERROR_HUNK_CORRUPTED);
+            throw Error(VAERROR_HUNK_CORRUPTED);
         }
         
         // Extract pointers to the allocated memory
@@ -657,7 +639,7 @@ HdController::processInitSeg(u32 ptr)
             auto segPtr = mem.spypeek32 <ACCESSOR_CPU> (segPtrAddr);
             
             if (segPtr == 0) {
-                throw VAError(ERROR_HDC_INIT, "Memory allocation failed inside AmigaOS");
+                throw Error(VAERROR_HDC_INIT, "Memory allocation failed inside AmigaOS");
             }
             debug(HDR_DEBUG, "Allocated memory at %x\n", segPtr);
             segPtrs.push_back(segPtr);
@@ -690,7 +672,7 @@ HdController::processInitSeg(u32 ptr)
                 if (s.type == HUNK_RELOC32) {
                     
                     if (s.target >= numHunks) {
-                        throw VAError(ERROR_HDC_INIT, "Invalid relocation target");
+                        throw Error(VAERROR_HDC_INIT, "Invalid relocation target");
                     }
                     debug(HDR_DEBUG, "Relocation target: %ld\n", s.target);
                     
@@ -709,7 +691,7 @@ HdController::processInitSeg(u32 ptr)
         // Remember a BPTR to the seglist
         drive.drivers[num].segList = (segPtrs[0] + 4) >> 2;
         
-    } catch (VAError &e) {
+    } catch (Error &e) {
 
         warn("processInitSeg: %s\n", e.what());
     }

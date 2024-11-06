@@ -36,7 +36,7 @@ RemoteManager::_dump(Category category, std::ostream& os) const
 
         for (auto server : servers) {
             
-            auto name = server->getDescription();
+            auto name = server->objectName();
             auto port = server->config.port;
             
             os << tab(string(name));
@@ -51,40 +51,13 @@ RemoteManager::_dump(Category category, std::ostream& os) const
     }
 }
 
-i64
-RemoteManager::getConfigItem(Option option, long id) const
-{
-    switch ((ServerType)id) {
-            
-        case SERVER_SER: return serServer.getConfigItem(option);
-        case SERVER_RSH: return rshServer.getConfigItem(option);
-        case SERVER_GDB: return gdbServer.getConfigItem(option);
-
-        default:
-            fatalError;
-    }
-}
-
 void
-RemoteManager::setConfigItem(Option option, i64 value)
+RemoteManager::cacheInfo(RemoteManagerInfo &result) const
 {
-    for (auto &server : servers) {
-        server->setConfigItem(option, value);
-    }
-}
-
-void
-RemoteManager::setConfigItem(Option option, long id, i64 value)
-{
-    switch ((ServerType)id) {
-            
-        case SERVER_SER: serServer.setConfigItem(option, value); break;
-        case SERVER_RSH: rshServer.setConfigItem(option, value); break;
-        case SERVER_GDB: gdbServer.setConfigItem(option, value); break;
-
-        default:
-            fatalError;
-    }
+    info.numLaunching = numLaunching();
+    info.numListening = numListening();
+    info.numConnected = numConnected();
+    info.numErroneous = numErroneous();
 }
 
 isize

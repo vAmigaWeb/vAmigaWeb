@@ -389,6 +389,16 @@ Agnus::eventName(EventSlot slot, EventID id)
             }
             break;
 
+        case SLOT_SNP:
+
+            switch (id) {
+
+                case EVENT_NONE:        return "none";
+                case SNP_TAKE:          return "SNP_TAKE";
+                default:                return "*** INVALID ***";
+            }
+            break;
+
         case SLOT_RSH:
 
             switch (id) {
@@ -404,18 +414,7 @@ Agnus::eventName(EventSlot slot, EventID id)
             switch (id) {
                     
                 case EVENT_NONE:        return "none";
-                case KEY_PRESS:         return "KEY_PRESS";
-                case KEY_RELEASE:       return "KEY_RELEASE";
-                default:                return "*** INVALID ***";
-            }
-            break;
-
-        case SLOT_WBT:
-
-            switch (id) {
-
-                case EVENT_NONE:        return "none";
-                case WBT_DISABLE:       return "WBT_DISABLE";
+                case KEY_AUTO_TYPE:     return "KEY_AUTO_TYPE";
                 default:                return "*** INVALID ***";
             }
             break;
@@ -440,6 +439,16 @@ Agnus::eventName(EventSlot slot, EventID id)
             }
             break;
 
+        case SLOT_BTR:
+
+            switch (id) {
+
+                case EVENT_NONE:    return "none";
+                case BTR_TRIGGER:   return "BTR_TRIGGER";
+                default:            return "*** INVALID ***";
+            }
+            break;
+
         case SLOT_ALA:
 
             switch (id) {
@@ -455,15 +464,7 @@ Agnus::eventName(EventSlot slot, EventID id)
             switch (id) {
 
                 case EVENT_NONE:    return "none";
-                case INS_AMIGA:     return "INS_AMIGA";
-                case INS_CPU:       return "INS_CPU";
-                case INS_MEM:       return "INS_MEM";
-                case INS_CIA:       return "INS_CIA";
-                case INS_AGNUS:     return "INS_AGNUS";
-                case INS_PAULA:     return "INS_PAULA";
-                case INS_DENISE:    return "INS_DENISE";
-                case INS_PORTS:     return "INS_PORTS";
-                case INS_EVENTS:    return "INS_EVENTS";
+                case INS_RECORD:    return "INS_RECORD";
                 default:            return "*** INVALID ***";
             }
             break;
@@ -480,12 +481,7 @@ Agnus::_dump(Category category, std::ostream& os) const
     
     if (category == Category::Config) {
 
-        os << tab("Chip Revison");
-        os << AgnusRevisionEnum::key(config.revision) << std::endl;
-        os << tab("Slow Ram mirror");
-        os << bol(config.slowRamMirror) << std::endl;
-        os << tab("Pointer drops");
-        os << bol(config.ptrDrops) << std::endl;
+        dumpConfig(os);
     }
     
     if (category == Category::State) {
@@ -570,8 +566,8 @@ Agnus::_dump(Category category, std::ostream& os) const
     
     if (category == Category::Events) {
 
-        inspect();
-        
+        auto &info = getInfo();
+
         os << std::left << std::setw(10) << "Slot";
         os << std::left << std::setw(14) << "Event";
         os << std::left << std::setw(18) << "Trigger position";
@@ -579,28 +575,28 @@ Agnus::_dump(Category category, std::ostream& os) const
         
         for (isize i = 0; i < SLOT_COUNT; i++) {
             
-            EventSlotInfo &info = slotInfo[i];
+            EventSlotInfo &sinfo = info.slotInfo[i];
+
+            os << std::left << std::setw(10) << EventSlotEnum::key(sinfo.slot);
+            os << std::left << std::setw(14) << sinfo.eventName;
             
-            os << std::left << std::setw(10) << EventSlotEnum::key(info.slot);
-            os << std::left << std::setw(14) << info.eventName;
-            
-            if (info.trigger != NEVER) {
+            if (sinfo.trigger != NEVER) {
                 
-                if (info.frameRel < 0) {
+                if (sinfo.frameRel < 0) {
                     os << std::left << std::setw(18) << "previous frame";
-                } else if (info.frameRel > 0) {
+                } else if (sinfo.frameRel > 0) {
                     os << std::left << std::setw(18) << "upcoming frame";
                 } else {
-                    string vpos = std::to_string(info.vpos);
-                    string hpos = std::to_string(info.hpos);
+                    string vpos = std::to_string(sinfo.vpos);
+                    string hpos = std::to_string(sinfo.hpos);
                     string pos = "(" + vpos + "," + hpos + ")";
                     os << std::left << std::setw(18) << pos;
                 }
                 
-                if (info.triggerRel == 0) {
+                if (sinfo.triggerRel == 0) {
                     os << std::left << std::setw(16) << "due immediately";
                 } else {
-                    string cycle = std::to_string(info.triggerRel / 8);
+                    string cycle = std::to_string(sinfo.triggerRel / 8);
                     os << std::left << std::setw(16) << "due in " + cycle + " DMA cycles";
                 }
             }
@@ -620,12 +616,13 @@ Agnus::_dump(Category category, std::ostream& os) const
 }
 
 void
-Agnus::_inspect() const
+Agnus::cacheInfo(AgnusInfo &info) const
 {
     SYNCHRONIZED
     
     info.vpos     = pos.v;
     info.hpos     = pos.h;
+    info.frame    = pos.frame;
     
     info.dmacon   = dmacon;
     info.bplcon0  = bplcon0;
@@ -654,59 +651,30 @@ Agnus::_inspect() const
     for (isize i = 0; i < 4; i++) info.audlc[i] = audlc[i] & ptrMask;
     for (isize i = 0; i < 8; i++) info.sprpt[i] = sprpt[i] & ptrMask;
     
-    eventInfo.cpuClock = cpu.getMasterClock();
-    eventInfo.cpuCycles = cpu.getCpuClock();
-    eventInfo.dmaClock = agnus.clock;
-    eventInfo.ciaAClock = ciaa.getClock();
-    eventInfo.ciaBClock  = ciab.getClock();
-    eventInfo.frame = agnus.pos.frame;
-    eventInfo.vpos = agnus.pos.v;
-    eventInfo.hpos = agnus.pos.h;
-    
+    info.eventInfo.cpuClock = cpu.getMasterClock();
+    info.eventInfo.cpuCycles = cpu.getCpuClock();
+    info.eventInfo.dmaClock = agnus.clock;
+    info.eventInfo.ciaAClock = ciaa.getClock();
+    info.eventInfo.ciaBClock  = ciab.getClock();
+    info.eventInfo.frame = agnus.pos.frame;
+    info.eventInfo.vpos = agnus.pos.v;
+    info.eventInfo.hpos = agnus.pos.h;
+
     for (EventSlot i = 0; i < SLOT_COUNT; i++) {
-        inspectSlot(i);
+
+        info.slotInfo[i].slot = i;
+        info.slotInfo[i].eventId = id[i];
+        info.slotInfo[i].trigger = trigger[i];
+        info.slotInfo[i].triggerRel = trigger[i] - agnus.clock;
+
+        auto beam = pos + isize(AS_DMA_CYCLES(trigger[i] - clock));
+
+        info.slotInfo[i].vpos = beam.v;
+        info.slotInfo[i].hpos = beam.h;
+        info.slotInfo[i].frameRel = long(beam.frame - pos.frame);
+
+        info.slotInfo[i].eventName = eventName((EventSlot)i, id[i]);
     }
-}
-
-void
-Agnus::inspectSlot(EventSlot nr) const
-{
-    assert_enum(EventSlot, nr);
-    
-    auto &info = slotInfo[nr];
-    auto cycle = trigger[nr];
-
-    info.slot = nr;
-    info.eventId = id[nr];
-    info.trigger = cycle;
-    info.triggerRel = cycle - agnus.clock;
-
-    auto beam = pos + isize(AS_DMA_CYCLES(cycle - clock));
-
-    info.vpos = beam.v;
-    info.hpos = beam.h;
-    info.frameRel = long(beam.frame - pos.frame);
-
-    info.eventName = eventName((EventSlot)nr, id[nr]);
-}
-
-EventSlotInfo
-Agnus::getSlotInfo(isize nr) const
-{
-    assert_enum(EventSlot, nr);
-    
-    {   SYNCHRONIZED
-        
-        if (!isRunning()) inspectSlot(nr);
-        return slotInfo[nr];
-    }
-}
-
-
-void
-Agnus::clearStats()
-{
-    stats = { };
 }
 
 void

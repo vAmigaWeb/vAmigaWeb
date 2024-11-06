@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 #include "HdControllerTypes.h"
 
@@ -38,28 +38,28 @@ enum_long(MSG_TYPE)
     MSG_POWER_LED_OFF,
 
     // Retro shell
-    MSG_CONSOLE_CLOSE,
-    MSG_CONSOLE_UPDATE,
-    MSG_CONSOLE_DEBUGGER,
-    MSG_SCRIPT_DONE,
-    MSG_SCRIPT_PAUSE,
-    MSG_SCRIPT_ABORT,
-    MSG_SCRIPT_WAKEUP,
+    MSG_RSH_CLOSE,          ///< RetroShell has been closed
+    MSG_RSH_UPDATE,         ///< RetroShell has generated new output
+    MSG_RSH_DEBUGGER,       ///< The RetroShell debugger has been opend or closed
+    MSG_RSH_WAIT,           ///< Execution has peen postponed due to a wait command
+    MSG_RSH_ERROR,          ///< Command execution has been aborted due to an error
 
     // Amiga
     MSG_VIDEO_FORMAT,
 
     // CPU
     MSG_OVERCLOCKING,
-    MSG_BREAKPOINT_UPDATED,
+    MSG_GUARD_UPDATED,
     MSG_BREAKPOINT_REACHED,
-    MSG_WATCHPOINT_UPDATED,
     MSG_WATCHPOINT_REACHED,
-    MSG_CATCHPOINT_UPDATED,
     MSG_CATCHPOINT_REACHED,
     MSG_SWTRAP_REACHED,
     MSG_CPU_HALT,
     
+    // Agnus
+    MSG_BEAMTRAP_REACHED,
+    MSG_BEAMTRAP_UPDATED,
+
     // Copper
     MSG_COPPERBP_REACHED,
     MSG_COPPERBP_UPDATED,
@@ -106,8 +106,7 @@ enum_long(MSG_TYPE)
     MSG_SER_OUT,
 
     // Snapshots
-    MSG_AUTO_SNAPSHOT_TAKEN,
-    MSG_USER_SNAPSHOT_TAKEN,
+    MSG_SNAPSHOT_TAKEN,
     MSG_SNAPSHOT_RESTORED,
 
     // Screen recording
@@ -129,14 +128,13 @@ enum_long(MSG_TYPE)
 typedef MSG_TYPE MsgType;
 
 #ifdef __cplusplus
-struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
+struct MsgTypeEnum : vamiga::util::Reflection<MsgTypeEnum, MsgType>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = MSG_ALARM;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "MSG"; }
-    static const char *key(MsgType value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -157,25 +155,24 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
             case MSG_POWER_LED_DIM:         return "POWER_LED_DIM";
             case MSG_POWER_LED_OFF:         return "POWER_LED_OFF";
 
-            case MSG_CONSOLE_CLOSE:         return "CONSOLE_CLOSE";
-            case MSG_CONSOLE_UPDATE:        return "CONSOLE_UPDATE";
-            case MSG_CONSOLE_DEBUGGER:      return "CONSOLE_DEBUGGER";
-            case MSG_SCRIPT_DONE:           return "SCRIPT_DONE";
-            case MSG_SCRIPT_PAUSE:          return "SCRIPT_PAUSE";
-            case MSG_SCRIPT_ABORT:          return "SCRIPT_ABORT";
-            case MSG_SCRIPT_WAKEUP:         return "MSG_SCRIPT_WAKEUP";
+            case MSG_RSH_CLOSE:             return "RSH_CLOSE";
+            case MSG_RSH_UPDATE:            return "RSH_UPDATE";
+            case MSG_RSH_DEBUGGER:          return "RSH_DEBUGGER";
+            case MSG_RSH_WAIT:              return "RSH_WAIT";
+            case MSG_RSH_ERROR:             return "RSH_ERROR";
 
             case MSG_VIDEO_FORMAT:          return "VIDEO_FORMAT";
                 
             case MSG_OVERCLOCKING:          return "OVERCLOCKING";
-            case MSG_BREAKPOINT_UPDATED:    return "BREAKPOINT_UPDATED";
+            case MSG_GUARD_UPDATED:         return "GUARD_UPDATED";
             case MSG_BREAKPOINT_REACHED:    return "BREAKPOINT_REACHED";
-            case MSG_WATCHPOINT_UPDATED:    return "WATCHPOINT_UPDATED";
             case MSG_WATCHPOINT_REACHED:    return "WATCHPOINT_REACHED";
-            case MSG_CATCHPOINT_UPDATED:    return "CATCHPOINT_UPDATED";
             case MSG_CATCHPOINT_REACHED:    return "CATCHPOINT_REACHED";
             case MSG_SWTRAP_REACHED:        return "SWTRAP_REACHED";
             case MSG_CPU_HALT:              return "CPU_HALT";
+
+            case MSG_BEAMTRAP_REACHED:      return "BEAMTRAP_REACHED";
+            case MSG_BEAMTRAP_UPDATED:      return "BEAMTRAP_UPDATED";
 
             case MSG_COPPERBP_REACHED:      return "COPPERBP_REACHED";
             case MSG_COPPERBP_UPDATED:      return "COPPERBP_UPDATED";
@@ -213,8 +210,7 @@ struct MsgTypeEnum : util::Reflection<MsgTypeEnum, MsgType>
             case MSG_SER_IN:                return "SER_IN";
             case MSG_SER_OUT:               return "SER_OUT";
 
-            case MSG_AUTO_SNAPSHOT_TAKEN:   return "AUTO_SNAPSHOT_TAKEN";
-            case MSG_USER_SNAPSHOT_TAKEN:   return "USER_SNAPSHOT_TAKEN";
+            case MSG_SNAPSHOT_TAKEN:        return "SNAPSHOT_TAKEN";
             case MSG_SNAPSHOT_RESTORED:     return "SNAPSHOT_RESTORED";
                 
             case MSG_RECORDING_STARTED:     return "RECORDING_STARTED";
@@ -244,6 +240,7 @@ typedef struct { i16 nr; i16 value; i16 volume; i16 pan; } DriveMsg;
 typedef struct { i16 nr; HdcState state; } HdcMsg;
 typedef struct { i16 hstrt; i16 vstrt; i16 hstop; i16 vstop; } ViewportMsg;
 typedef struct { isize line; i16 delay; } ScriptMsg;
+typedef struct { void *snapshot; } SnapshotMsg;
 
 typedef struct
 {
@@ -258,6 +255,7 @@ typedef struct
         HdcMsg hdc;
         ScriptMsg script;
         ViewportMsg viewport;
+        SnapshotMsg snapshot;
     };
 }
 Message;

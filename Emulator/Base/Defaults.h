@@ -9,19 +9,20 @@
 
 #pragma once
 
-#include "CoreComponent.h"
-#include "IOUtils.h"
+#include "CoreObject.h"
+#include "OptionTypes.h"
+#include "Synchronizable.h"
 
 namespace vamiga {
 
-class Defaults : public CoreObject {
+namespace fs = ::std::filesystem;
 
-    mutable util::ReentrantMutex mutex;
-    
-    // Key-value storage
+class Defaults final : public CoreObject, public Synchronizable {
+
+    // The key-value storage
     std::map <string, string> values;
 
-    // Fallback values (used if no value is set)
+    // The default value storage
     std::map <string, string> fallbacks;
 
     
@@ -42,7 +43,7 @@ public:
 
 private:
     
-    const char *getDescription() const override { return "Properties"; }
+    const char *objectName() const override { return "Defaults"; }
     void _dump(Category category, std::ostream& os) const override;
 
     
@@ -64,36 +65,52 @@ public:
 
     
     //
-    // Working with key-value pairs
+    // Reading key-value pairs
     //
 
 public:
     
-    string getString(const string &key) throws;
-    i64 getInt(const string &key) throws;
-    i64 get(Option option) throws;
-    i64 get(Option option, isize nr) throws;
-    
-    string getFallback(const string &key) throws;
+    // Queries a key-value pair
+    string getRaw(const string &key) const throws;
+    i64 get(const string &key) const throws;
+    i64 get(Option option, isize nr = 0) const throws;
 
-    void setString(const string &key, const string &value);
+    // Queries a fallback key-value pair
+    string getFallbackRaw(const string &key) const;
+    i64 getFallback(const string &key) const;
+    i64 getFallback(Option option, isize nr = 0) const;
+
+
+    //
+    // Writing key-value pairs
+    //
+
+    // Writes a key-value pair into the user storage
+    void set(const string &key, const string &value);
+    void set(Option option, const string &value);
+    void set(Option option, const string &value, std::vector<isize> objids);
     void set(Option option, i64 value);
-    void set(Option option, isize nr, i64 value);
-    void set(Option option, std::vector <isize> nrs, i64 value);
+    void set(Option option, i64 value, std::vector<isize> objids);
 
+    // Writes a key-value pair into the fallback storage
     void setFallback(const string &key, const string &value);
     void setFallback(Option option, const string &value);
+    void setFallback(Option option, const string &value, std::vector<isize> objids);
     void setFallback(Option option, i64 value);
-    void setFallback(Option option, isize nr, const string &value);
-    void setFallback(Option option, isize nr, i64 value);
-    void setFallback(Option option, std::vector <isize> nrs, const string &value);
-    void setFallback(Option option, std::vector <isize> nrs, i64 value);
+    void setFallback(Option option, i64 value, std::vector<isize> objids);
 
+
+    //
+    // Deleting key-value pairs
+    //
+
+    // Deletes all key-value pairs
     void remove();
+
+    // Deletes selected key-value pairs
     void remove(const string &key) throws;
     void remove(Option option) throws;
-    void remove(Option option, isize nr) throws;
-    void remove(Option option, std::vector <isize> nrs) throws;
+    void remove(Option option, std::vector <isize> objids) throws;
 };
 
 }

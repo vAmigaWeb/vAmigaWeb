@@ -12,11 +12,6 @@
 
 namespace vamiga {
 
-Drive::Drive(Amiga& ref, isize n) : SubComponent(ref), nr(n)
-{
-    assert(usize(nr) < 4);
-}
-
 void
 Drive::toggleWriteProtection()
 {
@@ -24,7 +19,7 @@ Drive::toggleWriteProtection()
     if (!hasDisk()) return;
     
     // Toggle the protection flag
-    setProtectionFlag(hasUnprotectedDisk());
+    setFlag(FLAG_PROTECTED, !getFlag(FLAG_PROTECTED));
 }
 
 }

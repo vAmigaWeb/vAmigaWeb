@@ -23,14 +23,21 @@ public:
     
     using ZorroBoard::ZorroBoard;
     
-    
+    RamExpansion& operator= (const RamExpansion& other) {
+
+        CLONE(baseAddr)
+        CLONE(state)
+
+        return *this;
+    }
+
+
     //
     // Methods from CoreObject
     //
     
 private:
     
-    const char *getDescription() const override { return "RamExpansion"; }
     void _dump(Category category, std::ostream& os) const override;
 
     
@@ -39,26 +46,35 @@ private:
     //
     
 private:
-    
-    void _reset(bool hard) override;
-    
+        
     template <class T>
     void serialize(T& worker)
     {
-        if (util::isSoftResetter(worker)) return;
+        if (isSoftResetter(worker)) return;
 
         worker
 
-        << state
-        << baseAddr;
-    }
-    
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
+        << baseAddr
+        << state;
 
+    } SERIALIZERS(serialize);
+
+    void _didReset(bool hard) override;
     
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+
+    //
+    // Methods from Configurable
+    //
+
+public:
+
+    const ConfigOptions &getOptions() const override { return options; }
+
+
     //
     // Methods from ZorroBoard
     //

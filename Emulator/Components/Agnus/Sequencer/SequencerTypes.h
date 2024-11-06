@@ -9,11 +9,13 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 
 #ifdef __cplusplus
 
-#include "Serialization.h"
+#include "Serializable.h"
+
+namespace vamiga {
 
 static constexpr u16 SIG_NONE           = 0b0000000000;
 static constexpr u16 SIG_CON            = 0b0000000001;
@@ -27,7 +29,7 @@ static constexpr u16 SIG_SHW            = 0b0010000000;
 static constexpr u16 SIG_RHW            = 0b0100000000;
 static constexpr u16 SIG_DONE           = 0b1000000000;
 
-struct DDFState : util::Serializable
+struct DDFState : Serializable
 {
     bool bpv = false;
     bool bmapen = false;
@@ -61,12 +63,13 @@ struct DDFState : util::Serializable
     {
         return !(*this == rhs);
     }
-        
+
+    /*
     template <class W>
     void operator<<(W& worker)
     {
         worker
-        
+
         << bpv
         << bmapen
         << shw
@@ -79,6 +82,29 @@ struct DDFState : util::Serializable
         << bplcon0
         << cnt;
     }
+    */
+
+    template <class T>
+    void serialize(T& worker)
+    {
+        worker
+
+        << bpv
+        << bmapen
+        << shw
+        << rhw
+        << bphstart
+        << bphstop
+        << bprun
+        << lastFu
+        << stopreq
+        << bplcon0
+        << cnt;
+
+    } SERIALIZERS(serialize);
+
 };
+
+}
 
 #endif

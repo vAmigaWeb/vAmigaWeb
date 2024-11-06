@@ -10,13 +10,14 @@
 #pragma once
 
 #include "MsgQueueTypes.h"
-#include "SubComponent.h"
+#include "CoreObject.h"
+#include "Synchronizable.h"
 #include "RingBuffer.h"
 
 namespace vamiga {
 
-class MsgQueue : public SubComponent {
-
+class MsgQueue final : CoreObject, Synchronizable {
+public:
     // Ring buffer storing all pending messages
     util::RingBuffer <Message, 512> queue;
 
@@ -26,37 +27,33 @@ class MsgQueue : public SubComponent {
     // The registered callback function
     Callback *callback = nullptr;
     
-    
+    // If disabled, no messages will be stored
+    bool enabled = true;
+
+
     //
     // Constructing
     //
 
-    using SubComponent::SubComponent;
-    
+    // using SubComponent::SubComponent;
+
     
     //
     // Methods from CoreObject
     //
-    
-private:
-    
-    const char *getDescription() const override { return "MsgQueue"; }
-    void _dump(Category category, std::ostream& os) const override { }
-    
-    
+
+public:
+
+    const char *objectName() const override { return "MsgQueue"; }
+
+
     //
-    // Methods from CoreComponent
+    // Methods from Configurable
     //
     
-private:
-    
-    void _reset(bool hard) override { };
-    isize _size() override { return 0; }
-    u64 _checksum() override { return 0; }
-    isize _load(const u8 *buffer) override { return 0; }
-    isize _save(u8 *buffer) override { return 0; }
-    
-    
+    // const ConfigOptions &getOptions() const override { return options; }
+
+
     //
     // Managing the queue
     //
@@ -66,6 +63,9 @@ public:
     // Registers a listener together with it's callback function
     void setListener(const void *listener, Callback *func);
 
+    // Disables the message queue
+    void disable() { enabled = false; }
+
     // Sends a message
     void put(const Message &msg);
     void put(MsgType type, i64 payload = 0);
@@ -74,6 +74,7 @@ public:
     void put(MsgType type, HdcMsg payload);
     void put(MsgType type, ScriptMsg payload);
     void put(MsgType type, ViewportMsg payload);
+    void put(MsgType type, SnapshotMsg payload);
 
     // Reads a message
     bool get(Message &msg);

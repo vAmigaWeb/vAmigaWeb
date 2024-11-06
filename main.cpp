@@ -6,6 +6,9 @@
 
 #include <stdio.h>
 #include "config.h"
+#include "VAmiga.h"
+#include "VAmigaTypes.h"
+#include "Emulator.h"
 #include "Amiga.h"
 #include "AmigaTypes.h"
 #include "RomFile.h"
@@ -303,11 +306,11 @@ bool calculate_viewport_dimensions(u32 *texture)
 
 
 #define MAX_GAP 5
-Amiga *thisAmiga=NULL;
+VAmiga *emu=NULL;
 u8 executed_since_last_host_frame=0;
 extern "C" void wasm_execute()
 {
-  thisAmiga->execute();
+  emu->emu->computeFrame(); //execute();
   executed_since_last_host_frame++;
   executed_frame_count++;
   total_executed_frame_count++;
@@ -332,16 +335,17 @@ extern "C" int wasm_draw_one_frame(double now)
 
   double elapsedTimeInSeconds = (now - start_time)/1000.0;
   int64_t targetFrameCount = (int64_t)(elapsedTimeInSeconds * target_fps);
- 
-  Amiga *amiga = /*(Amiga *)*/thisAmiga;
+  
+  emu->emu->update();
+
   bool show_stat=true;
-  if(amiga->isWarping() == true)
+  if(emu->isWarping() == true)
   {
     if(log_on) printf("warping at least 25 frames at once ...\n");
     int i=25;
-    while(amiga->isWarping() == true && i>0)
+    while(emu->isWarping() == true && i>0)
     {
-      amiga->execute();
+      emu->emu->computeFrame();
       i--;
 /*      if(warp_to_frame>0 && amiga->agnus.pos.frame > warp_to_frame)
       {
@@ -406,7 +410,7 @@ extern "C" int wasm_draw_one_frame(double now)
 #ifndef wasm_worker    
   if(behind>0)
   {
-    amiga->execute();
+    emu->emu->computeFrame();
  
     executed_frame_count++;
     total_executed_frame_count++;
@@ -422,7 +426,7 @@ extern "C" int wasm_draw_one_frame(double now)
     if(now-last_time_calibrated >= 700.0)
     {  
       last_time_calibrated=now;
-      auto stable_ptr = amiga->denise.pixelEngine.stablePtr();
+      auto stable_ptr = emu->denise.denise->pixelEngine.stablePtr();
 
       bool dimensions_changed=calculate_viewport_dimensions((u32 *)stable_ptr - HBLANK_MIN*4*TPP);
       if(dimensions_changed)
@@ -517,10 +521,9 @@ void send_message_to_js_w(const char * msg, long data1, long data2)
 bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
 //void theListener(const void * amiga, long type,  int data1, int data2, int data3, int data4){
-void theListener(const void * amiga, Message msg){
+void theListener(const void * emu, Message msg){
   int data1=msg.value;
   int data2=0;
-
   if(msg.type == MSG_VIEWPORT)
   {
     if(msg.viewport.hstrt==0 && msg.viewport.vstrt==0 && msg.viewport.hstop == 0 && msg.viewport.vstop == 0)
@@ -591,11 +594,11 @@ void theListener(const void * amiga, Message msg){
 
     if(msg.type == MSG_SER_OUT)
     {
-      int byte = ((Amiga *)amiga)->serialPort.readOutgoingByte();
+      int byte = ((Amiga *)emu)->serialPort.readOutgoingByte();
       while(byte>=0)
       {
         send_message_to_js_with_param(message_as_string, byte, data2);
-        byte = ((Amiga *)amiga)->serialPort.readOutgoingByte();
+        byte = ((Amiga *)emu)->serialPort.readOutgoingByte();
       }
     }
     else
@@ -603,7 +606,6 @@ void theListener(const void * amiga, Message msg){
       send_message_to_js_with_param(message_as_string, data1, data2);
     }
   }
-
 }
 
 
@@ -611,13 +613,12 @@ void theListener(const void * amiga, Message msg){
 
 class vAmigaWrapper {
   public:
-    Amiga *amiga;
+    VAmiga *emu;
 
   vAmigaWrapper()
   {
     printf("constructing vAmiga ...\n");
-    this->amiga = new Amiga();
-
+    this->emu = new VAmiga();
   }
   ~vAmigaWrapper()
   {
@@ -626,7 +627,7 @@ class vAmigaWrapper {
 
   void run()
   {
-    try { amiga->isReady(); } catch(...) { 
+    try { emu->isReady(); } catch(...) { 
       printf("***** put missing rom message\n");
        // amiga->msgQueue.put(ROM_MISSING); 
         EM_ASM({
@@ -635,6 +636,35 @@ class vAmigaWrapper {
     }
     
     printf("wrapper calls run on vAmiga->run() method\n");
+
+
+    emu->defaults.defaults->setFallback(OPT_HDC_CONNECT, false, {0});
+
+//  wrapper->emu->defaults.setFallback(OPT_FILTER_TYPE, FILTER_NONE);
+//  wrapper->emu->set(OPT_FILTER_TYPE, FILTER_NONE);
+
+  // master Volumne
+    emu->set(OPT_AUD_VOLL, 100); 
+    emu->set(OPT_AUD_VOLR, 100);
+
+  //Volumne
+//  wrapper->emu->set(OPT_AUD_VOL0, 100); why did I set it only on channel 0? 
+//  wrapper->emu->set(OPT_AUD_PAN0, 0);
+
+
+  emu->set(OPT_MEM_CHIP_RAM, 512);
+  emu->set(OPT_MEM_SLOW_RAM, 512);
+  emu->set(OPT_AGNUS_REVISION, AGNUS_OCS);
+
+  //turn automatic hd mounting off because kick1.2 makes trouble
+  emu->set(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
+
+  emu->set(OPT_DRIVE_CONNECT,/*df1*/ 1, /*enable*/true);
+
+
+
+
+
 
     printf("waiting on emulator ready in javascript ...\n");
  
@@ -651,7 +681,7 @@ void run_in_worker()
   auto behind = wasm_draw_one_frame(emscripten_performance_now());
   while(behind>0)
   {
-    thisAmiga->execute();
+    emu->execute();
     executed_since_last_host_frame++;
     executed_frame_count++;
     total_executed_frame_count++;
@@ -677,7 +707,7 @@ extern "C" void wasm_worker_run()
 }
 
 vAmigaWrapper *wrapper = NULL;
-extern "C" int main(int argc, char** argv) {
+int main(int argc, char** argv) {
 #ifdef wasm_worker
   worker = emscripten_malloc_wasm_worker(/*stack size: */2048);
   printf("running on wasm webworker...\n");
@@ -686,47 +716,28 @@ extern "C" int main(int argc, char** argv) {
 #endif
   wrapper= new vAmigaWrapper();
 
-  printf("adding a listener to vAmiga message queue...\n");
+  printf("connecting listener to vAmiga message queue...\n");
 
-//  wrapper->amiga->msgQueue.setListener(wrapper->amiga, &theListener);
-  wrapper->amiga->launch(wrapper->amiga, &theListener);
-  
-  wrapper->amiga->defaults.setFallback(OPT_HDC_CONNECT, 0, false);
+//  try{
+      wrapper->emu->launch(wrapper->emu, &theListener);
+//  } catch(std::exception &exception) {
+//      printf("%s\n", exception.what());
+//  }
+//  printf("launch completed\n");
 
-//  wrapper->amiga->defaults.setFallback(OPT_FILTER_TYPE, FILTER_NONE);
-//  wrapper->amiga->configure(OPT_FILTER_TYPE, FILTER_NONE);
-
-  // master Volumne
-  wrapper->amiga->configure(OPT_AUDVOLL, 100); 
-  wrapper->amiga->configure(OPT_AUDVOLR, 100);
-
-  //Volumne
-  wrapper->amiga->configure(OPT_AUDVOL, 0, 100); 
-  wrapper->amiga->configure(OPT_AUDPAN, 0, 0);
-
-
-  wrapper->amiga->configure(OPT_CHIP_RAM, 512);
-  wrapper->amiga->configure(OPT_SLOW_RAM, 512);
-  wrapper->amiga->configure(OPT_AGNUS_REVISION, AGNUS_OCS);
-
-  //turn automatic hd mounting off because kick1.2 makes trouble
-  wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
-
-  wrapper->amiga->configure(OPT_DRIVE_CONNECT,/*df1*/ 1, /*enable*/true);
   wrapper->run();
-
   return 0;
 }
 
 
 extern "C" Texel * wasm_pixel_buffer()
 {
-  auto stable_ptr = thisAmiga->denise.pixelEngine.stablePtr();
+  auto stable_ptr = emu->denise.denise->pixelEngine.stablePtr();
   return stable_ptr;
 }
 extern "C" u32 wasm_frame_info()
 {
-  auto &stableBuffer = thisAmiga->denise.pixelEngine.getStableBuffer();
+  auto &stableBuffer = emu->denise.denise->pixelEngine.getStableBuffer();
   u32 info = (u32)stableBuffer.nr;
   info = info<<1;
 
@@ -776,18 +787,19 @@ extern "C" void wasm_key(int code, int pressed)
 
   if(pressed==1)
   {
-    wrapper->amiga->keyboard.pressKey(code);
+//    wrapper->emu->keyboard.keyboard->pressKey(code);
+      wrapper->emu->keyboard.keyboard->press(KeyCode(code));
   }
   else
   {
-    wrapper->amiga->keyboard.releaseKey(code);
+    wrapper->emu->keyboard.release(KeyCode(code));
   }
 }
 
 extern "C" void wasm_auto_type(int code, int duration, int delay)
-{
-    if(log_on) printf("auto_type ( %d, %d, %d ) \n", code, duration, delay);
-    wrapper->amiga->keyboard.autoType(code, MSEC(duration), MSEC(delay));
+{//obsolete
+//    if(log_on) printf("auto_type ( %d, %d, %d ) \n", code, duration, delay);
+//    wrapper->emu->keyboard.autoType(code, MSEC(duration), MSEC(delay));
 }
 
 
@@ -796,15 +808,15 @@ extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_d
   if(pressed==1)
   {
 //    printf("scheduleKeyPress ( %d, %d, %d ) \n", code1, code2, frame_delay);
-    wrapper->amiga->keyboard.pressKey(code1);
-//    wrapper->amiga->keyboard.scheduleKeyPress(*new AmigaKey(code1,code2), frame_delay);
+    wrapper->emu->keyboard.press(KeyCode(code1));
+//    wrapper->emu->keyboard.scheduleKeyPress(*new AmigaKey(code1,code2), frame_delay);
   }
   else
   {
 //    printf("scheduleKeyRelease ( %d, %d, %d ) \n", code1, code2, frame_delay);
-    wrapper->amiga->keyboard.releaseKey(code1);
+    wrapper->emu->keyboard.release(KeyCode(code1));
   
-  //  wrapper->amiga->keyboard.scheduleKeyRelease(*new C64Key(code1,code2), frame_delay);
+  //  wrapper->emu->keyboard.scheduleKeyRelease(*new C64Key(code1,code2), frame_delay);
   }
 }
 
@@ -819,35 +831,35 @@ extern "C" bool wasm_has_disk(const char *drive_name)
 {
   if(strcmp(drive_name,"df0") == 0)
   {
-    return wrapper->amiga->df0.hasDisk();
+    return wrapper->emu->df0.getInfo().hasDisk;
   }
   else if(strcmp(drive_name,"df1") == 0)
   {
-    return wrapper->amiga->df1.hasDisk();
+    return wrapper->emu->df1.getInfo().hasDisk;
   }
   else if(strcmp(drive_name,"df2") == 0)
   {
-    return wrapper->amiga->df2.hasDisk();
+    return wrapper->emu->df2.getInfo().hasDisk;
   }
   else if(strcmp(drive_name,"df3") == 0)
   {
-    return wrapper->amiga->df3.hasDisk();
+    return wrapper->emu->df3.getInfo().hasDisk;
   }
   else if (strcmp(drive_name,"dh0") == 0)
   {
-    return wrapper->amiga->hd0.hasDisk();
+    return wrapper->emu->hd0.getInfo().hasDisk;
   }
   else if (strcmp(drive_name,"dh1") == 0)
   {
-    return wrapper->amiga->hd1.hasDisk();
+    return wrapper->emu->hd1.getInfo().hasDisk;
   }
   else if (strcmp(drive_name,"dh2") == 0)
   {
-    return wrapper->amiga->hd2.hasDisk();
+    return wrapper->emu->hd2.getInfo().hasDisk;
   }
   else if (strcmp(drive_name,"dh3") == 0)
   {
-    return wrapper->amiga->hd3.hasDisk();
+    return wrapper->emu->hd3.getInfo().hasDisk;
   }
 
   return false;
@@ -857,58 +869,58 @@ extern "C" void wasm_eject_disk(const char *drive_name)
 {
   if(strcmp(drive_name,"df0") == 0)
   {
-    if(wrapper->amiga->df0.hasDisk())
-      wrapper->amiga->df0.ejectDisk();
+    if(wrapper->emu->df0.getInfo().hasDisk)
+      wrapper->emu->df0.ejectDisk();
   }
   else if(strcmp(drive_name,"df1") == 0)
   {
-    if(wrapper->amiga->df1.hasDisk())
-      wrapper->amiga->df1.ejectDisk();
+    if(wrapper->emu->df1.getInfo().hasDisk)
+      wrapper->emu->df1.ejectDisk();
   }
   else if(strcmp(drive_name,"df2") == 0)
   {
-    if(wrapper->amiga->df2.hasDisk())
-      wrapper->amiga->df2.ejectDisk();
+    if(wrapper->emu->df2.getInfo().hasDisk)
+      wrapper->emu->df2.ejectDisk();
   }
   else if(strcmp(drive_name,"df3") == 0)
   {
-    if(wrapper->amiga->df3.hasDisk())
-      wrapper->amiga->df3.ejectDisk();
+    if(wrapper->emu->df3.getInfo().hasDisk)
+      wrapper->emu->df3.ejectDisk();
   }
   else if (strcmp(drive_name,"dh0") == 0)
   {
-    if(wrapper->amiga->hd0.hasDisk())
+    if(wrapper->emu->hd0.getInfo().hasDisk)
     {
-      wrapper->amiga->powerOff();
-      wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
-      wrapper->amiga->powerOn();
+      wrapper->emu->powerOff();
+      wrapper->emu->set(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
+      wrapper->emu->powerOn();
     }
   }
   else if (strcmp(drive_name,"dh1") == 0)
   {
-    if(wrapper->amiga->hd1.hasDisk())
+    if(wrapper->emu->hd1.getInfo().hasDisk)
     {
-      wrapper->amiga->powerOff();
-      wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 1, /*enable*/false);
-      wrapper->amiga->powerOn();
+      wrapper->emu->powerOff();
+      wrapper->emu->set(OPT_HDC_CONNECT,/*hd drive*/ 1, /*enable*/false);
+      wrapper->emu->powerOn();
     }
   }
   else if (strcmp(drive_name,"dh2") == 0)
   {
-    if(wrapper->amiga->hd2.hasDisk())
+    if(wrapper->emu->hd2.getInfo().hasDisk)
     {
-      wrapper->amiga->powerOff();
-      wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 2, /*enable*/false);
-      wrapper->amiga->powerOn();
+      wrapper->emu->powerOff();
+      wrapper->emu->set(OPT_HDC_CONNECT,/*hd drive*/ 2, /*enable*/false);
+      wrapper->emu->powerOn();
     }
   }
   else if (strcmp(drive_name,"dh3") == 0)
   {
-    if(wrapper->amiga->hd3.hasDisk())
+    if(wrapper->emu->hd3.getInfo().hasDisk)
     {
-      wrapper->amiga->powerOff();
-      wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ 3, /*enable*/false);
-      wrapper->amiga->powerOn();
+      wrapper->emu->powerOff();
+      wrapper->emu->set(OPT_HDC_CONNECT,/*hd drive*/ 3, /*enable*/false);
+      wrapper->emu->powerOn();
     }
   }
 
@@ -932,78 +944,78 @@ extern "C" char* wasm_export_disk(const char *drive_name)
 
   if(strcmp(drive_name,"df0") == 0)
   {
-    if(!wrapper->amiga->df0.hasDisk())
+    if(!wrapper->emu->df0.getInfo().hasDisk)
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-    export_disk = new ADFFile(wrapper->amiga->df0);
+    export_disk = new ADFFile(wrapper->emu->df0.getDisk());
     data=&(export_disk->data);
   }
   else if(strcmp(drive_name,"df1") == 0)
   {
-    if(!wrapper->amiga->df1.hasDisk())
+    if(!wrapper->emu->df1.getInfo().hasDisk)
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-    export_disk = new ADFFile(wrapper->amiga->df1);
+    export_disk = new ADFFile(wrapper->emu->df1.getDisk());
     data=&(export_disk->data);
   }
   else if(strcmp(drive_name,"df2") == 0)
   {
-    if(!wrapper->amiga->df2.hasDisk())
+    if(!wrapper->emu->df2.getInfo().hasDisk)
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-    export_disk = new ADFFile(wrapper->amiga->df2);
+    export_disk = new ADFFile(wrapper->emu->df2.getDisk());
     data=&(export_disk->data);
   }
   else if(strcmp(drive_name,"df3") == 0)
   {
-    if(!wrapper->amiga->df3.hasDisk())
+    if(!wrapper->emu->df3.getInfo().hasDisk)
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-    export_disk = new ADFFile(wrapper->amiga->df3);
+    export_disk = new ADFFile(wrapper->emu->df3.getDisk());
     data=&(export_disk->data);
   }
   else if (strcmp(drive_name,"dh0") == 0)
   {
-    if(!wrapper->amiga->hd0.hasDisk())
+    if(!wrapper->emu->hd0.getInfo().hasDisk)
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
 
-    export_disk = new HDFFile(wrapper->amiga->hd0);
+    export_disk = new HDFFile(wrapper->emu->hd0.getDrive());
     data=&(export_disk->data);
   }
   else if (strcmp(drive_name,"dh1") == 0)
   {
-    if(!wrapper->amiga->hd1.hasDisk())
+    if(!wrapper->emu->hd1.getInfo().hasDisk)
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
 
-    export_disk = new HDFFile(wrapper->amiga->hd1);
+    export_disk = new HDFFile(wrapper->emu->hd1.getDrive());
     data=&(export_disk->data);
   }
   else if (strcmp(drive_name,"dh2") == 0)
   {
-    if(!wrapper->amiga->hd2.hasDisk())
+    if(!wrapper->emu->hd2.getInfo().hasDisk)
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
 
-    export_disk = new HDFFile(wrapper->amiga->hd2);
+    export_disk = new HDFFile(wrapper->emu->hd2.getDrive());
     data=&(export_disk->data);
   }
   else if (strcmp(drive_name,"dh3") == 0)
   {
-    if(!wrapper->amiga->hd3.hasDisk())
+    if(!wrapper->emu->hd3.getInfo().hasDisk)
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
 
-    export_disk = new HDFFile(wrapper->amiga->hd3);
+    export_disk = new HDFFile(wrapper->emu->hd3.getDrive());
     data=&(export_disk->data);
   }
   
@@ -1015,7 +1027,8 @@ extern "C" char* wasm_export_disk(const char *drive_name)
   return wasm_pull_user_snapshot_file_json_result;
 }
 
-Snapshot *snapshot=NULL;
+
+MediaFile *snapshot=NULL;
 extern "C" void wasm_delete_user_snapshot()
 {
 //  printf("request to free user_snapshot memory\n");
@@ -1028,30 +1041,32 @@ extern "C" void wasm_delete_user_snapshot()
   }
 }
 
-extern "C" char* wasm_pull_user_snapshot_file()
+extern "C" char* wasm_take_user_snapshot()
 {
   printf("wasm_pull_user_snapshot_file\n");
 
   wasm_delete_user_snapshot();
-  snapshot = wrapper->amiga->latestUserSnapshot(); //wrapper->amiga->userSnapshot(nr);
+  snapshot = wrapper->emu->amiga.takeSnapshot(); //wrapper->emu->userSnapshot(nr);
 
 //  printf("got snapshot %u.%u.%u\n", snapshot->getHeader()->major,snapshot->getHeader()->minor,snapshot->getHeader()->subminor );
+  u8 *data = (u8*)(((Snapshot *)snapshot)->getHeader());
 
-  sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu, \"width\": %u, \"height\":%u }",
-  (unsigned long)snapshot->data.ptr, 
-  snapshot->data.size,
-  snapshot->getHeader()->screenshot.width,
-  snapshot->getHeader()->screenshot.height
+  printf("data header bytes= %x, %x, %x\n", data[0],data[1],data[2]);
+ 
+
+
+
+  sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu, \"width\": %lu, \"height\":%lu }",
+  (unsigned long)data,//snapshot->getData(), 
+  snapshot->getSize(),
+  snapshot->previewImageSize().first,
+  snapshot->previewImageSize().second
   );
   printf("return => %s\n",wasm_pull_user_snapshot_file_json_result);
 
   return wasm_pull_user_snapshot_file_json_result;
 }
 
-extern "C" void wasm_take_user_snapshot()
-{
-  wrapper->amiga->requestUserSnapshot();
-}
 
 float sound_buffer[16384 * 2];
 extern "C" float* wasm_get_sound_buffer_address()
@@ -1061,17 +1076,17 @@ extern "C" float* wasm_get_sound_buffer_address()
 
 extern "C" unsigned wasm_copy_into_sound_buffer()
 {
-  auto count=wrapper->amiga->paula.muxer.stream.count();
+  auto count=wrapper->emu->audioPort.port->stream.count();
   
   auto copied_samples=0;
   for(unsigned ipos=1024;ipos<=count;ipos+=1024)
   {
-    wrapper->amiga->paula.muxer.copy(
+    wrapper->emu->audioPort.copyStereo(
     sound_buffer+copied_samples,
      sound_buffer+copied_samples+1024, 
      1024); 
     copied_samples+=1024*2;
-//  printf("fillLevel (%lf)",wrapper->amiga->paula.muxer.stream.fillLevel());
+//  printf("fillLevel (%lf)",wrapper->emu->paula.muxer.stream.fillLevel());
   }
   sum_samples += copied_samples/2; 
 
@@ -1089,13 +1104,13 @@ extern "C" unsigned wasm_copy_into_sound_buffer()
 
 extern "C" void wasm_set_warp(unsigned on)
 {
-  wrapper->amiga->configure(OPT_WARP_MODE, on == 1 ?WARP_AUTO:WARP_NEVER); 
+  wrapper->emu->set(OPT_AMIGA_WARP_MODE, on == 1 ?WARP_AUTO:WARP_NEVER); 
 }
 
 
 extern "C" bool wasm_is_warping()
 {
-  return wrapper->amiga->isWarping();
+  return wrapper->emu->isWarping();
 }
 
 
@@ -1113,10 +1128,10 @@ extern "C" void wasm_set_display(const char *name)
     {
       if(log_on) printf("was not yet ntsc\n");
 
-      if(wrapper->amiga->getConfigItem(OPT_VIDEO_FORMAT)!=NTSC)
+      if(wrapper->emu->get(OPT_AMIGA_VIDEO_FORMAT)!=NTSC)
       {
         if(log_on) printf("was not yet ntsc so we have to configure it\n");
-        wrapper->amiga->configure(OPT_VIDEO_FORMAT, NTSC);
+        wrapper->emu->set(OPT_AMIGA_VIDEO_FORMAT, NTSC);
       }
       target_fps=60;
       total_executed_frame_count=0;
@@ -1130,10 +1145,10 @@ extern "C" void wasm_set_display(const char *name)
     if(ntsc)
     {
       if(log_on) printf("was not yet PAL\n");
-      if(wrapper->amiga->getConfigItem(OPT_VIDEO_FORMAT)!=PAL)
+      if(wrapper->emu->get(OPT_AMIGA_VIDEO_FORMAT)!=PAL)
       {
         if(log_on) printf("was not yet PAL so we have to configure it\n");
-        wrapper->amiga->configure(OPT_VIDEO_FORMAT, PAL);
+        wrapper->emu->set(OPT_AMIGA_VIDEO_FORMAT, PAL);
       }
       target_fps=50;
       total_executed_frame_count=0;
@@ -1152,7 +1167,7 @@ extern "C" void wasm_set_display(const char *name)
       strcmp(name,"viewport tracking") == 0)
   {
     geometry=DISPLAY_ADAPTIVE;
-    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
+    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, true); 
  //   clip_offset = 0;
 
     xOff=252;
@@ -1163,12 +1178,12 @@ extern "C" void wasm_set_display(const char *name)
   else if( strcmp(name,"borderless") == 0)
   {
     geometry=DISPLAY_BORDERLESS;
-    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
+    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, true); 
     return;
   }
   else if( strcmp(name,"narrow") == 0)
   {
-    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, false); 
     geometry=DISPLAY_NARROW;
     xOff=252 + 4;
     yOff=26 +16;
@@ -1179,7 +1194,7 @@ extern "C" void wasm_set_display(const char *name)
   }
   else if( strcmp(name,"standard") == 0)
   {
-    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, false); 
   
     geometry=DISPLAY_STANDARD;
     xOff=208+HBLANK_MAX;
@@ -1192,7 +1207,7 @@ extern "C" void wasm_set_display(const char *name)
   }
   else if( strcmp(name,"wider") == 0)
   {
-    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, false); 
   
     geometry=DISPLAY_WIDER;
     xOff=208+ HBLANK_MAX/2;
@@ -1204,7 +1219,7 @@ extern "C" void wasm_set_display(const char *name)
   }
   else if( strcmp(name,"overscan") == 0)
   {
-    wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, false); 
+    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, false); 
   
     geometry=DISPLAY_OVERSCAN;
 
@@ -1276,10 +1291,18 @@ extern "C" const void wasm_mem_patch(u32 amiga_mem_address, u8 *blob, isize len)
   printf("wasm_mem_patch addr=0x%x, len=%ld, header bytes= %x, %x, %x\n", amiga_mem_address, len, blob[0],blob[1],blob[2]);
   if(wrapper == NULL) return;
 
-  wrapper->amiga->mem.patch(amiga_mem_address, blob, len);
+  wrapper->emu->mem.mem->patch(amiga_mem_address, blob, len);
   return;
 }
 
+string
+extractSuffix(const string &s)
+{
+    auto idx = s.rfind('.');
+    auto pos = idx != string::npos ? idx + 1 : 0;
+    auto len = string::npos;
+    return s.substr(pos, len);
+}
 
 extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_number)
 {
@@ -1293,13 +1316,13 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
     if (auto disk = load_disk(name, blob, len)) {
       if(drive_number>0)
       {//configure correct disk drive type (df0 does only accept DD, no HD)
-        wrapper->amiga->configure(OPT_DRIVE_TYPE, drive_number, disk->density==DENSITY_DD? DRIVE_DD_35:DRIVE_HD_35 );
+        wrapper->emu->set(OPT_DRIVE_TYPE, drive_number, disk->density==DENSITY_DD? DRIVE_DD_35:DRIVE_HD_35 );
       }
 
       if(drive_number==0){
         if(disk->density == DENSITY_DD)
         {
-          wrapper->amiga->df0.swapDisk(std::move(disk));
+          wrapper->emu->df0.drive->swapDisk(std::move(disk));
         }
         else
           EM_ASM(
@@ -1309,15 +1332,15 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
           }, filename);
       }
       else if(drive_number==1)
-        wrapper->amiga->df1.swapDisk(std::move(disk));
+        wrapper->emu->df1.drive->swapDisk(std::move(disk));
       else if(drive_number==2)
-        wrapper->amiga->df2.swapDisk(std::move(disk));
+        wrapper->emu->df2.drive->swapDisk(std::move(disk));
       else if(drive_number==3)
-        wrapper->amiga->df3.swapDisk(std::move(disk));
+        wrapper->emu->df3.drive->swapDisk(std::move(disk));
 
       return "";
     }
-  } catch (const VAError& e) {
+  } catch (const Error& e) {
     printf("Error loading %s - %s\n", filename, e.what());
     EM_ASM(
     {
@@ -1328,65 +1351,65 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
 
   if (HDFFile::isCompatible(filename)) {
     printf("is hdf\n");
-    wrapper->amiga->powerOff();
+    wrapper->emu->powerOff();
     //HDFFile hdf{blob, len};  
     HDFFile *hdf = new HDFFile(blob, len);
 
-    wrapper->amiga->configure(OPT_HDC_CONNECT,/*hd drive*/ drive_number, /*enable*/true);
+    wrapper->emu->set(OPT_HDC_CONNECT,/*hd drive*/ drive_number, /*enable*/true);
 
     if(drive_number==0)
     {
-      wrapper->amiga->hd0.init(*hdf);
+      wrapper->emu->hd0.drive->init(*hdf);
     }
     else if(drive_number==1)
     {
-      wrapper->amiga->hd1.init(*hdf);
+      wrapper->emu->hd1.drive->init(*hdf);
     }
     else if(drive_number==2)
     {
-      wrapper->amiga->hd2.init(*hdf);
+      wrapper->emu->hd2.drive->init(*hdf);
     }
     else if(drive_number==3)
     {
-      wrapper->amiga->hd3.init(*hdf);
+      wrapper->emu->hd3.drive->init(*hdf);
     }
 
     delete hdf;
-    wrapper->amiga->powerOn();
+    wrapper->emu->powerOn();
     return "";
   }
 
   bool file_still_unprocessed=true;
-  if (Snapshot::isCompatible(filename) && util::extractSuffix(filename)!="rom")
+  if (Snapshot::isCompatible(filename) && extractSuffix(filename)!="rom")
   {
     try
     {
       if(log_on) printf("try to build Snapshot\n");
       Snapshot *file = new Snapshot(blob, len);      
       printf("isSnapshot\n");
-      wrapper->amiga->loadSnapshot(*file);
+      wrapper->emu->amiga.loadSnapshot(*file);
       file_still_unprocessed=false;
       delete file;
-//      wasm_set_display(wrapper->amiga->agnus.isNTSC()?"ntsc":"pal");
+//      wasm_set_display(wrapper->emu->agnus.isNTSC()?"ntsc":"pal");
 
 /*      if(geometry==DISPLAY_BORDERLESS || geometry == DISPLAY_ADAPTIVE)
       {//it must determine the viewport again, i.e. we need a new message for calibration
         //enforce this by calling
-        wrapper->amiga->configure(OPT_VIEWPORT_TRACKING, true); 
+        wrapper->emu->set(OPT_VIEWPORT_TRACKING, true); 
       }
 */
       printf("run snapshot at %d Hz, isPAL=%d\n", target_fps, !ntsc);
     }
-    catch(VAError &exception) {
+    catch(Error &exception) {
       ErrorCode ec=exception.data;
       printf("%s\n", ErrorCodeEnum::key(ec));
     }
   }
 
-  if(file_still_unprocessed && util::extractSuffix(filename)=="rom_file")
+  if(file_still_unprocessed && extractSuffix(filename)=="rom_file")
   {
     bool wasRunnable = true;
-    try { wrapper->amiga->isReady(); } catch(...) { wasRunnable=false; }
+    try { wrapper->emu->isReady(); } catch(...) { wasRunnable=false; }
 
     RomFile *rom = NULL;
     try
@@ -1394,36 +1417,36 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
       printf("try to build RomFile\n");
       rom = new RomFile(blob, len);
     }
-    catch(VAError &exception) {
+    catch(Error &exception) {
       printf("Failed to read ROM image file %s\n", name);
       ErrorCode ec=exception.data;
       printf("%s\n", ErrorCodeEnum::key(ec));
       return "";
     }
 
-    if(wrapper->amiga->isPoweredOn())
+    if(wrapper->emu->isPoweredOn())
     {
-      wrapper->amiga->powerOff();
+      wrapper->emu->powerOff();
     }
-//    wrapper->amiga->suspend();
+//    wrapper->emu->suspend();
     try { 
-      wrapper->amiga->mem.loadRom(*rom); 
+      wrapper->emu->mem.loadRom(*rom); 
       
-      printf("Loaded ROM image %s. %s\n", name, wrapper->amiga->mem.romTitle());
-      if(strncmp("EmuTOS",wrapper->amiga->mem.romTitle(),strlen("EmuTOS"))==0)
+      printf("Loaded ROM image %s. %s\n", name, wrapper->emu->mem.getRomTraits().title);
+      if(strncmp("EmuTOS",wrapper->emu->mem.getRomTraits().title,strlen("EmuTOS"))==0)
       {
         printf("detected EmuTOS rom, setting drive speed to -1\n");
-        wrapper->amiga->configure(OPT_DRIVE_SPEED, -1);
+        wrapper->emu->set(OPT_DC_SPEED, -1);
       }
-/*      wrapper->amiga->configure(OPT_HDC_CONNECT,
+/*      wrapper->emu->set(OPT_HDC_CONNECT,
         //hd drive
         0, 
         //enable if not AROS
-        strcmp(wrapper->amiga->mem.romTitle(),"AROS Kickstart replacement")!=0
+        strcmp(wrapper->emu->mem.romTitle(),"AROS Kickstart replacement")!=0
       );
 */
     }  
-    catch(VAError &exception) { 
+    catch(Error &exception) { 
       printf("Failed to flash ROM image %s.\n", name);
       ErrorCode ec=exception.data;
       printf("%s\n", ErrorCodeEnum::key(ec));
@@ -1433,24 +1456,24 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
     try
     {
         bool is_ready_now = true;
-        try { wrapper->amiga->isReady(); } catch(...) { is_ready_now=false; }
+        try { wrapper->emu->isReady(); } catch(...) { is_ready_now=false; }
 
         if (!wasRunnable && is_ready_now)
         {
           printf("was not runnable is ready now (rom)\n");
-          wrapper->amiga->powerOn();
+          wrapper->emu->powerOn();
         
-          //wrapper->amiga->putMessage(MSG_READY_TO_RUN);
+          //wrapper->emu->putMessage(MSG_READY_TO_RUN);
           const char* ready_msg= "READY_TO_RUN";
           printf("sending ready message %s.\n", ready_msg);
           send_message_to_js(ready_msg);    
         }
 
         delete rom;
-        wrapper->amiga->powerOn();
-//        wrapper->amiga->resume();
+        wrapper->emu->powerOn();
+//        wrapper->emu->resume();
     }    
-    catch(VAError &exception) { 
+    catch(Error &exception) { 
       ErrorCode ec=exception.data;
       printf("%s\n", ErrorCodeEnum::key(ec));
     } 
@@ -1458,10 +1481,10 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
     return rom_type;    
   }
   
-  if(file_still_unprocessed && util::extractSuffix(filename)=="rom_ext_file")
+  if(file_still_unprocessed && extractSuffix(filename)=="rom_ext_file")
   {
     bool wasRunnable = true;
-    try { wrapper->amiga->isReady(); } catch(...) { wasRunnable=false; }
+    try { wrapper->emu->isReady(); } catch(...) { wasRunnable=false; }
 
     ExtendedRomFile *rom = NULL;
     try
@@ -1469,25 +1492,25 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
       printf("try to build ExtendedRomFile\n");
       rom = new ExtendedRomFile(blob, len);
     }
-    catch(VAError &exception) {
+    catch(Error &exception) {
       printf("Failed to read ROM_EXT image file %s\n", name);
       ErrorCode ec=exception.data;
       printf("%s\n", ErrorCodeEnum::key(ec));
       return "";
     }
 
-    if(wrapper->amiga->isPoweredOn())
+    if(wrapper->emu->isPoweredOn())
     {
-      wrapper->amiga->powerOff();
+      wrapper->emu->powerOff();
     }
-    //wrapper->amiga->suspend();
+    //wrapper->emu->suspend();
     try { 
-      wrapper->amiga->mem.loadExt(*rom); 
+      wrapper->emu->mem.loadExt(*rom); 
       
       printf("Loaded ROM_EXT image %s.\n", name);
       
     }  
-    catch(VAError &exception) { 
+    catch(Error &exception) { 
       printf("Failed to flash ROM_EXT image %s.\n", name);
       ErrorCode ec=exception.data;
       printf("%s\n", ErrorCodeEnum::key(ec));
@@ -1495,14 +1518,14 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
   
 
     bool is_ready_now = true;
-    try { wrapper->amiga->isReady(); } catch(...) { is_ready_now=false; }
+    try { wrapper->emu->isReady(); } catch(...) { is_ready_now=false; }
 
     if (!wasRunnable && is_ready_now)
     {
       printf("was not runnable is ready now (romext)\n");
-      wrapper->amiga->powerOn();
+      wrapper->emu->powerOn();
 
-       //wrapper->amiga->putMessage(MSG_READY_TO_RUN);
+       //wrapper->emu->putMessage(MSG_READY_TO_RUN);
       const char* ready_msg= "READY_TO_RUN";
       printf("sending ready message %s.\n", ready_msg);
       send_message_to_js(ready_msg);    
@@ -1510,8 +1533,8 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
 
     const char *rom_type="rom_ext";
     delete rom;
-    //wrapper->amiga->resume();
-    wrapper->amiga->powerOn();
+    //wrapper->emu->resume();
+    wrapper->emu->powerOn();
     return rom_type;    
   }
 
@@ -1521,14 +1544,14 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
 
 extern "C" void wasm_reset()
 {
-  wrapper->amiga->reset(true);
+  wrapper->emu->hardReset();
 }
 
 
 extern "C" void wasm_halt()
 {
   printf("wasm_halt\n");
-  wrapper->amiga->pause();
+  wrapper->emu->pause();
 
 //  printf("emscripten_pause_main_loop() at MSG_PAUSE\n");
 //  paused_the_emscripten_main_loop=true;
@@ -1541,10 +1564,10 @@ extern "C" void wasm_run()
 {
   if(log_on) printf("wasm_run\n");
   
-  if(log_on) printf("is running = %u\n",wrapper->amiga->isRunning());
+  if(log_on) printf("is running = %u\n",wrapper->emu->isRunning());
 
-  wrapper->amiga->run();
-  thisAmiga=wrapper->amiga;
+  wrapper->emu->run();
+  emu=wrapper->emu;
 /*
   if(paused_the_emscripten_main_loop || already_run_the_emscripten_main_loop)
   {
@@ -1555,8 +1578,8 @@ extern "C" void wasm_run()
   {
     if(log_on) printf("emscripten_set_main_loop_arg() at MSG_RUN %u, %u\n", paused_the_emscripten_main_loop, already_run_the_emscripten_main_loop);
     already_run_the_emscripten_main_loop=true;
-    thisAmiga=wrapper->amiga;
-    //emscripten_set_main_loop_arg(draw_one_frame_into_SDL, (void *)wrapper->amiga, 0, 1);
+    thisAmiga=wrapper->emu;
+    //emscripten_set_main_loop_arg(draw_one_frame_into_SDL, (void *)wrapper->emu, 0, 1);
     if(log_on) printf("after emscripten_set_main_loop_arg() at MSG_RUN\n");
   }
 */
@@ -1567,9 +1590,14 @@ extern "C" void wasm_mouse(int port, int x, int y)
 {
   //printf("wasm_mouse port%d x=%d, y=%d\n", port, x, y);
   if(port==1)
-    wrapper->amiga->controlPort1.mouse.setDxDy(x,y);
+    wrapper->emu->controlPort1.mouse.mouse->setDxDy(x,y); 
   else if(port==2)
-    wrapper->amiga->controlPort2.mouse.setDxDy(x,y);
+    wrapper->emu->controlPort2.mouse.mouse->setDxDy(x,y);
+
+//  wrapper->emu->put(CMD_MOUSE_MOVE_REL, CoordCmd(port-1, x, y));
+
+
+
 }
 
 extern "C" void wasm_mouse_button(int port, int button_id, int pressed)
@@ -1577,20 +1605,20 @@ extern "C" void wasm_mouse_button(int port, int button_id, int pressed)
   if(port==1)
   {
     if(button_id==1)
-      wrapper->amiga->controlPort1.mouse.setLeftButton(pressed==1);
+      wrapper->emu->controlPort1.mouse.mouse->setLeftButton(pressed==1);
     else if(button_id==2)
-      wrapper->amiga->controlPort1.mouse.setMiddleButton(pressed==1);
+      wrapper->emu->controlPort1.mouse.mouse->setMiddleButton(pressed==1);
     else if(button_id==3)
-      wrapper->amiga->controlPort1.mouse.setRightButton(pressed==1);
+      wrapper->emu->controlPort1.mouse.mouse->setRightButton(pressed==1);
   }
   else if(port==2)
   {
     if(button_id==1)
-      wrapper->amiga->controlPort2.mouse.setLeftButton(pressed==1);
+      wrapper->emu->controlPort2.mouse.mouse->setLeftButton(pressed==1);
     else if(button_id==2)
-      wrapper->amiga->controlPort2.mouse.setMiddleButton(pressed==1);
+      wrapper->emu->controlPort2.mouse.mouse->setMiddleButton(pressed==1);
     else if(button_id==3)
-      wrapper->amiga->controlPort2.mouse.setRightButton(pressed==1);
+      wrapper->emu->controlPort2.mouse.mouse->setRightButton(pressed==1);
   }
 }
 
@@ -1676,11 +1704,11 @@ RELEASE_FIRE
 
   if(joyport == '1')
   {
-    wrapper->amiga->controlPort1.joystick.trigger(code);
+    wrapper->emu->controlPort1.joystick.trigger(code);
   }
   else if(joyport == '2')
   {
-    wrapper->amiga->controlPort2.joystick.trigger(code);
+    wrapper->emu->controlPort2.joystick.trigger(code);
   }
 
 }
@@ -1688,14 +1716,14 @@ RELEASE_FIRE
 char buffer[50];
 extern "C" char* wasm_sprite_info()
 {
-  if(!wrapper->amiga->isTracking())
+  if(!wrapper->emu->isTracking())
   {
-    wrapper->amiga->trackOn();
+    wrapper->emu->trackOn();
   }
-//   wrapper->amiga->setInspectionTarget(INSPECTION_DENISE, MSEC(250));
-//   wrapper->amiga->denise.debugger.recordSprite(0);
+//   wrapper->emu->setInspectionTarget(INSPECTION_DENISE, MSEC(250));
+//   wrapper->emu->denise.debugger.recordSprite(0);
 
-   Denise *denise = &(wrapper->amiga->denise);
+   Denise *denise = wrapper->emu->denise.denise;
    auto spriteinfo0 = denise->debugger.getSpriteInfo(0);
    auto spriteinfo1 = denise->debugger.getSpriteInfo(1);
    auto spriteinfo2 = denise->debugger.getSpriteInfo(2);
@@ -1731,9 +1759,9 @@ extern "C" char* wasm_sprite_info()
 
 extern "C" void wasm_cut_layers(unsigned cut_layers)
 {
-  wrapper->amiga->configure(OPT_HIDDEN_LAYER_ALPHA,255);
-//  wrapper->amiga->configure(OPT_HIDDEN_SPRITES, 0x100 | (SPR0|SPR1|SPR2|SPR3|SPR4|SPR5|SPR6|SPR7)); 
-  wrapper->amiga->configure(OPT_HIDDEN_LAYERS, cut_layers); 
+  wrapper->emu->set(OPT_DENISE_HIDDEN_LAYER_ALPHA,255);
+//  wrapper->emu->set(OPT_HIDDEN_SPRITES, 0x100 | (SPR0|SPR1|SPR2|SPR3|SPR4|SPR5|SPR6|SPR7)); 
+  wrapper->emu->set(OPT_DENISE_HIDDEN_LAYERS, cut_layers); 
 }
 
 
@@ -1743,24 +1771,24 @@ extern "C" const char* wasm_rom_info()
 {
 
   sprintf(json_result, "{\"hasRom\":\"%s\",\"hasExt\":\"%s\", \"romTitle\":\"%s\", \"romVersion\":\"%s\", \"romReleased\":\"%s\", \"romModel\":\"%s\", \"extTitle\":\"%s\", \"extVersion\":\"%s\", \"extReleased\":\"%s\", \"extModel\":\"%s\" }",
-    wrapper->amiga->mem.hasRom()?"true":"false",
-    wrapper->amiga->mem.hasExt()?"true":"false",
-    wrapper->amiga->mem.romTitle(),
-    wrapper->amiga->mem.romVersion(),
-    wrapper->amiga->mem.romReleased(),
-    wrapper->amiga->mem.romModel(),
-    wrapper->amiga->mem.extTitle(),
-    wrapper->amiga->mem.extVersion(),
-    wrapper->amiga->mem.extReleased(),
-    wrapper->amiga->mem.extModel()
+    wrapper->emu->mem.mem->hasRom()?"true":"false",
+    wrapper->emu->mem.mem->hasExt()?"true":"false",
+    wrapper->emu->mem.getRomTraits().title,
+    wrapper->emu->mem.getRomTraits().revision,
+    wrapper->emu->mem.getRomTraits().released,
+    wrapper->emu->mem.getRomTraits().model,
+    wrapper->emu->mem.getExtTraits().title,
+    wrapper->emu->mem.getExtTraits().revision,
+    wrapper->emu->mem.getExtTraits().released,
+    wrapper->emu->mem.getExtTraits().model
   );
 
 /*
-  printf("%s, %s, %s, %s\n",      wrapper->amiga->mem.romTitle(),
-    wrapper->amiga->mem.romVersion(),
-    wrapper->amiga->mem.romReleased(),
+  printf("%s, %s, %s, %s\n",      wrapper->emu->mem.romTitle(),
+    wrapper->emu->mem.romVersion(),
+    wrapper->emu->mem.romReleased(),
     ""
-//    wrapper->amiga->mem.romModel()
+//    wrapper->emu->mem.romModel()
   );
 */
   return json_result;
@@ -1769,7 +1797,7 @@ extern "C" const char* wasm_rom_info()
 extern "C" const char* wasm_get_core_version()
 {
   sprintf(json_result, "%s",
-    wrapper->amiga->version().c_str() 
+    wrapper->emu->version().c_str() 
   );
 
   return json_result;
@@ -1782,27 +1810,27 @@ extern "C" void wasm_set_color_palette(char* palette)
 
   if( strcmp(palette,"color") == 0)
   {
-    wrapper->amiga->configure(OPT_PALETTE, PALETTE_COLOR);
+    wrapper->emu->set(OPT_MON_PALETTE, PALETTE_COLOR);
   }
   else if( strcmp(palette,"black white") == 0)
   { 
-    wrapper->amiga->configure(OPT_PALETTE, PALETTE_BLACK_WHITE); 
+    wrapper->emu->set(OPT_MON_PALETTE, PALETTE_BLACK_WHITE); 
   }
   else if( strcmp(palette,"paper white") == 0)
   { 
-    wrapper->amiga->configure(OPT_PALETTE, PALETTE_PAPER_WHITE); 
+    wrapper->emu->set(OPT_MON_PALETTE, PALETTE_PAPER_WHITE); 
   }
   else if( strcmp(palette,"green") == 0)
   { 
-    wrapper->amiga->configure(OPT_PALETTE, PALETTE_GREEN); 
+    wrapper->emu->set(OPT_MON_PALETTE, PALETTE_GREEN); 
   }
   else if( strcmp(palette,"amber") == 0)
   { 
-    wrapper->amiga->configure(OPT_PALETTE, PALETTE_AMBER); 
+    wrapper->emu->set(OPT_MON_PALETTE, PALETTE_AMBER); 
   }
   else if( strcmp(palette,"sepia") == 0)
   { 
-    wrapper->amiga->configure(OPT_PALETTE, PALETTE_SEPIA); 
+    wrapper->emu->set(OPT_MON_PALETTE, PALETTE_SEPIA); 
   }
 
 }
@@ -1810,24 +1838,24 @@ extern "C" void wasm_set_color_palette(char* palette)
 
 extern "C" u64 wasm_get_cpu_cycles()
 {
-  return wrapper->amiga->cpu.getClock();
+  return wrapper->emu->cpu.cpu->getClock();
 }
 
 char config_result[512];
 extern "C" const char* wasm_power_on(unsigned power_on)
 {
   try{
-    bool was_powered_on=wrapper->amiga->isPoweredOn();
+    bool was_powered_on=wrapper->emu->isPoweredOn();
     if(power_on == 1 && !was_powered_on)
     {
-        wrapper->amiga->powerOn();
+        wrapper->emu->powerOn();
     }
     else if(power_on == 0 && was_powered_on)
     {
-        wrapper->amiga->powerOff();
+        wrapper->emu->powerOff();
     }
   }  
-  catch(VAError &exception) {   
+  catch(Error &exception) {   
     sprintf(config_result,"%s", exception.what());
   }
   return config_result; 
@@ -1837,29 +1865,33 @@ extern "C" const char* wasm_power_on(unsigned power_on)
 extern "C" void wasm_set_sample_rate(unsigned sample_rate)
 {
     printf("set paula.muxer to freq= %d\n", sample_rate);
-    //wrapper->amiga->paula.muxer.setSampleRate(sample_rate);
-    wrapper->amiga->host.setSampleRate(sample_rate);
-    printf("amiga.host.getSampleRate()==%f\n", wrapper->amiga->host.getSampleRate());
+
+    wrapper->emu->set(OPT_HOST_SAMPLE_RATE,sample_rate);
+    auto got_sample_rate=wrapper->emu->get(OPT_HOST_SAMPLE_RATE);
+
+    printf("amiga.host.getSampleRate()==%lld\n", got_sample_rate);
 }
 
 
 
 extern "C" i64 wasm_get_config_item(char* item_name, unsigned data)
 {
-  //if(wrapper->amiga->getConfigItem(OPT_VIDEO_FORMAT)!=NTSC)
+  //if(wrapper->emu->getConfigItem(OPT_VIDEO_FORMAT)!=NTSC)
   
   if(strcmp(item_name,"DRIVE_CONNECT") == 0 )
   {
-    return wrapper->amiga->getConfigItem(util::parseEnum <OptionEnum>(std::string(item_name)),data);
+    return wrapper->emu->get(OPT_DRIVE_CONNECT,data);
   }
   else
   {
-    return wrapper->amiga->getConfigItem(util::parseEnum <OptionEnum>(std::string(item_name)));
+    return wrapper->emu->get(util::parseEnum <OptionEnum>(std::string(item_name)));
   }
 }
 
 extern "C" const char* wasm_configure_key(char* option, char* key, char* _value)
 {
+ // printf("----->wasm_configure_key %s %s = %s\n", option, key, _value);
+ // return config_result;
   sprintf(config_result,""); 
   auto value = std::string(_value);
   if(log_on) printf("wasm_configure_key %s %s = %s\n", option, key, value.c_str());
@@ -1886,12 +1918,17 @@ extern "C" const char* wasm_configure_key(char* option, char* key, char* _value)
     setFallback(OPT_DMA_DEBUG_COLOR, DMA_CHANNEL_CPU, 0xFFFFFF00);
     setFallback(OPT_DMA_DEBUG_COLOR, DMA_CHANNEL_REFRESH, 0xFF000000);
 */
-      if (strcmp(option,"DMA_DEBUG_CHANNEL") == 0 )
-      {
-        wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <DmaChannelEnum>(std::string(key)), util::parseBool(value)); 
-      }
+        wrapper->emu->set(OPT_DMA_DEBUG_ENABLE, true);   
+        wrapper->emu->set(
+         //OPT_DMA_DEBUG_CHANNEL6,
+         util::parseEnum <OptionEnum>(std::string(option)),
+//         util::parseEnum <DmaChannelEnum>(std::string(key)), 
+         util::parseBool(std::string(key))); 
+      
   }
-  catch(VAError &exception) {    
+  catch(Error &exception) {
+      printf("unknown key %s %s = %s\n", option, key, value.c_str());
+
 //    ErrorCode ec=exception.data;
 //    sprintf(config_result,"%s", ErrorCodeEnum::key(ec));
     sprintf(config_result,"%s", exception.what());
@@ -1900,7 +1937,9 @@ extern "C" const char* wasm_configure_key(char* option, char* key, char* _value)
 }
 
 extern "C" const char* wasm_configure(char* option, char* _value)
-{
+{  
+printf("wasm_configure %s = %s\n", option, _value);
+//return config_result;
   sprintf(config_result,""); 
   auto value = std::string(_value);
   if(log_on) printf("wasm_configure %s = %s\n", option, value.c_str());
@@ -1908,8 +1947,8 @@ extern "C" const char* wasm_configure(char* option, char* _value)
   if(strcmp(option,"warp_to_frame") == 0 )
   {
     auto warp_to_frame= util::parseNum(value);
-    wrapper->amiga->configure(OPT_WARP_BOOT, warp_to_frame/(wrapper->amiga->agnus.isPAL()?50:60));
-    wrapper->amiga->reset(false); //agnus.reset() schedules warp_off therefore we have to reset here after changing warp_boot 
+    wrapper->emu->set(OPT_AMIGA_WARP_BOOT, warp_to_frame/(wrapper->emu->agnus.agnus->isPAL()?50:60));
+    wrapper->emu->softReset(); //agnus.reset() schedules warp_off therefore we have to reset here after changing warp_boot 
     return config_result;
   }
   else if(strcmp(option,"log_on") == 0 )
@@ -1923,18 +1962,18 @@ extern "C" const char* wasm_configure(char* option, char* _value)
     int i=0;
     while(i<df_count)
     {
-      wrapper->amiga->configure(OPT_DRIVE_CONNECT,/*dfn*/ i, /*enable*/true);
+      wrapper->emu->set(OPT_DRIVE_CONNECT,/*dfn*/ i, /*enable*/true);
       i++;
     }
     while(i<4)
     {
-      wrapper->amiga->configure(OPT_DRIVE_CONNECT,/*dfn*/ i, /*enable*/false);
+      wrapper->emu->set(OPT_DRIVE_CONNECT,/*dfn*/ i, /*enable*/false);
       i++;
     }
     return config_result;
   }
 
-  bool was_powered_on=wrapper->amiga->isPoweredOn();
+  bool was_powered_on=wrapper->emu->isPoweredOn();
 
   bool must_be_off= strcmp(option,"AGNUS_REVISION") == 0 || 
                     strcmp(option,"DENISE_REVISION") == 0 ||
@@ -1945,25 +1984,25 @@ extern "C" const char* wasm_configure(char* option, char* _value)
  
   if(was_powered_on && must_be_off)
   {
-      wrapper->amiga->powerOff();
+      wrapper->emu->powerOff();
   }
 
   try{
     if( strcmp(option,"AGNUS_REVISION") == 0)
     {
-      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <AgnusRevisionEnum>(value)); 
+      wrapper->emu->set(OPT_AGNUS_REVISION, util::parseEnum <AgnusRevisionEnum>(value)); 
     }
     else if( strcmp(option,"DENISE_REVISION") == 0)
     {
-      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <DeniseRevisionEnum>(value));
+      wrapper->emu->set(OPT_DENISE_REVISION, util::parseEnum <DeniseRevisionEnum>(value));
     }
     else if( strcmp(option,"WARP_MODE") == 0)
     {
-      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <WarpModeEnum>(value));
+      wrapper->emu->set(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <WarpModeEnum>(value));
     }
     else if( strcmp(option,"SER_DEVICE") == 0)
     {
-      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum<SerialPortDeviceEnum>(value));
+      wrapper->emu->set(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum<SerialPortDeviceEnum>(value));
     }
     else if ( strcmp(option,"BLITTER_ACCURACY") == 0 ||
               strcmp(option,"DRIVE_SPEED") == 0  ||
@@ -1974,25 +2013,46 @@ extern "C" const char* wasm_configure(char* option, char* _value)
               strcmp(option,"CPU_REVISION") == 0
     )
     {
-      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseNum(value));
+      if(strcmp(option,"BLITTER_ACCURACY") == 0)
+      {//TODO kann nicht so bleiben
+        wrapper->emu->set(OPT_BLITTER_ACCURACY, util::parseNum(value));
+      }
+      else if(strcmp(option,"DRIVE_SPEED") == 0)
+      {//TODO kann nicht so bleiben
+        wrapper->emu->set(OPT_DC_SPEED, util::parseNum(value));
+      }
+      else if(strcmp(option,"CPU_REVISION") == 0)
+      {//TODO kann nicht so bleiben
+        wrapper->emu->set(OPT_CPU_REVISION, util::parseNum(value));
+      }
+      else if(strcmp(option,"CPU_OVERCLOCKING") == 0)
+      {//TODO kann nicht so bleiben
+        wrapper->emu->set(OPT_CPU_OVERCLOCKING, util::parseNum(value));
+      }
+      else
+        wrapper->emu->set(util::parseEnum <OptionEnum>(std::string(option)), util::parseNum(value));
     }
     else if ( strcmp(option,"DMA_DEBUG_CHANNEL") == 0 )
     {
-      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)),  util::parseBool(value));
+//todo
+      wrapper->emu->set(util::parseEnum <OptionEnum>(std::string(option)),  util::parseBool(value));
     }
     else
     {
-      wrapper->amiga->configure(util::parseEnum <OptionEnum>(std::string(option)), util::parseBool(value)); 
+//todo
+      wrapper->emu->set(util::parseEnum <OptionEnum>(std::string(option)), util::parseBool(value)); 
     }
 
     if(was_powered_on && must_be_off)
     {
-        wrapper->amiga->powerOn();
+        wrapper->emu->powerOn();
     }
   }
-  catch(VAError &exception) {    
+  catch(Error &exception) {    
 //    ErrorCode ec=exception.data;
 //    sprintf(config_result,"%s", ErrorCodeEnum::key(ec));
+    printf("unknown key wasm_configure %s = %s\n", option, value.c_str());
+
     sprintf(config_result,"%s", exception.what());
   }
   return config_result; 
@@ -2029,26 +2089,26 @@ extern "C" void wasm_update_audio(int offset)
   float *left = leftChannel.ptr + offset;
   float *right = rightChannel.ptr + offset;
   auto samples = leftChannel.size / 2;
-  wrapper->amiga->paula.muxer.copy(left, right, samples);
+  wrapper->emu->audioPort.copyStereo(left, right, samples);
   sum_samples += samples; 
 }
 
 extern "C" void wasm_write_string_to_ser(char* chars_to_send)
 {
-    if(wrapper->amiga->agnus.id[SLOT_SER] != SER_RECEIVE)
+    if(wrapper->emu->agnus.agnus->id[SLOT_SER] != SER_RECEIVE)
     {
-      wrapper->amiga->remoteManager.serServer.didConnect();
+      wrapper->emu->remoteManager.remoteManager->serServer.didConnect();
     }
-    wrapper->amiga->remoteManager.serServer.doProcess(chars_to_send);
+    wrapper->emu->remoteManager.remoteManager->serServer.doProcess(chars_to_send);
 }
 
 /*extern "C" void wasm_write_bytes_to_ser(u8 *bytes_to_send, u32 length)
 {
-    if(wrapper->amiga->agnus.id[SLOT_SER] != SER_RECEIVE)
+    if(wrapper->emu->agnus.id[SLOT_SER] != SER_RECEIVE)
     {
-      wrapper->amiga->remoteManager.serServer.didConnect();
+      wrapper->emu->remoteManager.serServer.didConnect();
     }
-    auto &serserver = wrapper->amiga->remoteManager.serServer;
+    auto &serserver = wrapper->emu->remoteManager.serServer;
     for (u32 i=0; i<length; i++) { 
       serserver.processIncomingByte((u8)bytes_to_send[i]); 
     }
@@ -2056,17 +2116,17 @@ extern "C" void wasm_write_string_to_ser(char* chars_to_send)
 
 extern "C" void wasm_write_byte_to_ser(u8 byte_to_send)
 {
-    if(wrapper->amiga->agnus.id[SLOT_SER] != SER_RECEIVE)
+    if(wrapper->emu->agnus.agnus->id[SLOT_SER] != SER_RECEIVE)
     {
-      wrapper->amiga->remoteManager.serServer.didConnect();
+      wrapper->emu->remoteManager.remoteManager->serServer.didConnect();
     }
-    wrapper->amiga->remoteManager.serServer.processIncomingByte(byte_to_send);
+    wrapper->emu->remoteManager.remoteManager->serServer.processIncomingByte(byte_to_send);
 }
 
 extern "C" double wasm_activity(u8 id, u8 read_or_write)
 {
     double value=0.0;
-    auto dma = wrapper->amiga->agnus.getStats();
+    auto dma = wrapper->emu->agnus.getStats();
     if(id==0)
       value= dma.copperActivity /(313 *120);
     else if(id==1)
@@ -2096,7 +2156,7 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
         addValues(Monitors.Monitor.slowRam, slowR, slowW)
         addValues(Monitors.Monitor.fastRam, fastR, fastW)
         addValues(Monitors.Monitor.kickRom, kickR, kickW)*/
-        auto mem = wrapper->amiga->mem.getStats();
+        auto mem = wrapper->emu->mem.getStats();
         auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
         value = float(
           read_or_write == 0 ? mem.chipReads.accumulated : mem.chipWrites.accumulated
@@ -2104,7 +2164,7 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
     }
     else if(id==7)
     {
-        auto mem = wrapper->amiga->mem.getStats();
+        auto mem = wrapper->emu->mem.getStats();
         auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
         value= float(
           read_or_write == 0 ? mem.slowReads.accumulated : mem.slowWrites.accumulated
@@ -2112,7 +2172,7 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
     }
     else if(id==8)
     {
-        auto mem = wrapper->amiga->mem.getStats();
+        auto mem = wrapper->emu->mem.getStats();
         auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
         value = float(
           read_or_write == 0 ? mem.fastReads.accumulated : mem.fastWrites.accumulated
@@ -2120,7 +2180,7 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
     }
     else if(id==9)
     {
-        auto mem = wrapper->amiga->mem.getStats();
+        auto mem = wrapper->emu->mem.getStats();
         auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
         value = float(
           read_or_write == 0 ? mem.kickReads.accumulated : mem.kickWrites.accumulated

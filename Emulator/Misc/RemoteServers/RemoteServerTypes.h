@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 
 //
@@ -19,7 +19,7 @@
 enum_long(SRV_STATE)
 {
     SRV_STATE_OFF,        // The server is inactive
-    SRV_STATE_STARTING,  // The server is starting up
+    SRV_STATE_STARTING,   // The server is starting up
     SRV_STATE_LISTENING,  // The server is waiting for a client to connect
     SRV_STATE_CONNECTED,  // The server is connected to a client
     SRV_STATE_STOPPING,   // The server is shutting down
@@ -28,14 +28,13 @@ enum_long(SRV_STATE)
 typedef SRV_STATE SrvState;
 
 #ifdef __cplusplus
-struct SrvStateEnum : util::Reflection<SrvStateEnum, SrvState>
+struct SrvStateEnum : vamiga::util::Reflection<SrvStateEnum, SrvState>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = SRV_STATE_ERROR;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-    
+
     static const char *prefix() { return "SRV"; }
-    static const char *key(SrvState value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -58,14 +57,13 @@ enum_long(SRVPROT)
 typedef SRVPROT ServerProtocol;
 
 #ifdef __cplusplus
-struct ServerProtocolEnum : util::Reflection<ServerProtocolEnum, ServerProtocol>
+struct ServerProtocolEnum : vamiga::util::Reflection<ServerProtocolEnum, ServerProtocol>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = SRVPROT_DEFAULT;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
     
     static const char *prefix() { return "SRVPROT"; }
-    static const char *key(SrvState value)
+    static const char *_key(long value)
     {
         switch (value) {
                 

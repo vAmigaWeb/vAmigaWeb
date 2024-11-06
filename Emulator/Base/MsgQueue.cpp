@@ -32,9 +32,11 @@ MsgQueue::setListener(const void *listener, Callback *callback)
 void
 MsgQueue::put(const Message &msg)
 {
-    {   SYNCHRONIZED
+    if (enabled) {
 
-        debug(QUEUE_DEBUG, "%s [%llx]\n", MsgTypeEnum::key(msg.type), msg.value);
+        SYNCHRONIZED
+
+        debug(MSG_DEBUG, "%s [%llx]\n", MsgTypeEnum::key(msg.type), msg.value);
 
         if (listener) {
 
@@ -87,6 +89,12 @@ void
 MsgQueue::put(MsgType type, ViewportMsg payload)
 {
     put( Message { .type = type, .viewport = payload } );
+}
+
+void
+MsgQueue::put(MsgType type, SnapshotMsg payload)
+{
+    put( Message { .type = type, .snapshot = payload } );
 }
 
 bool

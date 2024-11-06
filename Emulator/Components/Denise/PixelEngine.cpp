@@ -32,28 +32,13 @@ PixelEngine::_dump(Category category, std::ostream& os) const
 
     if (category == Category::Config) {
 
-        os << tab("Palette");
-        os << PaletteEnum::key(config.palette) << std::endl;
-        os << tab("Brightness");
-        os << dec(config.brightness) << std::endl;
-        os << tab("Contrast");
-        os << dec(config.contrast) << std::endl;
-        os << tab("Saturation");
-        os << dec(config.saturation) << std::endl;
+        dumpConfig(os);
     }
 }
 
 void
 PixelEngine::_initialize()
 {
-    CoreComponent::_initialize();
-
-    // Create a random noise pattern for the background
-    noise.alloc(2 * PIXELS);
-    for (isize i = 0; i < noise.size; i++) {
-        noise[i] = rand() % 2 ? FrameBuffer::black : FrameBuffer::white;
-    }
-
     // Setup ECS BRDRBLNK color
     palette[64] = TEXEL(GpuColor(0x00, 0x00, 0x00).rawValue);
     
@@ -64,10 +49,8 @@ PixelEngine::_initialize()
 }
 
 void
-PixelEngine::_reset(bool hard)
+PixelEngine::_didReset(bool hard)
 {
-    RESET_SNAPSHOT_ITEMS(hard)
-    
     if (hard) {
         
         emuTexture[0].nr = 0;
@@ -80,11 +63,10 @@ PixelEngine::_reset(bool hard)
     updateRGBA();
 }
 
-isize
-PixelEngine::didLoadFromBuffer(const u8 *buffer)
+void
+PixelEngine::_didLoad()
 {
     updateRGBA();
-    return 0;
 }
 
 void
@@ -93,34 +75,15 @@ PixelEngine::_powerOn()
     clearAll();
 }
 
-void
-PixelEngine::resetConfig()
-{
-    assert(isPoweredOff());
-    auto &defaults = amiga.defaults;
-
-    std::vector <Option> options = {
-        
-        OPT_PALETTE,
-        OPT_BRIGHTNESS,
-        OPT_CONTRAST,
-        OPT_SATURATION
-    };
-
-    for (auto &option : options) {
-        setConfigItem(option, defaults.get(option));
-    }
-}
-
 i64
-PixelEngine::getConfigItem(Option option) const
+PixelEngine::getOption(Option option) const
 {
     switch (option) {
             
-        case OPT_PALETTE:     return config.palette;
-        case OPT_BRIGHTNESS:  return config.brightness;
-        case OPT_CONTRAST:    return config.contrast;
-        case OPT_SATURATION:  return config.saturation;
+        case OPT_MON_PALETTE:     return config.palette;
+        case OPT_MON_BRIGHTNESS:  return config.brightness;
+        case OPT_MON_CONTRAST:    return config.contrast;
+        case OPT_MON_SATURATION:  return config.saturation;
 
         default:
             fatalError;
@@ -128,46 +91,68 @@ PixelEngine::getConfigItem(Option option) const
 }
 
 void
-PixelEngine::setConfigItem(Option option, i64 value)
+PixelEngine::checkOption(Option opt, i64 value)
+{
+    switch (opt) {
+
+        case OPT_MON_PALETTE:
+
+            if (!PaletteEnum::isValid(value)) {
+                throw Error(VAERROR_OPT_INV_ARG, PaletteEnum::keyList());
+            }
+            return;
+
+        case OPT_MON_BRIGHTNESS:
+
+            if (value < 0 || value > 100) {
+                throw Error(VAERROR_OPT_INV_ARG, "0...100");
+            }
+            return;
+
+        case OPT_MON_CONTRAST:
+
+            if (value < 0 || value > 100) {
+                throw Error(VAERROR_OPT_INV_ARG, "0...100");
+            }
+            return;
+
+        case OPT_MON_SATURATION:
+
+            if (value < 0 || value > 100) {
+                throw Error(VAERROR_OPT_INV_ARG, "0...100");
+            }
+            return;
+
+        default:
+            throw(VAERROR_OPT_UNSUPPORTED);
+    }
+}
+
+void
+PixelEngine::setOption(Option option, i64 value)
 {
     switch (option) {
             
-        case OPT_PALETTE:
-            
-            if (!PaletteEnum::isValid(value)) {
-                throw VAError(ERROR_OPT_INVARG, PaletteEnum::keyList());
-            }
-            
+        case OPT_MON_PALETTE:
+
             config.palette = (Palette)value;
             updateRGBA();
             return;
 
-        case OPT_BRIGHTNESS:
-            
-            if (value < 0 || value > 100) {
-                throw VAError(ERROR_OPT_INVARG, "0...100");
-            }
-            
+        case OPT_MON_BRIGHTNESS:
+
             config.brightness = (isize)value;
             updateRGBA();
             return;
             
-        case OPT_CONTRAST:
+        case OPT_MON_CONTRAST:
 
-            if (value < 0 || value > 100) {
-                throw VAError(ERROR_OPT_INVARG, "0...100");
-            }
-            
             config.contrast = (isize)value;
             updateRGBA();
             return;
 
-        case OPT_SATURATION:
+        case OPT_MON_SATURATION:
 
-            if (value < 0 || value > 100) {
-                throw VAError(ERROR_OPT_INVARG, "0...100");
-            }
-            
             config.saturation = (isize)value;
             updateRGBA();
             return;
@@ -292,7 +277,7 @@ PixelEngine::adjustRGB(u8 &r, u8 &g, u8 &b)
 }
 
 const FrameBuffer &
-PixelEngine::getStableBuffer()
+PixelEngine::getStableBuffer() const
 {
     return emuTexture[!activeBuffer];
 }
@@ -324,6 +309,8 @@ PixelEngine::stablePtr(isize row, isize col)
 void
 PixelEngine::swapBuffers()
 {
+    videoPort.buffersWillSwap();
+
     isize oldActiveBuffer = activeBuffer;
     isize newActiveBuffer = !oldActiveBuffer;
 
@@ -332,12 +319,6 @@ PixelEngine::swapBuffers()
     emuTexture[newActiveBuffer].prevlof = emuTexture[oldActiveBuffer].lof;
 
     activeBuffer = newActiveBuffer;
-}
-
-Texel *
-PixelEngine::getNoise() const
-{
-    return noise.ptr + (rand() % PIXELS);
 }
 
 void

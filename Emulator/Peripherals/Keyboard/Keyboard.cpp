@@ -15,37 +15,19 @@
 namespace vamiga {
 
 void
-Keyboard::_reset(bool hard)
-{
-    RESET_SNAPSHOT_ITEMS(hard)
-    
+Keyboard::_didReset(bool hard)
+{    
     std::memset(keyDown, 0, sizeof(keyDown));
     state = KB_SELFTEST;
     execute();
 }
 
-void
-Keyboard::resetConfig()
-{
-    assert(isPoweredOff());
-    auto &defaults = amiga.defaults;
-
-    std::vector <Option> options = {
-        
-        OPT_ACCURATE_KEYBOARD
-    };
-
-    for (auto &option : options) {
-        setConfigItem(option, defaults.get(option));
-    }
-}
-
 i64
-Keyboard::getConfigItem(Option option) const
+Keyboard::getOption(Option option) const
 {
     switch (option) {
             
-        case OPT_ACCURATE_KEYBOARD:  return config.accurate;
+        case OPT_KBD_ACCURACY:  return config.accurate;
 
         default:
             fatalError;
@@ -53,11 +35,25 @@ Keyboard::getConfigItem(Option option) const
 }
 
 void
-Keyboard::setConfigItem(Option option, i64 value)
+Keyboard::checkOption(Option opt, i64 value)
+{
+    switch (opt) {
+
+        case OPT_KBD_ACCURACY:
+
+            return;
+
+        default:
+            throw(VAERROR_OPT_UNSUPPORTED);
+    }
+}
+
+void
+Keyboard::setOption(Option option, i64 value)
 {
     switch (option) {
             
-        case OPT_ACCURATE_KEYBOARD:
+        case OPT_KBD_ACCURACY:
             
             config.accurate = value;
             return;
@@ -74,8 +70,7 @@ Keyboard::_dump(Category category, std::ostream& os) const
     
     if (category == Category::Config) {
         
-        os << tab("Accurate emulation");
-        os << bol(config.accurate) << std::endl;
+        dumpConfig(os);
     }
     
     if (category == Category::State) {
@@ -104,14 +99,14 @@ Keyboard::_dump(Category category, std::ostream& os) const
 }
 
 bool
-Keyboard::keyIsPressed(KeyCode keycode) const
+Keyboard::isPressed(KeyCode keycode) const
 {
     assert(keycode < 0x80);
     return keyDown[keycode];
 }
 
 void
-Keyboard::pressKey(KeyCode keycode)
+Keyboard::press(KeyCode keycode)
 {
     assert(keycode < 0x80);
     
@@ -133,7 +128,7 @@ Keyboard::pressKey(KeyCode keycode)
 }
 
 void
-Keyboard::releaseKey(KeyCode keycode)
+Keyboard::release(KeyCode keycode)
 {
     assert(keycode < 0x80);
     
@@ -150,24 +145,26 @@ Keyboard::releaseKey(KeyCode keycode)
 }
 
 void
-Keyboard::toggleKey(KeyCode keycode)
+Keyboard::toggle(KeyCode keycode)
 {
-    keyIsPressed(keycode) ? releaseKey(keycode) : pressKey(keycode);
+    isPressed(keycode) ? release(keycode) : press(keycode);
 }
 
 void
-Keyboard::releaseAllKeys()
+Keyboard::releaseAll()
 {
     for (KeyCode i = 0; i < 0x80; i++) {
-        releaseKey(i);
+        release(i);
     }
 }
 
+/*
 void
 Keyboard::autoType(KeyCode keycode, Cycle duration, Cycle delay)
 {
     agnus.scheduleRel<SLOT_KEY>(delay, KEY_PRESS, duration << 8 | keycode);
 }
+*/
 
 void
 Keyboard::wakeUp()
@@ -177,6 +174,56 @@ Keyboard::wakeUp()
         trace(KBD_DEBUG, "Wake up\n");
         state = KB_SEND;
         execute();
+    }
+}
+
+void
+Keyboard::autoType(const string &text)
+{
+    SUSPENDED
+
+    debug(KEY_DEBUG, "autoType(%s)\n", text.c_str());
+    fatalError;
+    /*
+    auto trigger = agnus.clock;
+
+    for (char const &c: text) {
+
+        auto keys = C64Key::translate(c);
+
+        if (pending.free() > isize(2 * keys.size())) {
+
+            // Schedule key presses
+            for (C64Key &k : keys) {
+                pending.insert(trigger, Cmd(CMD_KEY_PRESS, KeyCmd { .keycode = u8(k.nr) }));
+            }
+
+            trigger += C64::msec(30);
+
+            // Schedule key releases
+            for (C64Key &k : keys) {
+                pending.insert(trigger, Cmd(CMD_KEY_RELEASE, KeyCmd { .keycode = u8(k.nr) }));
+            }
+            trigger += C64::msec(30);
+        }
+    }
+
+    if (!c64.hasEvent<SLOT_KEY>()) c64.scheduleImm<SLOT_KEY>(KEY_AUTO_TYPE);
+    */
+}
+
+void
+Keyboard::abortAutoTyping()
+{
+    debug(KEY_DEBUG, "abortAutoTyping()\n");
+
+    {   SYNCHRONIZED
+
+        if (!pending.isEmpty()) {
+
+            pending.clear();
+            releaseAll();
+        }
     }
 }
 
@@ -343,6 +390,34 @@ Keyboard::sendSyncPulse()
         
         // In simple keyboard mode, send a whole byte
         sendKeyCode(0xFF);
+    }
+}
+
+void
+Keyboard::processCommand(const Cmd &cmd)
+{
+    if (cmd.key.delay > 0) {
+
+        trace(KEY_DEBUG, "%s: Delayed for %f sec\n", CmdTypeEnum::key(cmd.type), cmd.key.delay);
+
+        pending.insert(agnus.clock + SEC(cmd.key.delay),
+                       Cmd(cmd.type, KeyCmd { .keycode = cmd.key.keycode }));
+        agnus.scheduleImm<SLOT_KEY>(KEY_AUTO_TYPE);
+
+    } else {
+
+        trace(KEY_DEBUG, "%s\n", CmdTypeEnum::key(cmd.type));
+
+        switch (cmd.type) {
+
+            case CMD_KEY_PRESS:         press(cmd.key.keycode); break;
+            case CMD_KEY_RELEASE:       release(cmd.key.keycode); break;
+            case CMD_KEY_RELEASE_ALL:   releaseAll(); break;
+            case CMD_KEY_TOGGLE:        toggle(cmd.key.keycode); break;
+
+            default:
+                fatalError;
+        }
     }
 }
 

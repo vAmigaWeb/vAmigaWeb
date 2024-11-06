@@ -9,25 +9,13 @@
 
 #include "config.h"
 #include "Command.h"
+#include "StringUtils.h"
 #include <algorithm>
 #include <utility>
 
 namespace vamiga {
 
-std::vector<string> Command::groups;
-isize Command::currentGroup = 0;
-
-void
-Command::setGroup(const string &description, const string &postfix)
-{
-    auto name = description.empty() ? "" : description + postfix;
-
-    for (isize i = 0; i < isize(groups.size()); i++) {
-        if (name == groups[i]) { currentGroup = i; }
-    }
-    currentGroup = groups.size();
-    groups.push_back(name);
-}
+string Command::currentGroup;
 
 void
 Command::add(const std::vector<string> &tokens,
@@ -74,13 +62,16 @@ Command::add(const std::vector<string> &tokens,
 }
 
 void
-Command::add(const std::vector<string> &tokens,
+Command::add(const std::vector<string> &rawtokens,
              const std::vector<string> &requiredArgs,
              const std::vector<string> &optionalArgs,
              std::pair<const string &, const string &> help,
              std::function<void (Arguments&, long)> func, long param)
 {
-    assert(!tokens.empty());
+    assert(!rawtokens.empty());
+
+    // Cleanse the token list (convert { "aaa bbb" } into { "aaa", "bbb" }
+    auto tokens = util::split(rawtokens, ' ');
 
     // Traverse the node tree
     Command *cmd = seek(std::vector<string> { tokens.begin(), tokens.end() - 1 });
@@ -89,15 +80,16 @@ Command::add(const std::vector<string> &tokens,
     // Create the instruction
     Command d;
     d.name = tokens.back();
-    // d.fullName = (cmd->fullName.empty() ? "" : cmd->fullName + " ") + tokens.back();
     d.fullName = (cmd->fullName.empty() ? "" : cmd->fullName + " ") + help.first;
-    d.group = currentGroup;
+    d.groupName = currentGroup;
     d.requiredArgs = requiredArgs;
     d.optionalArgs = optionalArgs;
     d.help = help;
     d.callback = func;
     d.param = param;
     d.hidden = help.second.empty();
+
+    if (!d.hidden) currentGroup = "";
 
     // Register the instruction
     cmd->subCommands.push_back(d);
@@ -170,11 +162,13 @@ std::vector<const Command *>
 Command::filterPrefix(const string& prefix) const
 {
     std::vector<const Command *> result;
-    
+    auto uprefix = util::uppercased(prefix);
+
     for (auto &it : subCommands) {
         
         if (it.hidden) continue;
-        if (it.name.substr(0, prefix.size()) == prefix) result.push_back(&it);
+        auto substr = it.name.substr(0, prefix.size());
+        if (util::uppercased(substr) == uprefix) result.push_back(&it);
     }
 
     return result;
@@ -183,14 +177,14 @@ Command::filterPrefix(const string& prefix) const
 string
 Command::autoComplete(const string& token)
 {
-    string result = token;
-    
+    string result;
+
     auto matches = filterPrefix(token);
     if (!matches.empty()) {
         
         const Command *first = matches.front();
-        for (auto i = token.size(); i < first->name.size(); i++) {
-            
+        for (usize i = 0;; i++) {
+
             for (auto m: matches) {
                 if (m->name.size() <= i || m->name[i] != first->name[i]) {
                     return result;
@@ -199,7 +193,8 @@ Command::autoComplete(const string& token)
             result += first->name[i];
         }
     }
-    return result;
+
+    return result.size() >= token.size() ? result : token;
 }
 
 string

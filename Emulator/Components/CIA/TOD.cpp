@@ -19,19 +19,13 @@ TOD::TOD(CIA &ciaref, Amiga& ref) : SubComponent(ref), cia(ciaref)
 
 }
 
-const char *
-TOD::getDescription() const
-{
-    return cia.isCIAA() ? "TODA" : "TODB";
-}
-
 void
-TOD::_reset(bool hard)
+TOD::operator << (SerResetter &worker)
 {
-    RESET_SNAPSHOT_ITEMS(hard)
-    
-    if (hard) {
-        
+    serialize(worker);
+
+    if (worker.isHard()) {
+
         stopped = true;
         matching = true;
         tod.hi = 0x1;
@@ -39,7 +33,7 @@ TOD::_reset(bool hard)
 }
 
 void
-TOD::_inspect() const
+TOD::cacheInfo(TODInfo &info) const
 {
     {   SYNCHRONIZED
         

@@ -10,6 +10,8 @@
 #pragma once
 
 #include "DriveTypes.h"
+#include "FloppyDiskTypes.h"
+#include "BootBlockImageTypes.h"
 
 //
 // Enumerations
@@ -24,14 +26,13 @@ enum_long(DRIVE_TYPE)
 typedef DRIVE_TYPE FloppyDriveType;
 
 #ifdef __cplusplus
-struct FloppyDriveTypeEnum : util::Reflection<FloppyDriveTypeEnum, FloppyDriveType>
+struct FloppyDriveTypeEnum : vamiga::util::Reflection<FloppyDriveTypeEnum, FloppyDriveType>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = DRIVE_DD_525;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-    
+
     static const char *prefix() { return "DRIVE"; }
-    static const char *key(FloppyDriveType value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -52,14 +53,13 @@ enum_long(DRIVE_MECHANICS)
 typedef DRIVE_MECHANICS DriveMechanics;
 
 #ifdef __cplusplus
-struct DriveMechanicsEnum : util::Reflection<DriveMechanicsEnum, DriveMechanics>
+struct DriveMechanicsEnum : vamiga::util::Reflection<DriveMechanicsEnum, DriveMechanics>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = MECHANICS_A1010;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "DMECHANICS"; }
-    static const char *key(DriveMechanics value)
+    static const char *_key(long value)
     {
         switch (value) {
 
@@ -78,6 +78,9 @@ struct DriveMechanicsEnum : util::Reflection<DriveMechanicsEnum, DriveMechanics>
 
 typedef struct
 {
+    // Connection status
+    bool connected;
+    
     // Drive model
     FloppyDriveType type;
 
@@ -91,18 +94,6 @@ typedef struct
      */
     isize rpm;
 
-    /* Mechanical delays. The start and stop delays specify the number of
-     * cycles that pass between switching the drive motor on or off until the
-     * drive motor runs at full speed or came to rest, respectively. The step
-     * delay specifies the number of cycle needed by the drive head to move to
-     * another cylinder. During this time, the FIFO is filled with garbage data.
-     */
-    /*
-    Cycle startDelay;
-    Cycle stopDelay;
-    Cycle stepDelay;
-    */
-    
     // Delay between ejecting an old disk and inserting a new one
     Cycle diskSwapDelay;
     
@@ -117,9 +108,16 @@ FloppyDriveConfig;
 
 typedef struct
 {
+    isize nr;
     DriveHead head;
+    bool isConnected;
     bool hasDisk;
+    bool hasModifiedDisk;
+    bool hasUnmodifiedDisk;
+    bool hasProtectedDisk;
+    bool hasUnprotectedDisk;
     bool motor;
+    bool writing;
 }
 FloppyDriveInfo;
 

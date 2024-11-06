@@ -1,5 +1,5 @@
 const url_root_path= self.location.pathname.replace("/sw.js","");
-const core_version  = '2.6.0'; //has to be the same as the version in Emulator/config.h
+const core_version  = '3.0.0'; //has to be the same as the version in Emulator/config.h
 const ui_version = '2024_10_08'+url_root_path.replace("/","_");
 const needs_shared_array_buffer=@needs_shared_array_buffer@; //true when vAmiga runs in separat worker thread
 const cache_name = `${core_version}@${ui_version}`;

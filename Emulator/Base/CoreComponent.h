@@ -1,4 +1,4 @@
-/// -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
@@ -10,103 +10,125 @@
 #pragma once
 
 #include "CoreComponentTypes.h"
+#include "EmulatorTypes.h"
 #include "CoreObject.h"
-#include "Serialization.h"
+#include "Inspectable.h"
+#include "Synchronizable.h"
+#include "Configurable.h"
+#include "Suspendable.h"
+#include "Serializable.h"
 #include "Concurrency.h"
 #include <vector>
+#include <functional>
 
 namespace vamiga {
 
-/* The following macro can be utilized to prevent multiple threads to enter the
- * same code block. It mimics the behaviour of the well known Java construct
- * 'synchronized(this) { }'. To secure a code-block, use the following syntax:
- *
- *     { SYNCHRONIZED <commands> }
- *
- * To prevent concurrent execution of a single static function, use:
- *
- *     { STATIC_SYNCHRONIZED <commands> }
- */
-#define SYNCHRONIZED util::AutoMutex _am(mutex);
-#define STATIC_SYNCHRONIZED static std::mutex m; std::lock_guard<std::mutex> lock(m);
+struct Description {
 
-struct NoCopy
-{
-    NoCopy() { };
-    NoCopy(NoCopy const&) = delete;
+    const CType type;               // Class identifier
+    const char *name;               // Short name
+    const char *description;        // Textual descripiton
+    const char *shell;              // RetroShell access
 };
 
-struct NoAssign
-{
-    NoAssign() { };
-    NoAssign& operator=(NoAssign const&) = delete;
-};
+typedef std::vector<Description> Descriptions;
 
-class CoreComponent : public CoreObject, NoCopy, NoAssign {
+class CoreComponent : 
+public CoreObject, public Serializable, public Suspendable, public Synchronizable, public Configurable {
 
-protected:
+public:
     
-    // Set to false to silence all debug messages for this component
-    bool verbose = true;
+    // Reference to the emulator this instance belongs to
+    class Emulator &emulator;
 
-    // Sub components
+    // Object identifier (to distinguish instances of the same component)
+    const isize objid;
+
+    // Subcomponents
     std::vector<CoreComponent *> subComponents;
 
-    /* Mutex for implementing the 'synchronized' macro. The macro can be used
-     * to prevent multiple threads to enter the same code block. It mimics the
-     * behaviour of the well known Java construct 'synchronized(this) { }'.
-     */
-    mutable util::ReentrantMutex mutex;
-
 
     //
-    // Initializing
+    // Initializers
     //
-    
+
 public:
-    
-    /* Initializes the component and it's subcomponents. The initialization
-     * procedure is initiated once, in the constructor of the Amiga class. By
-     * default, a component enters it's initial configuration. Custom actions
-     * can be performed by implementing the _initialize() delegation function.
-     */
-    void initialize();
-    virtual void _initialize() { resetConfig(); }
-    
-    /* Resets the component and it's subcomponents. Two reset modes are
-     * distinguished:
-     *
-     *     hard: A hard reset restores the initial state. It resets the Amiga
-     *           from an emulator point of view.
-     *
-     *     soft: A soft reset emulates a reset inside the virtual Amiga. It is
-     *           used to emulate the RESET instruction of the CPU.
-     */
-    void reset(bool hard);
-    virtual void _reset(bool hard) = 0;
 
-    
+    CoreComponent(Emulator& ref, isize id = 0) : emulator(ref), objid(id) { }
+
+
     //
-    // Controlling the state (see Thread class for details)
+    // Operators
     //
-    
+
 public:
-    
-    virtual bool isPoweredOff() const = 0;
-    virtual bool isPoweredOn() const = 0;
-    virtual bool isPaused() const = 0;
-    virtual bool isRunning() const = 0;
-    virtual bool isSuspended() const = 0;
-    virtual bool isHalted() const = 0;
 
-    virtual void suspend() = 0;
-    virtual void resume() = 0;
+    bool operator== (CoreComponent &other);
+    bool operator!= (CoreComponent &other) { return !(other == *this); }
+
+
+    //
+    // Querying properties
+    //
+
+public:
+
+    // Returns the description struct of this component
+    virtual const Descriptions &getDescriptions() const = 0;
+
+    // Returns certain elements from the description struct
+    const char *objectName() const override;
+    const char *description() const override;
+    const char *shellName() const;
+
+    // State properties (see Thread class for details)
+    virtual bool isInitialized() const;
+    virtual bool isPoweredOff() const;
+    virtual bool isPoweredOn() const;
+    virtual bool isPaused() const;
+    virtual bool isRunning() const;
+    virtual bool isSuspended() const;
+    virtual bool isHalted() const;
 
     // Throws an exception if the emulator is not ready to power on
     virtual void isReady() const throws;
 
-protected:
-    
+    // Computes a checksum
+    u64 checksum(bool recursive);
+
+
+    //
+    // Suspending and Resuming
+    //
+
+    // Suspends or resumes the emulator thread
+    void suspend() override;
+    void resume() override;
+
+
+    //
+    // Configuring
+    //
+
+public:
+
+    // Initializes all configuration items with their default values
+    virtual void resetConfig();
+
+    // Returns the target component for a given configuration option
+    Configurable *routeOption(Option opt, isize objid);
+
+    // Returns the fallback value for a config option
+    i64 getFallback(Option opt) const override;
+
+
+    //
+    // Controlling the state
+    //
+
+public:
+
+    void initialize();
     void powerOn();
     void powerOff();
     void run();
@@ -116,13 +138,21 @@ protected:
     void warpOff();
     void trackOn();
     void trackOff();
-    
+    void focus();
+    void unfocus();
+
     void powerOnOff(bool value) { value ? powerOn() : powerOff(); }
     void warpOnOff(bool value) { value ? warpOn() : warpOff(); }
     void trackOnOff(bool value) { value ? trackOn() : trackOff(); }
 
+
+    //
+    // Performing state changes
+    //
+
 private:
     
+    virtual void _initialize() { }
     virtual void _isReady() const throws { }
     virtual void _powerOn() { }
     virtual void _powerOff() { }
@@ -133,115 +163,66 @@ private:
     virtual void _warpOff() { }
     virtual void _trackOn() { }
     virtual void _trackOff() { }
-    
-    
-    //
-    // Configuring
-    //
-
-public:
-    
-    // Initializes all configuration items with their default values
-    virtual void resetConfig() { };
+    virtual void _focus() { }
+    virtual void _unfocus() { }
 
 
-    //
-    // Analyzing
-    //
-    
-public:
-    
-    /* Collects information about the component and it's subcomponents. Many
-     * components contain an info variable of a class specific type (e.g.,
-     * CPUInfo, MemoryInfo, ...). These variables contain the information shown
-     * in the GUI's inspector window and are updated by calling this function.
-     * Note: Because this function accesses the internal emulator state with
-     * many non-atomic operations, it must not be called on a running emulator.
-     * To carry out inspections while the emulator is running, set up an
-     * inspection target via Amiga::setInspectionTarget().
-     */
-    void inspect() const;
-    virtual void _inspect() const { }
-
-    /* Base method for building the class specific getInfo() methods. When the
-     * emulator is running, the result of the most recent inspection is
-     * returned. If the emulator isn't running, the function first updates the
-     * cached values in order to return up-to-date results.
-     */
-    template<class T> T getInfo(T &cachedValues) const {
-        
-        {   SYNCHRONIZED
-            
-            if (!isRunning()) inspect();
-            return cachedValues;
-        }
-    }
-    
     //
     // Serializing
     //
     
-    // Returns the size of the internal state in bytes
-    isize size();
-    virtual isize _size() = 0;
+public:
     
-    // Computes a checksum for this component
-    u64 checksum();
-    virtual u64 _checksum() = 0;
+    // Returns the size of the internal state in bytes
+    isize size(bool recursive = true);
+
+    // Resets the internal state
+    void reset(bool hard);
+    virtual void _willReset(bool hard) { }
+    virtual void _didReset(bool hard) { }
+
+    // Convenience wrappers
+    void hardReset() { reset(true); }
+    void softReset() { reset(false); }
 
     // Loads the internal state from a memory buffer
-    virtual isize load(const u8 *buf) throws;
-    virtual isize _load(const u8 *buf) = 0;
-    virtual void didLoad();
-    virtual void _didLoad() { };
+    isize load(const u8 *buf) throws;
+    virtual void _didLoad() { }
 
     // Saves the internal state to a memory buffer
-    virtual isize save(u8 *buf);
-    virtual isize _save(u8 *buf) = 0;
-    virtual void didSave();
-    virtual void _didSave() { };
+    isize save(u8 *buf);
+    virtual void _didSave() { }
 
-    /* Delegation methods called inside load() or save(). Some components
-     * override these methods to add custom behavior if not all elements can be
-     * processed by the default implementation.
-     */
-    virtual isize willLoadFromBuffer(const u8 *buf) throws { return 0; }
-    virtual isize didLoadFromBuffer(const u8 *buf) throws { return 0; }
-    virtual isize willSaveToBuffer(u8 *buf) {return 0; }
-    virtual isize didSaveToBuffer(u8 *buf) { return 0; }
+
+    //
+    // Working with subcomponents
+    //
+
+public:
+
+    // Collects references to this components and all subcomponents
+    std::vector<CoreComponent *> collectComponents();
+    void collectComponents(std::vector<CoreComponent *> &result);
+
+    // Traverses the component tree and applies a function
+    void preoderWalk(std::function<void(CoreComponent *)> func);
+    void postorderWalk(std::function<void(CoreComponent *)> func);
+
+
+    //
+    // Misc
+    //
+
+public:
+
+    // Compares two components and reports differences (for debugging)
+    void diff(CoreComponent &other);
+
+    // Exports the current configuration to a script file
+    void exportConfig(std::ostream& ss, bool diff = false) const;
+
+    // Exports only those options that differ from the default config
+    void exportDiff(std::ostream& ss) const { exportConfig(ss, true); }
 };
-
-//
-// Standard implementations of _reset, _size, _checksum, _load, and _save
-//
-
-#define RESET_SNAPSHOT_ITEMS(hard) \
-if (hard) { \
-util::SerHardResetter resetter; \
-serialize(resetter); \
-} else { \
-util::SerSoftResetter resetter; \
-serialize(resetter); \
-}
-
-#define COMPUTE_SNAPSHOT_SIZE \
-util::SerCounter counter; \
-serialize(counter); \
-return counter.count;
-
-#define COMPUTE_SNAPSHOT_CHECKSUM \
-util::SerChecker checker; \
-serialize(checker); \
-return checker.hash;
-
-#define LOAD_SNAPSHOT_ITEMS \
-util::SerReader reader(buffer); \
-serialize(reader); \
-return (isize)(reader.ptr - buffer);
-
-#define SAVE_SNAPSHOT_ITEMS \
-util::SerWriter writer(buffer); \
-serialize(writer); \
-return (isize)(writer.ptr - buffer);
 
 }

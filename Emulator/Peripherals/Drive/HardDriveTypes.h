@@ -27,14 +27,13 @@ enum_long(HDR_TYPE)
 typedef HDR_TYPE HardDriveType;
 
 #ifdef __cplusplus
-struct HardDriveTypeEnum : util::Reflection<HardDriveTypeEnum, HardDriveType>
+struct HardDriveTypeEnum : vamiga::util::Reflection<HardDriveTypeEnum, HardDriveType>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = HDR_GENERIC;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-    
+
     static const char *prefix() { return "HDR"; }
-    static const char *key(HardDriveType value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -54,14 +53,13 @@ enum_long(HDR_STATE)
 typedef HDR_STATE HardDriveState;
 
 #ifdef __cplusplus
-struct HardDriveStateEnum : util::Reflection<HardDriveStateEnum, HardDriveState>
+struct HardDriveStateEnum : vamiga::util::Reflection<HardDriveStateEnum, HardDriveState>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = HDR_STATE_WRITING;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
     
     static const char *prefix() { return "HDR_STATE"; }
-    static const char *key(HardDriveType value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -82,6 +80,7 @@ struct HardDriveStateEnum : util::Reflection<HardDriveStateEnum, HardDriveState>
 typedef struct
 {
     HardDriveType type;
+    bool writeThrough;
     i16 pan;
     u8 stepVolume;
 }
@@ -89,7 +88,66 @@ HardDriveConfig;
 
 typedef struct
 {
-    DriveHead head;
+    // Object information
+    isize nr;
+
+    // Product information
+    const char *diskVendor;
+    const char *diskProduct;
+    const char *diskRevision;
+    const char *controllerVendor;
+    const char *controllerProduct;
+    const char *controllerRevision;
+
+    // Physical layout
+    isize cylinders;
+    isize heads;
+    isize sectors;
+    isize bsize;
+
+    // Derived values
+    isize tracks;
+    isize blocks;
+    isize bytes;
+    isize upperCyl;
+    isize upperHead;
+    isize upperTrack;
+}
+HardDriveTraits;
+
+typedef struct
+{
+    isize nr;
+    const char *name;
+    isize lowerCyl;
+    isize upperCyl;
+}
+PartitionTraits;
+
+typedef struct
+{
+    isize nr;
+    
+    // Drive properties
+    bool isConnected;
+    bool isCompatible;
+    
+    // Disk properties
+    bool hasDisk;
+    bool hasModifiedDisk;
+    bool hasUnmodifiedDisk;
+    bool hasProtectedDisk;
+    bool hasUnprotectedDisk;
+    
+    // Logical layout (partitions)
+    isize partitions;
+
+    // Flags
+    bool writeProtected;
     bool modified;
+
+    // State
+    HardDriveState state;
+    DriveHead head;
 }
 HardDriveInfo;

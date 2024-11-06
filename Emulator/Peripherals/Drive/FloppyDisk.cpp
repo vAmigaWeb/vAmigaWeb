@@ -14,7 +14,7 @@
 namespace vamiga {
 
 void
-FloppyDisk::init(Diameter dia, Density den)
+FloppyDisk::init(Diameter dia, Density den, bool wp)
 {
     diameter = dia;
     density = den;
@@ -26,24 +26,25 @@ FloppyDisk::init(Diameter dia, Density den)
     if (dia == INCH_525 && den == DENSITY_DD) trackLength = 12668;
     
     if (trackLength == 0 || FORCE_DISK_INVALID_LAYOUT) {
-        throw VAError(ERROR_DISK_INVALID_LAYOUT);
+        throw Error(VAERROR_DISK_INVALID_LAYOUT);
     }
     
     for (isize i = 0; i < 168; i++) length.track[i] = trackLength;
     clearDisk();
+    setWriteProtection(wp);
 }
 
 void
-FloppyDisk::init(const class FloppyFile &file)
+FloppyDisk::init(const class FloppyFile &file, bool wp)
 {
-    init(file.getDiameter(), file.getDensity());
+    init(file.getDiameter(), file.getDensity(), wp);
     encodeDisk(file);
 }
 
 void
-FloppyDisk::init(util::SerReader &reader, Diameter dia, Density den)
+FloppyDisk::init(SerReader &reader, Diameter dia, Density den, bool wp)
 {
-    init(dia, den);
+    init(dia, den, wp);
     serialize(reader);
 }
 
@@ -63,16 +64,14 @@ FloppyDisk::_dump(Category category, std::ostream& os) const
         os << DiameterEnum::key(diameter) << std::endl;
         os << tab("Density");
         os << DensityEnum::key(density) << std::endl;
+        os << tab("Flags");
+        os << DiskFlagsEnum::mask(flags) << std::endl;
         os << tab("numCyls()");
         os << dec(numCyls()) << std::endl;
         os << tab("numHeads()");
         os << dec(numHeads()) << std::endl;
         os << tab("numTracks()");
         os << dec(numTracks()) << std::endl;
-        os << tab("Write protected");
-        os << bol(writeProtected) << std::endl;
-        os << tab("Modified");
-        os << bol(modified) << std::endl;
 
         isize oldlen = length.track[0];
         for (isize i = 0, oldi = 0; i <= numTracks(); i++) {
@@ -193,7 +192,7 @@ FloppyDisk::writeByte(Track t, isize offset, u8 value)
     assert(offset < length.track[t]);
 
     data.track[t][offset] = value;
-    modified = true;
+    setModified(true);
 }
 
 void
@@ -204,15 +203,14 @@ FloppyDisk::writeByte(Cylinder c, Head h, isize offset, u8 value)
     assert(offset < length.cylinder[c][h]);
 
     data.cylinder[c][h][offset] = value;
-    modified = true;
+    setModified(true);
 }
 
 void
 FloppyDisk::clearDisk()
 {
-    fnv = 0;
-    modified = bool(FORCE_DISK_MODIFIED);
-    
+    setModified(FORCE_DISK_MODIFIED);
+
     // Initialize with random data
     srand(0);
     for (isize i = 0; i < isizeof(data.raw); i++) {

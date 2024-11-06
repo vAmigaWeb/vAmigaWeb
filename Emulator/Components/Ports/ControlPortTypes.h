@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 
 
@@ -26,14 +26,13 @@ enum_long(CPD)
 typedef CPD ControlPortDevice;
 
 #ifdef __cplusplus
-struct ControlPortDeviceEnum : util::Reflection<ControlPortDeviceEnum, ControlPortDevice>
+struct ControlPortDeviceEnum : vamiga::util::Reflection<ControlPortDeviceEnum, ControlPortDevice>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = CPD_JOYSTICK;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
     
     static const char *prefix() { return "CPD"; }
-    static const char *key(ControlPortDevice value)
+    static const char *_key(long value)
     {
         switch (value) {
                 

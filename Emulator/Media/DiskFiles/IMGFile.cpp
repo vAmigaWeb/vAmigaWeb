@@ -10,25 +10,29 @@
 #include "config.h"
 #include "IMGFile.h"
 #include "Checksum.h"
-#include "FloppyDisk.h"
+#include "FloppyDrive.h"
 #include "IOUtils.h"
 
 namespace vamiga {
 
 bool
-IMGFile::isCompatible(const string &path)
+IMGFile::isCompatible(const std::filesystem::path &path)
 {
-    auto suffix = util::uppercased(util::extractSuffix(path));
-    return suffix == "IMG";
+    auto suffix = util::uppercased(path.extension().string());
+    return suffix == ".IMG";
 }
 
 bool
-IMGFile::isCompatible(std::istream &stream)
+IMGFile::isCompatible(const u8 *buf, isize len)
 {
-    isize length = util::streamLength(stream);
-    
     // There are no magic bytes. We can only check the buffer size
-    return length == IMGSIZE_35_DD;
+    return len == IMGSIZE_35_DD;
+}
+
+bool
+IMGFile::isCompatible(const Buffer<u8> &buf)
+{
+    return isCompatible(buf.ptr, buf.size);
 }
 
 void
@@ -41,7 +45,7 @@ IMGFile::init(Diameter dia, Density den)
 
     } else {
 
-        throw VAError(ERROR_DISK_INVALID_LAYOUT);
+        throw Error(VAERROR_DISK_INVALID_LAYOUT);
     }
 }
 
@@ -50,6 +54,13 @@ IMGFile::init(FloppyDisk &disk)
 {
     init(INCH_35, DENSITY_DD);
     decodeDisk(disk);
+}
+
+void
+IMGFile::init(FloppyDrive &drive)
+{
+    if (drive.disk == nullptr) throw Error(VAERROR_DISK_MISSING);
+    init(*drive.disk);
 }
 
 isize
@@ -74,10 +85,10 @@ void
 IMGFile::encodeDisk(FloppyDisk &disk) const
 {
     if (disk.getDiameter() != getDiameter()) {
-        throw VAError(ERROR_DISK_INVALID_DIAMETER);
+        throw Error(VAERROR_DISK_INVALID_DIAMETER);
     }
     if (disk.getDensity() != getDensity()) {
-        throw VAError(ERROR_DISK_INVALID_DENSITY);
+        throw Error(VAERROR_DISK_INVALID_DENSITY);
     }
 
     isize tracks = numTracks();
@@ -200,10 +211,10 @@ IMGFile::decodeDisk(FloppyDisk &disk)
     debug(IMG_DEBUG, "Decoding DOS disk (%ld tracks)\n", tracks);
     
     if (disk.getDiameter() != getDiameter()) {
-        throw VAError(ERROR_DISK_INVALID_DIAMETER);
+        throw Error(VAERROR_DISK_INVALID_DIAMETER);
     }
     if (disk.getDensity() != getDensity()) {
-        throw VAError(ERROR_DISK_INVALID_DENSITY);
+        throw Error(VAERROR_DISK_INVALID_DENSITY);
     }
     
     // Make the MFM stream scannable beyond the track end
@@ -257,12 +268,12 @@ IMGFile::decodeTrack(FloppyDisk &disk, Track t)
             cnt++;
 
         } else {
-            throw VAError(ERROR_DISK_INVALID_SECTOR_NUMBER);
+            throw Error(VAERROR_DISK_INVALID_SECTOR_NUMBER);
         }
     }
 
     if (cnt != numSectors) {
-        throw VAError(ERROR_DISK_WRONG_SECTOR_COUNT);
+        throw Error(VAERROR_DISK_WRONG_SECTOR_COUNT);
     }
 
     // Do some consistency checking

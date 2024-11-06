@@ -41,6 +41,9 @@ class FileSystem : public CoreObject {
     
 protected:
 
+    // File system information
+     FSTraits traits;
+
     // File system version
     FSVolumeType dos = FS_NODOS;
     
@@ -71,6 +74,7 @@ protected:
 public:
     
     FileSystem() { };
+    FileSystem(const MediaFile &file, isize part = 0) throws { init(file, part); }
     FileSystem(const ADFFile &adf) throws { init(adf); }
     FileSystem(const HDFFile &hdn, isize part) throws { init(hdn, part); }
     FileSystem(FloppyDrive &dfn) throws { init(dfn); }
@@ -79,7 +83,8 @@ public:
     virtual ~FileSystem();
     
 protected:
-    
+
+    void init(const MediaFile &file, isize part) throws;
     void init(const ADFFile &adf) throws;
     void init(const HDFFile &hdn, isize part) throws;
     void init(FloppyDrive &dfn) throws;
@@ -94,7 +99,7 @@ protected:
     
 protected:
     
-    const char *getDescription() const override { return "FileSystem"; }
+    const char *objectName() const override { return "FileSystem"; }
     void _dump(Category category, std::ostream& os) const override;
 
     
@@ -103,6 +108,8 @@ protected:
     //
 
 public:
+
+    FSTraits &getTraits();
 
     // Returns capacity information
     isize numBlocks() const { return isize(blocks.size()); }
@@ -253,17 +260,17 @@ public:
 protected:
     
     // Returns a collections of nodes for all items in the current directory
-    void collect(Block nr, std::vector<Block> &list, bool recursive = true) throws;
+    void collect(Block nr, std::vector<Block> &list, bool recursive = true) const throws;
     
 private:
     
     // Collects all references stored in a hash table
     void collectHashedRefs(Block nr, std::stack<Block> &list,
-                           std::set<Block> &visited) throws;
-    
+                           std::set<Block> &visited) const throws;
+
     // Collects all references with the same hash value
     void collectRefsWithSameHashValue(Block nr, std::stack<Block> &list,
-                                      std::set<Block> &visited) throws;
+                                      std::set<Block> &visited) const throws;
 
     
     //
@@ -282,19 +289,14 @@ protected:
     
 
     //
-    // Importing and exporting
+    // GUI helper functions
     //
-    
+
 public:
 
     // Predicts the type of a block by analyzing its number and data
     FSBlockType predictBlockType(Block nr, const u8 *buffer);
 
-
-    //
-    // GUI helper functions
-    //
-    
     // Determines how the layout image should look like in a certain column
     FSBlockType getDisplayType(isize column);
 

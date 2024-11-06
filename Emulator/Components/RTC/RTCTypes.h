@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 
 //
@@ -25,14 +25,13 @@ enum_long(RTC_REVISION)
 typedef RTC_REVISION RTCRevision;
 
 #ifdef __cplusplus
-struct RTCRevisionEnum : util::Reflection<RTCRevisionEnum, RTCRevision>
+struct RTCRevisionEnum : vamiga::util::Reflection<RTCRevisionEnum, RTCRevision>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = RTC_RICOH;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "RTC"; }
-    static const char *key(RTCRevision value)
+    static const char *_key(long value)
     {
         switch (value) {
                 

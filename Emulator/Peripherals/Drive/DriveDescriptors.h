@@ -10,13 +10,13 @@
 #pragma once
 
 #include "Constants.h"
-#include "Serialization.h"
+#include "Serializable.h"
 #include "FloppyDiskTypes.h"
 #include <vector>
 
 namespace vamiga {
 
-struct GeometryDescriptor : util::Serializable {
+struct GeometryDescriptor : Serializable {
 
     // Constants
     static constexpr isize cMin = HDR_C_MIN;
@@ -33,20 +33,23 @@ struct GeometryDescriptor : util::Serializable {
 
     // Size of a sector in bytes
     isize bsize = 512;
-    
-    template <class W>
-    void operator<<(W& worker)
+
+    template <class T>
+    void serialize(T& worker)
     {
         worker
-        
+
         << cylinders
         << heads
         << sectors
         << bsize;
-    }
-    
+
+    } SERIALIZERS(serialize);
+
+
     // Returns a vector with compatible geometries for a given block count
-    static std::vector<GeometryDescriptor> driveGeometries(isize numBlocks, isize bsize = 512);
+    static std::vector<std::tuple<isize,isize,isize>> driveGeometries(isize numBlocks);
+    static std::vector<GeometryDescriptor> driveGeometries(isize numBlocks, isize bsize);
 
     // Checks whether the geometry is unique
     bool unique() const;
@@ -78,7 +81,7 @@ struct GeometryDescriptor : util::Serializable {
     void checkCompatibility() const;
 };
 
-struct PartitionDescriptor : util::Serializable {
+struct PartitionDescriptor : Serializable {
 
     string name;
     u32 flags = 0;
@@ -95,12 +98,12 @@ struct PartitionDescriptor : util::Serializable {
     u32 mask = 0xFFFFFFFE;
     u32 bootPri = 0;
     u32 dosType = 0x444f5300;
-    
-    template <class W>
-    void operator<<(W& worker)
+
+    template <class T>
+    void serialize(T& worker)
     {
         worker
-        
+
         << name
         << flags
         << sizeBlock
@@ -116,8 +119,10 @@ struct PartitionDescriptor : util::Serializable {
         << mask
         << bootPri
         << dosType;
-    }
-    
+
+    } SERIALIZERS(serialize);
+
+
     // Initializers
     PartitionDescriptor() { };
     PartitionDescriptor(const GeometryDescriptor &geo);
@@ -130,26 +135,28 @@ struct PartitionDescriptor : util::Serializable {
     void checkCompatibility(const GeometryDescriptor &geo) const;
 };
 
-struct DriverDescriptor : util::Serializable {
+struct DriverDescriptor : Serializable {
 
     u32 dosType = 0;
     u32 dosVersion = 0;
     u32 patchFlags = 0;
     std::vector<u32> blocks;
     u32 segList = 0;
-    
-    template <class W>
-    void operator<<(W& worker)
+
+    template <class T>
+    void serialize(T& worker)
     {
         worker
-        
+
         << dosType
         << dosVersion
         << patchFlags
         << blocks
         << segList;
-    }
-    
+
+    } SERIALIZERS(serialize);
+
+
     // Initializers
     DriverDescriptor() { };
 

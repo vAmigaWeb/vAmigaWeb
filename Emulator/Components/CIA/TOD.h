@@ -26,15 +26,24 @@ typedef union
 }
 Counter24;
 
-class TOD : public SubComponent {
-    
-    friend CIA;
-    
-    // Reference to the connected CIA
-    CIA &cia;
+class TOD final : public SubComponent, public Inspectable<TODInfo> {
 
-    // Result of the latest inspection
-    mutable TODInfo info = {};
+    Descriptions descriptions = {{
+
+        .type           = TODClass,
+        .name           = "TOD",
+        .description    = "Time-of-day Clock",
+        .shell          = "tod"
+    }};
+
+    ConfigOptions options = {
+
+    };
+
+    friend class CIA;
+
+    // Reference to the connected CIA
+    class CIA &cia;
 
     // The 24 bit counter
     Counter24 tod;
@@ -78,24 +87,26 @@ public:
 
     TOD(CIA &ciaref, Amiga& ref);
 
-    
-    //
-    // Methods from CoreObject
-    //
-    
-private:
-    
-    const char *getDescription() const override;
-    void _dump(Category category, std::ostream& os) const override;
+    TOD& operator= (const TOD& other) {
 
-    
+        CLONE(tod.value)
+        CLONE(preTod.value)
+        CLONE(lastInc)
+        CLONE(latch.value)
+        CLONE(alarm.value)
+        CLONE(frozen)
+        CLONE(stopped)
+        CLONE(matching)
+
+        return *this;
+    }
+
+
     //
-    // Methods from CoreComponent
+    // Methods from Serializable
     //
-    
+
 private:
-    
-    void _reset(bool hard) override;
 
     template <class T>
     void serialize(T& worker)
@@ -110,23 +121,45 @@ private:
         << frozen
         << stopped
         << matching;
+
     }
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
+    void operator << (SerResetter &worker) override;
+    void operator << (SerChecker &worker) override { serialize(worker); }
+    void operator << (SerCounter &worker) override { serialize(worker); }
+    void operator << (SerReader &worker) override { serialize(worker); }
+    void operator << (SerWriter &worker) override { serialize(worker); }
 
 
     //
-    // Analyzing
+    // Methods from CoreComponent
     //
     
 public:
-    
-    TODInfo getInfo() const { return CoreComponent::getInfo(info); }
 
-    void _inspect() const override;
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+private:
+    
+    void _dump(Category category, std::ostream& os) const override;
+
+
+    //
+    // Methods from Inspectable
+    //
+
+public:
+
+    void cacheInfo(TODInfo &result) const override;
+
+
+    //
+    // Methods from Configurable
+    //
+
+public:
+
+    const ConfigOptions &getOptions() const override { return options; }
 
 
     //

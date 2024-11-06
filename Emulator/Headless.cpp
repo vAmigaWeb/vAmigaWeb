@@ -6,16 +6,15 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #include "config.h"
 #include "Headless.h"
+#include "HeadlessScripts.h"
+#include "Amiga.h"
 #include "Script.h"
-#include <filesystem>
+#include "DiagRom.h"
 #include <chrono>
-
-#ifndef _WIN32
-#include <getopt.h>
-#endif
 
 int main(int argc, char *argv[])
 {
@@ -25,37 +24,34 @@ int main(int argc, char *argv[])
         
     } catch (vamiga::SyntaxError &e) {
         
-        std::cout << "Usage: vAmigaCore [-svm] | { [-vm] <script> } " << std::endl;
+        std::cout << "Usage: vAmigaCore [-fsdvm] [<script>]" << std::endl;
         std::cout << std::endl;
-        std::cout << "       -s or --selftest  Checks the integrity of the build" << std::endl;
-        std::cout << "       -v or --verbose   Print executed script lines" << std::endl;
-        std::cout << "       -m or --messages  Observe the message queue" << std::endl;
+        std::cout << "       -f or --footprint   Reports the size of certain objects" << std::endl;
+        std::cout << "       -s or --smoke       Runs some smoke tests to test the build" << std::endl;
+        std::cout << "       -d or --diagnose    Run DiagRom in the background" << std::endl;
+        std::cout << "       -v or --verbose     Print executed script lines" << std::endl;
+        std::cout << "       -m or --messages    Observe the message queue" << std::endl;
+        std::cout << "       <script>            Execute this script instead of the default" << std::endl;
         std::cout << std::endl;
         
         if (auto what = string(e.what()); !what.empty()) {
             std::cout << what << std::endl;
         }
-        
-        return 1;
 
-    } catch (vamiga::VAError &e) {
+    } catch (vamiga::Error &e) {
 
-        std::cout << "VAError: " << std::endl;
-        std::cout << e.what() << std::endl;
-        return 1;
-        
+        std::cout << "VAError: " << e.what() << std::endl;
+
     } catch (std::exception &e) {
 
-        std::cout << "Error: " << std::endl;
-        std::cout << e.what() << std::endl;
-        return 1;
-    
+        std::cout << "System Error: " << e.what() << std::endl;
+
     } catch (...) {
     
         std::cout << "Error" << std::endl;
     }
     
-    return 0;
+    return 1;
 }
 
 namespace vamiga {
@@ -63,145 +59,99 @@ namespace vamiga {
 int
 Headless::main(int argc, char *argv[])
 {
-    std::cout << "vAmiga Headless v" << amiga.version();
+    std::cout << "vAmiga Headless v" << VAmiga::version();
     std::cout << " - (C)opyright Dirk W. Hoffmann" << std::endl << std::endl;
 
     // Parse all command line arguments
     parseArguments(argc, argv);
 
-    // Redirect shell output to the console in verbose mode
-    if (keys.find("verbose") != keys.end()) amiga.retroShell.setStream(std::cout);
+    // Check options
+    if (keys.find("footprint") != keys.end())   { reportSize(); }
+    if (keys.find("smoke") != keys.end())       { runScript(smokeTestScript); }
+    if (keys.find("diagnose") != keys.end())    { runScript(selfTestScript); }
+    if (keys.find("arg1") != keys.end())        { runScript(keys["arg1"]); }
 
-    // Read the input script
-    Script script(keys["arg1"]);
-        
-    // Launch the emulator thread
-    amiga.launch(this, vamiga::process);
-
-    // Execute the script
-    barrier.lock();
-    script.execute(amiga);
-
-    while (!returnCode) {
-        
-        barrier.lock();
-        amiga.retroShell.continueScript();
-    }
-
-    return *returnCode;
+    return returnCode;
 }
-
-#ifdef _WIN32
 
 void
 Headless::parseArguments(int argc, char *argv[])
 {
-    keys["selftest"] = "1";
-    keys["verbose"] = "1";
-    keys["arg1"] = selfTestScript();
-}
-
-#else
-
-void
-Headless::parseArguments(int argc, char *argv[])
-{
-    static struct option long_options[] = {
-        
-        { "selftest",   no_argument,    NULL,   's' },
-        { "verbose",    no_argument,    NULL,   'v' },
-        { "messages",   no_argument,    NULL,   'm' },
-        { NULL,         0,              NULL,    0  }
-    };
-    
-    // Don't print the default error messages
-    opterr = 0;
-    
     // Remember the execution path
-    keys["exec"] = util::makeAbsolutePath(argv[0]);
+    keys["exec"] = std::filesystem::absolute(std::filesystem::path(argv[0])).string();
 
-    // Parse all options
-    while (1) {
-        
-        int arg = getopt_long(argc, argv, ":svm", long_options, NULL);
-        if (arg == -1) break;
+    // Parse command line arguments
+    for (isize i = 1, n = 1; i < argc; i++) {
 
-        switch (arg) {
-                
-            case 's':
-                keys["selftest"] = "1";
-                break;
+        auto arg = string(argv[i]);
 
-            case 'v':
-                keys["verbose"] = "1";
-                break;
+        if (arg[0] == '-') {
 
-            case 'm':
-                keys["messages"] = "1";
-                break;
+            if (arg == "-f" || arg == "--footprint") { keys["footprint"] = "1"; continue; }
+            if (arg == "-s" || arg == "--smoke")     { keys["smoke"] = "1"; continue; }
+            if (arg == "-d" || arg == "--diagnose")  { keys["diagnose"] = "1"; continue; }
+            if (arg == "-v" || arg == "--verbose")   { keys["verbose"] = "1"; continue; }
+            if (arg == "-m" || arg == "--messages")  { keys["messages"] = "1"; continue; }
 
-            case ':':
-                throw SyntaxError("Missing argument for option '" +
-                                  string(argv[optind - 1]) + "'");
-                
-            default:
-                throw SyntaxError("Invalid option '" +
-                                  string(argv[optind - 1]) + "'");
+            throw SyntaxError("Invalid option '" + arg + "'");
         }
-    }
-    
-    // Parse all remaining arguments
-    auto nr = 1;
-    while (optind < argc) {
-        keys["arg" + std::to_string(nr++)] = util::makeAbsolutePath(argv[optind++]);
+
+        auto path = std::filesystem::path(arg);
+        keys["arg" + std::to_string(n++)] = std::filesystem::absolute(path).string();
     }
 
     // Check for syntax errors
     checkArguments();
-
-    // Create the selftest script if needed
-    if (keys.find("selftest") != keys.end()) keys["arg1"] = selfTestScript();
 }
-
-#endif
 
 void
 Headless::checkArguments()
 {
-    if (keys.find("selftest") != keys.end()) {
+    // At most one file must be specified
+    if (keys.find("arg2") != keys.end()) {
+        throw SyntaxError("More than one script file is given");
+    }
 
-        // No input file must be given
-        if (keys.find("arg1") != keys.end()) {
-            throw SyntaxError("No script file must be given in selftest mode");
-        }
-
-    } else {
-
-        // The user needs to specify a single input file
-        if (keys.find("arg1") == keys.end()) {
-            throw SyntaxError("No script file is given");
-        }
-        if (keys.find("arg2") != keys.end()) {
-            throw SyntaxError("More than one script file is given");
-        }
-
-        // The input file must exist
-        if (!util::fileExists(keys["arg1"])) {
-            throw SyntaxError("File " + keys["arg1"] + " does not exist");
-        }
+    // The input file must exist
+    if (keys.find("arg1") != keys.end() && !util::fileExists(keys["arg1"])) {
+        throw SyntaxError("File " + keys["arg1"] + " does not exist");
     }
 }
 
-string
-Headless::selfTestScript()
+void
+Headless::runScript(const char **script)
 {
-    auto path = std::filesystem::temp_directory_path() / "selftest.ini";
-    auto file = std::ofstream(path);
+    auto path = std::filesystem::temp_directory_path() / "script.ini";
+    auto file = std::ofstream(path, std::ios::binary);
 
-    for (isize i = 0; i < isizeof(script) / isizeof(const char *); i++) {
+    for (isize i = 0; script[i] != nullptr; i++) {
         file << script[i] << std::endl;
     }
-    return path.string();
+    runScript(path);
+}
+
+void
+Headless::runScript(const std::filesystem::path &path)
+{
+    // Read the input script
+    Script script(path);
+
+    // Create an emulator instance
+    VAmiga vamiga;
+
+    // Plug in DiagRom
+    vamiga.mem.loadRom(diagROM13, sizeofDiagRom13);
+
+    // Redirect shell output to the console in verbose mode
+    if (keys.find("verbose") != keys.end()) vamiga.retroShell.setStream(std::cout);
+
+    // Launch the emulator thread
+    vamiga.launch(this, vamiga::process);
+
+    // Execute script
+    const auto timeout = util::Time::seconds(500.0);
+    vamiga.retroShell.execScript(script);
+    waitForWakeUp(timeout);
 }
 
 void
@@ -214,7 +164,7 @@ void
 Headless::process(Message msg)
 {
     static bool messages = keys.find("messages") != keys.end();
-    
+
     if (messages) {
         
         std::cout << MsgTypeEnum::key(msg.type);
@@ -224,27 +174,49 @@ Headless::process(Message msg)
 
     switch (msg.type) {
             
-        case MSG_SCRIPT_DONE:
-
-            returnCode = 0;
-            break;
-
-        case MSG_SCRIPT_ABORT:
-        case MSG_ABORT:
+        case MSG_RSH_ERROR:
 
             returnCode = 1;
+            wakeUp();
             break;
 
-        case MSG_SCRIPT_PAUSE:
+        case MSG_ABORT:
 
-            std::this_thread::sleep_for(std::chrono::seconds(msg.script.delay));
+            wakeUp();
             break;
 
         default:
             break;
     }
+}
 
-    barrier.unlock();
+void 
+Headless::reportSize()
+{
+    msg("             Amiga : %zu bytes\n", sizeof(Amiga));
+    msg("             Agnus : %zu bytes\n", sizeof(Agnus));
+    msg("       AudioFilter : %zu bytes\n", sizeof(AudioFilter));
+    msg("               CIA : %zu bytes\n", sizeof(CIA));
+    msg("       ControlPort : %zu bytes\n", sizeof(ControlPort));
+    msg("               CPU : %zu bytes\n", sizeof(CPU));
+    msg("            Denise : %zu bytes\n", sizeof(Denise));
+    msg("             Drive : %zu bytes\n", sizeof(FloppyDrive));
+    msg("          Keyboard : %zu bytes\n", sizeof(Keyboard));
+    msg("            Memory : %zu bytes\n", sizeof(Memory));
+    msg("moira::Breakpoints : %zu bytes\n", sizeof(moira::Breakpoints));
+    msg("moira::Watchpoints : %zu bytes\n", sizeof(moira::Watchpoints));
+    msg("   moira::Debugger : %zu bytes\n", sizeof(moira::Debugger));
+    msg("      moira::Moira : %zu bytes\n", sizeof(moira::Moira));
+    msg("         AudioPort : %zu bytes\n", sizeof(AudioPort));
+    msg("             Paula : %zu bytes\n", sizeof(Paula));
+    msg("       PixelEngine : %zu bytes\n", sizeof(PixelEngine));
+    msg("     RemoteManager : %zu bytes\n", sizeof(RemoteManager));
+    msg("               RTC : %zu bytes\n", sizeof(RTC));
+    msg("        RetroShell : %zu bytes\n", sizeof(RetroShell));
+    msg("           Sampler : %zu bytes\n", sizeof(Sampler));
+    msg("        SerialPort : %zu bytes\n", sizeof(SerialPort));
+    msg("             Zorro : %zu bytes\n", sizeof(ZorroManager));
+    msg("\n");
 }
 
 }

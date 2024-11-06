@@ -10,15 +10,15 @@
 #pragma once
 
 #include "MemoryTypes.h"
-#include "SubComponent.h"
+#include "MemoryDebugger.h"
 #include "RomFileTypes.h"
 #include "MemUtils.h"
 #include "Buffer.h"
 
+namespace vamiga {
+
 using util::Allocator;
 using util::Buffer;
-
-namespace vamiga {
 
 #define SLOW_RAM_STRT 0xC00000
 #define FAST_RAM_STRT ramExpansion.getBaseAddr()
@@ -102,15 +102,37 @@ assert((x) >= 0xE80000 && (x) <= 0xE8FFFF);
 #define WRITE_EXT_16(x,y)   W16BE(ext + ((x) & extMask), (y))
 
 
-class Memory : public SubComponent {
+class Memory final : public SubComponent, public Inspectable<MemInfo, MemStats> {
+
+    Descriptions descriptions = {{
+
+        .type           = MemoryClass,
+        .name           = "Memory",
+        .description    = "Memory",
+        .shell          = "mem"
+    }};
+
+    ConfigOptions options = {
+
+        OPT_MEM_CHIP_RAM,
+        OPT_MEM_SLOW_RAM,
+        OPT_MEM_FAST_RAM,
+        OPT_MEM_EXT_START,
+        OPT_MEM_SAVE_ROMS,
+        OPT_MEM_SLOW_RAM_DELAY,
+        OPT_MEM_SLOW_RAM_MIRROR,
+        OPT_MEM_BANKMAP,
+        OPT_MEM_UNMAPPING_TYPE,
+        OPT_MEM_RAM_INIT_PATTERN
+    };
 
     // Current configuration
-    MemoryConfig config = {};
-
-    // Current workload
-    MemoryStats stats = {};
+    MemConfig config = {};
 
 public:
+
+    // Subcomponents
+    MemoryDebugger debugger = MemoryDebugger(amiga);
 
     /* About
      *
@@ -146,7 +168,7 @@ public:
      * Each memory type is represented by three variables:
      *
      *    A pointer to the allocates memory.
-     *    A variable storing the memory size in bytes (in MemoryConfig).
+     *    A variable storing the memory size in bytes (in MemConfig).
      *    A bit mask to emulate address mirroring.
      *
      * The following invariants hold:
@@ -193,37 +215,51 @@ public:
     u16 dataBus;
 
     // Static buffer for returning textual representations
+    // TODO: Replace by "static string str" and make it local
     char str[256];
     
 
     //
-    // Initializing
+    // Methods
     //
-    
+
 public:
     
-    using SubComponent::SubComponent;
+    Memory(Amiga& ref);
+
+    Memory& operator= (const Memory& other) {
+
+        CLONE(romAllocator)
+        CLONE(womAllocator)
+        CLONE(extAllocator)
+        CLONE(chipAllocator)
+        CLONE(slowAllocator)
+        CLONE(fastAllocator)
+
+        CLONE(womIsLocked)
+        CLONE_ARRAY(cpuMemSrc)
+        CLONE_ARRAY(agnusMemSrc)
+        CLONE(dataBus)
+
+        CLONE(romMask)
+        CLONE(womMask)
+        CLONE(extMask)
+        CLONE(chipMask)
+
+        CLONE(config)
+        
+        return *this;
+    }
 
 
     //
-    // Methods from CoreObject
+    // Methods from Serializable
     //
-    
-private:
-    
-    const char *getDescription() const override { return "Memory"; }
-    void _dump(Category category, std::ostream& os) const override;
-    
-    
-    //
-    // Methods from CoreComponent
-    //
-    
-private:
-    
+
+public:
+
     void _initialize() override;
-    void _reset(bool hard) override;
-    
+
     template <class T>
     void serialize(T& worker)
     {
@@ -234,48 +270,65 @@ private:
         << agnusMemSrc
         << dataBus;
 
-        if (util::isResetter(worker)) return;
+        if (isResetter(worker)) return;
 
         worker
 
+        << romMask
+        << womMask
+        << extMask
+        << chipMask
+
+        << config.extStart
         << config.slowRamDelay
+        << config.slowRamMirror
         << config.bankMap
         << config.ramInitPattern
-        << config.unmappingType
-        << config.extStart;
+        << config.unmappingType;
     }
 
-    isize _size() override;
-    u64 _checksum() override;
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
-    isize didLoadFromBuffer(const u8 *buffer) override;
-    isize didSaveToBuffer(u8 *buffer) override;
+    void operator << (SerResetter &worker) override;
+    void operator << (SerChecker &worker) override;
+    void operator << (SerCounter &worker) override;
+    void operator << (SerReader &worker) override;
+    void operator << (SerWriter &worker) override;
+    void _didReset(bool hard) override;
+    
 
-    
     //
-    // Configuring
+    // Methods from CoreComponent
     //
-    
+
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+private:
+
+    void _dump(Category category, std::ostream& os) const override;
+
+
+    //
+    // Methods from Inspectable
+    //
+
+public:
+
+    void cacheInfo(MemInfo &result) const override;
+    void cacheStats(MemStats &result) const override;
+
+
+    //
+    // Methods from Configurable
+    //
+
 public:
     
-    const MemoryConfig &getConfig() const { return config; }
-    void resetConfig() override;
-    
-    i64 getConfigItem(Option option) const;
-    void setConfigItem(Option option, i64 value);
-
-    
-    //
-    // Analyzing
-    //
-    
-public:
-    
-    const MemoryStats &getStats() { return stats; }
-    
-    void clearStats() { stats = { }; }
-    void updateStats();
+    const MemConfig &getConfig() const { return config; }
+    const ConfigOptions &getOptions() const override { return options; }
+    i64 getOption(Option option) const override;
+    void checkOption(Option opt, i64 value) override;
+    void setOption(Option option, i64 value) override;
 
     
     //
@@ -343,25 +396,20 @@ private:
 
 public:
 
+    // Queries ROM information
+    static RomTraits &getRomTraits(u32 crc);
+    RomTraits &getRomTraits() const;
+    RomTraits &getWomTraits() const;
+    RomTraits &getExtTraits() const;
+
     // Computes a CRC-32 checksum
     u32 romFingerprint() const;
     u32 extFingerprint() const;
-
-    const char *romTitle();
-    const char *romVersion();
-    const char *romReleased();
-    const char *romModel();
-
-    const char *extTitle();
-    const char *extVersion();
-    const char *extReleased();
-    const char *extModel();
 
     // Checks if a certain Rom is present
     bool hasRom() const { return rom != nullptr; }
     bool hasBootRom() const { return hasRom() && config.romSize <= KB(16); }
     bool hasKickRom() const { return hasRom() && config.romSize >= KB(256); }
-    bool hasArosRom() const;
     bool hasWom() const { return wom != nullptr; }
     bool hasExt() const { return ext != nullptr; }
 
@@ -371,19 +419,19 @@ public:
     void eraseExt() { std::memset(ext, 0, config.extSize); }
     
     // Installs a Boot Rom or Kickstart Rom
-    void loadRom(class RomFile &rom) throws;
-    void loadRom(const string &path) throws;
+    void loadRom(class MediaFile &file) throws;
+    void loadRom(const std::filesystem::path &path) throws;
     void loadRom(const u8 *buf, isize len) throws;
     
     // Installs a Kickstart expansion Rom
-    void loadExt(class ExtendedRomFile &rom) throws;
-    void loadExt(const string &path) throws;
+    void loadExt(class MediaFile &file) throws;
+    void loadExt(const std::filesystem::path &path) throws;
     void loadExt(const u8 *buf, isize len) throws;
 
     // Saves a Rom to disk
-    void saveRom(const string &path) throws;
-    void saveWom(const string &path) throws;
-    void saveExt(const string &path) throws;
+    void saveRom(const std::filesystem::path &path) throws;
+    void saveWom(const std::filesystem::path &path) throws;
+    void saveExt(const std::filesystem::path &path) throws;
 
     // Fixes two bugs in Kickstart 1.2 expansion.library
     void patchExpansionLib();
@@ -414,10 +462,14 @@ public:
 
 private:
 
+    // Called inside updateMemSrcTables()
     void updateCpuMemSrcTable();
     void updateAgnusMemSrcTable();
 
-    
+    // Checks whether Agnus is able to access Slow Ram
+    bool slowRamIsMirroredIn() const;
+
+
     //
     // Accessing memory
     //
@@ -490,7 +542,15 @@ public:
     void patch(u32 addr, u32 value);
     void patch(u32 addr, u8 *buf, isize len);
 
-    
+
+    //
+    // Perfoming periodic tasks
+    //
+
+    // Finishes up the current frame
+    void eofHandler();
+
+
     //
     // Debugging
     //

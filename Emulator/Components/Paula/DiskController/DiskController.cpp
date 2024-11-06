@@ -22,93 +22,68 @@
 namespace vamiga {
 
 void
-DiskController::_reset(bool hard)
+DiskController::operator << (SerResetter &worker)
 {
-    RESET_SNAPSHOT_ITEMS(hard)
-    
+    serialize(worker);
+
     prb = 0xFF;
     selected = -1;
     dsksync = 0x4489;
 }
 
-void
-DiskController::resetConfig()
-{
-    assert(isPoweredOff());
-    auto &defaults = amiga.defaults;
-
-    std::vector <Option> options = {
-        
-        OPT_DRIVE_SPEED,
-        OPT_AUTO_DSKSYNC,
-        OPT_LOCK_DSKSYNC
-    };
-
-    for (auto &option : options) {
-        setConfigItem(option, defaults.get(option));
-    }
-    
-    std::vector <Option> moreOptions = {
-        
-        OPT_DRIVE_CONNECT
-    };
-
-    for (auto &option : moreOptions) {
-        for (isize i = 0; i < 4; i++) {
-            setConfigItem(option, i, defaults.get(option, i));
-        }
-    }
-}
-
 i64
-DiskController::getConfigItem(Option option) const
+DiskController::getOption(Option option) const
 {
     switch (option) {
             
-        case OPT_DRIVE_SPEED:   return config.speed;
-        case OPT_AUTO_DSKSYNC:  return config.autoDskSync;
-        case OPT_LOCK_DSKSYNC:  return config.lockDskSync;
-            
-        default:
-            fatalError;
-    }
-}
+        case OPT_DC_SPEED:          return config.speed;
+        case OPT_DC_AUTO_DSKSYNC:   return config.autoDskSync;
+        case OPT_DC_LOCK_DSKSYNC:   return config.lockDskSync;
 
-i64
-DiskController::getConfigItem(Option option, long id) const
-{
-    switch (option) {
-            
-        case OPT_DRIVE_CONNECT:  return config.connected[id];
-            
         default:
             fatalError;
     }
 }
 
 void
-DiskController::setConfigItem(Option option, i64 value)
+DiskController::checkOption(Option opt, i64 value)
 {
-    switch (option) {
-            
-        case OPT_DRIVE_SPEED:
-        {
+    switch (opt) {
+
+        case OPT_DC_SPEED:
+
             if (!isValidDriveSpeed((isize)value)) {
-                throw VAError(ERROR_OPT_INVARG, "-1, 1, 2, 4, 8");
+                throw Error(VAERROR_OPT_INV_ARG, "-1, 1, 2, 4, 8");
             }
+            return;
+
+        case OPT_DC_AUTO_DSKSYNC:
+        case OPT_DC_LOCK_DSKSYNC:
+
+            return;
+
+        default:
+            throw(VAERROR_OPT_UNSUPPORTED);
+    }
+}
+
+void
+DiskController::setOption(Option option, i64 value)
+{
+    switch (option) {
             
-            SUSPENDED
+        case OPT_DC_SPEED:
+
             config.speed = (i32)value;
             scheduleFirstDiskEvent();
             return;
-        }
 
-        case OPT_AUTO_DSKSYNC:
+        case OPT_DC_AUTO_DSKSYNC:
             
             config.autoDskSync = value;
             return;
             
-        case OPT_LOCK_DSKSYNC:
+        case OPT_DC_LOCK_DSKSYNC:
             
             config.lockDskSync = value;
             return;
@@ -118,32 +93,8 @@ DiskController::setConfigItem(Option option, i64 value)
     }
 }
 
-void
-DiskController::setConfigItem(Option option, long id, i64 value)
-{
-    switch (option)
-    {
-        case OPT_DRIVE_CONNECT:
-            
-            assert(id >= 0 && id <= 3);
-            
-            // We don't allow the internal drive (Df0) to be disconnected
-            if (id == 0 && value == false) return;
-            
-            // Connect or disconnect the drive
-            config.connected[id] = value;
-            
-            // Inform the GUI
-            msgQueue.put(MSG_DRIVE_CONNECT, DriveMsg { i16(id), i16(value), 0, 0 } );
-            return;
-            
-        default:
-            fatalError;
-    }
-}
-
-void
-DiskController::_inspect() const
+void 
+DiskController::cacheInfo(DiskControllerInfo &result) const
 {
     {   SYNCHRONIZED
 
@@ -168,20 +119,7 @@ DiskController::_dump(Category category, std::ostream& os) const
     
     if (category == Category::Config) {
         
-        os << tab("Drive df0");
-        os << bol(config.connected[0], "connected", "disconnected") << std::endl;
-        os << tab("Drive df1");
-        os << bol(config.connected[1], "connected", "disconnected") << std::endl;
-        os << tab("Drive df2");
-        os << bol(config.connected[2], "connected", "disconnected") << std::endl;
-        os << tab("Drive df3");
-        os << bol(config.connected[3], "connected", "disconnected") << std::endl;
-        os << tab("Drive speed");
-        os << dec(config.speed) << std::endl;
-        os << tab("lockDskSync");
-        os << bol(config.lockDskSync) << std::endl;
-        os << tab("autoDskSync");
-        os << bol(config.autoDskSync) << std::endl;
+        dumpConfig(os);
     }
 
     if (category == Category::State) {
@@ -351,7 +289,7 @@ DiskController::readByte()
 void
 DiskController::readBit(bool bit)
 {
-    dataReg = (u16)((u32)dataReg << 1 | bit);
+    dataReg = (u16)((u32)dataReg << 1 | (u32)bit);
 
     // Fill the FIFO if we've received an entire byte
     if (++dataRegCount == 8) {
@@ -599,7 +537,7 @@ DiskController::performTurboRead(FloppyDrive *drive)
     }
     
     debug(DSK_CHECKSUM, "Turbo read %s: cyl: %ld side: %ld offset: %ld ",
-          drive->getDescription(),
+          drive->objectName(),
           drive->head.cylinder,
           drive->head.head,
           drive->head.offset);
@@ -631,7 +569,7 @@ DiskController::performTurboWrite(FloppyDrive *drive)
     
     debug(DSK_CHECKSUM,
           "Turbo write %s: checkcnt = %llu check1 = %x check2 = %x\n",
-          drive->getDescription(), checkcnt, check1, check2);
+          drive->objectName(), checkcnt, check1, check2);
 }
 
 }

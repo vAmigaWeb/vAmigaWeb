@@ -9,11 +9,11 @@
 
 #pragma once
 
-#include "Types.h"
+#include "BasicTypes.h"
 #include "Checksum.h"
 #include <bit>
 
-namespace util {
+namespace vamiga::util {
 
 // Reverses the byte ordering in an integer value
 #ifdef _MSC_VER

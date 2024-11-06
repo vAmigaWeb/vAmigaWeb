@@ -13,7 +13,7 @@
 #include <thread>
 #include <future>
 
-namespace util {
+namespace vamiga::util {
 
 class Mutex
 {
@@ -45,20 +45,6 @@ public:
 
     AutoMutex(ReentrantMutex &ref) : mutex(ref) { mutex.lock(); }
     ~AutoMutex() { mutex.unlock(); }
-};
-
-class Wakeable
-{
-    static constexpr auto timeout = std::chrono::milliseconds(100);
-
-    std::mutex condMutex;
-    std::condition_variable condVar;
-    bool ready = false;
-
-public:
-
-    void waitForWakeUp(Time timeout);
-    void wakeUp();
 };
 
 }

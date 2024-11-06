@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 
 //
@@ -75,15 +75,13 @@ enum_long(IO_CMD)
 typedef IO_CMD IoCommand;
 
 #ifdef __cplusplus
-struct IoCommandEnum : util::Reflection<IoCommandEnum, IoCommand>
+struct IoCommandEnum : vamiga::util::Reflection<IoCommandEnum, IoCommand>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = CMD_TD_LASTCOMM;
-    
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-    
+
     static const char *prefix() { return "CMD"; }
-    static const char *key(IoCommand value)
+    static const char *_key(long value)
     {
         switch (value) {
 
@@ -128,15 +126,13 @@ enum_long(HDC_STATE)
 typedef HDC_STATE HdcState;
 
 #ifdef __cplusplus
-struct HdcStateEnum : util::Reflection<HdcStateEnum, HdcState>
+struct HdcStateEnum : vamiga::util::Reflection<HdcStateEnum, HdcState>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = HDC_READY;
-    
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-    
+        
     static const char *prefix() { return "HDC"; }
-    static const char *key(IoCommand value)
+    static const char *_key(long value)
     {
         switch (value) {
 
@@ -159,6 +155,14 @@ typedef struct
     bool connected;
 }
 HdcConfig;
+
+typedef struct
+{
+    isize nr;
+    bool pluggedIn;
+    HdcState state;
+}
+HdcInfo;
 
 typedef struct
 {

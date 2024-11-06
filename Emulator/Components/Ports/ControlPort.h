@@ -10,30 +10,40 @@
 #pragma once
 
 #include "ControlPortTypes.h"
+#include "CmdQueueTypes.h"
 #include "SubComponent.h"
 #include "Joystick.h"
 #include "Mouse.h"
 
 namespace vamiga {
 
-class ControlPort : public SubComponent {
+class ControlPort final : public SubComponent, public Inspectable<ControlPortInfo> {
 
-public:
+    Descriptions descriptions = {
+        {
+            .type           = ControlPortClass,
+            .name           = "ControlPort1",
+            .description    = "Control Port 1",
+            .shell          = "port1"
+        },
+        {
+            .type           = ControlPortClass,
+            .name           = "ControlPort2",
+            .description    = "Control Port 2",
+            .shell          = "port2"
+        }
+    };
 
-    static constexpr isize PORT1 = 1;
-    static constexpr isize PORT2 = 2;
+
+    ConfigOptions options = {
+
+    };
 
 private:
-    
-    // The represented control port
-    isize nr;
 
-    // The result of the latest inspection
-    mutable ControlPortInfo info = {};
-    
     // The connected device
     ControlPortDevice device = CPD_NONE;
-    
+
     // The two mouse position counters
     i64 mouseCounterX = 0;
     i64 mouseCounterY = 0;
@@ -41,18 +51,18 @@ private:
     // The position of the connected mouse
     i64 mouseX = 0;
     i64 mouseY = 0;
-    
+
     // Resistances on the potentiometer lines (specified as a delta charge)
     double chargeDX;
     double chargeDY;
-    
-    
+
+
     //
-    // Sub components
+    // Subcomponents
     //
 
 public:
-    
+
     Mouse mouse = Mouse(amiga, *this);
     Joystick joystick = Joystick(amiga, *this);
 
@@ -60,30 +70,42 @@ public:
     //
     // Initializing
     //
-    
+
 public:
-    
+
     ControlPort(Amiga& ref, isize nr);
 
-    
+    ControlPort& operator= (const ControlPort& other) {
+
+        CLONE(mouse)
+        CLONE(joystick)
+
+        CLONE(device)
+        CLONE(mouseCounterX)
+        CLONE(mouseCounterY)
+        CLONE(mouseX)
+        CLONE(mouseY)
+        CLONE(chargeDX)
+        CLONE(chargeDY)
+
+        return *this;
+    }
+
+
     //
     // Methods from CoreObject
     //
-    
+
 private:
-    
-    const char *getDescription() const override;
+
     void _dump(Category category, std::ostream& os) const override;
-    
-    
+
+
     //
     // Methods from CoreComponent
     //
-    
+
 private:
-    
-    void _reset(bool hard) override { RESET_SNAPSHOT_ITEMS(hard) }
-    void _inspect() const override;
 
     template <class T>
     void serialize(T& worker)
@@ -94,26 +116,35 @@ private:
         << mouseCounterY
         << chargeDX
         << chargeDY;
-    }
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
+    } SERIALIZERS(serialize);
 
-    
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+
     //
-    // Analyzing
+    // Methods from Configurable
     //
 
 public:
-    
-    ControlPortInfo getInfo() const { return CoreComponent::getInfo(info); }
 
-    bool isPort1() const { return nr == PORT1; }
-    bool isPort2() const { return nr == PORT2; }
+    const ConfigOptions &getOptions() const override { return options; }
 
-    
+
+    //
+    // Methods from Inspectable
+    //
+
+public:
+
+    void cacheInfo(ControlPortInfo &result) const override;
+
+    bool isPort1() const { return objid == 0; }
+    bool isPort2() const { return objid == 1; }
+
+
     //
     // Accessing
     //
@@ -122,14 +153,14 @@ public:
 
     // Changes the connected device type
     void setDevice(ControlPortDevice value) { device = value; }
-    
+
     // Getter for the delta charges
     i16 getChargeDX() const { return (i16)chargeDX; }
     i16 getChargeDY() const { return (i16)chargeDY; }
 
     // Called by the mouse when it's position has changed
     void updateMouseXY(i64 x, i64 y);
-    
+
     // Returns the control port bits showing up in the JOYxDAT register
     u16 joydat() const;
 
@@ -141,6 +172,16 @@ public:
 
     // Modifies the PRA bits of CIA A according to the connected device
     void changePra(u8 &pra) const;
+
+
+    //
+    // Processing commands and events
+    //
+
+public:
+
+    // Processes a datasette command
+    void processCommand(const struct Cmd &cmd);
 };
 
 }

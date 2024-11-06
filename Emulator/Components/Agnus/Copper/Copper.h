@@ -19,8 +19,20 @@
 
 namespace vamiga {
 
-class Copper : public SubComponent
+class Copper final : public SubComponent, public Inspectable<CopperInfo>
 {
+    Descriptions descriptions = {{
+
+        .type           = CopperClass,
+        .name           = "Copper",
+        .description    = "Copper",
+        .shell          = "copper"
+    }};
+
+    ConfigOptions options = {
+
+    };
+
     friend class Agnus;
     friend class CopperDebugger;
     
@@ -30,9 +42,6 @@ public:
     CopperDebugger debugger = CopperDebugger(amiga);
 
 private:
-    
-    // Result of the latest inspection
-    mutable CopperInfo info = {};
     
     // The currently executed Copper list (1 or 2)
     isize copList = 1;
@@ -94,26 +103,29 @@ public:
     
     Copper(Amiga& ref);
 
-    
-    //
-    // Methods from CoreObject
-    //
-    
-private:
-    
-    const char *getDescription() const override { return "Copper"; }
-    void _dump(Category category, std::ostream& os) const override;
+    Copper& operator= (const Copper& other) {
 
-    
+        CLONE(copList)
+        CLONE(skip)
+        CLONE(cop1lc)
+        CLONE(cop2lc)
+        CLONE(cdang)
+        CLONE(cop1ins)
+        CLONE(cop2ins)
+        CLONE(coppc)
+        CLONE(coppc0)
+        CLONE(activeInThisFrame)
+
+        return *this;
+    }
+
+
     //
-    // Methods from CoreComponent
+    // Methods from Serializable
     //
     
 private:
-    
-    void _reset(bool hard) override;
-    void _inspect() const override;
-    
+        
     template <class T>
     void serialize(T& worker)
     {
@@ -129,23 +141,35 @@ private:
         << coppc
         << coppc0
         << activeInThisFrame;
-    }
+   
+    } SERIALIZERS(serialize);
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
+public:
 
-    
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+
     //
-    // Analyzing
+    // Methods from CoreComponent
     //
 
 public:
-    
-    // Returns the result of the latest inspection
-    CopperInfo getInfo() const { return CoreComponent::getInfo(info); }
 
+    const ConfigOptions &getOptions() const override { return options; }
+
+private:
+
+    void _dump(Category category, std::ostream& os) const override;
+
+
+    //
+    // Methods from Inspectable
+    //
+
+public:
+
+    void cacheInfo(CopperInfo &result) const override;
+    
 
     //
     // Accessing

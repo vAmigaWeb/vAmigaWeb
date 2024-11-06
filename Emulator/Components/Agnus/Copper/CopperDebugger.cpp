@@ -9,16 +9,26 @@
 
 #include "config.h"
 #include "CopperDebugger.h"
-#include "Amiga.h"
+#include "Emulator.h"
 #include "Copper.h"
 #include "IOUtils.h"
 
 namespace vamiga {
 
+CopperBreakpoints::CopperBreakpoints(Copper& ref) : GuardList(ref.emulator), copper(ref)
+{
+
+}
+
 void
 CopperBreakpoints::setNeedsCheck(bool value)
 {
     copper.checkForBreakpoints = value;
+}
+
+CopperWatchpoints::CopperWatchpoints(Copper& ref) : GuardList(ref.emulator), copper(ref)
+{
+
 }
 
 void
@@ -28,7 +38,7 @@ CopperWatchpoints::setNeedsCheck(bool value)
 }
 
 void
-CopperDebugger::_reset(bool hard)
+CopperDebugger::_didReset(bool hard)
 {
     cache.clear();
     current1 = nullptr;
@@ -40,24 +50,24 @@ CopperDebugger::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
 
-    auto print = [&](const string &name, const moira::Guards &guards) {
+    auto print = [&](const string &name, const GuardList &guards) {
 
         for (int i = 0; i < guards.elements(); i++) {
 
-            auto bp =  guards.guardNr(i);
+            auto bp = *guards.guardNr(i);
             auto nr = name + std::to_string(i);
 
             os << tab(nr);
-            os << hex(bp->addr);
+            os << hex(bp.addr);
 
-            if (!bp->enabled) os << " (Disabled)";
-            else if (bp->ignore) os << " (Disabled for " << dec(bp->ignore) << " hits)";
+            if (!bp.enabled) os << " (Disabled)";
+            else if (bp.ignore) os << " (Disabled for " << dec(bp.ignore) << " hits)";
             os << std::endl;
         }
     };
 
-    if (!amiga.isTracking()) {
-        
+    if (!emulator.isTracking()) {
+
         os << "No recorded data. Debug mode is off." << std::endl;
         return;
     }
@@ -192,7 +202,7 @@ CopperDebugger::disassemble(u32 addr, bool symbolic) const
         if (copper.isMoveCmd(addr)) {
             
             auto source = copper.getDW(addr);
-            auto target = Debugger::regName(copper.getRA(addr));
+            auto target = MemoryDebugger::regName(copper.getRA(addr));
             snprintf(txt, sizeof(txt), "MOVE $%04X, %s", source, target);
             
             return string(txt);
@@ -227,108 +237,6 @@ CopperDebugger::disassemble(u32 addr, bool symbolic) const
         
         return "dc.w " + hex1 + "," + hex2;
     }
-}
-
-void
-CopperDebugger::setBreakpoint(u32 addr, isize ignores)
-{
-    if (breakpoints.isSetAt(addr)) throw VAError(ERROR_BP_ALREADY_SET, addr);
-
-    breakpoints.setAt(addr, ignores);
-    msgQueue.put(MSG_COPPERBP_UPDATED);
-}
-
-void
-CopperDebugger::deleteBreakpoint(isize nr)
-{
-    if (!breakpoints.isSet(nr)) throw VAError(ERROR_BP_NOT_FOUND, nr);
-
-    breakpoints.remove(nr);
-    msgQueue.put(MSG_COPPERBP_UPDATED);
-}
-
-void
-CopperDebugger::enableBreakpoint(isize nr)
-{
-    if (!breakpoints.isSet(nr)) throw VAError(ERROR_BP_NOT_FOUND, nr);
-
-    breakpoints.enable(nr);
-    msgQueue.put(MSG_COPPERBP_UPDATED);
-}
-
-void
-CopperDebugger::disableBreakpoint(isize nr)
-{
-    if (!breakpoints.isSet(nr)) throw VAError(ERROR_BP_NOT_FOUND, nr);
-
-    breakpoints.disable(nr);
-    msgQueue.put(MSG_COPPERBP_UPDATED);
-}
-
-void
-CopperDebugger::toggleBreakpoint(isize nr)
-{
-    breakpoints.isEnabled(nr) ? disableBreakpoint(nr) : enableBreakpoint(nr);
-}
-
-void
-CopperDebugger::ignoreBreakpoint(isize nr, isize count)
-{
-    if (!breakpoints.isSet(nr)) throw VAError(ERROR_BP_NOT_FOUND, nr);
-
-    breakpoints.ignore(nr, count);
-    msgQueue.put(MSG_COPPERBP_UPDATED);
-}
-
-void
-CopperDebugger::setWatchpoint(u32 addr, isize ignores)
-{
-    if (watchpoints.isSetAt(addr)) throw VAError(ERROR_WP_ALREADY_SET, addr);
-
-    watchpoints.setAt(addr, ignores);
-    msgQueue.put(MSG_COPPERWP_UPDATED);
-}
-
-void
-CopperDebugger::deleteWatchpoint(isize nr)
-{
-    if (!watchpoints.isSet(nr)) throw VAError(ERROR_WP_NOT_FOUND, nr);
-
-    watchpoints.remove(nr);
-    msgQueue.put(MSG_COPPERWP_UPDATED);
-}
-
-void
-CopperDebugger::enableWatchpoint(isize nr)
-{
-    if (!watchpoints.isSet(nr)) throw VAError(ERROR_WP_NOT_FOUND, nr);
-
-    watchpoints.enable(nr);
-    msgQueue.put(MSG_COPPERWP_UPDATED);
-}
-
-void
-CopperDebugger::toggleWatchpoint(isize nr)
-{
-    watchpoints.isEnabled(nr) ? disableWatchpoint(nr) : enableWatchpoint(nr);
-}
-
-void
-CopperDebugger::disableWatchpoint(isize nr)
-{
-    if (!watchpoints.isSet(nr)) throw VAError(ERROR_WP_NOT_FOUND, nr);
-
-    watchpoints.disable(nr);
-    msgQueue.put(MSG_COPPERWP_UPDATED);
-}
-
-void
-CopperDebugger::ignoreWatchpoint(isize nr, isize count)
-{
-    if (!watchpoints.isSet(nr)) throw VAError(ERROR_WP_NOT_FOUND, nr);
-
-    watchpoints.ignore(nr, count);
-    msgQueue.put(MSG_COPPERWP_UPDATED);
 }
 
 }

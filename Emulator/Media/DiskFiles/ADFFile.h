@@ -26,8 +26,9 @@ public:
     static constexpr isize ADFSIZE_35_DD_84 = 946176;   //  924 KB (+ 4 cyls)
     static constexpr isize ADFSIZE_35_HD    = 1802240;  // 1760 KB
     
-    static bool isCompatible(const string &path);
-    static bool isCompatible(std::istream &stream);
+    static bool isCompatible(const std::filesystem::path &path);
+    static bool isCompatible(const u8 *buf, isize len);
+    static bool isCompatible(const Buffer<u8> &buffer);
     
 private:
     
@@ -44,10 +45,10 @@ public:
     using AmigaFile::init;
     
     ADFFile() { }
-    ADFFile(const string &path) throws { init(path); }
-    ADFFile(const string &path, std::istream &stream) throws { init(path, stream); }
+    ADFFile(const std::filesystem::path &path) throws { init(path); }
+    // ADFFile(const std::filesystem::path &path, std::istream &stream) throws { init(path, stream); }
     ADFFile(const u8 *buf, isize len) throws { init(buf, len); }
-    ADFFile(FILE *file) throws { init(file); }
+    // ADFFile(FILE *file) throws { init(file); }
     ADFFile(Diameter dia, Density den) throws { init(dia, den); }
     ADFFile(const FloppyDiskDescriptor &descr) throws { init(descr); }
     ADFFile(class FloppyDisk &disk) throws { init(disk); }
@@ -67,7 +68,7 @@ public:
 
 public:
     
-    const char *getDescription() const override { return "ADF"; }
+    const char *objectName() const override { return "ADF"; }
 
     
     //
@@ -76,8 +77,8 @@ public:
     
 public:
     
-    bool isCompatiblePath(const string &path) const override { return isCompatible(path); }
-    bool isCompatibleStream(std::istream &stream) const override { return isCompatible(stream); }
+    bool isCompatiblePath(const std::filesystem::path &path) const override { return isCompatible(path); }
+    bool isCompatibleBuffer(const u8 *buf, isize len) override { return isCompatible(buf, len); }
     FileType type() const override { return FILETYPE_ADF; }
     void finalizeRead() override;
     

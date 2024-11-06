@@ -9,14 +9,14 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 
 //
 // Enumerations
 //
 
-enum_long(RETRO_SHELL_KEY)
+enum_long(RSKEY_KEY)
 {
     RSKEY_UP,
     RSKEY_DOWN,
@@ -31,17 +31,16 @@ enum_long(RETRO_SHELL_KEY)
     RSKEY_RETURN,
     RSKEY_CR
 };
-typedef RETRO_SHELL_KEY RetroShellKey;
+typedef RSKEY_KEY RetroShellKey;
 
 #ifdef __cplusplus
-struct RetroShellKeyEnum : util::Reflection<RetroShellKeyEnum, RetroShellKey>
+struct RetroShellKeyEnum : vamiga::util::Reflection<RetroShellKeyEnum, RetroShellKey>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = RSKEY_CR;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-    
+
     static const char *prefix() { return "RSKEY"; }
-    static const char *key(RetroShellKey value)
+    static const char *_key(long value)
     {
         switch (value) {
                 

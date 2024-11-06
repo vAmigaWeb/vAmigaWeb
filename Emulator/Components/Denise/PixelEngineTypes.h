@@ -10,7 +10,7 @@
 #pragma once
 
 #include "FrameBufferTypes.h"
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 
 //
@@ -29,14 +29,13 @@ enum_long(PALETTE)
 typedef PALETTE Palette;
 
 #ifdef __cplusplus
-struct PaletteEnum : util::Reflection<PaletteEnum, Palette>
+struct PaletteEnum : vamiga::util::Reflection<PaletteEnum, Palette>
 {    
     static constexpr long minVal = 0;
     static constexpr long maxVal = PALETTE_SEPIA;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "PALETTE"; }
-    static const char *key(Palette value)
+    static const char *_key(long value)
     {
         switch (value) {
                 

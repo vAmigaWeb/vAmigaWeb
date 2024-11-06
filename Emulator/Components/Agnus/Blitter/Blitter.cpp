@@ -23,9 +23,7 @@ Blitter::Blitter(Amiga& ref) : SubComponent(ref)
 
 void
 Blitter::_initialize()
-{
-    CoreComponent::_initialize();
-    
+{    
     // Initialize the fill pattern tables
     for (isize carryIn = 0; carryIn < 2; carryIn++) {
 
@@ -53,10 +51,8 @@ Blitter::_initialize()
 }
 
 void
-Blitter::_reset(bool hard)
+Blitter::_didReset(bool hard)
 {
-    RESET_SNAPSHOT_ITEMS(hard)
-
     if (hard) {
         
         blitcount = 1;
@@ -75,24 +71,8 @@ Blitter::_run()
     }
 }
 
-void
-Blitter::resetConfig()
-{
-    assert(isPoweredOff());
-    auto &defaults = amiga.defaults;
-
-    std::vector <Option> options = {
-        
-        OPT_BLITTER_ACCURACY
-    };
-
-    for (auto &option : options) {
-        setConfigItem(option, defaults.get(option));
-    }
-}
-
 i64
-Blitter::getConfigItem(Option option) const
+Blitter::getOption(Option option) const
 {
     switch (option) {
             
@@ -104,20 +84,32 @@ Blitter::getConfigItem(Option option) const
 }
 
 void
-Blitter::setConfigItem(Option option, i64 value)
+Blitter::checkOption(Option opt, i64 value)
+{
+    switch (opt) {
+
+        case OPT_BLITTER_ACCURACY:
+
+            if (value < 0 || value > 2) {
+                throw Error(VAERROR_OPT_INV_ARG, "0, 1, 2");
+            }
+            return;
+
+        default:
+            throw(VAERROR_OPT_UNSUPPORTED);
+    }
+}
+
+void
+Blitter::setOption(Option option, i64 value)
 {
     switch (option) {
             
         case OPT_BLITTER_ACCURACY:
-        {
-            if (value < 0 || value > 2) {
-                throw VAError(ERROR_OPT_INVARG, "0, 1, 2");
-            }
-            
-            SUSPENDED
+
             config.accuracy = (isize)value;
             return;
-        }
+
         default:
             fatalError;
     }

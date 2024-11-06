@@ -720,15 +720,6 @@ Agnus::serviceDASEvent(EventID id)
             ciab.tod.increment();
             break;
 
-            /*
-             case DAS_HSYNC:
-
-             syncEvent = id;
-             // recordRegisterChange(DMA_CYCLES(1), REG_NONE, 0);
-             scheduleRel <SLOT_REG> (DMA_CYCLES(1), REG_CHANGE);
-             break;
-             */
-
         case DAS_EOL:
 
             assert(pos.h == HPOS_MAX_PAL || pos.h == HPOS_MAX_NTSC);
@@ -760,65 +751,26 @@ Agnus::serviceDASEvent(EventID id)
 }
 
 void
-Agnus::serviceINSEvent(EventID id)
-{    
-    switch (id) {
+Agnus::serviceINSEvent()
+{
+    u64 mask = data[SLOT_INS];
 
-        case INS_AMIGA:
-            
-            amiga.inspect();
-            break;
-            
-        case INS_CPU:
-            
-            cpu.inspect();
-            break;
-            
-        case INS_MEM:
-            
-            mem.inspect();
-            break;
-            
-        case INS_CIA:
-            
-            ciaa.inspect();
-            ciab.inspect();
-            break;
-            
-        case INS_AGNUS:
-            
-            inspect();
-            break;
-            
-        case INS_PAULA:
-            
-            paula.inspect();
-            break;
-            
-        case INS_DENISE:
-            
-            denise.inspect();
-            break;
-            
-        case INS_PORTS:
-            
-            serialPort.inspect();
-            paula.uart.inspect();
-            controlPort1.inspect();
-            controlPort2.inspect();
-            break;
-            
-        case INS_EVENTS:
-            
-            agnus.inspect();
-            break;
+    // Analyze bit mask
+    if (mask & 1LL << AgnusClass)           { agnus.record(); }
+    if (mask & 1LL << AmigaClass)           { amiga.record(); }
+    if (mask & 1LL << BlitterClass)         { blitter.record(); }
+    if (mask & 1LL << CopperClass)          { copper.record(); }
+    if (mask & 1LL << CIAClass)             { ciaa.record(); ciab.record(); }
+    if (mask & 1LL << CPUClass)             { cpu.record(); }
+    if (mask & 1LL << DeniseClass)          { denise.record(); }
+    if (mask & 1LL << MemoryClass)          { mem.record(); }
+    if (mask & 1LL << PaulaClass)           { paula.record(); }
+    if (mask & 1LL << UARTClass)            { uart.record(); }
+    if (mask & 1LL << ControlPortClass)     { controlPort1.record(); controlPort2.record(); }
+    if (mask & 1LL << SerialPortClass)      { serialPort.record(); }
 
-        default:
-            fatalError;
-    }
-
-    // Reschedule event
-    rescheduleRel<SLOT_INS>((Cycle)(inspectionInterval * 28000000));
+    // Reschedule the event
+    rescheduleRel<SLOT_INS>((Cycle)(inspectionInterval * 28000007));
 }
 
 }

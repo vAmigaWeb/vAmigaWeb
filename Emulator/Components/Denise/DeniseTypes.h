@@ -9,8 +9,10 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
+#include "PixelEngineTypes.h"
+
 
 //
 // Enumerations
@@ -24,48 +26,18 @@ enum_long(DENISE_REV)
 typedef DENISE_REV DeniseRevision;
 
 #ifdef __cplusplus
-struct DeniseRevisionEnum : util::Reflection<DeniseRevisionEnum, DeniseRevision>
+struct DeniseRevisionEnum : vamiga::util::Reflection<DeniseRevisionEnum, DeniseRevision>
 {    
     static constexpr long minVal = 0;
     static constexpr long maxVal = DENISE_ECS;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "DENISE"; }
-    static const char *key(DeniseRevision value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
             case DENISE_OCS:          return "OCS";
             case DENISE_ECS:          return "ECS";
-        }
-        return "???";
-    }
-};
-#endif
-
-enum_long(RESOLUTION)
-{
-    LORES,      // Lores mode
-    HIRES,      // Hires mode
-    SHRES       // SuperHires mode (ECS only)
-};
-typedef RESOLUTION Resolution;
-
-#ifdef __cplusplus
-struct ResolutionEnum : util::Reflection<ResolutionEnum, ResolutionEnum>
-{
-    static constexpr long minVal = 0;
-    static constexpr long maxVal = SHRES;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-
-    static const char *prefix() { return ""; }
-    static const char *key(Resolution value)
-    {
-        switch (value) {
-
-            case LORES:          return "LORES";
-            case HIRES:          return "HIRES";
-            case SHRES:          return "SHRES";
         }
         return "???";
     }
@@ -124,6 +96,9 @@ typedef struct
     
     // Upper 16 color registers (at the time the observed sprite starts)
     u16 colors[16];
+
+    // Latched sprite data
+    const u64 *data;
 }
 SpriteInfo;
 
@@ -156,5 +131,7 @@ typedef struct
 
     u16 colorReg[32];
     u32 color[32];
+
+    SpriteInfo sprite[8];
 }
 DeniseInfo;

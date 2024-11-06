@@ -21,8 +21,8 @@
 
 namespace vamiga {
 
-CIA::CIA(int n, Amiga& ref) : SubComponent(ref), nr(n)
-{    
+CIA::CIA(Amiga& ref, isize objid) : SubComponent(ref, objid)
+{
     subComponents = std::vector<CoreComponent *> {
 
         &tod
@@ -32,65 +32,53 @@ CIA::CIA(int n, Amiga& ref) : SubComponent(ref), nr(n)
 void
 CIA::_initialize()
 {
-    CoreComponent::_initialize();
-
     pa = 0xFF;
     pb = 0xFF;
 }
 
-void
-CIA::_reset(bool hard)
+void 
+CIA::_willReset(bool hard)
 {
     if (!hard) wakeUp();
+}
 
-    RESET_SNAPSHOT_ITEMS(hard)
-    
+void
+CIA::_didReset(bool hard)
+{
+    // Update the memory layout because the OVL bit may have changed
+    // TODO: Do this in Memory class only
+    mem.updateMemSrcTables();
+}
+
+void
+CIA::operator << (SerResetter &worker)
+{
+    serialize(worker);
+
     cnt = true;
     irq = 1;
-    
+
     counterA = 0xFFFF;
     counterB = 0xFFFF;
     latchA = 0xFFFF;
     latchB = 0xFFFF;
-    
+
     // UAE initializes CRB with 4 (which I think is wrong)
     if (MIMIC_UAE) crb = 0x4;
 
     updatePA();
     updatePB();
-    
-    // Update the memory layout because the OVL bit may have changed
-    mem.updateMemSrcTables();
-}
-
-void
-CIA::resetConfig()
-{
-    assert(isPoweredOff());
-    auto &defaults = amiga.defaults;
-
-    std::vector <Option> options = {
-        
-        OPT_CIA_REVISION,
-        OPT_TODBUG,
-        OPT_ECLOCK_SYNCING,
-        OPT_CIA_IDLE_SLEEP
-    };
-    
-    for (auto &option : options) {
-        setConfigItem(option, defaults.get(option));
-    }
 }
 
 i64
-CIA::getConfigItem(Option option) const
+CIA::getOption(Option option) const
 {
     switch (option) {
             
-        case OPT_CIA_REVISION:   return config.revision;
-        case OPT_TODBUG:         return config.todBug;
-        case OPT_ECLOCK_SYNCING: return config.eClockSyncing;
-        case OPT_CIA_IDLE_SLEEP: return config.idleSleep;
+        case OPT_CIA_REVISION:          return config.revision;
+        case OPT_CIA_TODBUG:            return config.todBug;
+        case OPT_CIA_ECLOCK_SYNCING:    return config.eClockSyncing;
+        case OPT_CIA_IDLE_SLEEP:        return config.idleSleep;
 
         default:
             fatalError;
@@ -98,25 +86,44 @@ CIA::getConfigItem(Option option) const
 }
 
 void
-CIA::setConfigItem(Option option, i64 value)
+CIA::checkOption(Option opt, i64 value)
+{
+    switch (opt) {
+
+        case OPT_CIA_REVISION:
+
+            if (!CIARevisionEnum::isValid(value)) {
+                throw Error(VAERROR_OPT_INV_ARG, CIARevisionEnum::keyList());
+            }
+            return;
+
+        case OPT_CIA_TODBUG:
+        case OPT_CIA_ECLOCK_SYNCING:
+        case OPT_CIA_IDLE_SLEEP:
+
+            return;
+
+        default:
+            throw(VAERROR_OPT_UNSUPPORTED);
+    }
+}
+
+void
+CIA::setOption(Option option, i64 value)
 {
     switch (option) {
             
         case OPT_CIA_REVISION:
-            
-            if (!CIARevisionEnum::isValid(value)) {
-                throw VAError(ERROR_OPT_INVARG, CIARevisionEnum::keyList());
-            }
-            
+
             config.revision = (CIARevision)value;
             return;
 
-        case OPT_TODBUG:
+        case OPT_CIA_TODBUG:
 
             config.todBug = value;
             return;
             
-        case OPT_ECLOCK_SYNCING:
+        case OPT_CIA_ECLOCK_SYNCING:
             
             config.eClockSyncing = value;
             return;
@@ -131,8 +138,8 @@ CIA::setConfigItem(Option option, i64 value)
     }
 }
 
-void
-CIA::_inspect() const
+void 
+CIA::cacheInfo(CIAInfo &info) const
 {
     {   SYNCHRONIZED
         
@@ -165,11 +172,22 @@ CIA::_inspect() const
         info.irq = irq;
         
         info.tod = tod.info;
-        info.todIrqEnable = imr & 0x04;
+        info.todIrqEnable = imr & 0x04;        
+    }
+}
+
+
+void 
+CIA::cacheStats(CIAStats &result) const
+{
+    {   SYNCHRONIZED
+
+        auto idle = idleSince();
+        auto total = idleTotal() + idle;
         
-        info.idleSince = idleSince();
-        info.idleTotal = idleTotal();
-        info.idlePercentage = clock ? (double)idleCycles / (double)clock : 100.0;
+        result.idleSince = idle;
+        result.idleTotal = total;
+        result.idlePercentage =  clock ? double(total) / double(clock + idle) : 100.0;
     }
 }
 
@@ -180,14 +198,7 @@ CIA::_dump(Category category, std::ostream& os) const
     
     if (category == Category::Config) {
         
-        os << tab("Revision");
-        os << CIARevisionEnum::key(config.revision) << std::endl;
-        os << tab("Emulate TOD bug");
-        os << bol(config.todBug) << std::endl;
-        os << tab("Sync with E-clock");
-        os << bol(config.eClockSyncing) << std::endl;
-        os << tab("Sleep when idle");
-        os << bol(config.idleSleep) << std::endl;
+        dumpConfig(os);
     }
 
     if (category == Category::Registers) {
@@ -282,7 +293,6 @@ CIA::emulateRisingEdgeOnCntPin()
             
             // Trigger interrupt
             delay |= CIASerInt0;
-            // debug(KBD_DEBUG, "Received serial byte: %02x\n", sdr);
         }
     }
 }
@@ -679,7 +689,7 @@ CIA::executeOneCycle()
     // Write back local copy
     this->delay = delay;
 
-    // Sleep if threshold is reached
+    // Sleep when threshold is reached
     if (tiredness > 8 && config.idleSleep) {
         sleep();
         scheduleWakeUp();
@@ -703,10 +713,17 @@ CIA::sleep()
     if (!(feed & CIACountA0)) sleepA = INT64_MAX;
     if (!(feed & CIACountB0)) sleepB = INT64_MAX;
     
-    // ZZzzz
-    sleepCycle = clock;
-    wakeUpCycle = std::min(sleepA, sleepB);;
-    sleeping = true;
+    // Determine the wakeup cycle
+    auto wakeupAt = std::min(sleepA, sleepB);
+
+    if (wakeupAt > clock) {
+
+        // ZZzzz
+        sleepCycle = clock;
+        wakeUpCycle = std::min(sleepA, sleepB);
+        sleeping = true;
+    }
+
     tiredness = 0;
 }
 
@@ -733,10 +750,12 @@ CIA::wakeUp(Cycle targetCycle)
     if (missedCycles > 0) {
         
         if (feed & CIACountA0) {
+
             assert(counterA >= AS_CIA_CYCLES(missedCycles));
             counterA -= (u16)AS_CIA_CYCLES(missedCycles);
         }
         if (feed & CIACountB0) {
+
             assert(counterB >= AS_CIA_CYCLES(missedCycles));
             counterB -= (u16)AS_CIA_CYCLES(missedCycles);
         }

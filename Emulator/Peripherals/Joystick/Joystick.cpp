@@ -14,54 +14,31 @@
 
 namespace vamiga {
 
-Joystick::Joystick(Amiga& ref, ControlPort& pref) : SubComponent(ref), port(pref)
+Joystick::Joystick(Amiga& ref, ControlPort& pref) : SubComponent(ref, pref.objid), port(pref)
 {
 
 };
 
-const char *
-Joystick::getDescription() const
-{
-    return port.isPort1() ? "Joystick1" : "Joystick2";
-}
-
 void
-Joystick::_reset(bool hard)
+Joystick::cacheInfo(JoystickInfo &result) const
 {
-    RESET_SNAPSHOT_ITEMS(hard)
-    
-    // Discard any active joystick movements
-    button = false;
-    axisX = 0;
-    axisY = 0;
-}
+    {   SYNCHRONIZED
 
-void
-Joystick::resetConfig()
-{
-    assert(isPoweredOff());
-    auto &defaults = amiga.defaults;
-
-    std::vector <Option> options = {
-        
-        OPT_AUTOFIRE,
-        OPT_AUTOFIRE_BULLETS,
-        OPT_AUTOFIRE_DELAY
-    };
-
-    for (auto &option : options) {
-        setConfigItem(option, defaults.get(option));
+        result.button = button;
+        result.axisX = axisX;
+        result.axisY = axisY;
     }
 }
 
 i64
-Joystick::getConfigItem(Option option) const
+Joystick::getOption(Option option) const
 {
     switch (option) {
-            
-        case OPT_AUTOFIRE:            return (i64)config.autofire;
-        case OPT_AUTOFIRE_BULLETS:    return (i64)config.autofireBullets;
-        case OPT_AUTOFIRE_DELAY:      return (i64)config.autofireDelay;
+
+        case OPT_JOY_AUTOFIRE:            return (i64)config.autofire;
+        case OPT_JOY_AUTOFIRE_BURSTS:     return (i64)config.autofireBursts;
+        case OPT_JOY_AUTOFIRE_BULLETS:    return (i64)config.autofireBullets;
+        case OPT_JOY_AUTOFIRE_DELAY:      return (i64)config.autofireDelay;
 
         default:
             fatalError;
@@ -69,30 +46,44 @@ Joystick::getConfigItem(Option option) const
 }
 
 void
-Joystick::setConfigItem(Option option, i64 value)
+Joystick::checkOption(Option opt, i64 value)
+{
+    switch (opt) {
+
+        case OPT_JOY_AUTOFIRE:
+        case OPT_JOY_AUTOFIRE_BURSTS:
+        case OPT_JOY_AUTOFIRE_BULLETS:
+        case OPT_JOY_AUTOFIRE_DELAY:
+
+            return;
+
+        default:
+            throw(VAERROR_OPT_UNSUPPORTED);
+    }
+}
+
+void
+Joystick::setOption(Option option, i64 value)
 {
     switch (option) {
-            
-        case OPT_AUTOFIRE:
-            
+
+        case OPT_JOY_AUTOFIRE:
+
             config.autofire = bool(value);
-
-            // Release button immediately if autofire-mode is switches off
-            if (value == false) button = false;
-
             return;
 
-        case OPT_AUTOFIRE_BULLETS:
-            
+        case OPT_JOY_AUTOFIRE_BURSTS:
+
+            config.autofireBursts = bool(value);
+            return;
+
+        case OPT_JOY_AUTOFIRE_BULLETS:
+
             config.autofireBullets = isize(value);
-            
-            // Update the bullet counter if we're currently firing
-            if (bulletCounter > 0) reload();
-
             return;
 
-        case OPT_AUTOFIRE_DELAY:
-            
+        case OPT_JOY_AUTOFIRE_DELAY:
+
             config.autofireDelay = isize(value);
             return;
 
@@ -105,9 +96,14 @@ void
 Joystick::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
-    
+
+    if (category == Category::Config) {
+
+        dumpConfig(os);
+    }
+
     if (category == Category::State) {
-        
+
         os << tab("Button 1 pressed") << bol(button) << std::endl;
         os << tab("Button 2 pressed") << bol(button2) << std::endl;
         os << tab("Button 3 pressed") << bol(button3) << std::endl;
@@ -116,27 +112,60 @@ Joystick::_dump(Category category, std::ostream& os) const
     }
 }
 
-isize
-Joystick::didLoadFromBuffer(const u8 *buffer)
+void
+Joystick::_didLoad()
 {
     // Discard any active joystick movements
     button = false;
     axisX = 0;
     axisY = 0;
-
-    return 0;
 }
 
 void
-Joystick::reload()
+Joystick::setButton(bool value)
 {
-    bulletCounter = (config.autofireBullets < 0) ? INT64_MAX : config.autofireBullets;
+    trace(PRT_DEBUG, "Button = %d\n", value);
+    button = value;
+}
+
+bool
+Joystick::isAutofiring()
+{
+    return bulletCounter > 0;
 }
 
 void
-Joystick::scheduleNextShot()
+Joystick::startAutofire()
 {
-    nextAutofireFrame = agnus.pos.frame + config.autofireDelay;
+    trace(PRT_DEBUG, "startAutofire()\n");
+
+    // Load magazine
+    reload(config.autofireBursts ? config.autofireBullets : INT_MAX);
+
+    // Fire the first shot
+    setButton(true);
+
+    // Schedule the release event
+    nextAutofireReleaseFrame = agnus.pos.frame + config.autofireDelay;
+}
+
+void
+Joystick::stopAutofire()
+{
+    trace(PRT_DEBUG, "stopAutofire()\n");
+
+    // Release button and empty the bullet counter
+    setButton(false);
+    bulletCounter = 0;
+
+    // Clear all events
+    nextAutofireFrame = nextAutofireReleaseFrame = 0;
+}
+
+void
+Joystick::reload(isize bullets)
+{
+    bulletCounter = bullets;
 }
 
 void
@@ -170,7 +199,7 @@ u16
 Joystick::joydat() const
 {
     // debug("joydat\n");
-    
+
     u16 result = 0;
 
     /* 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00
@@ -205,7 +234,7 @@ Joystick::trigger(GamePadAction event)
     debug(PRT_DEBUG, "trigger(%s)\n", GamePadActionEnum::key(event));
 
     switch (event) {
-            
+
         case PULL_UP:       axisY = -1; break;
         case PULL_DOWN:     axisY =  1; break;
         case PULL_LEFT:     axisX = -1; break;
@@ -218,32 +247,43 @@ Joystick::trigger(GamePadAction event)
         case RELEASE_FIRE2: button2 = false; break;
         case RELEASE_FIRE3: button3 = false; break;
 
-
         case PRESS_FIRE:
+
+            // If autofire is enabled...
             if (config.autofire) {
-                if (bulletCounter) {
-                    
-                    // Cease fire
-                    bulletCounter = 0;
-                    button = false;
-                    
+
+                // ...check if we are currently firing.
+                if (isAutofiring()) {
+
+                    // If yes, the required action depends on the autofire mode.
+                    if (config.autofireBursts) {
+
+                        // In burst mode, reload the magazine.
+                        reload(config.autofireBullets);
+
+                    } else {
+
+                        // Otherwise, stop firing.
+                        stopAutofire();
+                    }
+
                 } else {
 
-                    // Load magazine
-                    button = true;
-                    reload();
-                    scheduleNextShot();
+                    // We are currently not firing. Initiate the first shot.
+                    startAutofire();
                 }
-                
+
             } else {
-                button = true;
+
+                setButton(true);
             }
             break;
 
         case RELEASE_FIRE:
-            if (!config.autofire) button = false;
+
+            if (!config.autofire) setButton(false);
             break;
-            
+
         default:
             break;
     }
@@ -253,22 +293,24 @@ Joystick::trigger(GamePadAction event)
 void
 Joystick::eofHandler()
 {
-    // Only proceed if auto fire is enabled
-    if (!config.autofire || config.autofireDelay < 0) return;
+    if (isAutofiring()) {
 
-    // Only proceed if a trigger frame has been reached
-    if (agnus.pos.frame != nextAutofireFrame) return;
+        if (agnus.pos.frame == nextAutofireFrame) {
 
-    // Only proceed if there are bullets left
-    if (bulletCounter == 0) return;
-    
-    if (button) {
-        button = false;
-        bulletCounter--;
-    } else {
-        button = true;
+            setButton(true);
+            nextAutofireReleaseFrame = nextAutofireFrame + config.autofireDelay;
+        }
+
+        if (agnus.pos.frame == nextAutofireReleaseFrame) {
+
+            setButton(false);
+            if (--bulletCounter > 0) {
+                nextAutofireFrame = nextAutofireReleaseFrame + config.autofireDelay;
+            } else {
+                stopAutofire();
+            }
+        }
     }
-    scheduleNextShot();
 }
 
 }

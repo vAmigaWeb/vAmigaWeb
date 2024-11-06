@@ -9,7 +9,7 @@
 
 #include "config.h"
 #include "Copper.h"
-#include "Amiga.h"
+#include "Emulator.h"
 #include "CopperDebugger.h"
 #include "Checksum.h"
 #include "IOUtils.h"
@@ -26,18 +26,12 @@ Copper::Copper(Amiga& ref) : SubComponent(ref)
 }
 
 void
-Copper::_reset(bool hard)
-{
-    RESET_SNAPSHOT_ITEMS(hard)
-}
-
-void
 Copper::setPC(u32 addr)
 {
     coppc = addr;
 
     // Notify the debugger
-    if (amiga.isTracking()) { debugger.jumped(); }
+    if (emulator.isTracking()) { debugger.jumped(); }
 }
 
 void
@@ -46,7 +40,7 @@ Copper::advancePC()
     coppc += 2;
 
     // Notify the debugger
-    if (amiga.isTracking()) { debugger.advanced(); }
+    if (emulator.isTracking()) { debugger.advanced(); }
 }
 
 void
@@ -204,13 +198,13 @@ Copper::move(u32 addr, u16 value)
     assert(addr < 0x1FF);
     
     trace(COP_DEBUG,
-          "COPPC: %X move(%s, $%X) (%d)\n", coppc0, Debugger::regName(addr), value, value);
+          "COPPC: %X move(%s, $%X) (%d)\n", coppc0, MemoryDebugger::regName(addr), value, value);
 
     // Catch registers with special timing needs
     if (addr >= 0x180 && addr <= 0x1BE) {
 
         trace(OCSREG_DEBUG,
-              "pokeCustom16(%X [%s], %X)\n", addr, Debugger::regName(addr), value);
+              "pokeCustom16(%X [%s], %X)\n", addr, MemoryDebugger::regName(addr), value);
 
         // Color registers
         pixelEngine.colChanges.insert(agnus.pos.pixel(), RegChange { addr, value} );

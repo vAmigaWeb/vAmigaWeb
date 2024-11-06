@@ -13,25 +13,18 @@
 
 namespace vamiga {
 
-bool
-CoreObject::verbose = true;
+isize
+CoreObject::verbosity = 2;
 
 void
-CoreObject::prefix() const
+CoreObject::prefix(isize level, const char *component, isize line) const
 {
-    fprintf(stderr, "%s: ", getDescription());
-}
-
-void
-CoreObject::dump(Category category, std::ostream& ss) const
-{
-    _dump(category, ss);
-}
-
-void
-CoreObject::dump(Category category) const
-{
-    dump(category, std::cout);
+    if (level == 1) {
+        fprintf(stderr, "%s: ", component);
+    }
+    if (level >= 2) {
+        fprintf(stderr, "%s:%ld ", component, line);
+    }
 }
 
 }

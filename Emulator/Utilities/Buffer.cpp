@@ -11,10 +11,21 @@
 #include "Buffer.h"
 #include "IOUtils.h"
 #include "MemUtils.h"
-#include "Serialization.h"
 #include <fstream>
 
-namespace util {
+namespace vamiga::util {
+
+template <class T> Allocator<T>&
+Allocator<T>::operator= (const Allocator<T>& other)
+{
+    // Reallocate buffer if needed
+    if (size != other.size) alloc(other.size);
+    assert(size == other.size);
+
+    // Copy buffer
+    if (size) memcpy(ptr, other.ptr, size);
+    return *this;
+}
 
 template <class T> void
 Allocator<T>::alloc(isize elements)
@@ -81,13 +92,28 @@ Allocator<T>::init(const T *buf, isize elements)
 }
 
 template <class T> void
+Allocator<T>::init(const string &str)
+{
+    init((const T *)str.c_str(), isize(str.length() / sizeof(T)));
+}
+
+template <class T> void
 Allocator<T>::init(const Allocator<T> &other)
 {
     init(other.ptr, other.size);
 }
 
 template <class T> void
-Allocator<T>::init(const string &path)
+Allocator<T>::init(const std::vector<T> &vector)
+{
+    isize vecsize = isize(vector.size());
+
+    alloc(vecsize);
+    for (isize i = 0; i < vecsize; i++) ptr[i] = vector[i];
+}
+
+template <class T> void
+Allocator<T>::init(const std::filesystem::path &path)
 {
     // Open stream in binary mode
     std::ifstream stream(path, std::ifstream::binary);
@@ -95,24 +121,18 @@ Allocator<T>::init(const string &path)
     // Return an empty buffer if the stream could not be opened
     if (!stream) { dealloc(); return; }
     
-    // Get the stream length in bytes
-    auto length = streamLength(stream);
-    
-    // Create a buffer of proper size
-    if (length % sizeof(T)) {
-        init(length / sizeof(T) + 1);
-    } else {
-        alloc(length / sizeof(T));
-    }
-    
-    // Read from stream
-    stream.read((char *)ptr, length);
+    // Read file contents into a string stream
+    std::ostringstream sstr(std::ios::binary);
+    sstr << stream.rdbuf();
+
+    // Call the proper init delegate
+    init(sstr.str());
 }
 
 template <class T> void
-Allocator<T>::init(const string &path, const string &name)
+Allocator<T>::init(const std::filesystem::path &path, const string &name)
 {
-    init(path + "/" + name);
+    init(path / name);
 }
 
 template <class T> void
@@ -192,29 +212,107 @@ Allocator<T>::patch(const char *seq, const char *subst)
     if (ptr) util::replace((char *)ptr, bytesize(), seq, subst);
 }
 
+template <class T> void
+Allocator<T>::compress(isize n, isize offset)
+{
+    T prev = 0;
+    isize repetitions = 0;
+    std::vector<T> vec;
+    vec.reserve(size);
+
+    auto encode = [&](T element, isize count) {
+        
+        for (isize i = 0; i < std::min(count, n); i++) vec.push_back(element);
+        if (count >= n) vec.push_back(T(count - n));
+    };
+
+    // Skip everything up to the offset position
+    for (isize i = 0; i < std::min(offset, size); i++) vec.push_back(ptr[i]);
+
+    // Perform run-length encoding
+    auto maxChunkSize = isize(std::numeric_limits<T>::max());
+    for (isize i = offset; i < size; i++) {
+
+        if (ptr[i] == prev && repetitions < maxChunkSize) {
+
+            repetitions++;
+
+        } else {
+
+            encode(prev, repetitions);
+            prev = ptr[i];
+            repetitions = 1;
+        }
+    }
+    encode(prev, repetitions);
+
+    // Replace old data
+    init(vec);
+}
+
+template <class T> void
+Allocator<T>::uncompress(isize n, isize offset, isize expectedSize)
+{
+    T prev = 0;
+    isize repetitions = 0;
+    std::vector<T> vec;
+
+    // Speed up by starting with a big enough container
+    if (expectedSize) vec.reserve(expectedSize);
+
+    auto decode = [&](T element, isize count) {
+        
+        for (isize i = 0; i < count; i++) vec.push_back(element);
+    };
+
+    // Skip everything up to the offset position
+    for (isize i = 0; i < std::min(offset, size); i++) vec.push_back(ptr[i]);
+
+    for (isize i = offset; i < size; i++) {
+
+        vec.push_back(ptr[i]);
+        repetitions = prev != ptr[i] ? 1 : repetitions + 1;
+        prev = ptr[i];
+
+        if (repetitions == n && i < size - 1) {
+
+            decode(prev, isize(ptr[++i]));
+            repetitions = 0;
+        }
+    }
+
+    // Replace old data
+    init(vec);
+}
+
+
 //
 // Template instantiations
 //
 
 #define INSTANTIATE_ALLOCATOR(T) \
+template Allocator<T>& Allocator<T>::operator=(const Allocator<T>& other); \
 template void Allocator<T>::alloc(isize bytes); \
 template void Allocator<T>::dealloc(); \
 template void Allocator<T>::init(isize bytes, T value); \
 template void Allocator<T>::init(const T *buf, isize len); \
 template void Allocator<T>::init(const Allocator<T> &other); \
-template void Allocator<T>::init(const string &path); \
-template void Allocator<T>::init(const string &path, const string &name); \
+template void Allocator<T>::init(const std::filesystem::path &path); \
+template void Allocator<T>::init(const std::filesystem::path &path, const string &name); \
 template void Allocator<T>::resize(isize elements); \
 template void Allocator<T>::resize(isize elements, T value); \
 template void Allocator<T>::clear(T value, isize offset, isize len); \
 template void Allocator<T>::copy(T *buf, isize offset, isize len) const; \
 template void Allocator<T>::patch(const u8 *seq, const u8 *subst); \
-template void Allocator<T>::patch(const char *seq, const char *subst);
+template void Allocator<T>::patch(const char *seq, const char *subst); \
+template void Allocator<T>::compress(isize, isize); \
+template void Allocator<T>::uncompress(isize, isize, isize);
 
 INSTANTIATE_ALLOCATOR(u8)
 INSTANTIATE_ALLOCATOR(u32)
 INSTANTIATE_ALLOCATOR(u64)
 INSTANTIATE_ALLOCATOR(isize)
 INSTANTIATE_ALLOCATOR(float)
+INSTANTIATE_ALLOCATOR(bool)
 
 }

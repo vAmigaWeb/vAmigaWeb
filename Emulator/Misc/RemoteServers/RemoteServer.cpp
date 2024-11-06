@@ -9,7 +9,7 @@
 
 #include "config.h"
 #include "RemoteServer.h"
-#include "Amiga.h"
+#include "Emulator.h"
 #include "CPU.h"
 #include "IOUtils.h"
 #include "Memory.h"
@@ -19,7 +19,7 @@
 
 namespace vamiga {
 
-RemoteServer::RemoteServer(Amiga& ref) : SubComponent(ref)
+RemoteServer::RemoteServer(Amiga& ref, isize objid) : SubComponent(ref, objid)
 {
 
 }
@@ -38,14 +38,7 @@ RemoteServer::_dump(Category category, std::ostream& os) const
 
     if (category == Category::Config) {
         
-        os << tab("Port");
-        os << dec(config.port) << std::endl;
-        os << tab("Protocol");
-        os << ServerProtocolEnum::key(config.protocol) << std::endl;
-        os << tab("Auto run");
-        os << bol(config.autoRun) << std::endl;
-        os << tab("Verbose");
-        os << bol(config.verbose) << std::endl;
+        dumpConfig(os);
     }
     
     if (category == Category::State) {
@@ -73,7 +66,7 @@ RemoteServer::_didLoad()
 }
 
 i64
-RemoteServer::getConfigItem(Option option) const
+RemoteServer::getOption(Option option) const
 {
     switch (option) {
             
@@ -88,7 +81,24 @@ RemoteServer::getConfigItem(Option option) const
 }
 
 void
-RemoteServer::setConfigItem(Option option, i64 value)
+RemoteServer::checkOption(Option opt, i64 value)
+{
+    switch (opt) {
+
+        case OPT_SRV_PORT:
+        case OPT_SRV_PROTOCOL:
+        case OPT_SRV_AUTORUN:
+        case OPT_SRV_VERBOSE:
+
+            return;
+
+        default:
+            throw(VAERROR_OPT_UNSUPPORTED);
+    }
+}
+
+void
+RemoteServer::setOption(Option option, i64 value)
 {
     switch (option) {
 
@@ -101,8 +111,6 @@ RemoteServer::setConfigItem(Option option, i64 value)
                     config.port = (u16)value;
 
                 } else {
-
-                    SUSPENDED
 
                     stop();
                     config.port = (u16)value;

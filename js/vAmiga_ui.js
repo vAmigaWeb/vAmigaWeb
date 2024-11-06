@@ -531,21 +531,21 @@ function message_handler_queue_worker(msg, data, data2)
     }
     else if(msg == "MSG_SNAPSHOT_RESTORED")
     {
-        let v=wasm_get_config_item("BLITTER_ACCURACY");
+        let v=wasm_get_config_item("BLITTER.ACCURACY");
         $(`#button_OPT_BLITTER_ACCURACY`).text(`blitter accuracy=${v} (snapshot)`);
         
-        v=wasm_get_config_item("DRIVE_SPEED");
+        v=wasm_get_config_item("DC.SPEED");
         $(`#button_OPT_DRIVE_SPEED`).text(`drive speed=${v} (snapshot)`);
 
-        v=wasm_get_config_item("CPU_REVISION");
+        v=wasm_get_config_item("CPU.REVISION");
         $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v}0 (snapshot)`);
-        v=wasm_get_config_item("CPU_OVERCLOCKING");
+        v=wasm_get_config_item("CPU.OVERCLOCKING");
         $(`#button_OPT_CPU_OVERCLOCKING`).text(`${Math.round((v==0?1:v)*7.09)} MHz (snapshot)`);
-        v=wasm_get_config_item("AGNUS_REVISION");
+        v=wasm_get_config_item("AGNUS.REVISION");
         let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB'];
         $(`#button_OPT_AGNUS_REVISION`).text(`agnus revision=${agnus_revs[v]} (snapshot)`);
 
-        v=wasm_get_config_item("DENISE_REVISION");
+        v=wasm_get_config_item("DENISE.REVISION");
         let denise_revs=['OCS','ECS'];
         $(`#button_OPT_DENISE_REVISION`).text(`denise revision=${denise_revs[v]} (snapshot)`);
       
@@ -1764,7 +1764,7 @@ function InitWrappers() {
         }
     }
 
-    wasm_take_user_snapshot = Module.cwrap('wasm_take_user_snapshot', 'undefined');
+    wasm_take_user_snapshot = Module.cwrap('wasm_take_user_snapshot', 'string');
     wasm_pull_user_snapshot_file = Module.cwrap('wasm_pull_user_snapshot_file', 'string');
     wasm_delete_user_snapshot = Module.cwrap('wasm_delete_user_snapshot', 'undefined');
 
@@ -3443,8 +3443,8 @@ $('.layer').change( function(event) {
     $('#button_save_snapshot').click(async function() 
     {       
         let app_name = $("#input_app_title").val();
-        wasm_take_user_snapshot();
-        var snapshot_json= wasm_pull_user_snapshot_file();
+        
+        var snapshot_json= wasm_take_user_snapshot();
         var snap_obj = JSON.parse(snapshot_json);
 //        var ptr=wasm_pull_user_snapshot_file();
 //        var size = wasm_pull_user_snapshot_file_size();
@@ -5310,14 +5310,14 @@ function show_activity()
 {
     $("#activity_help").show();
 
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "COPPER", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "BLITTER", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "DISK", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "AUDIO", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "SPRITE", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "BITPLANE", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "CPU", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "REFRESH", "0");
+    wasm_configure_key("DEBUG_CHANNEL0", "0");
+    wasm_configure_key("DEBUG_CHANNEL1", "0");
+    wasm_configure_key("DEBUG_CHANNEL2", "0");
+    wasm_configure_key("DEBUG_CHANNEL3", "0");
+    wasm_configure_key("DEBUG_CHANNEL4", "0");
+    wasm_configure_key("DEBUG_CHANNEL5", "0");
+    wasm_configure_key("DEBUG_CHANNEL6", "0");
+    wasm_configure_key("DEBUG_CHANNEL7", "0");
 
 
     dma_channels={
@@ -5335,7 +5335,7 @@ function show_activity()
     };
 
 
-    wasm_configure("DMA_DEBUG_ENABLE","1");
+    wasm_configure("DEBUG_ENABLE","1");
 
     $("#activity").remove();
     $("body").append(`<div id="activity" class="monitor_grid"></div>`);
@@ -5357,7 +5357,7 @@ function show_activity()
  }
 function hide_activity()
 {
-    wasm_configure("DMA_DEBUG_ENABLE","0");
+    wasm_configure("DEBUG_ENABLE","0");
 
     $("#activity").remove();
     clearInterval(activity_intervall);
@@ -5388,5 +5388,5 @@ Settings
 
     dma_channels[channel]=!dma_channels[channel];
    
-    wasm_configure_key("DMA_DEBUG_CHANNEL", channel, dma_channels[channel] ? "1" : "0");
+    wasm_configure_key(`DEBUG_CHANNEL${Math.min(6,Object.keys(dma_channels).indexOf(channel)) }`,dma_channels[channel] ? "1" : "0");
 }

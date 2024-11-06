@@ -9,9 +9,10 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
-
+#include "FSTypes.h"
+#include "BootBlockImageTypes.h"
 
 //
 // Enumerations
@@ -25,14 +26,13 @@ enum_long(DIAMETER)
 typedef DIAMETER Diameter;
 
 #ifdef __cplusplus
-struct DiameterEnum : util::Reflection<DiameterEnum, Diameter>
+struct DiameterEnum : vamiga::util::Reflection<DiameterEnum, Diameter>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = INCH_525;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-    
+
     static const char *prefix() { return ""; }
-    static const char *key(Diameter value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -53,14 +53,13 @@ enum_long(DENSITY)
 typedef DENSITY Density;
 
 #ifdef __cplusplus
-struct DensityEnum : util::Reflection<DensityEnum, Density>
+struct DensityEnum : vamiga::util::Reflection<DensityEnum, Density>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = DENSITY_HD;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
     
     static const char *prefix() { return "DENSITY"; }
-    static const char *key(Density value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -86,3 +85,14 @@ typedef struct
     isize cylinders;
 }
 FloppyDiskDescriptor;
+
+typedef struct
+{
+    FSVolumeType dos;
+    Diameter diameter;
+    Density density;
+    BootBlockType bootBlockType;
+    const char *bootBlockName;
+    bool hasVirus;
+}
+FloppyDiskInfo;

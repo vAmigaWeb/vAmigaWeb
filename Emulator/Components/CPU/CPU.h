@@ -11,32 +11,48 @@
 
 #include "CPUTypes.h"
 #include "SubComponent.h"
+#include "CmdQueue.h"
+#include "GuardList.h"
 #include "RingBuffer.h"
 #include "Moira.h"
 
 namespace vamiga {
 
-class CPU : public moira::Moira {
-
+class CPU : public moira::Moira, public Inspectable<CPUInfo>
+{
     friend class Moira;
-    
+
+    Descriptions descriptions = {{
+
+        .type           = CPUClass,
+        .name           = "CPU",
+        .description    = "Central Processing Unit",
+        .shell          = "cpu"
+    }};
+
+    ConfigOptions options = {
+
+        OPT_CPU_REVISION,
+        OPT_CPU_DASM_REVISION,
+        OPT_CPU_DASM_SYNTAX,
+        OPT_CPU_OVERCLOCKING,
+        OPT_CPU_RESET_VAL
+    };
+
     // The current configuration
     CPUConfig config = {};
 
-    // Result of the latest inspection
-    mutable CPUInfo info = {};
-
-
-    //
-    // Overclocking
-    //
-
 public:
+    
+    // Breakpoints, Watchpoints, Catchpoints
+    GuardList breakpoints = GuardList(emulator, debugger.breakpoints);
+    GuardList watchpoints = GuardList(emulator, debugger.watchpoints);
+    GuardList catchpoints = GuardList(emulator, debugger.catchpoints);
 
-    // Sub-cycle counter
+    // Sub-cycle counter (overclocking)
     i64 debt;
 
-    // Number of cycles that should be executed at normal speed
+    // Number of cycles that should be executed at normal speed (overclocking)
     i64 slowCycles;
 
 
@@ -48,32 +64,64 @@ public:
 
     CPU(Amiga& ref);
 
-    
-    //
-    // Methods from CoreObject
-    //
-    
-private:
-    
-    const char *getDescription() const override { return "CPU"; }
-    void _dump(Category category, std::ostream& os) const override;
+    CPU& operator= (const CPU& other) {
+
+        CLONE(debt)
+        CLONE(slowCycles)
+
+        CLONE(clock)
+        CLONE(reg.pc)
+        CLONE(reg.pc0)
+        CLONE(reg.sr.t1)
+        CLONE(reg.sr.t0)
+        CLONE(reg.sr.s)
+        CLONE(reg.sr.m)
+        CLONE(reg.sr.x)
+        CLONE(reg.sr.n)
+        CLONE(reg.sr.z)
+        CLONE(reg.sr.v)
+        CLONE(reg.sr.c)
+        CLONE(reg.sr.ipl)
+        CLONE_ARRAY(reg.r)
+        CLONE(reg.usp)
+        CLONE(reg.isp)
+        CLONE(reg.msp)
+        CLONE(reg.ipl)
+        CLONE(reg.vbr)
+        CLONE(reg.sfc)
+        CLONE(reg.dfc)
+        CLONE(reg.cacr)
+        CLONE(reg.caar)
+
+        CLONE(queue.irc)
+        CLONE(queue.ird)
+
+        CLONE(ipl)
+        CLONE(fcl)
+        CLONE(fcSource)
+        CLONE(exception)
+        CLONE(cp)
+        CLONE(loopModeDelay)
+        CLONE(readBuffer)
+        CLONE(writeBuffer)
+        CLONE(flags)
+
+        CLONE(config)
+
+        return *this;
+    }
 
     
     //
-    // Methods from CoreComponent
+    // Methods from Serializable
     //
     
 private:
-    
-    void _reset(bool hard) override;
-    void _inspect() const override;
-    void _trackOn() override;
-    void _trackOff() override;
-    
+
     template <class T>
     void serialize(T& worker)
     {
-        if (util::isSoftResetter(worker)) return;
+        if (isSoftResetter(worker)) return;
 
         worker
 
@@ -119,7 +167,7 @@ private:
         << writeBuffer
         << flags;
 
-        if (util::isResetter(worker)) return;
+        if (isResetter(worker)) return;
 
         worker
 
@@ -128,35 +176,57 @@ private:
         << config.dasmRevision
         << config.overclocking
         << config.regResetVal;
-    }
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
-    isize didLoadFromBuffer(const u8 *buffer) override;
-    
+    } SERIALIZERS(serialize);
+
+
+    //
+    // Methods from CoreComponent
+    //
+
+private:
+
+    void _dump(Category category, std::ostream& os) const override;
+
+
+    void _didLoad() override;
+    void _trackOn() override;
+    void _trackOff() override;
+
+public:
+
+    void _didReset(bool hard) override;
+
     
     //
-    // Configuring
+    // Methods from CoreComponent
     //
+
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
     
+
+    //
+    // Methods from Inspectable
+    //
+
+public:
+
+    void cacheInfo(CPUInfo &result) const override;
+
+
+    //
+    // Methods from Configurable
+    //
+
 public:
     
     const CPUConfig &getConfig() const { return config; }
-    void resetConfig() override;
-    
-    i64 getConfigItem(Option option) const;
-    void setConfigItem(Option option, i64 value);
-
-    
-    //
-    // Analyzing
-    //
-    
-public:
-    
-    CPUInfo getInfo() const { return CoreComponent::getInfo(info); }
+    const ConfigOptions &getOptions() const override { return options; }
+    i64 getOption(Option opt) const override;
+    void checkOption(Option opt, i64 value) override;
+    void setOption(Option opt, i64 value) override;
 
 
     //
@@ -225,34 +295,15 @@ public:
     void willExecute(moira::ExceptionType exc, u16 vector);
     void didExecute(moira::ExceptionType exc, u16 vector);
 
-    
-    //
-    // Debugging
-    //
-    
-    // Manages the breakpoint list
-    void setBreakpoint(u32 addr, isize ignores = 0) throws;
-    void deleteBreakpoint(isize nr) throws;
-    void enableBreakpoint(isize nr) throws;
-    void disableBreakpoint(isize nr) throws;
-    void toggleBreakpoint(isize nr) throws;
-    void ignoreBreakpoint(isize nr, isize ignores) throws;
 
-    // Manages the watchpoint list
-    void setWatchpoint(u32 addr, isize ignores = 0) throws;
-    void deleteWatchpoint(isize nr) throws;
-    void enableWatchpoint(isize nr) throws;
-    void disableWatchpoint(isize nr) throws;
-    void toggleWatchpoint(isize nr) throws;
-    void ignoreWatchpoint(isize nr, isize ignores) throws;
+    //
+    // Processing commands
+    //
 
-    // Manages the catchpoint list
-    void setCatchpoint(u8 vector, isize ignores = 0) throws;
-    void deleteCatchpoint(isize nr) throws;
-    void enableCatchpoint(isize nr) throws;
-    void disableCatchpoint(isize nr) throws;
-    void toggleCatchpoint(isize nr) throws;
-    void ignoreCatchpoint(isize nr, isize ignores) throws;
+public:
+
+    // Processes a command from the command queue
+    void processCommand(const Cmd &cmd);
 };
 
 }

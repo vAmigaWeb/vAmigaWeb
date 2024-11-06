@@ -19,10 +19,38 @@
 namespace vamiga {
 
 FloppyFile *
-FloppyFile::make(const string &path)
+FloppyFile::make(const std::filesystem::path &path)
 {
+    FloppyFile *result = nullptr;
+
+    if (!std::filesystem::exists(path)) {
+        throw Error(VAERROR_FILE_NOT_FOUND, path);
+    }
+
+    Buffer<u8> buffer(path);
+    
+    if (buffer.empty()) {
+        throw Error(VAERROR_FILE_CANT_READ, path);
+    }
+
+    switch (type(path)) {
+
+        case FILETYPE_ADF:  result = new ADFFile(buffer.ptr, buffer.size); break;
+        case FILETYPE_IMG:  result = new IMGFile(buffer.ptr, buffer.size); break;
+        case FILETYPE_DMS:  result = new DMSFile(buffer.ptr, buffer.size); break;
+        case FILETYPE_EXE:  result = new EXEFile(buffer.ptr, buffer.size); break;
+        case FILETYPE_DIR:  result = new Folder(path);
+
+        default:
+            throw Error(VAERROR_FILE_TYPE_MISMATCH);
+    }
+
+    result->path = path;
+    return result;
+
+    /*
     std::ifstream stream(path, std::ifstream::binary);
-    if (!stream.is_open()) throw VAError(ERROR_FILE_NOT_FOUND, path);
+    if (!stream.is_open()) throw Error(VAERROR_FILE_NOT_FOUND, path);
     
     switch (type(path)) {
             
@@ -35,7 +63,9 @@ FloppyFile::make(const string &path)
         default:
             break;
     }
-    throw VAError(ERROR_FILE_TYPE_MISMATCH);
+
+    throw Error(VAERROR_FILE_TYPE_MISMATCH);
+    */
 }
 
 FloppyDiskDescriptor

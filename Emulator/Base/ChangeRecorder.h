@@ -9,8 +9,9 @@
 
 #pragma once
 
+#include "Types.h"
 #include "RingBuffer.h"
-#include "Serialization.h"
+#include "Serializable.h"
 #include "AgnusTypes.h"
 #include "AmigaTypes.h"
 #include <functional>
@@ -145,18 +146,31 @@ enum RegChangeID : i32
     SET_SERDAT
 };
 
-struct RegChange : util::Serializable
+struct RegChange : Serializable
 {
     u32 addr;
     u16 value;
     u16 accessor;
-    
-    template <class W>
-    void operator<<(W& worker)
+
+
+    //
+    // Methods from Serializable
+    //
+
+public:
+
+    template <class T>
+    void serialize(T& worker)
     {
-        worker << addr << value << accessor;
-    }
-    
+        worker
+
+        << addr
+        << value
+        << accessor;
+
+    } SERIALIZERS(serialize);
+
+
     RegChange() : addr(0), value(0), accessor(0) { }
     RegChange(u32 a, u16 v) : addr(a), value(v), accessor(0) { }
     RegChange(u32 a, u16 v, u16 ac) : addr(a), value(v), accessor(ac) { }
@@ -165,15 +179,6 @@ struct RegChange : util::Serializable
 template <isize capacity>
 struct RegChangeRecorder : public util::SortedRingBuffer<RegChange, capacity>
 {
-    /*
-    template <class W>
-    void operator<<(W& worker)
-    {
-        // worker >> this->elements << this->r << this->w << this->keys;
-        worker << this->elements << this->r << this->w << this->keys;
-    }
-    */
-
     Cycle trigger() {
         return this->isEmpty() ? NEVER : this->keys[this->r];
     }
@@ -202,6 +207,14 @@ struct SigRecorder : public util::SortedArray<u32, 256>
 {
     bool modified = false;
     
+    SigRecorder& operator= (const SigRecorder& other) {
+
+        SortedArray::operator = (other);
+        CLONE(modified)
+
+        return *this;
+    }
+
     void insert(i64 key, u32 signal) {
 
         modified = true;

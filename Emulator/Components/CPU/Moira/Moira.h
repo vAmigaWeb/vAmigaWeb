@@ -43,7 +43,7 @@ protected:
 
 
     //
-    // Sub components
+    // Subcomponents
     //
 
 public:
@@ -107,10 +107,12 @@ private:
 
     // Jump table holding the instruction handlers
     typedef void (Moira::*ExecPtr)(u16);
-    ExecPtr exec[65536];
+    // ExecPtr exec[65536];
+    ExecPtr *exec = nullptr;
 
     // Jump table holding the loop mode instruction handlers (68010 only)
-    ExecPtr loop[65536];
+    // ExecPtr loop[65536];
+    ExecPtr *loop = nullptr;
 
     // Jump table holding the disassebler handlers
     typedef void (Moira::*DasmPtr)(StrWriter&, u32&, u16) const;
@@ -248,7 +250,7 @@ public:
     void dump16(char *str, u32 addr, int cnt) const;
 
     // Return an info struct for a certain opcode
-    InstrInfo getInfo(u16 op) const;
+    InstrInfo getInstrInfo(u16 op) const;
 
 
     //
@@ -325,8 +327,8 @@ protected:
     u16 readIrqUserVector(u8 level) const;
 
     // State delegates
-    void didReset();
-    void didHalt();
+    void cpuDidReset();
+    void cpuDidHalt();
 
     // Instruction delegates
     void willExecute(const char *func, Instr I, Mode M, Size S, u16 opcode);

@@ -13,36 +13,35 @@
 
 namespace vamiga {
 
-class RshServer : public RemoteServer {
+class RshServer final : public RemoteServer {
 
 public:
     
     using RemoteServer::RemoteServer;
 
+    RshServer& operator= (const RshServer& other) {
+
+        RemoteServer::operator = (other);
+        return *this;
+    }
+
+
     //
     // Methods from CoreObject
     //
     
-protected:
-    
-    const char *getDescription() const override { return "RshServer"; }
+private:
+
     void _dump(Category category, std::ostream& os) const override;
 
-    
-    //
-    // Methods from CoreComponent
-    //
 
-    void resetConfig() override;
-    
-    
     //
     // Methods from RemoteServer
     //
     
-    string doReceive() override throws;
-    void doProcess(const string &packet) override throws;
-    void doSend(const string &packet) override throws;
+    string doReceive() throws override;
+    void doProcess(const string &packet) throws override;
+    void doSend(const string &packet)throws  override;
     void didStart() override;
     void didConnect() override;
 };
