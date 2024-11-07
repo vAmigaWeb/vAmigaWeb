@@ -657,10 +657,11 @@ class vAmigaWrapper {
   emu->set(OPT_AGNUS_REVISION, AGNUS_OCS);
 
   //turn automatic hd mounting off because kick1.2 makes trouble
-  emu->set(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
+  emu->set(OPT_HDC_CONNECT, false, /*hd drive*/ {0});
 
-  emu->set(OPT_DRIVE_CONNECT,/*df1*/ 1, /*enable*/true);
+  emu->set(OPT_DRIVE_CONNECT,true, /*df1*/ {1});
 
+  emu->emu->update();
 
 
 
@@ -892,7 +893,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
     if(wrapper->emu->hd0.getInfo().hasDisk)
     {
       wrapper->emu->powerOff();
-      wrapper->emu->set(OPT_HDC_CONNECT,/*hd drive*/ 0, /*enable*/false);
+      wrapper->emu->set(OPT_HDC_CONNECT, false, /*hd drive*/ {0});
       wrapper->emu->powerOn();
     }
   }
@@ -901,7 +902,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
     if(wrapper->emu->hd1.getInfo().hasDisk)
     {
       wrapper->emu->powerOff();
-      wrapper->emu->set(OPT_HDC_CONNECT,/*hd drive*/ 1, /*enable*/false);
+      wrapper->emu->set(OPT_HDC_CONNECT, false, /*hd drive*/ {1});
       wrapper->emu->powerOn();
     }
   }
@@ -910,7 +911,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
     if(wrapper->emu->hd2.getInfo().hasDisk)
     {
       wrapper->emu->powerOff();
-      wrapper->emu->set(OPT_HDC_CONNECT,/*hd drive*/ 2, /*enable*/false);
+      wrapper->emu->set(OPT_HDC_CONNECT, false, /*hd drive*/ {2});
       wrapper->emu->powerOn();
     }
   }
@@ -919,7 +920,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
     if(wrapper->emu->hd3.getInfo().hasDisk)
     {
       wrapper->emu->powerOff();
-      wrapper->emu->set(OPT_HDC_CONNECT,/*hd drive*/ 3, /*enable*/false);
+      wrapper->emu->set(OPT_HDC_CONNECT, false, /*hd drive*/ {3});
       wrapper->emu->powerOn();
     }
   }
@@ -1355,8 +1356,8 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
     //HDFFile hdf{blob, len};  
     HDFFile *hdf = new HDFFile(blob, len);
 
-    wrapper->emu->set(OPT_HDC_CONNECT,/*hd drive*/ drive_number, /*enable*/true);
-
+    wrapper->emu->set(OPT_HDC_CONNECT, true, /*hd drive*/ {drive_number});
+    wrapper->emu->emu->update();
     if(drive_number==0)
     {
       wrapper->emu->hd0.drive->init(*hdf);
