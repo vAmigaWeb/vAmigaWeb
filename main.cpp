@@ -426,7 +426,7 @@ extern "C" int wasm_draw_one_frame(double now)
     if(now-last_time_calibrated >= 700.0)
     {  
       last_time_calibrated=now;
-      auto stable_ptr = emu->denise.denise->pixelEngine.stablePtr();
+      auto stable_ptr = emu->videoPort.getTexture(); 
 
       bool dimensions_changed=calculate_viewport_dimensions((u32 *)stable_ptr - HBLANK_MIN*4*TPP);
       if(dimensions_changed)
@@ -594,11 +594,11 @@ void theListener(const void * emu, Message msg){
 
     if(msg.type == MSG_SER_OUT)
     {
-      int byte = ((Amiga *)emu)->serialPort.readOutgoingByte();
+      int byte = ((VAmiga *)emu)->serialPort.serialPort->readOutgoingByte();
       while(byte>=0)
       {
         send_message_to_js_with_param(message_as_string, byte, data2);
-        byte = ((Amiga *)emu)->serialPort.readOutgoingByte();
+        byte = ((VAmiga *)emu)->serialPort.serialPort->readOutgoingByte();
       }
     }
     else
@@ -733,12 +733,14 @@ int main(int argc, char** argv) {
 
 extern "C" Texel * wasm_pixel_buffer()
 {
-  auto stable_ptr = emu->denise.denise->pixelEngine.stablePtr();
+//  auto stable_ptr = emu->denise.denise->pixelEngine.stablePtr();
+  auto stable_ptr = emu->emu->getTexture().pixels.ptr;
   return stable_ptr;
 }
 extern "C" u32 wasm_frame_info()
 {
-  auto &stableBuffer = emu->denise.denise->pixelEngine.getStableBuffer();
+//  auto &stableBuffer = emu->denise.denise->pixelEngine.getStableBuffer();
+  auto &stableBuffer = emu->emu->getTexture();
   u32 info = (u32)stableBuffer.nr;
   info = info<<1;
 
@@ -795,6 +797,8 @@ extern "C" void wasm_key(int code, int pressed)
   {
     wrapper->emu->keyboard.release(KeyCode(code));
   }
+  wrapper->emu->emu->update();
+
 }
 
 extern "C" void wasm_auto_type(int code, int duration, int delay)
@@ -819,6 +823,8 @@ extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_d
   
   //  wrapper->emu->keyboard.scheduleKeyRelease(*new C64Key(code1,code2), frame_delay);
   }
+  wrapper->emu->emu->update();
+
 }
 
 
@@ -1590,37 +1596,23 @@ extern "C" void wasm_run()
 extern "C" void wasm_mouse(int port, int x, int y)
 {
   //printf("wasm_mouse port%d x=%d, y=%d\n", port, x, y);
-  if(port==1)
-    wrapper->emu->controlPort1.mouse.mouse->setDxDy(x,y); 
+
+  /*if(port==1)
+    wrapper->emu->controlPort1.mouse->setDxDy(x,y); 
   else if(port==2)
-    wrapper->emu->controlPort2.mouse.mouse->setDxDy(x,y);
-
-//  wrapper->emu->put(CMD_MOUSE_MOVE_REL, CoordCmd(port-1, x, y));
-
-
-
+    wrapper->emu->controlPort2.mouse->setDxDy(x,y);
+  */
+  wrapper->emu->put(CMD_MOUSE_MOVE_REL, CoordCmd(port-1, x, y));
 }
 
 extern "C" void wasm_mouse_button(int port, int button_id, int pressed)
 { 
-  if(port==1)
-  {
     if(button_id==1)
-      wrapper->emu->controlPort1.mouse.mouse->setLeftButton(pressed==1);
+      wrapper->emu->put(CMD_MOUSE_EVENT, GamePadCmd(port-1,(pressed==1?PRESS_LEFT:RELEASE_LEFT)));
     else if(button_id==2)
-      wrapper->emu->controlPort1.mouse.mouse->setMiddleButton(pressed==1);
+      wrapper->emu->put(CMD_MOUSE_EVENT, GamePadCmd(port-1,(pressed==1?PRESS_MIDDLE:RELEASE_MIDDLE)));
     else if(button_id==3)
-      wrapper->emu->controlPort1.mouse.mouse->setRightButton(pressed==1);
-  }
-  else if(port==2)
-  {
-    if(button_id==1)
-      wrapper->emu->controlPort2.mouse.mouse->setLeftButton(pressed==1);
-    else if(button_id==2)
-      wrapper->emu->controlPort2.mouse.mouse->setMiddleButton(pressed==1);
-    else if(button_id==3)
-      wrapper->emu->controlPort2.mouse.mouse->setRightButton(pressed==1);
-  }
+      wrapper->emu->put(CMD_MOUSE_EVENT, GamePadCmd(port-1,(pressed==1?PRESS_RIGHT:RELEASE_RIGHT)));
 }
 
 extern "C" void wasm_joystick(char* port_plus_event)
@@ -2038,6 +2030,33 @@ printf("wasm_configure %s = %s\n", option, _value);
 //todo
       wrapper->emu->set(util::parseEnum <OptionEnum>(std::string(option)),  util::parseBool(value));
     }
+    else if(strcmp(option,"OPT_EMU_RUN_AHEAD") == 0)
+    {
+      auto frames=util::parseNum(value);
+      printf("calling amiga->configure %s = %ld\n", option, frames);
+      wrapper->emu->set(OPT_AMIGA_RUN_AHEAD, frames);
+    }
+    else if( strcmp(option,"OPT_AMIGA_SPEED_BOOST") == 0)
+    {
+//      boost_param=(signed) on;
+      /* setting
+        sync mode: { vsync x1/4=-4, ..., vsync=1, vsync x2=2, 50%=50, 75%=75, 100%, 150%, 200% }
+      */
+/*      if(boost_param <= 4)
+      {
+        vsync=true;
+        calibrate_boost(boost_param);
+      }
+      else
+      {
+        vsync=false;
+        wrapper->emu->set(OPT_AMIGA_SPEED_BOOST, on);
+        speed_boost= ((double) on) / 100.0;
+      }
+      requested_targetFrameCount_reset=true;
+*/    
+    }
+
     else
     {
 //todo

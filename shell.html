@@ -149,6 +149,14 @@
           <path d="M14.804 8 9 4.633v6.734zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C8.713 12.69 8 12.345 8 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
         </svg>
       </button>
+
+      <button type="button" id="button_speed_toggle" class="btn btn-sm icon" data-toggle="tooltip" data-placement="top" title="toggle speed">
+        <svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" fill="currentColor" class="bi bi-speedometer" viewBox="0 0 16 16">
+          <path d="M8 2a.5.5 0 0 1 .5.5V4a.5.5 0 0 1-1 0V2.5A.5.5 0 0 1 8 2M3.732 3.732a.5.5 0 0 1 .707 0l.915.914a.5.5 0 1 1-.708.708l-.914-.915a.5.5 0 0 1 0-.707M2 8a.5.5 0 0 1 .5-.5h1.586a.5.5 0 0 1 0 1H2.5A.5.5 0 0 1 2 8m9.5 0a.5.5 0 0 1 .5-.5h1.5a.5.5 0 0 1 0 1H12a.5.5 0 0 1-.5-.5m.754-4.246a.39.39 0 0 0-.527-.02L7.547 7.31A.91.91 0 1 0 8.85 8.569l3.434-4.297a.39.39 0 0 0-.029-.518z"/>
+          <path fill-rule="evenodd" d="M6.664 15.889A8 8 0 1 1 9.336.11a8 8 0 0 1-2.672 15.78zm-4.665-4.283A11.95 11.95 0 0 1 8 10c2.186 0 4.236.585 6.001 1.606a7 7 0 1 0-12.002 0"/>
+        </svg>  
+      </button>
+
       <button type="button" id="button_take_snapshot" class="btn btn-sm icon" data-toggle="tooltip" data-placement="top" title="take snapshot">
         <svg class="bi bi-box-arrow-in-down" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
           <path fill-rule="evenodd" d="M4.646 8.146a.5.5 0 0 1 .708 0L8 10.793l2.646-2.647a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 0-.708z"/>
@@ -528,6 +536,47 @@
             </div>
             <div id="auto_select_on_help" class="help_text" style="font-size: small">currently&nbsp;<span>auto selecting</span>&nbsp;snapshot names and action button groups based on the filename of the mounted media. (recommended for single disk-based games)</div>
             <div id="auto_select_off_help" class="help_text" style="font-size: small">currently&nbsp;<span>auto selecting=off</span>&nbsp;(recommended when all your apps are mainly on a single amiga hard drive.)</div>
+
+
+            <div class="container row justify-content-start mt-4">
+              <div class="dropdown mr-1 mt-1">
+                <button id="button_speed" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  speed = 100%
+                </button>
+                <div id="choose_speed" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                  <a class="dropdown-item" href="#">every 2nd vsync</a>
+                  <a class="dropdown-item" href="#">vsync</a>
+                  <a class="dropdown-item" href="#">2 frames on vsync</a>
+                  <a class="dropdown-item" href="#">50%</a>
+                  <a class="dropdown-item" href="#">75%</a>
+                  <a class="dropdown-item" href="#">100%</a>
+                  <a class="dropdown-item" href="#">120%</a>
+                  <a class="dropdown-item" href="#">160%</a>
+                  <a class="dropdown-item" href="#">200%</a>
+                </div>
+              </div>
+              <div id="speed_text" class="ml-3 mt-1 setting_text"></div>              
+            </div>
+            <div class="container row justify-content-start mt-4">            
+              <div class="dropdown mr-1 mt-4">
+                <button id="button_run_ahead" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  run ahead frames = 0
+                </button>
+                <div id="choose_run_ahead" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                  <a class="dropdown-item" href="#">0 frame</a>
+                  <a class="dropdown-item" href="#">1 frame</a>
+                  <a class="dropdown-item" href="#">2 frames</a>
+                  <a class="dropdown-item" href="#">3 frames</a>
+                  <a class="dropdown-item" href="#">4 frames</a>
+                  <a class="dropdown-item" href="#">5 frames</a>
+                  <a class="dropdown-item" href="#">6 frames</a>
+                </div>
+              </div>
+              <div id="run_ahead_text" class="ml-3 mt-1 setting_text">
+                <span>run ahead</span> reduces input lag by pre computing frames. The lag improvement is 20ms * number of frames ahead. Basically emulation itself introduces a slight lag of less than 20ms. Therefore, setting <span style="text-wrap: nowrap;">run ahead = 1 frame</span> already ensures the original responsive feeling. <span style="text-wrap: nowrap;">run ahead = 0 frame</span> saves battery life at the cost of a slight lag.
+              </div>              
+              <br>
+            </div>
 
 
             <label class="mt-4">cut out sprite layers (stencil)</label>

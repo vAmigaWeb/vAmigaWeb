@@ -21,7 +21,7 @@ if("${thread_type}" STREQUAL "worker")
 else()
 endif()
 
-target_compile_options(vAmiga PRIVATE -Wall -Werror)
+target_compile_options(vAmiga PRIVATE -Wall -Werror -Wno-braced-scalar-init)
 target_compile_options(vAmiga PRIVATE -Wno-unused-parameter)
 target_compile_options(vAmiga PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions)
 target_compile_options(vAmiga PRIVATE -Wfatal-errors)

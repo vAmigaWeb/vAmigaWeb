@@ -261,7 +261,6 @@ Emulator::missingFrames() const
 
     // Compute the number of missing frames
     return isize(target - frameCounter);
-
 }
 
 const FrameBuffer &
@@ -314,7 +313,7 @@ Emulator::computeFrame()
     auto &config = main.getConfig();
 
     if (config.runAhead) {
-
+printf("a%ld",config.runAhead);
         try {
 
             // Run the main instance
@@ -333,7 +332,7 @@ Emulator::computeFrame()
         }
 
     } else {
-
+printf("n%ld",config.runAhead);
         // Only run the main instance
         main.computeFrame();
     }
@@ -343,10 +342,13 @@ void
 Emulator::cloneRunAheadInstance()
 {
     // clones++;
+    if(ahead == main)
+        printf("main und ahead ist gleich\n");
+    else
+        printf("main und ahead ist UNgleich\n");
 
     // Recreate the runahead instance from scratch
     ahead = main; isDirty = false;
-
     if (RUA_CHECKSUM && ahead != main) {
 
         main.diff(ahead);
@@ -366,7 +368,7 @@ Emulator::recreateRunAheadInstance()
     } else {
         cloneRunAheadInstance();
     }
-
+printf("clone ahead + fast forward=%ld\n", config.runAhead-1);
     // Advance to the proper frame
     if (RUA_DEBUG) {
         util::StopWatch watch("Run-ahead: Fast-forward");

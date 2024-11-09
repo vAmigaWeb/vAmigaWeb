@@ -3470,6 +3470,96 @@ $('.layer').change( function(event) {
         $("#modal_settings").focus();
     });
 
+    //--
+    const speed_percentage_text =`Execute the number of frames per host refresh needed to match <span>{0}</span> of the original C64's speed.
+
+The PAL Amiga refreshes at 50.125 Hz, which doesn't match the refresh rates of most modern monitors. Similarly, the NTSC C64 runs at 59.826 Hz, which is also slightly off from today's standard.
+<br>
+This discrepancy can lead to stuttering or jumpy movement, depending on the content being displayed. <br><br> For a smoother video output, consider enabling the <span>vsync</span> option. Vsync synchronizes the emulation with your display’s refresh rate, resulting in smoother visuals by adjusting the C64's emulation speed to match the monitor’s refresh rate.
+    `;
+    const vsync_text=" Video output is smoother when using <span>vsync</span>. However, depending on your monitor's refresh rate, the resulting speed may not be exactly 100% of the original C64's speed.";
+    speed_text={
+        "every 2nd vsync": "Render one C64 frame every second vsync."+vsync_text,
+        "vsync":"Render exactly one C64 frame on vsync."+vsync_text,
+        "2 frames on vsync":"Render two C64 frames on vsync."+vsync_text,
+        "50%":`<span>slow motion</span> ${speed_percentage_text.replace("{0}","50%")}`,
+        "75%":`<span>slow motion</span> ${speed_percentage_text.replace("{0}","75%")}`,
+        "100%":`<span>original speed</span> ${speed_percentage_text.replace("{0}","100%")}`,
+        "120%":`<span>fast</span> ${speed_percentage_text.replace("{0}","120%")}`,
+        "160%":`<span>fast</span> ${speed_percentage_text.replace("{0}","160%")}`,
+        "200%":`<span>very fast</span> ${speed_percentage_text.replace("{0}","200%")}`
+    }
+
+    current_speed=100;
+    set_speed = function (new_speed) {
+        $("#button_speed").text("speed & frame sync = "+new_speed);
+        $('#speed_text').html(speed_text[new_speed]);
+
+        selected_speed = new_speed.replaceAll("%","").replaceAll(" ","");
+        if(selected_speed.includes("vsync"))
+        {
+            let map = {"every2ndvsync":-2,"vsync":1,"2framesonvsync":2};
+            selected_speed=map[selected_speed];
+        }
+
+        if(selected_speed == 100)
+            $('#button_speed_toggle').hide();
+        else
+            $('#button_speed_toggle').show();
+ 
+        current_speed=100;
+        $('#button_speed_toggle').click();
+    }
+    set_speed("100%");
+    $('#choose_speed a').click(function () 
+    {
+        selected_speed=$(this).text();
+        set_speed(selected_speed);
+        $("#modal_settings").focus();
+    });
+    
+    $('#button_speed_toggle').click(function () 
+    {
+        if(current_speed==100)
+            current_speed=selected_speed;    
+        else
+            current_speed=100;
+     
+        $('#button_speed_toggle').html(
+            `
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" style="margin-top:-5px" width="1.6em" height="1.6em" fill="currentColor" class="bi bi-speedometer" viewBox="0 0 16 16">
+                <path style='opacity:${current_speed == 100 ? 1:1}'  d="M8 2a.5.5 0 0 1 .5.5V4a.5.5 0 0 1-1 0V2.5A.5.5 0 0 1 8 2M3.732 3.732a.5.5 0 0 1 .707 0l.915.914a.5.5 0 1 1-.708.708l-.914-.915a.5.5 0 0 1 0-.707M2 8a.5.5 0 0 1 .5-.5h1.586a.5.5 0 0 1 0 1H2.5A.5.5 0 0 1 2 8m9.5 0a.5.5 0 0 1 .5-.5h1.5a.5.5 0 0 1 0 1H12a.5.5 0 0 1-.5-.5m.754-4.246a.39.39 0 0 0-.527-.02L7.547 7.31A.91.91 0 1 0 8.85 8.569l3.434-4.297a.39.39 0 0 0-.029-.518z"/>
+                <path style='opacity:${current_speed == 100 ? 1:1}' fill-rule="evenodd" d="M6.664 15.889A8 8 0 1 1 9.336.11a8 8 0 0 1-2.672 15.78zm-4.665-4.283A11.95 11.95 0 0 1 8 10c2.186 0 4.236.585 6.001 1.606a7 7 0 1 0-12.002 0"/>
+            </svg>
+            <div style="font-size: x-small;position: absolute;top: -2px;width:44px;text-align:center;margin-left: -11px;">
+            ${current_speed>4?'&nbsp;'+current_speed+'%': current_speed<0?'&frac12;vsync':current_speed==1?'vsync':current_speed+'vsync' }
+            </div>
+            <div id="host_fps" style="font-size: xx-small;position: absolute;top: 32px;width:44px;text-align:center;margin-left: -11px;">
+            </div>
+        </div>
+          `
+        );
+
+        wasm_configure("OPT_AMIGA_SPEED_BOOST", 
+            current_speed);
+
+        $("#modal_settings").focus();
+    });
+
+//--
+    set_run_ahead = function (run_ahead) {
+        $("#button_run_ahead").text("run ahead = "+run_ahead);
+        wasm_configure("OPT_EMU_RUN_AHEAD", 
+            run_ahead.toString().replace("frames","").replace("frame",""));
+    }
+    set_run_ahead("0 frame");
+    $('#choose_run_ahead a').click(function () 
+    {
+        var run_ahead=$(this).text();
+        set_run_ahead(run_ahead);
+        $("#modal_settings").focus();
+    });
 //---------- update management --------
 
     set_settings_cache_value = async function (key, value)

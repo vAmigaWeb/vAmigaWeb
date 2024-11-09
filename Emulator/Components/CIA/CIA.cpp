@@ -182,12 +182,9 @@ CIA::cacheStats(CIAStats &result) const
 {
     {   SYNCHRONIZED
 
-        auto idle = idleSince();
-        auto total = idleTotal() + idle;
-        
-        result.idleSince = idle;
-        result.idleTotal = total;
-        result.idlePercentage =  clock ? double(total) / double(clock + idle) : 100.0;
+        result.idleSince = idleSince();
+        result.idleTotal = idleTotal() + result.idleSince;
+        result.idlePercentage =  clock ? (double)result.idleTotal / (double)clock : 100.0;
     }
 }
 
