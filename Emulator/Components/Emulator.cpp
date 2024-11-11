@@ -313,7 +313,6 @@ Emulator::computeFrame()
     auto &config = main.getConfig();
 
     if (config.runAhead) {
-printf("a%ld",config.runAhead);
         try {
 
             // Run the main instance
@@ -332,7 +331,6 @@ printf("a%ld",config.runAhead);
         }
 
     } else {
-printf("n%ld",config.runAhead);
         // Only run the main instance
         main.computeFrame();
     }

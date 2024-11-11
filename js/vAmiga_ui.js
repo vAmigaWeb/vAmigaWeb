@@ -1314,8 +1314,8 @@ timestampjoy1 = null;
 timestampjoy2 = null;
 last_touch_cmd = null;
 last_touch_fire= null;
-/* callback for wasm mainsdl.cpp */
-function draw_one_frame()
+
+function query_input_controllers()
 {
     let gamepads=null;
 
@@ -1700,7 +1700,7 @@ function InitWrappers() {
 
     do_animation_frame=null;
     queued_executes=0;
-    
+
     wasm_run = function () {
         Module._wasm_run();       
         if(do_animation_frame == null)
@@ -1720,7 +1720,7 @@ function InitWrappers() {
                 rendered_frame_id=0;
                 calculate_and_render=(now)=>
                 {
-                    draw_one_frame(); // to gather joystick information 
+                    query_input_controllers();
                     Module._wasm_worker_run();                    
                     let current_rendered_frame_id=Module._wasm_frame_info();
                     if(rendered_frame_id !== current_rendered_frame_id)
@@ -1734,7 +1734,7 @@ function InitWrappers() {
             {
                 calculate_and_render=(now)=>
                 {
-                    draw_one_frame(); // to gather joystick information 
+                    query_input_controllers();
                     let behind = Module._wasm_draw_one_frame(now);
                     if(behind<0)
                         return;
@@ -3471,17 +3471,17 @@ $('.layer').change( function(event) {
     });
 
     //--
-    const speed_percentage_text =`Execute the number of frames per host refresh needed to match <span>{0}</span> of the original C64's speed.
+    const speed_percentage_text =`Execute the number of frames per host refresh needed to match <span>{0}</span> of the original Amiga's speed.
 
-The PAL Amiga refreshes at 50.125 Hz, which doesn't match the refresh rates of most modern monitors. Similarly, the NTSC C64 runs at 59.826 Hz, which is also slightly off from today's standard.
+The PAL Amiga refreshes at 50.080128 Hz, which doesn't match the refresh rates of most modern monitors. Similarly, the NTSC Amiga runs at 59.94 Hz, which is also slightly off from today's standard.
 <br>
-This discrepancy can lead to stuttering or jumpy movement, depending on the content being displayed. <br><br> For a smoother video output, consider enabling the <span>vsync</span> option. Vsync synchronizes the emulation with your display’s refresh rate, resulting in smoother visuals by adjusting the C64's emulation speed to match the monitor’s refresh rate.
+This discrepancy can lead to stuttering or jumpy movement, depending on the content being displayed. <br><br> For a smoother video output, consider enabling the <span>vsync</span> option. Vsync synchronizes the emulation with your display’s refresh rate, resulting in smoother visuals by adjusting the Amigas's emulation speed to match the monitor’s refresh rate.
     `;
-    const vsync_text=" Video output is smoother when using <span>vsync</span>. However, depending on your monitor's refresh rate, the resulting speed may not be exactly 100% of the original C64's speed.";
+    const vsync_text=" Video output is smoother when using <span>vsync</span>. However, depending on your monitor's refresh rate, the resulting speed may not be exactly 100% of the original Amiga's speed.";
     speed_text={
-        "every 2nd vsync": "Render one C64 frame every second vsync."+vsync_text,
-        "vsync":"Render exactly one C64 frame on vsync."+vsync_text,
-        "2 frames on vsync":"Render two C64 frames on vsync."+vsync_text,
+        "every 2nd vsync": "Render one Amiga frame every second vsync."+vsync_text,
+        "vsync":"Render exactly one Amiga frame on vsync."+vsync_text,
+        "2 frames on vsync":"Render two Amiga frames on vsync."+vsync_text,
         "50%":`<span>slow motion</span> ${speed_percentage_text.replace("{0}","50%")}`,
         "75%":`<span>slow motion</span> ${speed_percentage_text.replace("{0}","75%")}`,
         "100%":`<span>original speed</span> ${speed_percentage_text.replace("{0}","100%")}`,
@@ -3542,9 +3542,8 @@ This discrepancy can lead to stuttering or jumpy movement, depending on the cont
         );
 
         wasm_configure("OPT_AMIGA_SPEED_BOOST", 
-            current_speed);
-
-        $("#modal_settings").focus();
+            current_speed.toString());
+//        $("#modal_settings").focus();
     });
 
 //--
@@ -4453,7 +4452,7 @@ This discrepancy can lead to stuttering or jumpy movement, depending on the cont
             $('#add_timer_action a').click(on_add_action);
             
             //system action
-            var list_actions=['toggle_run','toggle_warp','take_snapshot', 'restore_last_snapshot', 'swap_joystick', 'keyboard', 'fullscreen', 'menubar', 'pause', 'run', 'clipboard_paste', 'warp_always', 'warp_never', 'warp_auto', 'activity_monitor', 'toggle_action_buttons'];
+            var list_actions=['toggle_run','toggle_warp','take_snapshot', 'restore_last_snapshot', 'swap_joystick', 'keyboard', 'fullscreen', 'menubar', 'pause', 'run', 'clipboard_paste', 'warp_always', 'warp_never', 'warp_auto', 'activity_monitor', 'toggle_action_buttons','toggle_speed'];
             html_action_list='';
             list_actions.forEach(element => {
                 html_action_list +='<a class="dropdown-item" href="#">'+element+'</a>';

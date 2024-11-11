@@ -57,8 +57,10 @@ bool log_on=false;
 //312-50=262
 #define PAL_EXTRA_VPIXEL 50
 
+#define PAL_FPS 50.080128
+#define NTSC_FPS 59.94
 bool ntsc=false;
-u8 target_fps = 50;
+double target_fps = PAL_FPS;
 
 extern "C" void wasm_set_display(const char *name);
 #ifdef wasm_worker
@@ -97,6 +99,9 @@ int bFullscreen = false;
 
 char *filename = NULL;
 
+
+bool requested_targetFrameCount_reset=false; 
+
 //unsigned int warp_to_frame=0;
 int sum_samples=0;
 double last_time = 0.0 ;
@@ -106,7 +111,16 @@ int64_t total_executed_frame_count=0;
 double start_time=0;//emscripten_get_now();
 unsigned int rendered_frame_count=0;
 unsigned int frames=0, seconds=0;
-// The emscripten "main loop" replacement function.
+
+double speed_boost=1.0;
+bool vsync = false;
+signed vsync_speed=2;
+u8 vframes=0;
+unsigned long current_frame=100;
+unsigned host_refresh_rate=60, last_host_refresh_rate=60;
+unsigned host_refresh_count=0;
+signed boost_param=100;
+void calibrate_boost(signed boost_param);
 
 u16 vstart_min=26;
 u16 vstop_max=256;
@@ -334,7 +348,7 @@ extern "C" int wasm_draw_one_frame(double now)
   //double now = emscripten_get_now();  
 
   double elapsedTimeInSeconds = (now - start_time)/1000.0;
-  int64_t targetFrameCount = (int64_t)(elapsedTimeInSeconds * target_fps);
+  int64_t targetFrameCount = (int64_t)(elapsedTimeInSeconds * target_fps *speed_boost);
   
   emu->emu->update();
 
@@ -347,19 +361,21 @@ extern "C" int wasm_draw_one_frame(double now)
     {
       emu->emu->computeFrame();
       i--;
-/*      if(warp_to_frame>0 && amiga->agnus.pos.frame > warp_to_frame)
-      {
-        if(log_on) printf("reached warp_to_frame count\n");
-        amiga->warpOff();
-        warp_to_frame=0;
-      }
-*/
     }
     start_time=now;
     total_executed_frame_count=0;
     targetFrameCount=1;
     show_stat=false;
   }
+
+  if(requested_targetFrameCount_reset)
+  {
+    start_time=now;
+    total_executed_frame_count=0;
+    targetFrameCount=1;
+    requested_targetFrameCount_reset=false;
+  }
+
   if(show_stat)
   {
     //lost the sync
@@ -379,7 +395,8 @@ extern "C" int wasm_draw_one_frame(double now)
         total_executed_frame_count=0;
         targetFrameCount=1;  //we are hoplessly behind but do at least one in this round  
     }
-
+    
+    host_refresh_count++;
     if(now-last_time>= 1000.0)
     { 
       double passed_time= now - last_time;
@@ -397,16 +414,62 @@ extern "C" int wasm_draw_one_frame(double now)
       passed_time, sum_samples, executed_frame_count, rendered_frame_count, frames/seconds);
 #endif
       }
+      host_refresh_rate=host_refresh_count;
+      host_refresh_count=0;
       sum_samples=0; 
       rendered_frame_count=0;
       executed_frame_count=0;
     }
   }
 
-  int behind=targetFrameCount-total_executed_frame_count;    
-  if(behind<=0 && executed_since_last_host_frame==0)
-    return -1;   //don't render if ahead of time and everything is already drawn
-
+  int behind=0;
+  if(vsync)
+  {
+    //current_frame=0, vsync_speed=-2, vframes=0
+    //printf("current_frame=%ld, vsync_speed=%d, vframes=%d\n", current_frame, vsync_speed, vframes); 
+    current_frame++;
+    
+    if(vsync_speed<0)
+    {    
+      if(current_frame % (vsync_speed*-1) !=0)
+      {
+//        printf("skip frame %ld\n", current_frame % ((unsigned long)vsync_speed*-1) );
+        return -1;
+      }
+      else{
+        emu->emu->computeFrame();
+//        printf("compute_frame \n"); 
+        executed_frame_count++;
+        total_executed_frame_count++;
+      }
+    }
+    else
+    {
+      //0 + 0 < 0 -2
+      while(current_frame+vframes  < current_frame + vsync_speed)
+      {
+        emu->emu->computeFrame();
+        //printf("compute_frame \n"); 
+        executed_frame_count++;
+        total_executed_frame_count++;
+        vframes++;
+      }
+      //printf("\n"); 
+      vframes=0;
+    }
+    //check current frame rate +-1 in case user changed it on host system
+    if(abs((long) (host_refresh_rate-last_host_refresh_rate))>1)
+    {
+      calibrate_boost(boost_param);
+      last_host_refresh_rate=host_refresh_rate;
+    }
+  }
+  else
+  {
+    behind=targetFrameCount-total_executed_frame_count;
+    if(behind<=0 && executed_since_last_host_frame==0)
+      return -1;   //don't render if ahead of time and everything is already drawn
+  }
 #ifndef wasm_worker    
   if(behind>0)
   {
@@ -1140,7 +1203,7 @@ extern "C" void wasm_set_display(const char *name)
         if(log_on) printf("was not yet ntsc so we have to configure it\n");
         wrapper->emu->set(OPT_AMIGA_VIDEO_FORMAT, NTSC);
       }
-      target_fps=60;
+      target_fps=NTSC_FPS;
       total_executed_frame_count=0;
       ntsc=true;
     }
@@ -1157,7 +1220,7 @@ extern "C" void wasm_set_display(const char *name)
         if(log_on) printf("was not yet PAL so we have to configure it\n");
         wrapper->emu->set(OPT_AMIGA_VIDEO_FORMAT, PAL);
       }
-      target_fps=50;
+      target_fps=PAL_FPS;
       total_executed_frame_count=0;
       ntsc=false;
     }
@@ -1405,7 +1468,7 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
         wrapper->emu->set(OPT_VIEWPORT_TRACKING, true); 
       }
 */
-      printf("run snapshot at %d Hz, isPAL=%d\n", target_fps, !ntsc);
+      printf("run snapshot at %f Hz, isPAL=%d\n", target_fps, !ntsc);
     }
     catch(Error &exception) {
       ErrorCode ec=exception.data;
@@ -1929,6 +1992,27 @@ extern "C" const char* wasm_configure_key(char* option, char* key, char* _value)
   return config_result; 
 }
 
+
+
+void calibrate_boost(signed boost_param){
+      if(boost_param >4)
+        return;
+      vsync_speed=boost_param;
+      unsigned boost = boost_param<0 ?
+        host_refresh_rate / (boost_param*-1)
+        :
+        host_refresh_rate * (boost_param);
+      vframes=0;
+      speed_boost= ((double)boost / target_fps /*which is PAL_FPS or NTSC_FPS */);
+      unsigned vc64_speed_boost_param=(unsigned)(speed_boost*100);
+      printf("host_refresh_rate=%d, boost=%d, speed_boost=%lf, vc64_speed_param=%d\n",host_refresh_rate, boost, speed_boost, vc64_speed_boost_param);
+      
+      wrapper->emu->set(OPT_AMIGA_SPEED_BOOST,vc64_speed_boost_param );
+      
+      EM_ASM({$("#host_fps").html(`${$0} Hz`)},
+        vsync_speed <0 ? host_refresh_rate/(vsync_speed*-1) : host_refresh_rate*vsync_speed );
+}
+
 extern "C" const char* wasm_configure(char* option, char* _value)
 {  
 printf("wasm_configure %s = %s\n", option, _value);
@@ -2038,11 +2122,11 @@ printf("wasm_configure %s = %s\n", option, _value);
     }
     else if( strcmp(option,"OPT_AMIGA_SPEED_BOOST") == 0)
     {
-//      boost_param=(signed) on;
+      boost_param=(signed) util::parseNum(value);
       /* setting
         sync mode: { vsync x1/4=-4, ..., vsync=1, vsync x2=2, 50%=50, 75%=75, 100%, 150%, 200% }
       */
-/*      if(boost_param <= 4)
+      if(boost_param <= 4)
       {
         vsync=true;
         calibrate_boost(boost_param);
@@ -2050,11 +2134,10 @@ printf("wasm_configure %s = %s\n", option, _value);
       else
       {
         vsync=false;
-        wrapper->emu->set(OPT_AMIGA_SPEED_BOOST, on);
-        speed_boost= ((double) on) / 100.0;
+        wrapper->emu->set(OPT_AMIGA_SPEED_BOOST, boost_param);
+        speed_boost= ((double) boost_param) / 100.0;
       }
-      requested_targetFrameCount_reset=true;
-*/    
+      requested_targetFrameCount_reset=true; 
     }
 
     else

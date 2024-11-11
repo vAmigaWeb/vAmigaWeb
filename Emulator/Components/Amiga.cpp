@@ -211,10 +211,11 @@ Amiga::checkOption(Option opt, i64 value)
             return;
 
         case OPT_AMIGA_SPEED_BOOST:
-
+/*
             if (value < 50 || value > 200) {
                 throw Error(VAERROR_OPT_INV_ARG, "50...200");
             }
+*/
             return;
 
         case OPT_AMIGA_RUN_AHEAD:
