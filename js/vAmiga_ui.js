@@ -3471,11 +3471,8 @@ $('.layer').change( function(event) {
     });
 
     //--
-    const speed_percentage_text =`Execute the number of frames per host refresh needed to match <span>{0}</span> of the original Amiga's speed.
-
-The PAL Amiga refreshes at 50.080128 Hz, which doesn't match the refresh rates of most modern monitors. Similarly, the NTSC Amiga runs at 59.94 Hz, which is also slightly off from today's standard.
-<br>
-This discrepancy can lead to stuttering or jumpy movement, depending on the content being displayed. <br><br> For a smoother video output, consider enabling the <span>vsync</span> option. Vsync synchronizes the emulation with your display’s refresh rate, resulting in smoother visuals by adjusting the Amigas's emulation speed to match the monitor’s refresh rate.
+    const speed_percentage_text =`Execute the number of frames per host refresh needed to match approximately <span>{0}</span> of the original Amiga's speed.
+<br><br> For a smoother video output, consider enabling the <span>vsync</span> option. Vsync synchronizes the emulation with your display’s refresh rate, resulting in smoother visuals by adjusting the Amigas's emulation speed to match the monitor’s refresh rate.
     `;
     const vsync_text=" Video output is smoother when using <span>vsync</span>. However, depending on your monitor's refresh rate, the resulting speed may not be exactly 100% of the original Amiga's speed.";
     speed_text={
