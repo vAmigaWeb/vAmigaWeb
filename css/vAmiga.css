@@ -281,6 +281,7 @@ color: #aaa !important;
     grid-template-columns: repeat(2, auto);
     gap: 1px;
     justify-content: end;
+    padding-right: 2px;
 }
 
 

@@ -3356,6 +3356,7 @@ $('.layer').change( function(event) {
             {
                 wasm_eject_disk("dh"+this.id.at(-1));
                 $("#button_eject_hd"+this.id.at(-1)).hide();
+                $("#drop_zone").html(`file slot`);
             });
         }
     });
