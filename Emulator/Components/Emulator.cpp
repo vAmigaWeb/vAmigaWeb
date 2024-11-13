@@ -340,11 +340,6 @@ void
 Emulator::cloneRunAheadInstance()
 {
     // clones++;
-    if(ahead == main)
-        printf("main und ahead ist gleich\n");
-    else
-        printf("main und ahead ist UNgleich\n");
-
     // Recreate the runahead instance from scratch
     ahead = main; isDirty = false;
     if (RUA_CHECKSUM && ahead != main) {
@@ -366,7 +361,6 @@ Emulator::recreateRunAheadInstance()
     } else {
         cloneRunAheadInstance();
     }
-printf("clone ahead + fast forward=%ld\n", config.runAhead-1);
     // Advance to the proper frame
     if (RUA_DEBUG) {
         util::StopWatch watch("Run-ahead: Fast-forward");
