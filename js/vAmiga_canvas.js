@@ -74,7 +74,7 @@ function scaleVMCanvas() {
         src_height*=2;
         src_ratio = src_width/src_height;
     }*/
-
+    src_ratio*=1.06; //make it a bit wider, because compared to other emus it seemed a bit too tall.Needs investigation why.
     var inv_src_ratio = src_height/src_width;
     var wratio = window.innerWidth / window.innerHeight;
 
