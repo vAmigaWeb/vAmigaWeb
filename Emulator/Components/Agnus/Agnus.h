@@ -32,22 +32,28 @@ static constexpr usize DRAW_ODD =  0b001;
 static constexpr usize DRAW_EVEN = 0b010;
 static constexpr usize DRAW_BOTH = 0b011;
 
-class Agnus : public SubComponent {
+class Agnus : public SubComponent, public Inspectable<AgnusInfo, AgnusStats> {
+
+    Descriptions descriptions = {{
+
+        .type           = AgnusClass,
+        .name           = "Agnus",
+        .description    = "DMA Controller",
+        .shell          = "agnus"
+    }};
+
+    ConfigOptions options = {
+
+        OPT_AGNUS_REVISION,
+        OPT_AGNUS_PTR_DROPS
+    };
 
     // Current configuration
     AgnusConfig config = {};
 
-    // Result of the latest inspection
-    mutable AgnusInfo info = {};
-    mutable EventInfo eventInfo = {};
-    mutable EventSlotInfo slotInfo[SLOT_COUNT];
-
-    // Current workload
-    AgnusStats stats = {};
-
 
     //
-    // Sub components
+    // Subcomponents
     //
     
 public:
@@ -194,6 +200,13 @@ public:
 
     
     //
+    // Class methods
+    //
+
+    static const char *eventName(EventSlot slot, EventID id);
+
+
+    //
     // Initializing
     //
     
@@ -201,48 +214,82 @@ public:
     
     Agnus(Amiga& ref);
     
-    
-    //
-    // Class methods
-    //
-    
-    static const char *eventName(EventSlot slot, EventID id);
+    Agnus& operator= (const Agnus& other) {
 
-    
-    //
-    // Methods from CoreObject
-    //
-    
-private:
-    
-    const char *getDescription() const override { return "Agnus"; }
-    void _dump(Category category, std::ostream& os) const override;
+        CLONE(sequencer)
+        CLONE(copper)
+        CLONE(blitter)
+        CLONE(dmaDebugger)
+        
+        CLONE_ARRAY(trigger)
+        CLONE_ARRAY(id)
+        CLONE_ARRAY(data)
+        CLONE(nextTrigger)
+        CLONE(changeRecorder)
+        CLONE(syncEvent)
 
-    
+        CLONE(pos)
+        CLONE(latchedPos)
+
+        CLONE(bplcon0)
+        CLONE(bplcon0Initial)
+        CLONE(bplcon1)
+        CLONE(bplcon1Initial)
+        CLONE(dmacon)
+        CLONE(dmaconInitial)
+        CLONE(dskpt)
+        CLONE_ARRAY(audpt)
+        CLONE_ARRAY(audlc)
+        CLONE_ARRAY(bplpt)
+        CLONE(bpl1mod)
+        CLONE(bpl2mod)
+        CLONE_ARRAY(sprpt)
+        CLONE(res)
+        CLONE(scrollOdd)
+        CLONE(scrollEven)
+
+        CLONE_ARRAY(busValue)
+        CLONE_ARRAY(busOwner)
+        CLONE_ARRAY(lastCtlWrite)
+
+        CLONE_ARRAY(audxDR)
+        CLONE_ARRAY(audxDSR)
+        CLONE(bls)
+
+        CLONE_ARRAY(sprVStrt)
+        CLONE_ARRAY(sprVStop)
+        CLONE_ARRAY(sprDmaState)
+
+        CLONE(clock)
+
+        CLONE(config)
+        CLONE(ptrMask)
+
+        return *this;
+    }
+
+
     //
-    // Methods from CoreComponent
+    // Methods from Serializable
     //
-    
+
 private:
-    
-    void _reset(bool hard) override;
-    void _inspect() const override;
 
     template <class T>
     void serialize(T& worker)
     {
         worker
-        
+
         << trigger
         << id
         << data
         << nextTrigger
         << changeRecorder
         << syncEvent
-        
+
         << pos
         << latchedPos
-        
+
         << bplcon0
         << bplcon0Initial
         << bplcon1
@@ -259,7 +306,7 @@ private:
         << res
         << scrollOdd
         << scrollEven
-        
+
         << busValue
         << busOwner
         << lastCtlWrite
@@ -272,47 +319,64 @@ private:
         << sprVStop
         << sprDmaState;
 
-        if (util::isSoftResetter(worker)) return;
+        if (isSoftResetter(worker)) return;
 
         worker
 
         << clock;
 
-        if (util::isResetter(worker)) return;
+        if (isResetter(worker)) return;
 
         worker
 
         << config.revision
-        << config.slowRamMirror
+        << config.ptrDrops
         << ptrMask;
     }
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
+    void operator << (SerResetter &worker) override;
+    void operator << (SerChecker &worker) override { serialize(worker); }
+    void operator << (SerCounter &worker) override { serialize(worker); }
+    void operator << (SerReader &worker) override { serialize(worker); }
+    void operator << (SerWriter &worker) override { serialize(worker); }
+
+
+    //
+    // Methods from CoreComponent
+    //
+
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+private:
     
+    void _dump(Category category, std::ostream& os) const override;
+
     
     //
-    // Configuring
+    // Methods from Configurable
     //
-    
+
 public:
     
     const AgnusConfig &getConfig() const { return config; }
-    void resetConfig() override;
-    
-    i64 getConfigItem(Option option) const;
-    void setConfigItem(Option option, i64 value);
+    const ConfigOptions &getOptions() const override { return options; }
+    i64 getOption(Option option) const override;
+    void checkOption(Option opt, i64 value) override;
+    void setOption(Option option, i64 value) override;
 
     void setVideoFormat(VideoFormat newFormat);
 
 
     //
-    // Querying chip properties
+    // Deriving chip properties
     //
 
 public:
+
+    // Returns properties about the currently selected VICII revision
+    AgnusTraits getTraits() const;
 
     bool isOCS() const;
     bool isECS() const;
@@ -331,9 +395,6 @@ public:
     // Returns a bitmask indicating the used bits in DDFSTRT / DDFSTOP
     u16 ddfMask() const { return isOCS() ? 0xFC : 0xFE; }
     
-    // Checks whether Agnus is able to access Slow Ram
-    bool slowRamIsMirroredIn() const;
-
     
     //
     // Analyzing
@@ -341,15 +402,10 @@ public:
     
 public:
     
-    AgnusInfo getInfo() const { return CoreComponent::getInfo(info); }
-    EventInfo getEventInfo() const { return CoreComponent::getInfo(eventInfo); }
-    EventSlotInfo getSlotInfo(isize nr) const;
-    const AgnusStats &getStats() { return stats; }
-    
+    void cacheInfo(AgnusInfo &result) const override;
+
 private:
     
-    void inspectSlot(EventSlot nr) const;
-    void clearStats();
     void updateStats();
 
 
@@ -662,7 +718,7 @@ public:
         if constexpr (isTertiarySlot(s)) {
             if (cycle < trigger[SLOT_TER]) trigger[SLOT_TER] = cycle;
         }
-        if constexpr (isSecondarySlot(s)) {
+        if constexpr (isSecondarySlot(s) || isTertiarySlot(s)) {
             if (cycle < trigger[SLOT_SEC]) trigger[SLOT_SEC] = cycle;
         }
     }
@@ -779,7 +835,7 @@ public:
     void serviceDASEvent(EventID id);
     
     // Services an inspection event
-    void serviceINSEvent(EventID id);
+    void serviceINSEvent();
 };
 
 }

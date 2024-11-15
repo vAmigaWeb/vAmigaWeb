@@ -16,19 +16,45 @@
 
 namespace vamiga {
 
-class HdController : public ZorroBoard {
-    
-    // Number of this controller
-    isize nr;
+class HdController : public ZorroBoard, public Inspectable<HdcInfo, HdcStats> {
+
+    Descriptions descriptions = {
+        {
+            .type           = HdControllerClass,
+            .name           = "HdController0",
+            .description    = "Hard Drive Controller 0",
+            .shell          = ""
+        },
+        {
+            .type           = HdControllerClass,
+            .name           = "HdController1",
+            .description    = "Hard Drive Controller 1",
+            .shell          = ""
+        },
+        {
+            .type           = HdControllerClass,
+            .name           = "HdController2",
+            .description    = "Hard Drive Controller 2",
+            .shell          = ""
+        },
+        {
+            .type           = HdControllerClass,
+            .name           = "HdController3",
+            .description    = "Hard Drive Controller 3",
+            .shell          = ""
+        }
+    };
+
+    ConfigOptions options = {
+
+        OPT_HDC_CONNECT
+    };
 
     // The hard drive this controller is connected to
     HardDrive &drive;
 
     // Current configuration
     HdcConfig config = {};
-    
-    // Usage profile
-    HdcStats stats = {};
     
     // The current controller state
     HdcState hdcState = HDC_UNDETECTED;
@@ -44,37 +70,39 @@ class HdController : public ZorroBoard {
 
 
     //
-    // Initializing
+    // Methods
     //
     
 public:
     
     HdController(Amiga& ref, HardDrive& hdr);
 
+    HdController& operator= (const HdController& other) {
+
+        CLONE(baseAddr)
+        CLONE(state)
+
+        CLONE(config)
+
+        CLONE(hdcState)
+        CLONE(rom)
+        CLONE(numPartitions)
+        CLONE(pointer)
+
+        return *this;
+    }
+
 
     //
-    // Methods from CoreObject
+    // Methods from Serializable
     //
     
 private:
-    
-    const char *getDescription() const override;
-    void _dump(Category category, std::ostream& os) const override;
 
-    
-    //
-    // Methods from CoreComponent
-    //
-    
-private:
-    
-    void _initialize() override;
-    void _reset(bool hard) override;
-    
     template <class T>
     void serialize(T& worker)
     {
-        if (util::isSoftResetter(worker)) return;
+        if (isSoftResetter(worker)) return;
 
         worker
 
@@ -84,19 +112,40 @@ private:
         << numPartitions
         << pointer;
 
-        if (util::isResetter(worker)) return;
+        if (isResetter(worker)) return;
 
         worker
 
         << config.connected;
-    }
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
+    } SERIALIZERS(serialize);
 
+    void _didReset(bool hard) override;
     
+
+    //
+    // Methods from CoreComponent
+    //
+
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+private:
+
+    void _dump(Category category, std::ostream& os) const override;
+
+
+    //
+    // Methods from Inspectable
+    //
+
+public:
+
+    void cacheInfo(HdcInfo &result) const override;
+    void cacheStats(HdcStats &result) const override;
+
+
     //
     // Methods from ZorroBoard
     //
@@ -109,7 +158,7 @@ public:
     virtual u8 product() const override          { return 0x88; }
     virtual u8 flags() const override            { return 0x00; }
     virtual u16 manufacturer() const override    { return 0x0539; }
-    virtual u32 serialNumber() const override    { return 31415 + u32(nr); }
+    virtual u32 serialNumber() const override    { return 31415 + u32(objid); }
     virtual u16 initDiagVec() const override     { return 0x40; }
     virtual string vendorName() const override   { return "RASTEC"; }
     virtual string productName() const override  { return "HD controller"; }
@@ -121,16 +170,16 @@ private:
     
     
     //
-    // Configuring
+    // Methods from Configurable
     //
-    
+
 public:
 
     const HdcConfig &getConfig() const { return config; }
-    void resetConfig() override;
-    
-    i64 getConfigItem(Option option) const;
-    void setConfigItem(Option option, i64 value);
+    const ConfigOptions &getOptions() const override { return options; }
+    i64 getOption(Option option) const override;
+    void checkOption(Option opt, i64 value) override;
+    void setOption(Option option, i64 value) override;
 
     
     //
@@ -138,16 +187,13 @@ public:
     //
     
 public:
-    
-    const HdcStats &getStats() { return stats; }
-    void clearStats() { stats = { }; }
-    
+        
     // Returns the current controller state
-    HdcState getHdcState() { return hdcState; }
-    
+    HdcState getHdcState() const { return hdcState; }
+
     // Informs whether the controller is compatible with a certain Kickstart
-    bool isCompatible(u32 crc32);
-    bool isCompatible();
+    bool isCompatible(u32 crc32) const;
+    bool isCompatible() const;
 
 private:
     

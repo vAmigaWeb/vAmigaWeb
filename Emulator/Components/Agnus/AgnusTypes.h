@@ -9,10 +9,13 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
+#include "AmigaTypes.h"
 #include "BeamTypes.h"
+#include "BlitterTypes.h"
 #include "BusTypes.h"
-#include "DeniseTypes.h"
+#include "CopperTypes.h"
+#include "DmaDebuggerTypes.h"
 #include "SequencerTypes.h"
 #include "Reflection.h"
 
@@ -47,14 +50,13 @@ enum_long(AGNUS_REVISION)
 typedef AGNUS_REVISION AgnusRevision;
 
 #ifdef __cplusplus
-struct AgnusRevisionEnum : util::Reflection<AgnusRevisionEnum, AgnusRevision>
+struct AgnusRevisionEnum : vamiga::util::Reflection<AgnusRevisionEnum, AgnusRevision>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = AGNUS_ECS_2MB;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "AGNUS"; }
-    static const char *key(AgnusRevision value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -106,11 +108,12 @@ enum_long(SLOT)
     SLOT_HD3,                       // Hard drive Hd3
     SLOT_MSE1,                      // Port 1 mouse
     SLOT_MSE2,                      // Port 2 mouse
+    SLOT_SNP,                       // Snapshots
     SLOT_RSH,                       // Retro Shell
     SLOT_KEY,                       // Auto-typing
-    SLOT_WBT,                       // Warp boot
     SLOT_SRV,                       // Remote server manager
     SLOT_SER,                       // Serial remote server
+    SLOT_BTR,                       // Beam traps
     SLOT_ALA,                       // Alarms (set by the GUI)
     SLOT_INS,                       // Handles periodic calls to inspect()
 
@@ -119,14 +122,13 @@ enum_long(SLOT)
 typedef SLOT EventSlot;
 
 #ifdef __cplusplus
-struct EventSlotEnum : util::Reflection<EventSlotEnum, EventSlot>
+struct EventSlotEnum : vamiga::util::Reflection<EventSlotEnum, EventSlot>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = SLOT_COUNT - 1;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-    
+
     static const char *prefix() { return "SLOT"; }
-    static const char *key(EventSlot value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -163,14 +165,14 @@ struct EventSlotEnum : util::Reflection<EventSlotEnum, EventSlot>
             case SLOT_HD3:   return "HD3";
             case SLOT_MSE1:  return "MSE1";
             case SLOT_MSE2:  return "MSE2";
+            case SLOT_SNP:   return "SNP";
             case SLOT_RSH:   return "RSH";
             case SLOT_KEY:   return "KEY";
-            case SLOT_WBT:   return "WBT";
             case SLOT_SRV:   return "SRV";
             case SLOT_SER:   return "SER";
+            case SLOT_BTR:   return "BTR";
             case SLOT_ALA:   return "ALA";
             case SLOT_INS:   return "INS";
-
             case SLOT_COUNT: return "???";
         }
         return "???";
@@ -325,7 +327,7 @@ enum_i8(EventID)
     TXD_BIT             = 1,
     TXD_EVENT_COUNT,
 
-    // Serial data out (UART)
+    // Serial data in (UART)
     RXD_BIT             = 1,
     RXD_EVENT_COUT,
 
@@ -364,18 +366,17 @@ enum_i8(EventID)
     MSE_RELEASE_RIGHT,
     MSE_EVENT_COUNT,
 
+    // Snapshots
+    SNP_TAKE            = 1,
+    SNP_EVENT_COUNT,
+
     // Retro shell
     RSH_WAKEUP          = 1,
     RSH_EVENT_COUNT,
 
     // Auto typing
-    KEY_PRESS           = 1,
-    KEY_RELEASE,
+    KEY_AUTO_TYPE       = 1,
     KEY_EVENT_COUNT,
-
-    // Warp boot
-    WBT_DISABLE         = 1,
-    WBT_EVENT_COUNT,
 
     // Remote server manager
     SRV_LAUNCH_DAEMON   = 1,
@@ -385,31 +386,18 @@ enum_i8(EventID)
     SER_RECEIVE         = 1,
     SER_EVENT_COUNT,
 
+    // Beamtrap event slot
+    BTR_TRIGGER         = 1,
+    BTR_EVENT_COUNT,
+
     // Alarm event slot
     ALA_TRIGGER         = 1,
     ALA_EVENT_COUNT,
 
     // Inspector slot
-    INS_AMIGA           = 1,
-    INS_CPU,
-    INS_MEM,
-    INS_CIA,
-    INS_AGNUS,
-    INS_PAULA,
-    INS_DENISE,
-    INS_PORTS,
-    INS_EVENTS,
+    INS_RECORD          = 1,
     INS_EVENT_COUNT
 };
-
-/*
-static inline bool isRegEvent(EventID id) { return id < REG_EVENT_COUNT; }
-static inline bool isCiaEvent(EventID id) { return id < CIA_EVENT_COUNT; }
-static inline bool isBplEvent(EventID id) { return id < BPL_EVENT_COUNT; }
-static inline bool isDasEvent(EventID id) { return id < DAS_EVENT_COUNT; }
-static inline bool isCopEvent(EventID id) { return id < COP_EVENT_COUNT; }
-static inline bool isBltEvent(EventID id) { return id < BLT_EVENT_COUNT; }
-*/
 
 static inline bool isBplxEvent(EventID id, int x)
 {
@@ -435,14 +423,13 @@ enum_long(SPR_DMA_STATE)
 typedef SPR_DMA_STATE SprDMAState;
 
 #ifdef __cplusplus
-struct SprDmaStateEnum : util::Reflection<SprDmaStateEnum, SprDMAState>
+struct SprDmaStateEnum : vamiga::util::Reflection<SprDmaStateEnum, SprDMAState>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = SPR_DMA_ACTIVE;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "SPR_DMA"; }
-    static const char *key(SprDMAState value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -461,43 +448,24 @@ struct SprDmaStateEnum : util::Reflection<SprDmaStateEnum, SprDMAState>
 
 typedef struct
 {
-    AgnusRevision revision;
-    bool slowRamMirror;
-    bool ptrDrops;
+    bool isOCS;
+    bool isECS;
+    bool isPAL;
+    bool isNTSC;
+
+    u16 idBits;
+    isize chipRamLimit;
+    isize vStrobeLine;
+    u16 ddfMask;
 }
-AgnusConfig;
+AgnusTraits;
 
 typedef struct
 {
-    isize vpos;
-    isize hpos;
-
-    u16 dmacon;
-    u16 bplcon0;
-    u16 ddfstrt;
-    u16 ddfstop;
-    u16 diwstrt;
-    u16 diwstop;
-
-    u16 bpl1mod;
-    u16 bpl2mod;
-    u16 bltamod;
-    u16 bltbmod;
-    u16 bltcmod;
-    u16 bltdmod;
-    u16 bltcon0;
-    
-    u32 coppc0;
-    u32 dskpt;
-    u32 bplpt[6];
-    u32 audpt[4];
-    u32 audlc[4];
-    u32 bltpt[4];
-    u32 sprpt[8];
-
-    bool bls;
+    AgnusRevision revision;
+    bool ptrDrops;
 }
-AgnusInfo;
+AgnusConfig;
 
 typedef struct
 {
@@ -530,6 +498,42 @@ typedef struct
     long hpos;
 }
 EventInfo;
+
+typedef struct
+{
+    isize vpos;
+    isize hpos;
+    i64 frame;
+
+    u16 dmacon;
+    u16 bplcon0;
+    u16 ddfstrt;
+    u16 ddfstop;
+    u16 diwstrt;
+    u16 diwstop;
+
+    u16 bpl1mod;
+    u16 bpl2mod;
+    u16 bltamod;
+    u16 bltbmod;
+    u16 bltcmod;
+    u16 bltdmod;
+    u16 bltcon0;
+    
+    u32 coppc0;
+    u32 dskpt;
+    u32 bplpt[6];
+    u32 audpt[4];
+    u32 audlc[4];
+    u32 bltpt[4];
+    u32 sprpt[8];
+
+    bool bls;
+
+    EventInfo eventInfo;
+    EventSlotInfo slotInfo[SLOT_COUNT];
+}
+AgnusInfo;
 
 typedef struct
 {

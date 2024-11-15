@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 
 //
@@ -44,14 +44,13 @@ enum_long(BOARD_STATE)
 typedef BOARD_STATE BoardState;
 
 #ifdef __cplusplus
-struct BoardStateEnum : util::Reflection<BoardStateEnum, BoardState>
+struct BoardStateEnum : vamiga::util::Reflection<BoardStateEnum, BoardState>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = STATE_SHUTUP;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
     
     static const char *prefix() { return "STATE"; }
-    static const char *key(BoardState value)
+    static const char *_key(long value)
     {
         switch (value) {
 

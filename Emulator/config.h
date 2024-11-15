@@ -14,96 +14,61 @@
 //
 
 // Version number
-#define VER_MAJOR 2
-#define VER_MINOR 6
+#define VER_MAJOR 3
+#define VER_MINOR 0
 #define VER_SUBMINOR 0
 #define VER_BETA 0
 
 // Snapshot version number
-#define SNP_MAJOR 2
-#define SNP_MINOR 6
+#define SNP_MAJOR 3
+#define SNP_MINOR 0
 #define SNP_SUBMINOR 0
 #define SNP_BETA 0
 
 // Uncomment this setting in a release build
-#define RELEASEBUILD
+// #define RELEASEBUILD
 
 
 //
-// Configuration overrides
+// Build settings
 //
 
-#define OVERRIDES { }
-/*
- { \
- { OPT_AGNUS_REVISION,   AGNUS_OCS      }, \
- { OPT_BLITTER_ACCURACY, 0              }, \
- { OPT_CHIP_RAM,         512            }, \
- { OPT_SLOW_RAM,         512            }, \
- { OPT_FAST_RAM,         0              }, \
- { OPT_RTC_MODEL,        RTC_NONE       }, \
- { OPT_DRIVE_SPEED,      -1             }  }
-*/
+#if defined(__clang__)
 
-// Uncomment to colorize a certain scanline
-// #define LINE_DEBUG (vpos == 0 || vpos == 160)
-// #define LINE_DEBUG (vpos == 200)
+#define alwaysinline __attribute__((always_inline))
+#pragma GCC diagnostic ignored "-Wgnu-anonymous-struct"
+#pragma GCC diagnostic ignored "-Wnested-anon-types"
 
+#elif defined(__GNUC__) || defined(__GNUG__)
 
-//
-// Launch settings
-//
+#define alwaysinline __attribute__((always_inline))
 
-// Add pathes to ADF files to launch the emulator with preset floppy disks
-#define INITIAL_DF0 ""
-#define INITIAL_DF1 ""
-#define INITIAL_DF2 ""
-#define INITIAL_DF3 ""
+#elif defined(_MSC_VER)
 
-// Add pathes to HDF files to launch the emulator with preset hard drives
-#define INITIAL_HD0 "" // /tmp/rdb2.hdf"
-#define INITIAL_HD1 ""
-#define INITIAL_HD2 ""
-#define INITIAL_HD3 ""
+#define alwaysinline __forceinline
 
-// Add a path to a snapshot file to launch the emulator in a preset state
-#define INITIAL_SNAPSHOT ""
-
-// Add addresses to launch the emulator with preset breakpoints
-#define INITIAL_BREAKPOINTS { }
+#endif
 
 
 //
 // Video settings
 //
 
-/* Texels per pixel. Set to 1 to generate a texture in hires resolution (every
- * hires pixel is represented by a single texel). Set to 2 to generate a
- * texture in super-hires resolution (every hires pixel is represented by a
- * two texels).
+/* Texels per pixel. Set to 1 to create a texture in hires resolution where
+ * every hires pixel is represented by a single texel). Set to 2 to generate a
+ * texture in super-hires resolution where every hires pixel is represented by
+ * two texels.
  */
 #define TPP 1
-
-
-//
-// Audio settings
-//
-
-// Type alias for the datatype used by the host machine's audio backend
-#define SAMPLE_T FloatStereo
-
-// Scaling factor used by the FloatStereo SampleType
-#define AUD_SCALE 0.00001f
 
 
 //
 // Execution settings
 //
 
-static const int NO_SEQ_FASTPATH = 0; // Disable sequencer fast path
-static const int NO_BPL_FASTPATH = 0; // Disable drawing fast path
 static const int DIAG_BOARD      = 0; // Plug in the diagnose board
-static const int ALLOW_ALL_ROMS  = 1; // Disable the magic bytes check
+static const int ALLOW_ALL_ROMS  = 0; // Disable the magic bytes check
+
 
 //
 // Debug settings
@@ -128,6 +93,11 @@ static const bool betaRelease = 0;
 static const bool betaRelease = 1;
 #endif
 
+#ifdef __EMSCRIPTEN__
+static const bool emscripten = 1;
+#else
+static const bool emscripten = 0;
+#endif
 
 // General
 extern debugflag XFILES;
@@ -136,16 +106,21 @@ extern debugflag OBJ_DEBUG;
 extern debugflag DEF_DEBUG;
 extern debugflag MIMIC_UAE;
 
-// Runloop
+// Emulator
 extern debugflag RUN_DEBUG;
 extern debugflag TIM_DEBUG;
 extern debugflag WARP_DEBUG;
-extern debugflag QUEUE_DEBUG;
+extern debugflag CMD_DEBUG;
+extern debugflag MSG_DEBUG;
 extern debugflag SNP_DEBUG;
+
+// Run ahead
+extern debugflag RUA_DEBUG;
+extern debugflag RUA_CHECKSUM;
+extern debugflag RUA_ON_STEROIDS;
 
 // CPU
 extern debugflag CPU_DEBUG;
-extern debugflag CST_DEBUG;
 
 // Memory access
 extern debugflag OCSREG_DEBUG;
@@ -157,6 +132,7 @@ extern debugflag MEM_DEBUG;
 extern debugflag DMA_DEBUG;
 extern debugflag DDF_DEBUG;
 extern debugflag SEQ_DEBUG;
+extern debugflag SEQ_ON_STEROIDS;
 extern debugflag NTSC_DEBUG;
 
 // Copper
@@ -172,7 +148,6 @@ extern debugflag BLT_MEM_GUARD;
 extern debugflag BLT_DEBUG;
 extern debugflag BLTTIM_DEBUG;
 extern debugflag SLOW_BLT_DEBUG;
-extern debugflag OLD_LINE_BLIT;
 
 // Denise
 extern debugflag BPLREG_DEBUG;
@@ -181,11 +156,13 @@ extern debugflag BPLMOD_DEBUG;
 extern debugflag SPRREG_DEBUG;
 extern debugflag COLREG_DEBUG;
 extern debugflag CLXREG_DEBUG;
-extern debugflag BPL_DEBUG;
+extern debugflag BPL_ON_STEROIDS;
 extern debugflag DIW_DEBUG;
 extern debugflag SPR_DEBUG;
 extern debugflag CLX_DEBUG;
 extern debugflag BORDER_DEBUG;
+extern debugflag LINE_DEBUG;
+extern debugflag DENISE_ON_STEROIDS;
 
 // Paula
 extern debugflag INTREG_DEBUG;
@@ -214,12 +191,14 @@ extern debugflag WT_DEBUG;
 extern debugflag AUDREG_DEBUG;
 extern debugflag AUD_DEBUG;
 extern debugflag AUDBUF_DEBUG;
+extern debugflag AUDVOL_DEBUG;
 extern debugflag DISABLE_AUDIRQ;
 
 // Ports
 extern debugflag POSREG_DEBUG;
 extern debugflag JOYREG_DEBUG;
 extern debugflag POTREG_DEBUG;
+extern debugflag VID_DEBUG;
 extern debugflag PRT_DEBUG;
 extern debugflag SER_DEBUG;
 extern debugflag POT_DEBUG;
@@ -239,9 +218,12 @@ extern debugflag ADF_DEBUG;
 extern debugflag DMS_DEBUG;
 extern debugflag IMG_DEBUG;
 
-// Other components
+// Real-time clock
 extern debugflag RTC_DEBUG;
+
+// Keyboard
 extern debugflag KBD_DEBUG;
+extern debugflag KEY_DEBUG;
 
 // Misc
 extern debugflag REC_DEBUG;

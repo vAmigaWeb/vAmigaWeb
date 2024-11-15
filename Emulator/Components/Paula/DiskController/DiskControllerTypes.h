@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 
 //
@@ -29,18 +29,17 @@ enum_long(DRIVE_DMA_STATE)
 typedef DRIVE_DMA_STATE DriveState;
 
 #ifdef __cplusplus
-struct DriveStateEnum : util::Reflection<DriveStateEnum, DriveState>
+struct DriveStateEnum : vamiga::util::Reflection<DriveStateEnum, DriveState>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = DRIVE_DMA_FLUSH;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
     
     static const char *prefix()
     {
         return "DRIVE_DMA";
     }
     
-    static const char *key(DriveState value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -63,8 +62,6 @@ struct DriveStateEnum : util::Reflection<DriveStateEnum, DriveState>
 
 typedef struct
 {
-    bool connected[4];
-
     /* Acceleration factor. This value equals the number of words that get
      * transfered into memory during a single disk DMA cycle. This value must
      * be 1 to emulate a real Amiga. If it set to, e.g., 2, the drive loads

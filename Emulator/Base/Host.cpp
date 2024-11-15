@@ -9,64 +9,129 @@
 
 #include "config.h"
 #include "Host.h"
-#include "Paula.h"
+#include "Emulator.h"
 #include "IOUtils.h"
 
 namespace vamiga {
+
+i64
+Host::getOption(Option option) const
+{
+    switch (option) {
+
+        case OPT_HOST_REFRESH_RATE:     return i64(config.refreshRate);
+        case OPT_HOST_SAMPLE_RATE:      return i64(config.sampleRate);
+        case OPT_HOST_FRAMEBUF_WIDTH:   return i64(config.frameBufferWidth);
+        case OPT_HOST_FRAMEBUF_HEIGHT:  return i64(config.frameBufferHeight);
+
+        default:
+            fatalError;
+    }
+}
+
+void
+Host::checkOption(Option opt, i64 value)
+{
+    switch (opt) {
+
+        case OPT_HOST_REFRESH_RATE:
+        case OPT_HOST_SAMPLE_RATE:
+        case OPT_HOST_FRAMEBUF_WIDTH:
+        case OPT_HOST_FRAMEBUF_HEIGHT:
+            
+            return;
+
+        default:
+            throw(VAERROR_OPT_UNSUPPORTED);
+    }
+}
+
+void
+Host::setOption(Option opt, i64 value)
+{
+    switch (opt) {
+
+        case OPT_HOST_REFRESH_RATE:
+
+            config.refreshRate = isize(value);
+            return;
+
+        case OPT_HOST_SAMPLE_RATE:
+
+            config.sampleRate = isize(value);
+            audioPort.setSampleRate(double(value));
+            return;
+
+        case OPT_HOST_FRAMEBUF_WIDTH:
+
+            config.frameBufferWidth = isize(value);
+            return;
+
+        case OPT_HOST_FRAMEBUF_HEIGHT:
+
+            config.frameBufferHeight = isize(value);
+            return;
+
+        default:
+            fatalError;
+    }
+}
 
 void
 Host::_dump(Category category, std::ostream& os) const
 {
     using namespace util;
 
-    if (category == Category::State) {
+    if (category == Category::Config) {
 
-        os << tab("Audio sample rate");
-        os << flt(sampleRate) << " Hz" << std::endl;
-        os << tab("Monitor refresh rate");
-        os << flt(refreshRate) << " Hz" << std::endl;
-        os << tab("Frame buffer size");
-        os << dec(frameBufferWidth) << " x ";
-        os << dec(frameBufferHeight) << " Texels" << std::endl;
+        dumpConfig(os);
     }
 }
 
-void
-Host::setSampleRate(double hz)
+fs::path
+Host::tmp() const
 {
-    sampleRate = hz;
-    paula.muxer.setSampleRate(hz);
-}
+    SYNCHRONIZED
 
-void
-Host::setHostRefreshRate(double fps)
-{
-    switch (i16(fps)) {
+    static fs::path base;
 
-        case 50: case 60: case 100: case 120: case 200: case 240:
+    if (base.empty()) {
 
-            refreshRate = fps;
-            break;
+        // Use /tmp as default folder for temporary files
+        base = "/tmp";
 
-        default:
+        // Open a file to see if we have write permissions
+        std::ofstream logfile(base / "virtualc64.log");
 
-            // We keep the old value because the new value is likely the result
-            // of a wrong measurement.
-            break;
+        // If /tmp is not accessible, use a different directory
+        if (!logfile.is_open()) {
+
+            base = fs::temp_directory_path();
+            logfile.open(base / "vAmiga.log");
+
+            if (!logfile.is_open()) {
+
+                throw Error(VAERROR_DIR_NOT_FOUND);
+            }
+        }
+
+        logfile.close();
+        fs::remove(base / "vAmiga.log");
     }
+
+    return base;
 }
 
-std::pair<isize, isize>
-Host::getFrameBufferSize() const
+fs::path
+Host::tmp(const string &name, bool unique) const
 {
-    return std::pair<isize, isize>(frameBufferWidth, frameBufferHeight);
-}
+    auto base = tmp();
+    auto result = base / name;
 
-void
-Host::setFrameBufferSize(std::pair<isize, isize> size)
-{
-    frameBufferWidth = size.first;
-    frameBufferHeight = size.second;
+    // Make the file name unique if requested
+    if (unique) result = fs::path(util::makeUniquePath(result));
+
+    return result;
 }
 
 }

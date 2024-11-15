@@ -14,12 +14,15 @@
 #include "Constants.h"
 #include "Colors.h"
 
-using util::Buffer;
 
 namespace vamiga {
 
-struct FrameBuffer {
+using util::Buffer;
 
+class FrameBuffer {
+
+public:
+    
     // Predefined colors
     static constexpr Texel black    = TEXEL(0xFF000000);
     static constexpr Texel grey2    = TEXEL(0xFF222222);

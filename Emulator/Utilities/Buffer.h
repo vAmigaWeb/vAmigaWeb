@@ -9,14 +9,17 @@
 
 #pragma once
 
-#include "Types.h"
+#include "BasicTypes.h"
 #include "Checksum.h"
-#include "Serialization.h"
+#include <filesystem>
+#include <vector>
 
-namespace util {
+namespace vamiga::util {
 
-template <class T> struct Allocator : Serializable {
+namespace fs = ::std::filesystem;
 
+template <class T> struct Allocator {
+    
     static constexpr isize maxCapacity = 512 * 1024 * 1024;
     
     T *&ptr;
@@ -25,39 +28,8 @@ template <class T> struct Allocator : Serializable {
     Allocator(T *&ptr) : ptr(ptr), size(0) { ptr = nullptr; }
     Allocator(const Allocator&) = delete;
     ~Allocator() { dealloc(); }
+    Allocator& operator= (const Allocator& other);
     
-    // Serialization
-    auto& operator<<(class SerCounter &s)
-    {
-        s.count += 8 + size;
-        return *this;
-    }
-    auto& operator<<(class SerChecker &s)
-    {
-        s.hash = util::fnvIt64(s.hash, fnv64());
-        return *this;
-    }
-    auto& operator<<(class SerReader &s)
-    {
-        i64 len;
-        s << len;
-        init(s.ptr, isize(len));
-        s.ptr += len;
-        return *this;
-    }
-    auto& operator<<(class SerWriter &s)
-    {
-        s << i64(size);
-        copy(s.ptr);
-        s.ptr += size;
-        return *this;
-    }
-    auto& operator<<(class SerResetter &s)
-    {
-        clear();
-        return *this;
-    }
-
     // Queries the buffer state
     isize bytesize() const { return size * sizeof(T); }
     bool empty() const { return size == 0; }
@@ -68,10 +40,12 @@ template <class T> struct Allocator : Serializable {
     void dealloc();
     void init(isize elements, T value = 0);
     void init(const T *buf, isize elements);
+    void init(const string &str);
     void init(const Allocator<T> &other);
-    void init(const string &path);
-    void init(const string &path, const string &name);
-    
+    void init(const std::vector<T> &vector);
+    void init(const fs::path &path);
+    void init(const fs::path &path, const string &name);
+
     // Resizes an existing buffer
     void resize(isize elements);
     void resize(isize elements, T pad);
@@ -93,6 +67,10 @@ template <class T> struct Allocator : Serializable {
     u64 fnv64() const { return ptr ? util::fnv64((u8 *)ptr, bytesize()) : 0; }
     u16 crc16() const { return ptr ? util::crc16((u8 *)ptr, bytesize()) : 0; }
     u32 crc32() const { return ptr ? util::crc32((u8 *)ptr, bytesize()) : 0; }
+
+    // Compresses or uncompresses a buffer
+    void compress(isize n = 2, isize offset = 0);
+    void uncompress(isize n = 2, isize offset = 0, isize expectedSize = 0);
 };
 
 template <class T> struct Buffer : public Allocator <T> {
@@ -107,11 +85,13 @@ template <class T> struct Buffer : public Allocator <T> {
     : Allocator<T>(ptr) { this->init(bytes, value); }
     Buffer(const T *buf, isize len)
     : Allocator<T>(ptr) { this->init(buf, len); }
-    Buffer(const string &path)
+    Buffer(const fs::path &path)
     : Allocator<T>(ptr) { this->init(path); }
-    Buffer(const string &path, const string &name)
+    Buffer(const fs::path &path, const string &name)
     : Allocator<T>(ptr) { this->init(path, name); }
     
+    Buffer& operator= (const Buffer& other) { Allocator<T>::operator=(other); return *this; }
+
     T operator [] (isize i) const { return ptr[i]; }
     T &operator [] (isize i) { return ptr[i]; }
 };

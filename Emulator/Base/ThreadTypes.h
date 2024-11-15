@@ -9,70 +9,44 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 
 //
 // Enumerations
 //
 
+/// Execution state
 enum_long(EXEC_STATE)
 {
-    EXEC_OFF,
-    EXEC_PAUSED,
-    EXEC_RUNNING,
-    EXEC_SUSPENDED,
-    EXEC_HALTED
+    STATE_UNINIT,       ///< Not yet initialized
+    STATE_OFF,          ///< Powered off
+    STATE_PAUSED,       ///< Powered on, but currently paused
+    STATE_RUNNING,      ///< Up and running
+    STATE_SUSPENDED,    ///< Shortly paused for an internal state change
+    STATE_HALTED        ///< Shut down
 };
-typedef EXEC_STATE ExecutionState;
+typedef EXEC_STATE ExecState;
 
 #ifdef __cplusplus
-struct ExecutionStateEnum : util::Reflection<ExecutionStateEnum, ExecutionState>
+struct ExecStateEnum : vamiga::util::Reflection<ExecStateEnum, ExecState>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = EXEC_HALTED;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
+    static constexpr long maxVal = STATE_HALTED;
 
-    static const char *prefix() { return "EXEC"; }
-    static const char *key(ExecutionState value)
+    static const char *prefix() { return "STATE"; }
+    static const char *_key(long value)
     {
         switch (value) {
 
-            case EXEC_OFF:          return "OFF";
-            case EXEC_PAUSED:       return "PAUSED";
-            case EXEC_RUNNING:      return "RUNNING";
-            case EXEC_SUSPENDED:    return "SUSPENDED";
-            case EXEC_HALTED:       return "HALTED";
+            case STATE_UNINIT:       return "UNINIT";
+            case STATE_OFF:          return "OFF";
+            case STATE_PAUSED:       return "PAUSED";
+            case STATE_RUNNING:      return "RUNNING";
+            case STATE_SUSPENDED:    return "SUSPENDED";
+            case STATE_HALTED:       return "HALTED";
         }
         return "???";
     }
 };
-#endif
-
-enum_long(SYNC_MODE)
-{
-    SYNC_PERIODIC,
-    SYNC_PULSED,
-};
-typedef SYNC_MODE SyncMode;
-
-#ifdef __cplusplus
-struct SyncModeEnum : util::Reflection<SyncModeEnum, SyncMode>
-{
-    static constexpr long minVal = 0;
-    static constexpr long maxVal = SYNC_PULSED;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
-
-    static const char *prefix() { return "SYNC"; }
-    static const char *key(SyncMode value)
-    {
-        switch (value) {
-
-            case SYNC_PERIODIC:   return "PERIODIC";
-            case SYNC_PULSED:     return "PULSED";
-        }
-        return "???";
-    }
-};
-
 #endif

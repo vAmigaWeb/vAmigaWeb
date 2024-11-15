@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Macros.h"
+#include "BasicTypes.h"
 #include <sstream>
 #include <fstream>
 #include <vector>
@@ -55,7 +55,13 @@ public:
     
     // Initializes the storage with a single empty line
     void clear();
-    
+
+    // Returns true if the console is cleared
+    bool isCleared();
+
+    // Returns true if the last line contains no text
+    bool lastLineIsEmpty();
+
 private:
     
     // Appends a new line

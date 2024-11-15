@@ -15,7 +15,19 @@
 
 namespace vamiga {
 
-class RegressionTester : public SubComponent {
+class RegressionTester final : public SubComponent {
+
+    Descriptions descriptions = {{
+
+        .type           = RegressionTesterClass,
+        .name           = "Regression",
+        .description    = "Regression Tester",
+        .shell          = "regression"
+    }};
+
+    ConfigOptions options = {
+
+    };
 
     static constexpr isize X1 = 4 * 0x31;
     static constexpr isize Y1 = VBLANK_MAX + 1;
@@ -47,14 +59,18 @@ public:
     
     using SubComponent::SubComponent;
     
-    
+    RegressionTester& operator= (const RegressionTester& other) {
+
+        return *this;
+    }
+
+
     //
     // Methods from CoreObject
     //
     
 private:
     
-    const char *getDescription() const override { return "RegressionTester"; }
     void _dump(Category category, std::ostream& os) const override { }
 
     
@@ -64,13 +80,22 @@ private:
 
 private:
     
-    void _reset(bool hard) override { };
-    isize _size() override { return 0; }
-    u64 _checksum() override { return 0; }
-    isize _load(const u8 *buffer) override { return 0; }
-    isize _save(u8 *buffer) override { return 0; }
-    
-    
+    template <class T> void serialize(T& worker) { } SERIALIZERS(serialize);
+        
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+
+    //
+    // Methods from Configurable
+    //
+
+public:
+
+    const ConfigOptions &getOptions() const override { return options; }
+
+
     //
     // Running a regression test
     //

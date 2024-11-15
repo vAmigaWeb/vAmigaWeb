@@ -26,7 +26,7 @@
 #include <unistd.h>
 
 namespace vamiga { typedef int SOCKET; }
-#define INVALID_SOCKET  -1
+#define INVALID_SOCKET -1
 
 #endif
 
@@ -65,7 +65,7 @@ public:
     
 private:
     
-    const char *getDescription() const override { return "Socket"; }
+    const char *objectName() const override { return "Socket"; }
     void _dump(Category category, std::ostream& os) const override { };
 
     

@@ -17,18 +17,57 @@
 #include "FloppyDisk.h"
 #include "DiskController.h"
 #include "Thread.h"
+#include "CmdQueueTypes.h"
 
 namespace vamiga {
 
-class FloppyDrive : public Drive {
-    
+class FloppyDrive final : public Drive, public Inspectable<FloppyDriveInfo> {
+
+    Descriptions descriptions = {
+        {
+            .type           = FloppyDriveClass,
+            .name           = "FloppyDrive0",
+            .description    = "Floppy Drive 0",
+            .shell          = "df0"
+        },
+        {
+            .type           = FloppyDriveClass,
+            .name           = "FloppyDrive1",
+            .description    = "Floppy Drive 1",
+            .shell          = "df1"
+        },
+        {
+            .type           = FloppyDriveClass,
+            .name           = "FloppyDrive2",
+            .description    = "Floppy Drive 2",
+            .shell          = "df2"
+        },
+        {
+            .type           = FloppyDriveClass,
+            .name           = "FloppyDrive3",
+            .description    = "Floppy Drive 3",
+            .shell          = "df3"
+        }
+    };
+
+    ConfigOptions options = {
+
+        OPT_DRIVE_CONNECT,
+        OPT_DRIVE_TYPE,
+        OPT_DRIVE_MECHANICS,
+        OPT_DRIVE_RPM,
+        OPT_DRIVE_SWAP_DELAY,
+        OPT_DRIVE_PAN,
+        OPT_DRIVE_STEP_VOLUME,
+        OPT_DRIVE_POLL_VOLUME,
+        OPT_DRIVE_INSERT_VOLUME,
+        OPT_DRIVE_EJECT_VOLUME
+    };
+
     friend class DiskController;
 
     // Current configuration
     FloppyDriveConfig config = {};
-
-    // Result of the latest inspection
-    mutable FloppyDriveInfo info = {};
 
     // The current head location
     DriveHead head;
@@ -85,8 +124,8 @@ private:
     std::unique_ptr<FloppyDisk> diskToInsert;
     
     // Search path for disk files, one for each drive
-    string searchPath;
-    
+    std::filesystem::path searchPath;
+
     
     //
     // Initializing
@@ -94,16 +133,17 @@ private:
 
 public:
 
-    FloppyDrive(Amiga& ref, isize nr);
-    
-    
+    using Drive::Drive;
+
+    FloppyDrive& operator= (const FloppyDrive& other);
+
+
     //
     // Methods from CoreObject
     //
     
 private:
     
-    const char *getDescription() const override;
     void _dump(Category category, std::ostream& os) const override;
     
     
@@ -114,13 +154,11 @@ private:
 private:
     
     void _initialize() override;
-    void _reset(bool hard) override;
-    void _inspect() const override;
     
     template <class T>
     void serialize(T& worker)
     {
-        if (util::isSoftResetter(worker)) return;
+        if (isSoftResetter(worker)) return;
 
         worker
 
@@ -135,26 +173,35 @@ private:
         << latestStepUp
         << latestStepDown
         << latestStep
+        << latestStepCompleted
         << dskchange
         << dsklen
         << prb
         << cylinderHistory;
 
-        if (util::isResetter(worker)) return;
+        if (isResetter(worker)) return;
 
         worker
 
+        << config.connected
         << config.type
         << config.mechanics
         << config.rpm;
     }
 
-    isize _size() override;
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override;
-    isize _save(u8 *buffer) override;
+    void operator << (SerResetter &worker) override { serialize(worker); };
+    void operator << (SerChecker &worker) override;
+    void operator << (SerCounter &worker) override;
+    void operator << (SerReader &worker) override;
+    void operator << (SerWriter &worker) override;
 
+    void _didReset(bool hard) override;
     
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+
     //
     // Methods from Drive
     //
@@ -170,24 +217,28 @@ public:
     bool hasDisk() const override;
     bool hasModifiedDisk() const override;
     bool hasProtectedDisk() const override;
+
+    bool getFlag(DiskFlags mask) const override;
+    void setFlag(DiskFlags mask, bool value) override;
+
     void setModificationFlag(bool value) override;
     void setProtectionFlag(bool value) override;
 
     
     //
-    // Configuring
+    // Methods from Configurable
     //
-    
+
 public:
     
     const FloppyDriveConfig &getConfig() const { return config; }
-    void resetConfig() override;
+    const ConfigOptions &getOptions() const override { return options; }
+    i64 getOption(Option option) const override;
+    void checkOption(Option opt, i64 value) override;
+    void setOption(Option option, i64 value) override;
     
-    i64 getConfigItem(Option option) const;
-    void setConfigItem(Option option, i64 value);
-    
-    const string &getSearchPath() const { return searchPath; }
-    void setSearchPath(const string &path) { searchPath = path; }
+    const std::filesystem::path &getSearchPath() const { return searchPath; }
+    void setSearchPath(const std::filesystem::path &path) { searchPath = path; }
 
 
     //
@@ -197,7 +248,7 @@ public:
 public:
     
     // Returns the result of the latest inspection
-    FloppyDriveInfo getInfo() const { return CoreComponent::getInfo(info); }
+    void cacheInfo(FloppyDriveInfo &info) const override;
 
     // Return the identification pattern of this drive
     u32 getDriveId() const;
@@ -235,7 +286,7 @@ public:
     //
     
     // Returns true if the drive is currently selected
-    bool isSelected() const { return (prb & (0b1000 << nr)) == 0; }
+    bool isSelected() const { return (prb & (0b1000 << objid)) == 0; }
     
     u8 driveStatusFlags() const;
     
@@ -305,7 +356,7 @@ public:
     // Returns true if the drive is in disk polling mode
     bool pollsForDisk() const;
 
-    
+
     //
     // Handling disks
     //
@@ -316,16 +367,20 @@ public:
     bool isInsertable(const FloppyFile &file) const;
     bool isInsertable(const FloppyDisk &disk) const;
 
-    // Ejects the current disk with an optional delay
-    void ejectDisk(Cycle delay = 0);
-    
     // Inserts a new disk with an optional delay
     void insertDisk(std::unique_ptr<FloppyDisk> disk, Cycle delay = 0) throws;
-    
+    void insertMediaFile(class MediaFile &file, bool wp);
+
+    // Ejects the current disk with an optional delay
+    void ejectDisk(Cycle delay = 0);
+
+    // Exports the current disk
+    MediaFile *exportDisk(FileType type);
+
     // Replaces the current disk (recommended way to insert disks)
     void swapDisk(std::unique_ptr<FloppyDisk> disk) throws;
     void swapDisk(class FloppyFile &file) throws;
-    void swapDisk(const string &name) throws;
+    void swapDisk(const std::filesystem::path &path) throws;
 
     // Replaces the current disk with a factory-fresh disk
     void insertNew(FSVolumeType fs, BootBlockId bb, string name) throws;
@@ -343,11 +398,11 @@ private:
 public:
     
     // Sets a catchpoint on the specified file
-    void catchFile(const string &path) throws;
+    void catchFile(const std::filesystem::path &path) throws;
     
     
     //
-    // Serving events
+    // Processing events and commands
     //
     
 public:
@@ -355,7 +410,10 @@ public:
     // Services an event in the disk change slot
     template <EventSlot s> void serviceDiskChangeEvent();
     
-    
+    // Processes a command from the command queue
+    void processCommand(const Cmd &cmd);
+
+
     //
     // Delegation methods
     //
@@ -364,6 +422,13 @@ public:
     
     // Write handler for the PRB register of CIA B
     void PRBdidChange(u8 oldValue, u8 newValue);
+
+
+    //
+    // Debugging
+    //
+
+    string readTrackBits(isize track);
 };
 
 }

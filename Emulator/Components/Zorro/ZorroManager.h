@@ -16,8 +16,20 @@
 
 namespace vamiga {
 
-class ZorroManager : public SubComponent {
+class ZorroManager final : public SubComponent {
     
+    Descriptions descriptions = {{
+
+        .type           = ZorroManagerClass,
+        .name           = "ZorroManager",
+        .description    = "Zorro Manager",
+        .shell          = "zorro"
+    }};
+
+    ConfigOptions options = {
+
+    };
+
 public:
 
     // Number of emulated Zorro slots
@@ -44,15 +56,14 @@ private:
 public:
     
     using SubComponent::SubComponent;
-    
-    
+    ZorroManager& operator= (const ZorroManager& other) { return *this; }
+
     //
     // Methods from CoreObject
     //
     
 private:
     
-    const char *getDescription() const override { return "ZorroManager"; }
     void _dump(Category category, std::ostream& os) const override;
 
     
@@ -62,16 +73,13 @@ private:
     
 private:
     
-    void _reset(bool hard) override { RESET_SNAPSHOT_ITEMS(hard) }
-
     template <class T>
-    void serialize(T& worker) { }
+    void serialize(T& worker) { } SERIALIZERS(serialize);
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
+public:
 
+    const Descriptions &getDescriptions() const override { return descriptions; }
+    const ConfigOptions &getOptions() const override { return options; }
 
     //
     // Accessing

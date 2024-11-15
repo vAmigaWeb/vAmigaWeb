@@ -1,5 +1,5 @@
-const vAmigaWeb_version="2.6.0"; //minimum requirement for snapshot version to be compatible
-const compatible_snapshot_version_format=/^(2[.]6[.]0)$/g
+const vAmigaWeb_version="3.0.0"; //minimum requirement for snapshot version to be compatible
+const compatible_snapshot_version_format=/^(3[.]0[.]0)$/g
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 
@@ -418,6 +418,11 @@ var collectors = {
                 height=src_data[17]*256+ src_data[16];
                 if(width==0)
                 {//width is 0 if there is structure padding for 8 byte aligment instead of 4
+                    width=src_data[13+4]*256+ src_data[12+4];
+                    height=src_data[17+4]*256+ src_data[16+4];
+                }
+                if(version.startsWith("3"))
+                {
                     width=src_data[13+4]*256+ src_data[12+4];
                     height=src_data[17+4]*256+ src_data[16+4];
                 }

@@ -9,13 +9,15 @@
 
 #include "config.h"
 #include "SubComponent.h"
-#include "Amiga.h"  
+#include "Emulator.h"
 
 namespace vamiga {
 
-SubComponent::SubComponent(Amiga& ref) :
+References::References(Amiga& ref) :
+
 agnus(ref.agnus),
 amiga(ref),
+audioPort(ref.audioPort),
 blitter(ref.agnus.blitter),
 ciaa(ref.ciaA),
 ciab(ref.ciaB),
@@ -23,7 +25,6 @@ controlPort1(ref.controlPort1),
 controlPort2(ref.controlPort2),
 copper(ref.agnus.copper),
 cpu(ref.cpu),
-debugger(ref.debugger),
 denise(ref.denise),
 diagBoard(ref.diagBoard),
 diskController(ref.paula.diskController),
@@ -53,62 +54,17 @@ retroShell(ref.retroShell),
 rtc(ref.rtc),
 serialPort(ref.serialPort),
 uart(ref.paula.uart),
+videoPort(ref.videoPort),
 zorro(ref.zorro)
 {
 };
 
-bool
-SubComponent::isPoweredOff() const
-{
-    return amiga.isPoweredOff();
-}
-
-bool
-SubComponent::isPoweredOn() const
-{
-    return amiga.isPoweredOn();
-}
-
-bool
-SubComponent::isPaused() const
-{
-    return amiga.isPaused();
-}
-
-bool
-SubComponent::isRunning() const
-{
-    return amiga.isRunning();
-}
-
-bool
-SubComponent::isSuspended() const
-{
-    return amiga.isSuspended();
-}
-
-bool
-SubComponent::isHalted() const
-{
-    return amiga.isHalted();
-}
+SubComponent::SubComponent(Amiga& ref, isize id) : CoreComponent(ref.emulator, id), References(ref) { };
 
 void
-SubComponent::suspend()
+SubComponent::prefix(isize level, const char *component, isize line) const
 {
-    amiga.suspend();
-}
-
-void
-SubComponent::resume()
-{
-    amiga.resume();
-}
-
-void
-SubComponent::prefix() const
-{
-    amiga.prefix();
+    amiga.prefix(level, component, line);
 }
 
 }

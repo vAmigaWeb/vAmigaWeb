@@ -15,11 +15,9 @@
 #ifdef __MACH__
 #include <mach/mach_time.h>
 #endif
-#ifdef __EMSCRIPTEN__    
-#include <emscripten.h>
-#endif
 
-namespace util {
+
+namespace vamiga::util {
 
 #if defined(__MACH__)
 
@@ -65,33 +63,6 @@ Time::sleepUntil()
     static struct mach_timebase_info tb = timebaseInfo();
     mach_wait_until(ticks * tb.denom / tb.numer);
 }
-
-#elif defined(__EMSCRIPTEN__)
-Time
-Time::now()
-{
-    return (uint64_t)(emscripten_get_now()*1000000.0);
-}
-
-std::tm
-Time::local(const std::time_t &time)
-{
-    std::tm local {};
-    localtime_r(&time, &local);
-    
-    return local;
-}
-
-void
-Time::sleep()
-{
-}
-
-void
-Time::sleepUntil()
-{
-}
-
 
 #elif defined(__unix__)
 
@@ -304,7 +275,12 @@ Clock::Clock()
 void
 Clock::updateElapsed()
 {
-    auto now = Time::now();
+    updateElapsed(Time::now());
+}
+
+void 
+Clock::updateElapsed(Time now)
+{
     if (!paused) elapsed += now - start;
     start = now;
 }
@@ -335,25 +311,30 @@ Clock::go()
 Time
 Clock::restart()
 {
-    updateElapsed();
+    auto now = Time::now();
+
+    updateElapsed(now);
     auto result = elapsed;
 
-    start = Time::now();
+    start = now;
     elapsed = 0;
     paused = false;
     
     return result;
 }
 
-StopWatch::StopWatch(const string &description) : description(description)
+StopWatch::StopWatch(bool enable, const string &description) : enable(enable), description(description)
 {
-    clock.restart();
+    if (enable) clock.restart();
 }
 
 StopWatch::~StopWatch()
 {
-    auto elapsed = clock.stop();
-    fprintf(stderr, "%s: %f sec\n", description.c_str(), elapsed.asSeconds());
+    if (enable) {
+        
+        auto elapsed = clock.stop();
+        fprintf(stderr, "%s %1.2f sec\n", description.c_str(), elapsed.asSeconds());
+    }
 }
 
 }

@@ -20,19 +20,38 @@
 
 namespace vamiga {
 
-class Denise : public SubComponent {
-    
+class Denise final : public SubComponent, public Inspectable<DeniseInfo> {
+
     friend class DeniseDebugger;
-    
+
+    Descriptions descriptions = {{
+
+        .type           = DeniseClass,
+        .name           = "Denise",
+        .description    = "Graphics",
+        .shell          = "denise"
+    }};
+
+    ConfigOptions options = {
+
+        OPT_DENISE_REVISION,
+        OPT_DENISE_VIEWPORT_TRACKING,
+        OPT_DENISE_FRAME_SKIPPING,
+        OPT_DENISE_HIDDEN_BITPLANES,
+        OPT_DENISE_HIDDEN_SPRITES,
+        OPT_DENISE_HIDDEN_LAYERS,
+        OPT_DENISE_HIDDEN_LAYER_ALPHA,
+        OPT_DENISE_CLX_SPR_SPR,
+        OPT_DENISE_CLX_SPR_PLF,
+        OPT_DENISE_CLX_PLF_PLF
+    };
+
     // Current configuration
     DeniseConfig config = {};
-
-    // Result of the latest inspection
-    mutable DeniseInfo info = {};
     
     
     //
-    // Sub components
+    // Subcomponents
     //
     
 public:
@@ -312,31 +331,80 @@ public:
 
     Denise(Amiga& ref);
 
-    
+    Denise& operator= (const Denise& other) {
+
+        CLONE(config)
+
+        CLONE(pixelEngine)
+        CLONE(debugger)
+        CLONE(screenRecorder)
+
+        CLONE(clock)
+
+        CLONE(diwstrt)
+        CLONE(diwstop)
+        CLONE(diwhigh)
+        CLONE(hstrt)
+        CLONE(hstop)
+        CLONE(hflop)
+        CLONE(borderBufferIsDirty)
+        CLONE(bplcon0)
+        CLONE(bplcon1)
+        CLONE(bplcon2)
+        CLONE(bplcon3)
+        CLONE(initialBplcon0)
+        CLONE(initialBplcon1)
+        CLONE(initialBplcon2)
+        CLONE(res)
+        CLONE(pixelOffsetOdd)
+        CLONE(pixelOffsetEven)
+        CLONE(borderColor)
+        CLONE_ARRAY(bpldat)
+        CLONE_ARRAY(bpldatPipe)
+        CLONE(clxdat)
+        CLONE(clxcon)
+        CLONE_ARRAY(shiftReg)
+        CLONE(armedOdd)
+        CLONE(armedEven)
+        CLONE(conChanges)
+        // for (isize i = 0; i < 4; i++) CLONE(sprChanges[i])
+        CLONE_ARRAY(sprChanges)
+        CLONE(diwChanges)
+
+        CLONE_ARRAY(sprdata)
+        CLONE_ARRAY(sprdatb)
+        CLONE_ARRAY(sprpos)
+        CLONE_ARRAY(sprctl)
+        CLONE_ARRAY(sprhpos)
+        CLONE_ARRAY(sprhppos)
+        CLONE_ARRAY(ssra)
+        CLONE_ARRAY(ssrb)
+        CLONE(armed)
+        CLONE(wasArmed)
+        CLONE(spriteClipBegin)
+        CLONE(spriteClipEnd)
+
+        CLONE_ARRAY(dBuffer)
+        CLONE_ARRAY(bBuffer)
+        CLONE_ARRAY(iBuffer)
+        CLONE_ARRAY(mBuffer)
+        CLONE_ARRAY(zBuffer)
+
+        return *this;
+    }
+
+
     //
-    // Methods from CoreObject
+    // Methods from Serializable
     //
     
 private:
-    
-    const char *getDescription() const override { return "Denise"; }
-    void _dump(Category category, std::ostream& os) const override;
-    
-    
-    //
-    // Methods from CoreComponent
-    //
-    
-private:
-    
-    void _reset(bool hard) override;
-    void _inspect() const override;
-    
+        
     template <class T>
     void serialize(T& worker)
     {
         worker
-        
+
         << diwstrt
         << diwstop
         << diwhigh
@@ -379,13 +447,13 @@ private:
         << spriteClipBegin
         << spriteClipEnd;
 
-        if (util::isSoftResetter(worker)) return;
+        if (isSoftResetter(worker)) return;
 
         worker
 
         << clock;
 
-        if (util::isResetter(worker)) return;
+        if (isResetter(worker)) return;
 
         worker
 
@@ -393,25 +461,35 @@ private:
         << config.clxSprSpr
         << config.clxSprPlf
         << config.clxPlfPlf;
-    }
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
-    
-    
+    } SERIALIZERS(serialize);
+
+
     //
-    // Configuring
+    // Methods from CoreComponent
+    //
+
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+private:
+
+    void _dump(Category category, std::ostream& os) const override;
+    void _didReset(bool hard) override;
+    
+
+    //
+    // Methods from Configurable
     //
 
 public:
     
     const DeniseConfig &getConfig() const { return config; }
-    void resetConfig() override;
-
-    i64 getConfigItem(Option option) const;
-    void setConfigItem(Option option, i64 value);
+    const ConfigOptions &getOptions() const override { return options; }
+    i64 getOption(Option option) const override;
+    void checkOption(Option opt, i64 value) override;
+    void setOption(Option option, i64 value) override;
     
 
     //
@@ -430,9 +508,9 @@ public:
 
 public:
     
-    DeniseInfo getInfo() const { return CoreComponent::getInfo(info); }
+    void cacheInfo(DeniseInfo &result) const override;
 
-    
+
     //
     // Working with the bitplane shift registers
     //

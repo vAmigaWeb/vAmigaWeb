@@ -9,7 +9,7 @@
 
 #include "config.h"
 #include "RegressionTester.h"
-#include "Amiga.h"
+#include "Emulator.h"
 #include "IOUtils.h"
 
 #include <fstream>
@@ -20,14 +20,14 @@ void
 RegressionTester::prepare(ConfigScheme scheme, string rom, string ext)
 {
     // Only proceed if the /tmp folder exisits
-    if (!util::fileExists("/tmp")) throw VAError(ERROR_DIR_NOT_FOUND, "/tmp");
+    if (!util::fileExists("/tmp")) throw Error(VAERROR_DIR_NOT_FOUND, "/tmp");
 
     // Check if we've got write permissions
-    if (amiga.tmp() != "/tmp") throw VAError(ERROR_DIR_ACCESS_DENIED, "/tmp");
+    if (host.tmp() != "/tmp") throw Error(VAERROR_DIR_ACCESS_DENIED, "/tmp");
     
     // Initialize the emulator according to the specified scheme
-    amiga.revertToFactorySettings();
-    amiga.configure(scheme);
+    emulator.powerOff();
+    emulator.set(scheme);
 
     // Load Kickstart Rom
     if (rom != "") amiga.mem.loadRom(rom.c_str());
@@ -39,7 +39,7 @@ RegressionTester::prepare(ConfigScheme scheme, string rom, string ext)
     constexpr isize warpSource = 1;
     
     // Run as fast as possible
-    amiga.warpOn(warpSource);
+    emulator.warpOn(warpSource);
 }
 
 void
@@ -49,8 +49,8 @@ RegressionTester::run(string adf)
     df0.swapDisk(adf);
 
     // Run the emulator
-    amiga.powerOn();
-    amiga.run();
+    emulator.powerOn();
+    emulator.run();
 }
 
 void

@@ -20,14 +20,13 @@
 namespace vamiga {
 
 void
-UART::_reset(bool hard)
+UART::_didReset(bool hard)
 {
-    RESET_SNAPSHOT_ITEMS(hard)
     outBit = 1;
 }
 
 void
-UART::_inspect() const
+UART::cacheInfo(UARTInfo &info) const
 {
     SYNCHRONIZED
     

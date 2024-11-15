@@ -14,261 +14,221 @@
 
 namespace vamiga {
 
-Thread::Thread()
+void
+Thread::launch()
 {
+//    assert(!isLaunched());
 
+    // Start the thread and enter the main function
+//    thread = std::thread(&Thread::runLoop, this);
+
+//    assert(isLaunched());
 }
 
-Thread::~Thread()
+void 
+Thread::assertLaunched()
 {
-#ifndef __EMSCRIPTEN__    
+    #ifdef NOT_FOR_WEB
+    if (!isLaunched()) {
 
-    // Wait until the thread has terminated
-    join();
-#endif
+        throw std::runtime_error(string("The emulator thread hasn't been lauchend yet. "
+                                        "Missing call to launch()."));
+    }
+    #endif
 }
 
 void
 Thread::resync()
 {
-    targetTime = util::Time::now();
+    resyncs++;
     baseTime = util::Time::now();
-    deltaTime = 0;
-    sliceCounter = 0;
-    missing = 0;
+    frameCounter = 0;
 }
 
-template <SyncMode M> void
+void
 Thread::execute()
 {
-    if (missing > 0 || warp) {
+    // Only proceed if the emulator is running
+    if (!isRunning()) return;
 
-        trace(TIM_DEBUG, "execute<%s>: %lld us\n", SyncModeEnum::key(M),
-              execClock.restart().asMicroseconds());
+    // Determine the number of overdue frames
+    isize missing = warp ? 1 : missingFrames();
+
+    if (std::abs(missing) <= 5) {
 
         loadClock.go();
+        try {
 
-        execute();
-        sliceCounter++;
-        missing--;
+            // Execute all missing frames
+            for (isize i = 0; i < missing; i++, frameCounter++) computeFrame();
 
+        } catch (StateChangeException &exc) {
+
+            // Interruption
+            switchState((ExecState)exc.data);
+        }
         loadClock.stop();
-    }
-}
-
-template <> void
-Thread::sleep<SYNC_PERIODIC>()
-{
-    auto now = util::Time::now();
-
-    // Don't sleep in warp mode
-    if (warp) return;
-
-    // Make sure the emulator is still in sync
-    if ((now - targetTime).asMilliseconds() > 200) {
-        warn("Emulation is way too slow: %f sec behind\n", (now - targetTime).asSeconds());
-        resync();
-    }
-    if ((targetTime - now).asMilliseconds() > 200) {
-        warn("Emulation is way too fast: %f sec ahead\n", (targetTime - now).asSeconds());
-        resync();
-    }
-
-    // Sleep till the next sync point
-    targetTime += sliceDelay();
-    targetTime.sleepUntil();
-    missing = 1;
-}
-
-template <> void
-Thread::sleep<SYNC_PULSED>()
-{
-    // Only proceed if we're not running in warp mode
-    if (warp) return;
-
-    if (missing > 0) {
-
-        // Wake up at the scheduled target time
-        targetTime.sleepUntil();
-
-        // Schedule the next execution
-        targetTime += deltaTime;
 
     } else {
 
-        // Set a timeout to prevent the thread from stalling
-        auto timeout = util::Time::milliseconds(50);
-
-        // Wait for the next pulse
-        waitForWakeUp(timeout);
-
-        // Determine the number of slices that are overdue
-        missing = missingSlices();
-
-        if (missing) {
-
-            // Evenly distribute the missing slices till the next wakeup happens
-            deltaTime = sliceDelay() / missing;
-            targetTime = util::Time::now() + deltaTime;
-
-            // Start over if the emulator got out of sync TODO: THROW OUT_OF_SYNC EXCEPTION
-            if (std::abs(missing) > 10) {
-
-                if (missing > 0) {
-                    warn("Emulation is way too slow: %ld time slices behind\n", missing);
-                } else {
-                    warn("Emulation is way too fast: %ld time slices ahead\n", -missing);
-                }
-
-                resync();
-            }
+        // The emulator got out of sync
+        if (missing > 0) {
+            debug(VID_DEBUG, "Emulation is way too slow (%ld frames behind)\n", missing);
+        } else {
+            debug(VID_DEBUG, "Emulation is way too fast (%ld time slices ahead)\n", -missing);
         }
+
+        resync();
     }
 }
 
 void
-Thread::main()
+Thread::sleep()
 {
-    debug(RUN_DEBUG, "main()\n");
-#ifndef __EMSCRIPTEN__
+    // Don't sleep if the emulator is running in warp mode
+    if (warp && isRunning()) return;
 
+    // Set a timeout to prevent the thread from stalling
+    auto timeout = util::Time::milliseconds(50);
+
+    // Wait for the next pulse
+    waitForWakeUp(timeout);
+}
+
+void
+Thread::computeStats()
+{
+    if (statsCounter++ == 32) {
+
+        auto used  = loadClock.getElapsedTime().asSeconds();
+        auto total = nonstopClock.getElapsedTime().asSeconds();
+
+        loadClock.restart();
+        loadClock.stop();
+        nonstopClock.restart();
+
+        cpuLoad = 0.3 * cpuLoad + 0.7 * used / total;
+        fps = 0.3 * fps + 0.7 * statsCounter / total;
+
+        statsCounter = 0;
+    }
+}
+
+void
+Thread::runLoop()
+{
     baseTime = util::Time::now();
 
-    while (1) {
+    while (state != STATE_HALTED) {
 
-        if (isRunning()) {
+        // Prepare for the next frame
+        update();
 
-            switch (getSyncMode()) {
+        // Compute missing frames
+        execute();
 
-                case SYNC_PERIODIC:   execute<SYNC_PERIODIC>(); break;
-                case SYNC_PULSED:     execute<SYNC_PULSED>(); break;
-            }
-        }
-
-        if (!warp || !isRunning()) {
-            
-            switch (getSyncMode()) {
-
-                case SYNC_PERIODIC:   sleep<SYNC_PERIODIC>(); break;
-                case SYNC_PULSED:     sleep<SYNC_PULSED>(); break;
-            }
-        }
-        
         // Are we requested to change state?
         if (stateChangeRequest.test()) {
 
             switchState(newState);
             stateChangeRequest.clear();
             stateChangeRequest.notify_one();
-
-            if (state == EXEC_HALTED) return;
         }
 
-        // Compute the CPU load once in a while
-        if (usize(sliceCounter) % 32 == 0) {
+        // Synchronize timing
+        sleep();
 
-            auto used  = loadClock.getElapsedTime().asSeconds();
-            auto total = nonstopClock.getElapsedTime().asSeconds();
-
-            cpuLoad = used / total;
-
-            loadClock.restart();
-            loadClock.stop();
-            nonstopClock.restart();
-        }
-    }
-#endif
-}
-
-void
-Thread::switchState(ExecutionState newState)
-{
-    //assert(isEmulatorThread());
-
-    while (newState != state) {
-
-        if (state == EXEC_OFF && newState == EXEC_PAUSED) {
-
-            CoreComponent::powerOn();
-            state = EXEC_PAUSED;
-
-        } else if (state == EXEC_OFF && newState == EXEC_RUNNING) {
-
-            CoreComponent::powerOn();
-            state = EXEC_PAUSED;
-
-        } else if (state == EXEC_PAUSED && newState == EXEC_OFF) {
-
-            CoreComponent::powerOff();
-            state = EXEC_OFF;
-
-        } else if (state == EXEC_PAUSED && newState == EXEC_RUNNING) {
-
-            CoreComponent::run();
-            state = EXEC_RUNNING;
-
-        } else if (state == EXEC_RUNNING && newState == EXEC_OFF) {
-
-            state = EXEC_PAUSED;
-            CoreComponent::pause();
-
-        } else if (state == EXEC_RUNNING && newState == EXEC_PAUSED) {
-
-            state = EXEC_PAUSED;
-            CoreComponent::pause();
-
-        } else if (state == EXEC_RUNNING && newState == EXEC_SUSPENDED) {
-
-            state = EXEC_SUSPENDED;
-
-        } else if (state == EXEC_SUSPENDED && newState == EXEC_RUNNING) {
-
-            state = EXEC_RUNNING;
-
-        } else if (newState == EXEC_HALTED) {
-
-            CoreComponent::halt();
-            state = EXEC_HALTED;
-
-        } else {
-
-            // Invalid state transition
-            fatalError;
-        }
-
-        debug(RUN_DEBUG, "Changed state to %s\n", ExecutionStateEnum::key(state));
+        // Compute statistics
+        computeStats();
     }
 }
 
 void
-Thread::switchWarp(bool state, u8 source)
+Thread::switchState(ExecState newState)
 {
-    assert(source >= 0 && source < 8);
+    assert(isEmulatorThread());
 
-    if (!isEmulatorThread()) suspend();
+    auto invalid = [&]() {
 
-    u8 old = warp;
-    state ? SET_BIT(warp, source) : CLR_BIT(warp, source);
+        assert(false);
+        fatal("Invalid state transition: %s -> %s\n",
+              ExecStateEnum::key(state), ExecStateEnum::key(newState));
+    };
 
-    if (bool(old) != bool(warp)) {
-        CoreComponent::warpOnOff(warp);
+    debug(RUN_DEBUG,
+          "switchState: %s -> %s\n",
+          ExecStateEnum::key(state), ExecStateEnum::key(newState));
+
+    while (state != newState) {
+
+        switch (newState) {
+
+            case STATE_OFF:
+
+                switch (state) {
+
+                    case STATE_PAUSED:      state = STATE_OFF; _powerOff(); break;
+                    case STATE_RUNNING:
+                    case STATE_SUSPENDED:   state = STATE_PAUSED; _pause(); break;
+
+                    default:
+                        invalid();
+                }
+                break;
+
+            case STATE_PAUSED:
+
+                switch (state) {
+
+                    case STATE_OFF:         state = STATE_PAUSED; _powerOn(); break;
+                    case STATE_RUNNING:
+                    case STATE_SUSPENDED:   state = STATE_PAUSED; _pause(); break;
+
+                    default:
+                        invalid();
+                }
+                break;
+
+            case STATE_RUNNING:
+
+                switch (state) {
+
+                    case STATE_OFF:         state = STATE_PAUSED; _powerOn(); break;
+                    case STATE_PAUSED:      state = STATE_RUNNING; _run(); break;
+                    case STATE_SUSPENDED:   state = STATE_PAUSED; break;
+
+                    default:
+                        invalid();
+                }
+                break;
+
+            case STATE_SUSPENDED:
+
+                switch (state) {
+
+                    case STATE_RUNNING:     state = STATE_SUSPENDED; break;
+                    case STATE_PAUSED:      break;
+
+                    default:
+                        invalid();
+                }
+                break;
+
+            case STATE_HALTED:
+
+                switch (state) {
+
+                    case STATE_OFF:     state = STATE_HALTED; _halt(); break;
+                    case STATE_PAUSED:  state = STATE_OFF; _powerOff(); break;
+                    case STATE_RUNNING: state = STATE_PAUSED; _pause(); break;
+
+                    default:
+                        invalid();
+                }
+        }
     }
 
-    if (!isEmulatorThread()) resume();
-}
-
-void
-Thread::switchTrack(bool state, u8 source)
-{
-    assert(source >= 0 && source < 8);
-    assert(isEmulatorThread() || !isRunning());
-
-    u8 old = track;
-    state ? SET_BIT(track, source) : CLR_BIT(track, source);
-
-    if (bool(old) != bool(track)) {
-        CoreComponent::trackOnOff(track);
-    }
+    debug(RUN_DEBUG, "switchState: %s\n", ExecStateEnum::key(state));
 }
 
 void
@@ -276,13 +236,9 @@ Thread::powerOn()
 {
     debug(RUN_DEBUG, "powerOn()\n");
 
-    // Never call this function inside the emulator thread
-    assert(!isEmulatorThread());
-    
     if (isPoweredOff()) {
-        
-        // Request a state change and wait until the new state has been reached
-        changeStateTo(EXEC_PAUSED);
+
+        changeStateTo(STATE_PAUSED);
     }
 }
 
@@ -291,13 +247,9 @@ Thread::powerOff()
 {
     debug(RUN_DEBUG, "powerOff()\n");
 
-    // Never call this function inside the emulator thread
-    assert(!isEmulatorThread());
-    
     if (!isPoweredOff()) {
 
-        // Request a state change and wait until the new state has been reached
-        changeStateTo(EXEC_OFF);
+        changeStateTo(STATE_OFF);
     }
 }
 
@@ -306,21 +258,13 @@ Thread::run()
 {
     debug(RUN_DEBUG, "run()\n");
 
-    // Never call this function inside the emulator thread
-    assert(!isEmulatorThread());
-    
-    //printf("**** State %s\n",ExecutionStateEnum::key(state));
-
     if (!isRunning()) {
 
         // Throw an exception if the emulator is not ready to run
-        isReady();
-        
-        // Request a state change and wait until the new state has been reached
-        changeStateTo(EXEC_RUNNING);
-    }
+       // isReady();
 
-    //printf("**** State %s\n",ExecutionStateEnum::key(state));
+        changeStateTo(STATE_RUNNING);
+    }
 }
 
 void
@@ -328,102 +272,160 @@ Thread::pause()
 {
     debug(RUN_DEBUG, "pause()\n");
 
-    // Never call this function inside the emulator thread
-    assert(!isEmulatorThread());
-    
-    //printf("**** State %s\n",ExecutionStateEnum::key(state));
-
     if (isRunning()) {
 
-        // Request a state change and wait until the new state has been reached
-        changeStateTo(EXEC_PAUSED);
+        changeStateTo(STATE_PAUSED);
     }
 }
 
 void
 Thread::halt()
 {
-    //assert(!isEmulatorThread());
+    if (state != STATE_UNINIT && state != STATE_HALTED) {
 
-    changeStateTo(EXEC_HALTED);
-    //join();
+        debug(RUN_DEBUG, "Switching to HALT state...\n");
+        changeStateTo(STATE_HALTED);
+
+        debug(RUN_DEBUG, "Waiting for the emulator thread to terminate...\n");
+        join();
+
+        debug(RUN_DEBUG, "Emulator is halted.\n");
+        assert(state == STATE_HALTED);
+    }
 }
 
 void
 Thread::warpOn(isize source)
 {
-    SUSPENDED switchWarp(true, u8(source));
+    assert(source < 7);
+
+    if (!GET_BIT(warp, source)) {
+
+        SUSPENDED
+
+        auto old = warp;
+        SET_BIT(warp, source);
+        if (!!old != !!warp) _warpOn();
+    }
 }
 
 void
 Thread::warpOff(isize source)
 {
-    SUSPENDED switchWarp(false, u8(source));
+    assert(source < 7);
+
+    if (GET_BIT(warp, source)) {
+
+        SUSPENDED
+
+        auto old = warp;
+        CLR_BIT(warp, source);
+        if (!!old != !!warp) _warpOff();
+    }
 }
 
 void
 Thread::trackOn(isize source)
 {
-    SUSPENDED switchTrack(true, u8(source));
+    assert(source < 7);
+
+    if (!GET_BIT(track, source)) {
+
+        SUSPENDED
+
+        auto old = track;
+        SET_BIT(track, source);
+        if (!!old != !!track) _trackOn();
+    }
 }
 
 void
 Thread::trackOff(isize source)
 {
-    SUSPENDED switchTrack(false, u8(source));
+    assert(source < 7);
+
+    if (GET_BIT(track, source)) {
+
+        SUSPENDED
+
+        auto old = track;
+        CLR_BIT(track, source);
+        if (!!old != !!track) _trackOff();
+    }
 }
 
 void
-Thread::changeStateTo(ExecutionState requestedState)
+Thread::changeStateTo(ExecState requestedState)
 {
-//    assert(!isEmulatorThread());
-//    assert(stateChangeRequest.test() == false);
+    assertLaunched();
 
-    // Assign new state
-    newState = requestedState;
-    switchState(newState); //mithrendal
-    // Request the change
-//    stateChangeRequest.test_and_set();
-//    assert(stateChangeRequest.test() == true);
+    if (isEmulatorThread()) {
 
-    // Wait until the change has been performed
-//    stateChangeRequest.wait(true);
-//    assert(stateChangeRequest.test() == false);
+        // Switch immediately
+        switchState(requestedState);
+        assert(state == requestedState);
+
+    } else {
+
+        // Remember the requested state
+        newState = requestedState;
+
+        // Request the change
+        assert(stateChangeRequest.test() == false);
+        stateChangeRequest.test_and_set();
+        assert(stateChangeRequest.test() == true);
+
+        if (!isEmulatorThread()) {
+
+            // Wait until the change has been performed
+            stateChangeRequest.wait(true);
+            assert(stateChangeRequest.test() == false);
+        }
+    }
 }
 
 void
 Thread::wakeUp()
 {
-    if (getSyncMode() != SYNC_PERIODIC) {
-
-        trace(TIM_DEBUG, "wakeup: %lld us\n", wakeupClock.restart().asMicroseconds());
-        util::Wakeable::wakeUp();
-    }
+    trace(TIM_DEBUG, "wakeup: %lld us\n", wakeupClock.restart().asMicroseconds());
+    Wakeable::wakeUp();
 }
 
 void
 Thread::suspend()
 {
-    debug(RUN_DEBUG, "Suspending (%ld)...\n", suspendCounter);
-    
-    if (suspendCounter || isRunning()) {
+    if (!isEmulatorThread()) {
 
-        suspendCounter++;
-        assert(state == EXEC_RUNNING || state == EXEC_SUSPENDED);
-        changeStateTo(EXEC_SUSPENDED);
+        debug(RUN_DEBUG, "Suspending (%ld)...\n", suspendCounter);
+
+        if (suspendCounter || isRunning()) {
+
+            suspendCounter++;
+            changeStateTo(STATE_SUSPENDED);
+        }
+
+    } else {
+
+        debug(RUN_DEBUG, "Skipping suspend (%ld)...\n", suspendCounter);
     }
 }
 
 void
 Thread::resume()
 {
-    debug(RUN_DEBUG, "Resuming (%ld)...\n", suspendCounter);
+    if (!isEmulatorThread()) {
 
-    if (suspendCounter && --suspendCounter == 0) {
-        
-        assert(state == EXEC_SUSPENDED);
-        changeStateTo(EXEC_RUNNING);
-        run();
+        debug(RUN_DEBUG, "Resuming (%ld)...\n", suspendCounter);
+
+        if (suspendCounter && --suspendCounter == 0) {
+
+            changeStateTo(STATE_RUNNING);
+            run();
+        }
+
+    } else {
+
+        debug(RUN_DEBUG, "Skipping resume (%ld)...\n", suspendCounter);
     }
 }
 

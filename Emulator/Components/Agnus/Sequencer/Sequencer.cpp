@@ -21,16 +21,14 @@ Sequencer::Sequencer(Amiga& ref) : SubComponent(ref)
 void
 Sequencer::_initialize()
 {
-    CoreComponent::_initialize();
-
     initDasEventTable();
 }
 
 void
-Sequencer::_reset(bool hard)
+Sequencer::operator << (SerResetter &worker)
 {
-    RESET_SNAPSHOT_ITEMS(hard)
-    
+    serialize(worker);
+
     initBplEvents();
     initDasEvents();
 }

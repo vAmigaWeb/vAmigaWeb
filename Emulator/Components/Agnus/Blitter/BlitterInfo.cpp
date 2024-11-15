@@ -20,7 +20,7 @@ Blitter::_dump(Category category, std::ostream& os) const
     
     if (category == Category::Config) {
         
-        os << tab("Accuracy level") << config.accuracy << std::endl;
+        dumpConfig(os);
     }
 
     if (category == Category::Registers) {
@@ -82,7 +82,7 @@ Blitter::_dump(Category category, std::ostream& os) const
 }
 
 void
-Blitter::_inspect() const
+Blitter::cacheInfo(BlitterInfo &info) const
 {
     SYNCHRONIZED
     

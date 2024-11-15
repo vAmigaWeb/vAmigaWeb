@@ -67,7 +67,7 @@ MutableFileSystem::init(Diameter dia, Density den, FSVolumeType dos)
 }
 
 void
-MutableFileSystem::init(Diameter dia, Density den, const string &path)
+MutableFileSystem::init(Diameter dia, Density den, const std::filesystem::path &path)
 {
     init(dia, den, FS_OFS);
     
@@ -85,7 +85,7 @@ MutableFileSystem::init(Diameter dia, Density den, const string &path)
 }
 
 void
-MutableFileSystem::init(FSVolumeType type, const string &path)
+MutableFileSystem::init(FSVolumeType type, const std::filesystem::path &path)
 {
     // Try to fit the directory into files system with DD disk capacity
     try { init(INCH_35, DENSITY_DD, path); return; } catch (...) { };
@@ -525,13 +525,13 @@ MutableFileSystem::importVolume(const u8 *src, isize size)
     debug(FS_DEBUG, "Importing file system...\n");
 
     // Only proceed if the (predicted) block size matches
-    if (size % bsize != 0) throw VAError(ERROR_FS_WRONG_BSIZE);
+    if (size % bsize != 0) throw Error(VAERROR_FS_WRONG_BSIZE);
 
     // Only proceed if the source buffer contains the right amount of data
-    if (numBytes() != size) throw VAError(ERROR_FS_WRONG_CAPACITY);
+    if (numBytes() != size) throw Error(VAERROR_FS_WRONG_CAPACITY);
 
     // Only proceed if all partitions contain a valid file system
-    if (dos == FS_NODOS) throw VAError(ERROR_FS_UNSUPPORTED);
+    if (dos == FS_NODOS) throw Error(VAERROR_FS_UNSUPPORTED);
 
     // Import all blocks
     for (isize i = 0; i < numBlocks(); i++) {
@@ -562,12 +562,12 @@ MutableFileSystem::importVolume(const u8 *src, isize size)
 }
 
 void
-MutableFileSystem::importDirectory(const string &path, bool recursive)
+MutableFileSystem::importDirectory(const std::filesystem::path &path, bool recursive)
 {
     fs::directory_entry dir;
     
     try { dir = fs::directory_entry(path); }
-    catch (...) { throw VAError(ERROR_FILE_CANT_READ); }
+    catch (...) { throw Error(VAERROR_FILE_CANT_READ); }
     
     importDirectory(dir, recursive);
 }
@@ -634,7 +634,7 @@ MutableFileSystem::exportBlocks(Block first, Block last, u8 *dst, isize size) co
     ErrorCode error;
     bool result = exportBlocks(first, last, dst, size, &error);
     
-    assert(result == (error == ERROR_OK));
+    assert(result == (error == VAERROR_OK));
     return result;
 }
 
@@ -651,13 +651,13 @@ MutableFileSystem::exportBlocks(Block first, Block last, u8 *dst, isize size, Er
 
     // Only proceed if the (predicted) block size matches
     if (size % bsize != 0) {
-        if (err) *err = ERROR_FS_WRONG_BSIZE;
+        if (err) *err = VAERROR_FS_WRONG_BSIZE;
         return false;
     }
 
     // Only proceed if the source buffer contains the right amount of data
     if (count * bsize != size) {
-        if (err) *err = ERROR_FS_WRONG_CAPACITY;
+        if (err) *err = VAERROR_FS_WRONG_CAPACITY;
         return false;
     }
 
@@ -672,26 +672,26 @@ MutableFileSystem::exportBlocks(Block first, Block last, u8 *dst, isize size, Er
 
     debug(FS_DEBUG, "Success\n");
 
-    if (err) *err = ERROR_OK;
+    if (err) *err = VAERROR_OK;
     return true;
 }
 
 void
-MutableFileSystem::exportDirectory(const string &path, bool createDir)
+MutableFileSystem::exportDirectory(const std::filesystem::path &path, bool createDir) const
 {
     // Try to create the directory if it doesn't exist
     if (!util::isDirectory(path) && createDir && !util::createDirectory(path)) {
-        throw VAError(ERROR_FS_CANNOT_CREATE_DIR);
+        throw Error(VAERROR_FS_CANNOT_CREATE_DIR);
     }
 
     // Only proceed if the directory exists
     if (!util::isDirectory(path)) {
-        throw VAError(ERROR_DIR_NOT_FOUND);
+        throw Error(VAERROR_DIR_NOT_FOUND);
     }
     
     // Only proceed if path points to an empty directory
     if (util::numDirectoryItems(path) != 0) {
-        throw VAError(ERROR_FS_DIR_NOT_EMPTY);
+        throw Error(VAERROR_FS_DIR_NOT_EMPTY);
     }
     
     // Collect all files and directories
@@ -701,8 +701,8 @@ MutableFileSystem::exportDirectory(const string &path, bool createDir)
     // Export all items
     for (auto const& i : items) {
         
-        if (ErrorCode error = blockPtr(i)->exportBlock(path.c_str()); error != ERROR_OK) {
-            throw VAError(error);
+        if (ErrorCode error = blockPtr(i)->exportBlock(path.c_str()); error != VAERROR_OK) {
+            throw Error(error);
         }
     }
     

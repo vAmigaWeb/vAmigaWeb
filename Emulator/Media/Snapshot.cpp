@@ -41,18 +41,22 @@ Thumbnail::take(Amiga &amiga, isize dx, isize dy)
 }
 
 bool
-Snapshot::isCompatible(const string &path)
+Snapshot::isCompatible(const std::filesystem::path &path)
 {
     return true;
 }
 
 bool
-Snapshot::isCompatible(std::istream &stream)
+Snapshot::isCompatible(const u8 *buf, isize len)
 {
-    const u8 magicBytes[] = { 'V', 'A', 'S', 'N', 'A', 'P' };
-    
-    if (util::streamLength(stream) < 0x15) return false;
-    return util::matchingStreamHeader(stream, magicBytes, sizeof(magicBytes));
+    if (len < isizeof(SnapshotHeader)) return false;
+    return util::matchingBufferHeader(buf, string("VASNAP"));
+}
+
+bool
+Snapshot::isCompatible(const Buffer<u8> &buf)
+{
+    return isCompatible(buf.ptr, buf.size);
 }
 
 Snapshot::Snapshot(isize capacity)
@@ -69,24 +73,49 @@ Snapshot::Snapshot(isize capacity)
     header->minor = SNP_MINOR;
     header->subminor = SNP_SUBMINOR;
     header->beta = SNP_BETA;
+    header->rawSize = i32(data.size);
 }
 
 Snapshot::Snapshot(Amiga &amiga) : Snapshot(amiga.size())
 {
-    takeScreenshot(amiga);
-    amiga.save(getData());
+    {   util::StopWatch(SNP_DEBUG, "Taking screenshot...");
+        
+        takeScreenshot(amiga);
+    }
+    {   util::StopWatch(SNP_DEBUG, "Saving state...");
+        
+        amiga.save(getData());
+    }
 }
 
 void
 Snapshot::finalizeRead()
 {
-    if (FORCE_SNAP_TOO_OLD) throw VAError(ERROR_SNAP_TOO_OLD);
-    if (FORCE_SNAP_TOO_NEW) throw VAError(ERROR_SNAP_TOO_NEW);
-    if (FORCE_SNAP_IS_BETA) throw VAError(ERROR_SNAP_IS_BETA);
+    if (FORCE_SNAP_TOO_OLD) throw Error(VAERROR_SNAP_TOO_OLD);
+    if (FORCE_SNAP_TOO_NEW) throw Error(VAERROR_SNAP_TOO_NEW);
+    if (FORCE_SNAP_IS_BETA) throw Error(VAERROR_SNAP_IS_BETA);
 
-    if (isTooOld()) throw VAError(ERROR_SNAP_TOO_OLD);
-    if (isTooNew()) throw VAError(ERROR_SNAP_TOO_NEW);
-    if (isBeta() && !betaRelease) throw VAError(ERROR_SNAP_IS_BETA);
+    if (isTooOld()) throw Error(VAERROR_SNAP_TOO_OLD);
+    if (isTooNew()) throw Error(VAERROR_SNAP_TOO_NEW);
+    if (isBeta() && !betaRelease) throw Error(VAERROR_SNAP_IS_BETA);
+}
+
+std::pair <isize,isize>
+Snapshot::previewImageSize() const
+{
+    return { getThumbnail().width, getThumbnail().height };
+}
+
+const u32 *
+Snapshot::previewImageData() const
+{
+    return getThumbnail().screen;
+}
+
+time_t
+Snapshot::timestamp() const
+{
+    return getThumbnail().timestamp;
 }
 
 bool
@@ -118,15 +147,52 @@ Snapshot::isTooNew() const
 bool
 Snapshot::isBeta() const
 {
-    auto header = getHeader();
-
-    return header->beta != 0;
+    return getHeader()->beta != 0;
 }
 
 void
 Snapshot::takeScreenshot(Amiga &amiga)
 {
     ((SnapshotHeader *)data.ptr)->screenshot.take(amiga);
+}
+
+void
+Snapshot::compress()
+{
+    if (!isCompressed()) {
+
+        debug(SNP_DEBUG, "Compressing %ld bytes (hash: 0x%x)...", data.size, data.fnv32());
+
+        {   auto watch = util::StopWatch(SNP_DEBUG, "");
+            
+            data.compress(2, sizeof(SnapshotHeader));
+            getHeader()->compressed = true;
+        }
+        debug(SNP_DEBUG, "Compressed size: %ld bytes\n", data.size);
+    }
+}
+void
+Snapshot::uncompress()
+{
+    if (isCompressed()) {
+        
+        isize expectedSize = getHeader()->rawSize;
+        
+        debug(SNP_DEBUG, "Uncompressing %ld bytes...", data.size);
+        
+        {   auto watch = util::StopWatch(SNP_DEBUG, "");
+            
+            data.uncompress(2, sizeof(SnapshotHeader), expectedSize);
+            getHeader()->compressed = false;
+        }
+        debug(SNP_DEBUG, "Uncompressed size: %ld bytes (hash: 0x%x)\n", data.size, data.fnv32());
+        
+        if (getHeader()->rawSize != expectedSize) {
+         
+            warn("Snaphot size: %ld. Expected: %ld\n", data.size, expectedSize);
+            fatalError;
+        }
+    }
 }
 
 }

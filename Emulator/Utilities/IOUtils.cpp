@@ -10,118 +10,52 @@
 #include "config.h"
 #include "Macros.h"
 #include "IOUtils.h"
-#include <assert.h>
-#include <vector>
-#include <fstream>
 #include <algorithm>
-#include <iomanip>
+#include <assert.h>
 #include <bitset>
+#include <fstream>
+#include <iomanip>
+#include <vector>
 
-namespace util {
+namespace vamiga::util {
 
-string
-extractPath(const string &s)
+fs::path
+makeUniquePath(const fs::path &path)
 {
-    auto idx = s.rfind('/');
-    auto pos = 0;
-    auto len = idx != string::npos ? idx + 1 : 0;
-    return s.substr(pos, len);
-}
+    auto location = path.root_path() / path.relative_path();
+    auto name = path.stem().string();
+    auto extension = path.extension();
 
-string
-extractName(const string &s)
-{
-    auto idx = s.rfind('/');
-    auto pos = idx != string::npos ? idx + 1 : 0;
-    auto len = string::npos;
-    return s.substr(pos, len);
-}
+    for (isize nr = 2;; nr++) {
 
-string
-extractSuffix(const string &s)
-{
-    auto idx = s.rfind('.');
-    auto pos = idx != string::npos ? idx + 1 : 0;
-    auto len = string::npos;
-    return s.substr(pos, len);
-}
+        auto index = std::to_string(nr);
+        fs::path result = location / fs::path(name + index) / extension;
 
-string
-stripPath(const string &s)
-{
-    auto idx = s.rfind('/');
-    auto pos = idx != string::npos ? idx + 1 : 0;
-    auto len = string::npos;
-    return s.substr(pos, len);
-}
-
-string
-stripName(const string &s)
-{
-    auto idx = s.rfind('/');
-    auto pos = 0;
-    auto len = idx != string::npos ? idx : 0;
-    return s.substr(pos, len);
-}
-
-string
-stripSuffix(const string &s)
-{
-    auto idx = s.rfind('.');
-    auto pos = 0;
-    auto len = idx != string::npos ? idx : string::npos;
-    return s.substr(pos, len);
-}
-
-string
-appendPath(const string &path, const string &path2)
-{
-    if (path.empty()) {
-        return path2;
+        if (!util::fileExists(result)) return result;
     }
-    if (path.back() == '/') {
-        return path + path2;
-    }
-    return path + "/" + path2;
+
+    unreachable;
+}
+
+isize
+getSizeOfFile(const fs::path &path)
+{
+    struct stat fileProperties;
+
+    if (stat(path.string().c_str(), &fileProperties) != 0)
+        return -1;
+
+    return (isize)fileProperties.st_size;
 }
 
 bool
-isAbsolutePath(const string &path)
-{
-    return !path.empty() && path.front() == '/';
-}
-
-string makeAbsolutePath(const string &path)
-{
-    if (isAbsolutePath(path)) {
-        return path;
-    } else {
-        return appendPath(std::filesystem::current_path().string(), path);
-    }
-}
-
-string
-makeUniquePath(const string &path)
-{
-    auto prefix = stripSuffix(path);
-    auto suffix = "." + extractSuffix(path);
-    
-    string index = "";
-    for (isize nr = 2; util::fileExists(prefix + index + suffix); nr++) {
-        index = std::to_string(nr);
-    }
-
-    return prefix + index + suffix;
-}
-
-bool
-fileExists(const string &path)
+fileExists(const fs::path &path)
 {
     return getSizeOfFile(path) >= 0;
 }
 
 bool
-isDirectory(const string &path)
+isDirectory(const fs::path &path)
 {
     try {
         
@@ -135,11 +69,11 @@ isDirectory(const string &path)
 }
 
 bool
-createDirectory(const string &path)
+createDirectory(const fs::path &path)
 {
     try {
         
-        return fs::create_directory(fs::path(path));
+        return fs::create_directory(path);
     
     } catch (...) {
         
@@ -148,7 +82,7 @@ createDirectory(const string &path)
 }
 
 isize
-numDirectoryItems(const string &path)
+numDirectoryItems(const fs::path &path)
 {
     isize result = 0;
     
@@ -165,8 +99,8 @@ numDirectoryItems(const string &path)
     return result;
 }
 
-std::vector<string>
-files(const string &path, const string &suffix)
+std::vector<fs::path>
+files(const fs::path &path, const string &suffix)
 {
     std::vector <string> suffixes;
     if (suffix != "") suffixes.push_back(suffix);
@@ -174,18 +108,18 @@ files(const string &path, const string &suffix)
     return files(path, suffixes);
 }
 
-std::vector<string>
-files(const string &path, std::vector <string> &suffixes)
+std::vector<fs::path>
+files(const fs::path &path, std::vector <string> &suffixes)
 {
-    std::vector<string> result;
-    
+    std::vector<fs::path> result;
+
     try {
         
         for (const auto &entry : fs::directory_iterator(path)) {
-            
-            const auto &name = entry.path().filename().string();
-            string suffix = lowercased(extractSuffix(name));
-            
+
+            const auto &name = entry.path().filename();
+            auto suffix = name.extension().string();
+
             if (std::find(suffixes.begin(), suffixes.end(), suffix) != suffixes.end()) {
                 result.push_back(name);
             }
@@ -194,17 +128,6 @@ files(const string &path, std::vector <string> &suffixes)
     } catch (...) { }
     
     return result;
-}
-
-isize
-getSizeOfFile(const string &path)
-{
-    struct stat fileProperties;
-        
-    if (stat(path.c_str(), &fileProperties) != 0)
-        return -1;
-    
-    return (isize)fileProperties.st_size;
 }
 
 bool
@@ -241,21 +164,29 @@ matchingBufferHeader(const u8 *buffer, const u8 *header, isize len, isize offset
         if (buffer[offset + i] != header[i])
             return false;
     }
-
     return true;
 }
 
-isize
-streamLength(std::istream &stream)
+bool 
+matchingBufferHeader(const u8 *buf, isize blen, const string &header, isize offset)
 {
-    auto cur = stream.tellg();
-    stream.seekg(0, std::ios::beg);
-    auto beg = stream.tellg();
-    stream.seekg(0, std::ios::end);
-    auto end = stream.tellg();
-    stream.seekg(cur, std::ios::beg);
-    
-    return (isize)(end - beg);
+    assert(buf != nullptr);
+
+    if (isize length = isize(header.length()); length <= blen) {
+
+        for (usize i = 0; i < header.length(); i++) {
+            if (buf[offset + i] != header[i])
+                return false;
+        }
+    }
+    return true;
+}
+
+bool 
+matchingBufferHeader(const u8 *buf, const string &header, isize offset)
+{
+    auto blen = std::numeric_limits<isize>::max();
+    return matchingBufferHeader(buf, blen, header, offset);
 }
 
 std::ostream &
@@ -284,7 +215,7 @@ bin::operator()(std::ostream &os) const
             (digits == 16 && i < 2) ||
             (digits == 8  && i < 1)  ) {
 
-            std::bitset<8> x(GET_BYTE(value, 0));
+            std::bitset<8> x(GET_BYTE(value, i));
             os << x << (i ? "." : "");
         }
     }
@@ -327,7 +258,6 @@ str::operator()(std::ostream &os) const
 
     return os;
 };
-
 
 const string &bol::yes = "yes";
 const string &bol::no = "no";

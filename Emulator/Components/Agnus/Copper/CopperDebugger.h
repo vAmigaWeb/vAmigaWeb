@@ -10,6 +10,7 @@
 #pragma once
 
 #include "SubComponent.h"
+#include "CPU.h"
 #include "MoiraDebugger.h"
 #include <map>
 
@@ -21,27 +22,39 @@ struct CopperList {
     u32 end;
 };
 
-class CopperBreakpoints : public moira::Guards {
+class CopperBreakpoints : public GuardList {
 
     class Copper &copper;
 
 public:
     
-    CopperBreakpoints(Copper& ref) : copper(ref) { }
+    CopperBreakpoints(Copper& ref);
     void setNeedsCheck(bool value) override;
 };
 
-class CopperWatchpoints : public moira::Guards {
+class CopperWatchpoints : public GuardList {
 
     class Copper &copper;
 
 public:
     
-    CopperWatchpoints(Copper& ref) : copper(ref) { }
+    CopperWatchpoints(Copper& ref);
     void setNeedsCheck(bool value) override;
 };
 
-class CopperDebugger: public SubComponent {
+class CopperDebugger final : public SubComponent {
+
+    Descriptions descriptions = {{
+
+        .type           = CopperDebuggerClass,
+        .name           = "cdebugger",
+        .description    = "Copper Debugger",
+        .shell          = ""
+    }};
+
+    ConfigOptions options = {
+
+    };
 
     friend class Amiga;
     friend class Copper;
@@ -70,30 +83,38 @@ public:
     
     using SubComponent::SubComponent;
 
+    
+    //
+    // Methods from Serializable
+    //
 
-    //
-    // Methods from CoreObject
-    //
-    
 private:
-    
-    const char *getDescription() const override { return "CopperDebugger"; }
-    void _dump(Category category, std::ostream& os) const override;
-    
-    
+        
+    template <class T> void serialize(T& worker) { } SERIALIZERS(serialize);
+
+
     //
     // Methods from CoreComponent
     //
 
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
 private:
-    
-    void _reset(bool hard) override;
-    
-    isize _size() override { return 0; }
-    u64 _checksum() override { return 0; }
-    isize _load(const u8 *buffer) override { return 0; }
-    isize _save(u8 *buffer) override { return 0; }
-    
+
+    void _dump(Category category, std::ostream& os) const override;
+    void _didReset(bool hard) override;
+
+
+    //
+    // Methods from Configurable
+    //
+
+public:
+
+    const ConfigOptions &getOptions() const override { return options; }
+
 
     //
     // Tracking the Copper
@@ -119,25 +140,6 @@ public:
     // Disassembles a single Copper command
     string disassemble(isize list, isize offset, bool symbolic) const;
     string disassemble(u32 addr, bool symbolic) const;
-    
-
-    //
-    // Manages the breakpoint and watchpoint lists
-    //
-
-    void setBreakpoint(u32 addr, isize ignores = 0) throws;
-    void deleteBreakpoint(isize nr) throws;
-    void enableBreakpoint(isize nr) throws;
-    void disableBreakpoint(isize nr) throws;
-    void toggleBreakpoint(isize nr) throws;
-    void ignoreBreakpoint(isize nr, isize count) throws;
-
-    void setWatchpoint(u32 addr, isize ignores = 0) throws;
-    void deleteWatchpoint(isize nr) throws;
-    void enableWatchpoint(isize nr) throws;
-    void disableWatchpoint(isize nr) throws;
-    void toggleWatchpoint(isize nr) throws;
-    void ignoreWatchpoint(isize nr, isize count) throws;
 };
 
 }

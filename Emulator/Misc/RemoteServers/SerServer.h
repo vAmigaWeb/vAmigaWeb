@@ -14,7 +14,7 @@
 
 namespace vamiga {
 
-class SerServer : public RemoteServer {
+class SerServer final : public RemoteServer {
 
     // A ringbuffer for buffering incoming bytes
     util::SortedRingBuffer <u8, 8096> buffer;
@@ -43,24 +43,22 @@ public:
     
     using RemoteServer::RemoteServer;
 
+    SerServer& operator= (const SerServer& other) {
+
+        RemoteServer::operator = (other);
+        return *this;
+    }
+
 
     //
     // Methods from CoreObject
     //
     
-protected:
-    
-    const char *getDescription() const override { return "SerServer"; }
+private:
+
     void _dump(Category category, std::ostream& os) const override;
 
-    
-    //
-    // Methods from CoreComponent
-    //
 
-    void resetConfig() override;
-
-    
     //
     // Methods from RemoteServer
     //

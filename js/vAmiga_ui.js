@@ -531,21 +531,21 @@ function message_handler_queue_worker(msg, data, data2)
     }
     else if(msg == "MSG_SNAPSHOT_RESTORED")
     {
-        let v=wasm_get_config_item("BLITTER_ACCURACY");
+        let v=wasm_get_config_item("BLITTER.ACCURACY");
         $(`#button_OPT_BLITTER_ACCURACY`).text(`blitter accuracy=${v} (snapshot)`);
         
-        v=wasm_get_config_item("DRIVE_SPEED");
+        v=wasm_get_config_item("DC.SPEED");
         $(`#button_OPT_DRIVE_SPEED`).text(`drive speed=${v} (snapshot)`);
 
-        v=wasm_get_config_item("CPU_REVISION");
+        v=wasm_get_config_item("CPU.REVISION");
         $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v}0 (snapshot)`);
-        v=wasm_get_config_item("CPU_OVERCLOCKING");
+        v=wasm_get_config_item("CPU.OVERCLOCKING");
         $(`#button_OPT_CPU_OVERCLOCKING`).text(`${Math.round((v==0?1:v)*7.09)} MHz (snapshot)`);
-        v=wasm_get_config_item("AGNUS_REVISION");
+        v=wasm_get_config_item("AGNUS.REVISION");
         let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB'];
         $(`#button_OPT_AGNUS_REVISION`).text(`agnus revision=${agnus_revs[v]} (snapshot)`);
 
-        v=wasm_get_config_item("DENISE_REVISION");
+        v=wasm_get_config_item("DENISE.REVISION");
         let denise_revs=['OCS','ECS'];
         $(`#button_OPT_DENISE_REVISION`).text(`denise revision=${denise_revs[v]} (snapshot)`);
       
@@ -1314,8 +1314,8 @@ timestampjoy1 = null;
 timestampjoy2 = null;
 last_touch_cmd = null;
 last_touch_fire= null;
-/* callback for wasm mainsdl.cpp */
-function draw_one_frame()
+
+function query_input_controllers()
 {
     let gamepads=null;
 
@@ -1700,7 +1700,7 @@ function InitWrappers() {
 
     do_animation_frame=null;
     queued_executes=0;
-    
+
     wasm_run = function () {
         Module._wasm_run();       
         if(do_animation_frame == null)
@@ -1720,7 +1720,7 @@ function InitWrappers() {
                 rendered_frame_id=0;
                 calculate_and_render=(now)=>
                 {
-                    draw_one_frame(); // to gather joystick information 
+                    query_input_controllers();
                     Module._wasm_worker_run();                    
                     let current_rendered_frame_id=Module._wasm_frame_info();
                     if(rendered_frame_id !== current_rendered_frame_id)
@@ -1734,7 +1734,7 @@ function InitWrappers() {
             {
                 calculate_and_render=(now)=>
                 {
-                    draw_one_frame(); // to gather joystick information 
+                    query_input_controllers();
                     let behind = Module._wasm_draw_one_frame(now);
                     if(behind<0)
                         return;
@@ -1764,7 +1764,7 @@ function InitWrappers() {
         }
     }
 
-    wasm_take_user_snapshot = Module.cwrap('wasm_take_user_snapshot', 'undefined');
+    wasm_take_user_snapshot = Module.cwrap('wasm_take_user_snapshot', 'string');
     wasm_pull_user_snapshot_file = Module.cwrap('wasm_pull_user_snapshot_file', 'string');
     wasm_delete_user_snapshot = Module.cwrap('wasm_delete_user_snapshot', 'undefined');
 
@@ -3356,6 +3356,7 @@ $('.layer').change( function(event) {
             {
                 wasm_eject_disk("dh"+this.id.at(-1));
                 $("#button_eject_hd"+this.id.at(-1)).hide();
+                $("#drop_zone").html(`file slot`);
             });
         }
     });
@@ -3443,8 +3444,8 @@ $('.layer').change( function(event) {
     $('#button_save_snapshot').click(async function() 
     {       
         let app_name = $("#input_app_title").val();
-        wasm_take_user_snapshot();
-        var snapshot_json= wasm_pull_user_snapshot_file();
+        
+        var snapshot_json= wasm_take_user_snapshot();
         var snap_obj = JSON.parse(snapshot_json);
 //        var ptr=wasm_pull_user_snapshot_file();
 //        var size = wasm_pull_user_snapshot_file_size();
@@ -3470,6 +3471,92 @@ $('.layer').change( function(event) {
         $("#modal_settings").focus();
     });
 
+    //--
+    const speed_percentage_text =`Execute the number of frames per host refresh needed to match approximately <span>{0}</span> of the original Amiga's speed.
+<br><br> For a smoother video output, consider enabling the <span>vsync</span> option. Vsync synchronizes the emulation with your display’s refresh rate, resulting in smoother visuals by adjusting the Amigas's emulation speed to match the monitor’s refresh rate.
+    `;
+    const vsync_text=" Video output is smoother when using <span>vsync</span>. However, depending on your monitor's refresh rate, the resulting speed may not be exactly 100% of the original Amiga's speed.";
+    speed_text={
+        "every 2nd vsync": "Render one Amiga frame every second vsync."+vsync_text,
+        "vsync":"Render exactly one Amiga frame on vsync."+vsync_text,
+        "2 frames on vsync":"Render two Amiga frames on vsync."+vsync_text,
+        "50%":`<span>slow motion</span> ${speed_percentage_text.replace("{0}","50%")}`,
+        "75%":`<span>slow motion</span> ${speed_percentage_text.replace("{0}","75%")}`,
+        "100%":`<span>original speed</span> ${speed_percentage_text.replace("{0}","100%")}`,
+        "120%":`<span>fast</span> ${speed_percentage_text.replace("{0}","120%")}`,
+        "160%":`<span>fast</span> ${speed_percentage_text.replace("{0}","160%")}`,
+        "200%":`<span>very fast</span> ${speed_percentage_text.replace("{0}","200%")}`
+    }
+
+    current_speed=100;
+    set_speed = function (new_speed) {
+        $("#button_speed").text("speed & frame sync = "+new_speed);
+        $('#speed_text').html(speed_text[new_speed]);
+
+        selected_speed = new_speed.replaceAll("%","").replaceAll(" ","");
+        if(selected_speed.includes("vsync"))
+        {
+            let map = {"every2ndvsync":-2,"vsync":1,"2framesonvsync":2};
+            selected_speed=map[selected_speed];
+        }
+
+        if(selected_speed == 100)
+            $('#button_speed_toggle').hide();
+        else
+            $('#button_speed_toggle').show();
+ 
+        current_speed=100;
+        $('#button_speed_toggle').click();
+    }
+    set_speed("100%");
+    $('#choose_speed a').click(function () 
+    {
+        selected_speed=$(this).text();
+        set_speed(selected_speed);
+        $("#modal_settings").focus();
+    });
+    
+    $('#button_speed_toggle').click(function () 
+    {
+        if(current_speed==100)
+            current_speed=selected_speed;    
+        else
+            current_speed=100;
+     
+        $('#button_speed_toggle').html(
+            `
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" style="margin-top:-5px" width="1.6em" height="1.6em" fill="currentColor" class="bi bi-speedometer" viewBox="0 0 16 16">
+                <path style='opacity:${current_speed == 100 ? 1:1}'  d="M8 2a.5.5 0 0 1 .5.5V4a.5.5 0 0 1-1 0V2.5A.5.5 0 0 1 8 2M3.732 3.732a.5.5 0 0 1 .707 0l.915.914a.5.5 0 1 1-.708.708l-.914-.915a.5.5 0 0 1 0-.707M2 8a.5.5 0 0 1 .5-.5h1.586a.5.5 0 0 1 0 1H2.5A.5.5 0 0 1 2 8m9.5 0a.5.5 0 0 1 .5-.5h1.5a.5.5 0 0 1 0 1H12a.5.5 0 0 1-.5-.5m.754-4.246a.39.39 0 0 0-.527-.02L7.547 7.31A.91.91 0 1 0 8.85 8.569l3.434-4.297a.39.39 0 0 0-.029-.518z"/>
+                <path style='opacity:${current_speed == 100 ? 1:1}' fill-rule="evenodd" d="M6.664 15.889A8 8 0 1 1 9.336.11a8 8 0 0 1-2.672 15.78zm-4.665-4.283A11.95 11.95 0 0 1 8 10c2.186 0 4.236.585 6.001 1.606a7 7 0 1 0-12.002 0"/>
+            </svg>
+            <div style="font-size: x-small;position: absolute;top: -2px;width:44px;text-align:center;margin-left: -11px;">
+            ${current_speed>4?'&nbsp;'+current_speed+'%': current_speed<0?'&frac12;vsync':current_speed==1?'vsync':current_speed+'vsync' }
+            </div>
+            <div id="host_fps" style="font-size: xx-small;position: absolute;top: 32px;width:44px;text-align:center;margin-left: -11px;">
+            </div>
+        </div>
+          `
+        );
+
+        wasm_configure("OPT_AMIGA_SPEED_BOOST", 
+            current_speed.toString());
+//        $("#modal_settings").focus();
+    });
+
+//--
+    set_run_ahead = function (run_ahead) {
+        $("#button_run_ahead").text("run ahead = "+run_ahead);
+        wasm_configure("OPT_EMU_RUN_AHEAD", 
+            run_ahead.toString().replace("frames","").replace("frame",""));
+    }
+    set_run_ahead("0 frame");
+    $('#choose_run_ahead a').click(function () 
+    {
+        var run_ahead=$(this).text();
+        set_run_ahead(run_ahead);
+        $("#modal_settings").focus();
+    });
 //---------- update management --------
 
     set_settings_cache_value = async function (key, value)
@@ -4363,7 +4450,7 @@ $('.layer').change( function(event) {
             $('#add_timer_action a').click(on_add_action);
             
             //system action
-            var list_actions=['toggle_run','toggle_warp','take_snapshot', 'restore_last_snapshot', 'swap_joystick', 'keyboard', 'fullscreen', 'menubar', 'pause', 'run', 'clipboard_paste', 'warp_always', 'warp_never', 'warp_auto', 'activity_monitor', 'toggle_action_buttons'];
+            var list_actions=['toggle_run','toggle_warp','take_snapshot', 'restore_last_snapshot', 'swap_joystick', 'keyboard', 'fullscreen', 'menubar', 'pause', 'run', 'clipboard_paste', 'warp_always', 'warp_never', 'warp_auto', 'activity_monitor', 'toggle_action_buttons','toggle_speed'];
             html_action_list='';
             list_actions.forEach(element => {
                 html_action_list +='<a class="dropdown-item" href="#">'+element+'</a>';
@@ -5310,14 +5397,14 @@ function show_activity()
 {
     $("#activity_help").show();
 
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "COPPER", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "BLITTER", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "DISK", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "AUDIO", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "SPRITE", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "BITPLANE", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "CPU", "0");
-    wasm_configure_key("DMA_DEBUG_CHANNEL", "REFRESH", "0");
+    wasm_configure_key("DEBUG_CHANNEL0", "0");
+    wasm_configure_key("DEBUG_CHANNEL1", "0");
+    wasm_configure_key("DEBUG_CHANNEL2", "0");
+    wasm_configure_key("DEBUG_CHANNEL3", "0");
+    wasm_configure_key("DEBUG_CHANNEL4", "0");
+    wasm_configure_key("DEBUG_CHANNEL5", "0");
+    wasm_configure_key("DEBUG_CHANNEL6", "0");
+    wasm_configure_key("DEBUG_CHANNEL7", "0");
 
 
     dma_channels={
@@ -5335,7 +5422,7 @@ function show_activity()
     };
 
 
-    wasm_configure("DMA_DEBUG_ENABLE","1");
+    wasm_configure("DEBUG_ENABLE","1");
 
     $("#activity").remove();
     $("body").append(`<div id="activity" class="monitor_grid"></div>`);
@@ -5357,7 +5444,7 @@ function show_activity()
  }
 function hide_activity()
 {
-    wasm_configure("DMA_DEBUG_ENABLE","0");
+    wasm_configure("DEBUG_ENABLE","0");
 
     $("#activity").remove();
     clearInterval(activity_intervall);
@@ -5388,5 +5475,5 @@ Settings
 
     dma_channels[channel]=!dma_channels[channel];
    
-    wasm_configure_key("DMA_DEBUG_CHANNEL", channel, dma_channels[channel] ? "1" : "0");
+    wasm_configure_key(`DEBUG_CHANNEL${Math.min(6,Object.keys(dma_channels).indexOf(channel)) }`,dma_channels[channel] ? "1" : "0");
 }

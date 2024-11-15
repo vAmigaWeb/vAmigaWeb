@@ -9,9 +9,10 @@
 
 #pragma once
 
-#include "Aliases.h"
-#include <vector>
+#include "Types.h"
 #include <functional>
+#include <vector>
+#include <stack>
 
 namespace vamiga {
 
@@ -24,6 +25,7 @@ namespace Arg {
 static const std::string address    = "<address>";
 static const std::string boolean    = "{ true | false }";
 static const std::string command    = "<command>";
+static const std::string count      = "<count>";
 static const std::string dst        = "<destination>";
 static const std::string ignores    = "<ignores>";
 static const std::string kb         = "<kb>";
@@ -33,23 +35,20 @@ static const std::string path       = "<path>";
 static const std::string process    = "<process>";
 static const std::string seconds    = "<seconds>";
 static const std::string value      = "<value>";
-static const std::string count      = "<count>";
 static const std::string sequence   = "<byte sequence>";
 static const std::string src        = "<source>";
 static const std::string volume     = "<volume>";
+static const std::string string     = "<string>";
 
 };
 
 struct Command {
 
-    // Textual descriptions of all command groups
-    static std::vector<string> groups;
-
-    // Currently selected group (used in command registration)
-    static isize currentGroup;
+    // Used during command registration
+    static string currentGroup;
 
     // Group of this command
-    isize group;
+    string groupName;
 
     // Name of this command (e.g., "eject")
     string name;
@@ -68,23 +67,20 @@ struct Command {
 
     // List of subcommands
     std::vector<Command> subCommands;
-    
+
     // Command handler
     std::function<void (Arguments&, long)> callback = nullptr;
 
     // Additional argument passed to the command handler
     long param = 0;
-    
+
     // Indicates if this command appears in help descriptions
     bool hidden = false;
 
-    
+
     //
     // Methods
     //
-
-    // Creates a new command group
-    void setGroup(const string &description, const string &postfix = ":");
 
     // Creates a new node in the command tree
     void add(const std::vector<string> &tokens,
@@ -117,7 +113,6 @@ struct Command {
              std::pair<const string &, const string &> help,
              std::function<void (Arguments&, long)> func = nullptr, long param = 0);
 
-
     void clone(const string &alias,
                const std::vector<string> &tokens,
                long param = 0);
@@ -137,13 +132,14 @@ struct Command {
     Command *seek(const string& token);
     const Command *seek(const std::vector<string> &tokens) const;
     Command *seek(const std::vector<string> &tokens);
+    Command &operator/(const string& token) { return *seek(token); }
 
     // Filters the argument list (used by auto-completion)
     std::vector<const Command *> filterPrefix(const string& prefix) const;
 
     // Automatically completes a partial token string
     string autoComplete(const string& token);
-        
+
     // Returns a syntax string for this command
     string usage() const;
 };

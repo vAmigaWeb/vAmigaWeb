@@ -10,6 +10,7 @@
 #pragma once
 
 #include "FloppyDiskTypes.h"
+#include "DriveTypes.h"
 #include "CoreComponent.h"
 
 namespace vamiga {
@@ -81,16 +82,9 @@ private:
         i32 cylinder[84][2];
         i32 track[168];
     } length;
-    
-    
-    // Indicates if this disk is write protected
-    bool writeProtected = false;
-    
-    // Indicates if the disk has been written to
-    bool modified = false;
-    
-    // Checksum of this disk if it was created from an ADF file, 0 otherwise
-    u64 fnv = 0;
+
+    // Disk state
+    DiskFlags flags = 0;
     
     
     //
@@ -100,26 +94,40 @@ private:
 public:
     
     FloppyDisk() = default;
-    FloppyDisk(Diameter dia, Density den) throws { init(dia, den); }
-    FloppyDisk(const FloppyFile &file) throws { init(file); }
-    FloppyDisk(util::SerReader &reader, Diameter dia, Density den) throws {
-        init(reader, dia, den); }
+    FloppyDisk(Diameter dia, Density den, bool wp = false) throws { init(dia, den, wp); }
+    FloppyDisk(const FloppyFile &file, bool wp = false) throws { init(file, wp); }
+    FloppyDisk(SerReader &reader, Diameter dia, Density den, bool wp = false) throws {
+        init(reader, dia, den, wp); }
     ~FloppyDisk();
     
 private:
     
-    void init(Diameter dia, Density den) throws;
-    void init(const class FloppyFile &file) throws;
-    void init(util::SerReader &reader, Diameter dia, Density den) throws;
+    void init(Diameter dia, Density den, bool wp) throws;
+    void init(const class FloppyFile &file, bool wp) throws;
+    void init(SerReader &reader, Diameter dia, Density den, bool wp) throws;
+
     
-    
+public:
+
+    FloppyDisk& operator= (const FloppyDisk& other) {
+
+        CLONE(diameter)
+        CLONE(density)
+        CLONE_ARRAY(data.raw)
+        CLONE_ARRAY(length.track)
+        CLONE(flags)
+
+        return *this;
+    }
+
+
     //
     // Methods from CoreObject
     //
     
 private:
     
-    const char *getDescription() const override { return "Disk"; }
+    const char *objectName() const override { return "Disk"; }
     void _dump(Category category, std::ostream& os) const override;
     
     
@@ -132,16 +140,16 @@ private:
     template <class T>
     void serialize(T& worker)
     {
-        if (util::isResetter(worker)) return;
+        if (isResetter(worker)) return;
 
         worker
 
         << diameter
         << density
         << data.raw
-        << writeProtected
-        << modified;
-    }
+        << length.track
+        << flags;
+    };
 
     //
     // Performing sanity checks
@@ -172,12 +180,17 @@ public:
     isize numHeads() const { return 2; }
     isize numTracks() const { return diameter == INCH_525 ? 84 : 168; }
     
-    bool isWriteProtected() const { return writeProtected; }
-    void setWriteProtection(bool value) { writeProtected = value; }
-    
-    bool isModified() const { return modified; }
-    void setModified(bool value) { modified = value; }
-        
+    bool isWriteProtected() const { return flags & FLAG_PROTECTED; }
+    void setWriteProtection(bool value) { value ? flags |= FLAG_PROTECTED : flags &= ~FLAG_PROTECTED; }
+
+    bool isModified() const { return flags & FLAG_MODIFIED; }
+    void setModified(bool value) { value ? flags |= FLAG_MODIFIED : flags &= ~FLAG_MODIFIED; }
+
+    bool getFlag(DiskFlags mask) { return (flags & mask) == mask; }
+    void setFlag(DiskFlags mask, bool value) { value ? flags |= mask : flags &= ~mask; }
+    void setFlag(DiskFlags flag) { setFlag(flag, true); }
+    void clearFlag(DiskFlags flag) { setFlag(flag, false); }
+
     
     //
     // Reading and writing

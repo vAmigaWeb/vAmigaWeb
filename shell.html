@@ -117,40 +117,48 @@
 
 
     <button id="button_show_menu"
-    style="position: fixed; top:0; left:0;z-index:200;" 
-    type="button" class="btn btn-sm icon mt-2"
+    style="position: fixed; top:6px; left:0;z-index:200;" 
+    type="button" class="btn btn-sm icon"
     data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar"
     >
-      <svg class="bi bi-list" width="1.6em" height="1.6em" viewBox="0 -1 16 17" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <svg class="bi bi-list" width="1.6em" height="auto" viewBox="0 -1 16 17" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
         <path fill-rule="evenodd" d="M2.5 11.5A.5.5 0 0 1 3 11h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4A.5.5 0 0 1 3 7h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4A.5.5 0 0 1 3 3h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
       </svg>
     </button>
-  
-    <div class="container-fluid collapse" id="navbar" ontouchstart="event.stopPropagation()">
-    <div class="row mt-2 mb-1">
-    <div class="col-8 px-0">
-        <span style="width: 40px;display: inline-block;"></span>
+
+    <div class="collapse" id="navbar">
+<div id="navgrid">
+    <div class="left">
+      <span style="width: 40px;display: inline-block;"></span>
         <button type="button" id="button_reset" class="btn btn-sm icon" data-toggle="tooltip" data-placement="top" title="reset">
-          <svg class="bi bi-skip-start-fill" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <svg style="margin-top: 1px;" class="bi bi-skip-start-fill" width="1.6em" height="auto" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
             <path fill-rule="evenodd" d="M4.5 3.5A.5.5 0 0 0 4 4v8a.5.5 0 0 0 1 0V4a.5.5 0 0 0-.5-.5z"/>
             <path d="M4.903 8.697l6.364 3.692c.54.313 1.232-.066 1.232-.697V4.308c0-.63-.692-1.01-1.232-.696L4.903 7.304a.802.802 0 0 0 0 1.393z"/>
           </svg>
         </button>
-        <span class="d-inline-block" data-toggle="tooltip" data-placement="top" title="pause">
+        <span data-toggle="tooltip" data-placement="top" title="pause">
         <button type="button" id="button_run" class="btn btn-sm icon">
-          <svg class="bi bi-pause-fill" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <svg class="bi bi-pause-fill" width="1.6em" height="auto" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
             <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z"/>
           </svg>
         </button>
-        </span> 
+        </span>  
       <button type="button" id="button_ff" class="btn btn-sm icon" data-toggle="tooltip" data-placement="top" title="warp">
         <svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" fill="currentColor" class="bi bi-fast-forward" viewBox="0 0 16 16">
           <path d="M6.804 8 1 4.633v6.734zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C.713 12.69 0 12.345 0 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
           <path d="M14.804 8 9 4.633v6.734zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C8.713 12.69 8 12.345 8 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
         </svg>
       </button>
+      
+      <button type="button" id="button_speed_toggle" class="btn btn-sm icon" data-toggle="tooltip" data-placement="top" title="toggle speed">
+        <svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" fill="currentColor" class="bi bi-speedometer" viewBox="0 0 16 16">
+          <path d="M8 2a.5.5 0 0 1 .5.5V4a.5.5 0 0 1-1 0V2.5A.5.5 0 0 1 8 2M3.732 3.732a.5.5 0 0 1 .707 0l.915.914a.5.5 0 1 1-.708.708l-.914-.915a.5.5 0 0 1 0-.707M2 8a.5.5 0 0 1 .5-.5h1.586a.5.5 0 0 1 0 1H2.5A.5.5 0 0 1 2 8m9.5 0a.5.5 0 0 1 .5-.5h1.5a.5.5 0 0 1 0 1H12a.5.5 0 0 1-.5-.5m.754-4.246a.39.39 0 0 0-.527-.02L7.547 7.31A.91.91 0 1 0 8.85 8.569l3.434-4.297a.39.39 0 0 0-.029-.518z"/>
+          <path fill-rule="evenodd" d="M6.664 15.889A8 8 0 1 1 9.336.11a8 8 0 0 1-2.672 15.78zm-4.665-4.283A11.95 11.95 0 0 1 8 10c2.186 0 4.236.585 6.001 1.606a7 7 0 1 0-12.002 0"/>
+        </svg>  
+      </button>
+
       <button type="button" id="button_take_snapshot" class="btn btn-sm icon" data-toggle="tooltip" data-placement="top" title="take snapshot">
-        <svg class="bi bi-box-arrow-in-down" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <svg class="bi bi-box-arrow-in-down" width="1.6em" height="auto" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
           <path fill-rule="evenodd" d="M4.646 8.146a.5.5 0 0 1 .708 0L8 10.793l2.646-2.647a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 0-.708z"/>
           <path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-1 0v-9A.5.5 0 0 1 8 1z"/>
           <path fill-rule="evenodd" d="M1.5 13.5A1.5 1.5 0 0 0 3 15h10a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 13 4h-1.5a.5.5 0 0 0 0 1H13a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5v-8A.5.5 0 0 1 3 5h1.5a.5.5 0 0 0 0-1H3a1.5 1.5 0 0 0-1.5 1.5v8z"/>
@@ -158,7 +166,7 @@
       </button>
       <span data-toggle="modal" data-target="#snapshotModal">
         <button type="button" id="button_snapshots" class="btn btn-sm icon" data-toggle="tooltip" data-placement="top" title="snapshot / scene browser">
-          <svg class="bi bi-collection-fill" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <svg class="bi bi-collection-fill" width="1.6em" height="auto" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
             <rect width="16" height="10" rx="1.5" transform="matrix(1 0 0 -1 0 14.5)"/>
             <path fill-rule="evenodd" d="M2 3a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 0-1h-11A.5.5 0 0 0 2 3zm2-2a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7A.5.5 0 0 0 4 1z"/>
           </svg>
@@ -166,19 +174,19 @@
       </span>
       <span data-toggle="collapse" data-target="#virtual_keyboard" aria-expanded="false" aria-controls="virtual_keyboard">
         <button id="button_keyboard" class="btn btn-sm icon mr-0" type="button" data-toggle="tooltip" data-placement="top" title="virtual keyboard">
-          <svg class="bi bi-type" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <svg class="bi bi-type" width="1.6em" height="auto" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
             <path d="M2.244 13.081l.943-2.803H6.66l.944 2.803H8.86L5.54 3.75H4.322L1 13.081h1.244zm2.7-7.923L6.34 9.314H3.51l1.4-4.156h.034zm9.146 7.027h.035v.896h1.128V8.125c0-1.51-1.114-2.345-2.646-2.345-1.736 0-2.59.916-2.666 2.174h1.108c.068-.718.595-1.19 1.517-1.19.971 0 1.518.52 1.518 1.464v.731H12.19c-1.647.007-2.522.8-2.522 2.058 0 1.319.957 2.18 2.345 2.18 1.06 0 1.716-.43 2.078-1.011zm-1.763.035c-.752 0-1.456-.397-1.456-1.244 0-.65.424-1.115 1.408-1.115h1.805v.834c0 .896-.752 1.525-1.757 1.525z"/>
           </svg>
         </button>
       </span>
-      <button id="button_custom_key" class="btn btn-sm icon ml-0 pl-0" type="button" data-toggle="tooltip" data-placement="top" title="action buttons">
-        <svg width="1.6em" height="1.6em" viewBox="0 0 16 16" class="bi bi-plus" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <button id="button_custom_key" class="btn btn-sm icon" type="button" data-toggle="tooltip" data-placement="top" title="action buttons">
+        <svg width="1.6em" height="auto" viewBox="0 0 16 16" class="bi bi-plus" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
           <path fill-rule="evenodd" d="M8 3.5a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5H4a.5.5 0 0 1 0-1h3.5V4a.5.5 0 0 1 .5-.5z"/>
           <path fill-rule="evenodd" d="M7.5 8a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1H8.5V12a.5.5 0 0 1-1 0V8z"/>
         </svg>
       </button>
-      <form id="theFileInput" style="display: inline-block;">
-        <div id="drop_zone" class="px-1 u-full-width mr-1" data-toggle="tooltip" data-placement="bottom" title="drop .adf, .dms, .exe, .hdf, .vAmiga, .st or .zip files into here, or just click into the drop zone">
+      <form id="theFileInput">
+        <div id="drop_zone" class="px-1" data-toggle="tooltip" data-placement="bottom" title="drop .adf, .dms, .exe, .hdf, .vAmiga, .st or .zip files into here, or just click into the drop zone">
           file slot
         </div>
         <!-- iOS won't work with accept=".g64,.d64,.crt,.prg,.bin" on d64 files -->
@@ -188,14 +196,21 @@
         <svg id="svg_fullscreen" class="bi bi-fs" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" data-toggle="tooltip" data-placement="top" title="fullscreen">
         </svg>
       </button>
+      <button id="btn_activity_monitor" class="btn btn-sm icon hidden hide-on-small" type="button"
+        onclick="action('activity_monitor')">
+        <svg xmlns="http://www.w3.org/2000/svg"
+        height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M160-160v-320h160v320H160Zm240 0v-640h160v640H400Zm240 0v-440h160v440H640Z"/></svg>
+      </button>
+
       <button id="button_settings" class="btn btn-sm icon" type="button" data-toggle="modal" data-target="#modal_settings">
-        <svg class="bi bi-gear-fill" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" data-toggle="tooltip" data-placement="top" title="settings">
+        <svg class="bi bi-gear-fill" width="1.6em" height="auto" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" data-toggle="tooltip" data-placement="top" title="settings">
           <path fill-rule="evenodd" d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 0 0-5.86 2.929 2.929 0 0 0 0 5.858z"/>
         </svg>
       </button>       
     </div>
-    <div class="col-4 pr-0">
-      <select id="port1" class="custom-select mr-0 ml-1" data-toggle="tooltip" data-placement="left" title="game port 1">
+    <div class="right">
+      <div>
+      <select id="port1" class="custom-select" data-toggle="tooltip" data-placement="left" title="game port 1">
         <option value="none">none</option>
         <option value="keys">cursor key (move) space (fire)</option>
         <option value="touch">touch joystick (move|fire)</option>
@@ -203,7 +218,9 @@
         <option value="mouse touchpad">mouse touchpad (btn|move|btn)</option>
         <option value="mouse touchpad2">mouse touchpad (move|btn/btn)</option>
       </select>
-      <select id="port2" class="custom-select ml-1" data-toggle="tooltip" data-placement="left" title="game port 2">
+      </div>
+      <div>
+      <select id="port2" class="custom-select" data-toggle="tooltip" data-placement="left" title="game port 2">
         <option value="none">none</option>
         <option value="keys">cursor key (move) space (fire)</option>
         <option value="touch">touch joystick (move|fire)</option>
@@ -211,8 +228,10 @@
         <option value="mouse touchpad">mouse touchpad (btn|move|btn)</option>
         <option value="mouse touchpad2">mouse touchpad (move|btn/btn)</option>
       </select>
+      </div>
+      </div>
     </div>
-    </div>      
+  </div>      
   
     <div class="row mt-1" id="output_row">
     <div class="col-12 px-1">
@@ -528,6 +547,47 @@
             </div>
             <div id="auto_select_on_help" class="help_text" style="font-size: small">currently&nbsp;<span>auto selecting</span>&nbsp;snapshot names and action button groups based on the filename of the mounted media. (recommended for single disk-based games)</div>
             <div id="auto_select_off_help" class="help_text" style="font-size: small">currently&nbsp;<span>auto selecting=off</span>&nbsp;(recommended when all your apps are mainly on a single amiga hard drive.)</div>
+
+
+            <div class="container row justify-content-start mt-4">
+              <div class="dropdown mr-1 mt-1">
+                <button id="button_speed" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  speed = 100%
+                </button>
+                <div id="choose_speed" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                  <a class="dropdown-item" href="#">every 2nd vsync</a>
+                  <a class="dropdown-item" href="#">vsync</a>
+                  <a class="dropdown-item" href="#">2 frames on vsync</a>
+                  <a class="dropdown-item" href="#">50%</a>
+                  <a class="dropdown-item" href="#">75%</a>
+                  <a class="dropdown-item" href="#">100%</a>
+                  <a class="dropdown-item" href="#">120%</a>
+                  <a class="dropdown-item" href="#">160%</a>
+                  <a class="dropdown-item" href="#">200%</a>
+                </div>
+              </div>
+              <div id="speed_text" class="ml-3 mt-1 setting_text"></div>              
+            </div>
+            <div class="container row justify-content-start mt-4">            
+              <div class="dropdown mr-1 mt-4">
+                <button id="button_run_ahead" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  run ahead frames = 0
+                </button>
+                <div id="choose_run_ahead" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                  <a class="dropdown-item" href="#">0 frame</a>
+                  <a class="dropdown-item" href="#">1 frame</a>
+                  <a class="dropdown-item" href="#">2 frames</a>
+                  <a class="dropdown-item" href="#">3 frames</a>
+                  <a class="dropdown-item" href="#">4 frames</a>
+                  <a class="dropdown-item" href="#">5 frames</a>
+                  <a class="dropdown-item" href="#">6 frames</a>
+                </div>
+              </div>
+              <div id="run_ahead_text" class="ml-3 mt-1 setting_text">
+                <span>run ahead</span> reduces input lag by pre computing frames. The lag improvement is 20ms per number of frames ahead. Basically emulation itself introduces a slight lag of less than 20ms. Therefore, setting <span style="text-wrap: nowrap;">run ahead = 1 frame</span> already ensures the original responsive feeling. <span style="text-wrap: nowrap;">run ahead = 0 frame</span> saves battery life at the cost of a slight lag.
+              </div>              
+              <br>
+            </div>
 
 
             <label class="mt-4">cut out sprite layers (stencil)</label>

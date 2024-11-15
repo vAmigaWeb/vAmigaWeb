@@ -16,14 +16,26 @@
 
 namespace vamiga {
 
-class DiskController : public SubComponent
+class DiskController final : public SubComponent, public Inspectable<DiskControllerInfo>
 {
+    Descriptions descriptions = {{
+
+        .type           = DiskControllerClass,
+        .name           = "DiskController",
+        .description    = "Disk Controller",
+        .shell          = "dc"
+    }};
+
+    ConfigOptions options = {
+
+        OPT_DC_SPEED,
+        OPT_DC_AUTO_DSKSYNC,
+        OPT_DC_LOCK_DSKSYNC
+    };
+
     // Current configuration
     DiskControllerConfig config = {};
 
-    // Result of the latest inspection
-    mutable DiskControllerInfo info = {};
-    
     // The currently selected drive (-1 if no drive is selected)
     isize selected = -1;
 
@@ -100,21 +112,34 @@ public:
     
     using SubComponent::SubComponent;
 
-    
+    DiskController& operator= (const DiskController& other) {
+
+        CLONE(config)
+
+        CLONE(selected)
+        CLONE(state)
+        CLONE(syncCycle)
+        CLONE(syncCounter)
+        CLONE(dskEventDelay)
+        CLONE(incoming)
+        CLONE(dataReg)
+        CLONE(dataRegCount)
+        CLONE(fifo)
+        CLONE(fifoCount)
+        CLONE(dsklen)
+        CLONE(dsksync)
+        CLONE(prb)
+
+        return *this;
+    }
+
+
     //
-    // Methods from CoreObject
+    // Methods from Serializable
     //
-    
+
 private:
-    
-    const char *getDescription() const override { return "DiskController"; }
-    void _dump(Category category, std::ostream& os) const override;
-    
-private:
-    
-    void _reset(bool hard) override;
-    void _inspect() const override;
-    
+        
     template <class T>
     void serialize(T& worker)
     {
@@ -134,48 +159,58 @@ private:
         << dsksync
         << prb;
 
-        if (util::isResetter(worker)) return;
+        if (isResetter(worker)) return;
 
         worker
 
-        << config.connected
         << config.speed
         << config.lockDskSync
         << config.autoDskSync;
+
     }
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
+    void operator << (SerResetter &worker) override;
+    void operator << (SerChecker &worker) override { serialize(worker); }
+    void operator << (SerCounter &worker) override { serialize(worker); }
+    void operator << (SerReader &worker) override { serialize(worker); }
+    void operator << (SerWriter &worker) override { serialize(worker); }
 
-    
+
     //
-    // Configuring
+    // Methods from CoreComponent
     //
-    
+
 public:
-    
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+private:
+
+    void _dump(Category category, std::ostream& os) const override;
+
+
+    //
+    // Methods from Configurable
+    //
+
+public:
+
     const DiskControllerConfig &getConfig() const { return config; }
-    void resetConfig() override;
-    
+    const ConfigOptions &getOptions() const override { return options; }
+    i64 getOption(Option option) const override;
+    void checkOption(Option opt, i64 value) override;
+    void setOption(Option option, i64 value) override;
+
     bool turboMode() const { return config.speed == -1; }
 
-    i64 getConfigItem(Option option) const;
-    i64 getConfigItem(Option option, long id) const;
-    
-    void setConfigItem(Option option, i64 value);
-    void setConfigItem(Option option, long id, i64 value);
 
-    
     //
     // Analyzing
     //
     
 public:
     
-    DiskControllerInfo getInfo() const { return CoreComponent::getInfo(info); }
-
+    void cacheInfo(DiskControllerInfo &result) const override;
 
     //
     // Accessing

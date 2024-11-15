@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 #include "BusTypes.h"
 
@@ -22,14 +22,13 @@ enum_long(DMA_DISPLAY_MODE)
 typedef DMA_DISPLAY_MODE DmaDisplayMode;
 
 #ifdef __cplusplus
-struct DmaDisplayModeEnum : util::Reflection<DmaDisplayModeEnum, DmaDisplayMode>
+struct DmaDisplayModeEnum : vamiga::util::Reflection<DmaDisplayModeEnum, DmaDisplayMode>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = DMA_DISPLAY_MODE_ODD_EVEN_LAYERS;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "DMA_DISPLAY_MODE"; }
-    static const char *key(DmaDisplayMode value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -58,14 +57,13 @@ enum_long(DMA_CHANNEL)
 typedef DMA_CHANNEL DmaChannel;
 
 #ifdef __cplusplus
-struct DmaChannelEnum : util::Reflection<DmaChannelEnum, DmaChannel>
+struct DmaChannelEnum : vamiga::util::Reflection<DmaChannelEnum, DmaChannel>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = DMA_CHANNEL_COUNT - 1;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "DMA_CHANNEL"; }
-    static const char *key(DmaDisplayMode value)
+    static const char *_key(long value)
     {
         switch (value) {
                 

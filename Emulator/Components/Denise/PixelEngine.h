@@ -17,7 +17,23 @@
 
 namespace vamiga {
 
-class PixelEngine : public SubComponent {
+class PixelEngine final : public SubComponent {
+
+    Descriptions descriptions = {{
+
+        .type           = PixelEngineClass,
+        .name           = "PixelEngine",
+        .description    = "Amiga Monitor",
+        .shell          = "monitor"
+    }};
+
+    ConfigOptions options = {
+
+        OPT_MON_PALETTE,
+        OPT_MON_BRIGHTNESS,
+        OPT_MON_CONTRAST,
+        OPT_MON_SATURATION
+    };
 
     friend class Denise;
 
@@ -45,9 +61,6 @@ private:
 
     // Mutex for synchronizing access to the stable buffer
     util::Mutex bufferMutex;
-
-    // Buffer with background noise (random black and white pixels)
-    Buffer <Texel> noise;
 
     
     //
@@ -96,46 +109,25 @@ public:
     // Initializes both frame buffers with a checkerboard pattern
     void clearAll();
 
+    PixelEngine& operator= (const PixelEngine& other) {
+
+        CLONE_ARRAY(colorSpace)
+        CLONE(colChanges)
+        CLONE_ARRAY(color)
+        CLONE(hamMode)
+        CLONE(shresMode)
+        CLONE_ARRAY(palette)
+
+        return *this;
+    }
+
 
     //
-    // Methods from CoreObject
+    // Methods from Serializable
     //
-    
+
 private:
-    
-    const char *getDescription() const override { return "PixelEngine"; }
-    void _dump(Category category, std::ostream& os) const override;
 
-    
-    //
-    // Methods from CoreComponent
-    //
-    
-private:
-    
-    void _initialize() override;
-    void _reset(bool hard) override;
-
-    
-    //
-    // Configuring
-    //
-
-public:
-    
-    const PixelEngineConfig &getConfig() const { return config; }
-    void resetConfig() override;
-
-    i64 getConfigItem(Option option) const;
-    void setConfigItem(Option option, i64 value);
-
-    
-    //
-    // Serializing
-    //
-    
-private:
-    
     template <class T>
     void serialize(T& worker)
     {
@@ -145,22 +137,38 @@ private:
         << color
         << hamMode
         << shresMode;
-    }
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
-    isize didLoadFromBuffer(const u8 *buffer) override;
+    } SERIALIZERS(serialize);
 
-    
+
     //
-    // Controlling
+    // Methods from CoreComponent
     //
     
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
 private:
 
+    void _dump(Category category, std::ostream& os) const override;
+    void _initialize() override;
     void _powerOn() override;
+    void _didLoad() override;
+    void _didReset(bool hard) override;
+
+    
+    //
+    // Methods from Configurable
+    //
+
+public:
+    
+    const PixelEngineConfig &getConfig() const { return config; }
+    const ConfigOptions &getOptions() const override { return options; }
+    i64 getOption(Option option) const override;
+    void checkOption(Option opt, i64 value) override;
+    void setOption(Option option, i64 value) override;
 
 
     //
@@ -204,7 +212,7 @@ public:
 
     // Returns the working buffer or the stable buffer
     FrameBuffer &getWorkingBuffer();
-    const FrameBuffer &getStableBuffer();
+    const FrameBuffer &getStableBuffer() const;
 
     // Return a pointer into the pixel storage
     Texel *workingPtr(isize row = 0, isize col = 0);
@@ -213,9 +221,6 @@ public:
     // Swaps the working buffer and the stable buffer
     void swapBuffers();
     
-    // Returns a pointer to randon noise
-    Texel *getNoise() const;
-
     // Called after each frame to switch the frame buffers
     void vsyncHandler();
 

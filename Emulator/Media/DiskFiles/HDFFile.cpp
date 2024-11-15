@@ -19,15 +19,22 @@
 namespace vamiga {
 
 bool
-HDFFile::isCompatible(const string &path)
+HDFFile::isCompatible(const std::filesystem::path &path)
 {
-    return util::uppercased(util::extractSuffix(path)) == "HDF";
+    auto suffix = util::uppercased(path.extension().string());
+    return suffix == ".HDF";
 }
 
 bool
-HDFFile::isCompatible(std::istream &stream)
+HDFFile::isCompatible(const u8 *buf, isize len)
 {
     return true; // util::streamLength(stream) % 512 == 0;
+}
+
+bool
+HDFFile::isCompatible(const Buffer<u8> &buf)
+{
+    return isCompatible(buf.ptr, buf.size);
 }
 
 void
@@ -49,10 +56,10 @@ HDFFile::finalizeRead()
 }
 
 void
-HDFFile::init(const string &path)
+HDFFile::init(const std::filesystem::path &path)
 {
     // Check size
-    if (isOversized(util::getSizeOfFile(path))) throw VAError(ERROR_HDR_TOO_LARGE);
+    if (isOversized(util::getSizeOfFile(path))) throw Error(VAERROR_HDR_TOO_LARGE);
     
     AmigaFile::init(path);
 }
@@ -61,7 +68,7 @@ void
 HDFFile::init(const u8 *buf, isize len)
 {
     // Check size
-    if (isOversized(len)) throw VAError(ERROR_HDR_TOO_LARGE);
+    if (isOversized(len)) throw Error(VAERROR_HDR_TOO_LARGE);
 
     AmigaFile::init(buf, len);
 }
@@ -112,7 +119,7 @@ HDFFile::getGeometryDescriptor() const
         auto numBlocks = predictNumBlocks();
         
         // Predict the drive geometry
-        auto geometries = GeometryDescriptor::driveGeometries(numBlocks);
+        auto geometries = GeometryDescriptor::driveGeometries(numBlocks, result.bsize);
         
         // Use the first match by default
         if (geometries.size()) result = geometries.front();
@@ -196,10 +203,10 @@ HDFFile::getDriverDescriptor(isize driver) const
             auto lsegBlock = seekBlock(lsegRef);
             
             if (!lsegBlock || strcmp((const char *)lsegBlock, "LSEG")) {
-                throw VAError(ERROR_HDR_CORRUPTED_LSEG);
+                throw Error(VAERROR_HDR_CORRUPTED_LSEG);
             }
             if (i >= 1024) {
-                throw VAError(ERROR_HDR_CORRUPTED_LSEG);
+                throw Error(VAERROR_HDR_CORRUPTED_LSEG);
             }
             
             result.blocks.push_back(lsegRef);
@@ -282,6 +289,14 @@ HDFFile::getFileSystemDescriptor(isize nr) const
     }
     
     return result;
+}
+
+HDFInfo 
+HDFFile::getInfo() const
+{
+    HDFInfo info;
+
+    return info;
 }
 
 bool
@@ -475,7 +490,7 @@ HDFFile::readDriver(isize nr, Buffer<u8> &driver)
 */
 
 isize
-HDFFile::writePartitionToFile(const string &path, isize nr)
+HDFFile::writePartitionToFile(const std::filesystem::path &path, isize nr)
 {
     auto offset = partitionOffset(nr);
     auto size = partitionSize(nr);

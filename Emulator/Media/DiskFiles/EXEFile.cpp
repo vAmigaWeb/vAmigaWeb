@@ -17,21 +17,27 @@
 namespace vamiga {
 
 bool
-EXEFile::isCompatible(const string &path)
+EXEFile::isCompatible(const std::filesystem::path &path)
 {
-    auto suffix = util::uppercased(util::extractSuffix(path));
-    return suffix == "EXE";
+    auto suffix = util::uppercased(path.extension().string());
+    return suffix == ".EXE";
 }
 
 bool
-EXEFile::isCompatible(std::istream &stream)
+EXEFile::isCompatible(const u8 *buf, isize len)
 {
     u8 signature[] = { 0x00, 0x00, 0x03, 0xF3 };
 
     // Only accept the file if it fits onto a HD disk
-    if (util::streamLength(stream) > 1710000) return false;
+    if (len > 1710000) return false;
 
-    return util::matchingStreamHeader(stream, signature, sizeof(signature));
+    return util::matchingBufferHeader(buf, signature, sizeof(signature));
+}
+
+bool
+EXEFile::isCompatible(const Buffer<u8> &buf)
+{
+    return isCompatible(buf.ptr, buf.size);
 }
 
 void
@@ -49,7 +55,7 @@ EXEFile::finalizeRead()
     
     // Add the executable
     FSBlock *file = volume.createFile("file", data.ptr, data.size);
-    if (!file) throw VAError(ERROR_FS_OUT_OF_SPACE);
+    if (!file) throw Error(VAERROR_FS_OUT_OF_SPACE);
     
     // Add a script directory
     volume.createDir("s");
@@ -57,7 +63,7 @@ EXEFile::finalizeRead()
     
     // Add a startup sequence
     file = volume.createFile("startup-sequence", "file");
-    if (!file) throw VAError(ERROR_FS_OUT_OF_SPACE);
+    if (!file) throw Error(VAERROR_FS_OUT_OF_SPACE);
 
     // Finalize
     volume.updateChecksums();

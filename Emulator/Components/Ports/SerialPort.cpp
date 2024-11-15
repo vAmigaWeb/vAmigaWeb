@@ -14,25 +14,8 @@
 
 namespace vamiga {
 
-void
-SerialPort::resetConfig()
-{
-    assert(isPoweredOff());
-    auto &defaults = amiga.defaults;
-
-    std::vector <Option> options = {
-        
-        OPT_SER_DEVICE,
-        OPT_SER_VERBOSE
-    };
-
-    for (auto &option : options) {
-        setConfigItem(option, defaults.get(option));
-    }
-}
-
 i64
-SerialPort::getConfigItem(Option option) const
+SerialPort::getOption(Option option) const
 {
     switch (option) {
             
@@ -45,14 +28,35 @@ SerialPort::getConfigItem(Option option) const
 }
 
 void
-SerialPort::setConfigItem(Option option, i64 value)
+SerialPort::checkOption(Option opt, i64 value)
+{
+    switch (opt) {
+
+        case OPT_SER_DEVICE:
+
+            if (!SerialPortDeviceEnum::isValid(value)) {
+                throw Error(VAERROR_OPT_INV_ARG, SerialPortDeviceEnum::keyList());
+            }
+            return;
+
+        case OPT_SER_VERBOSE:
+
+            return;
+
+        default:
+            throw(VAERROR_OPT_UNSUPPORTED);
+    }
+}
+
+void
+SerialPort::setOption(Option option, i64 value)
 {
     switch (option) {
             
         case OPT_SER_DEVICE:
             
             if (!SerialPortDeviceEnum::isValid(value)) {
-                throw VAError(ERROR_OPT_INVARG, SerialPortDeviceEnum::keyList());
+                throw Error(VAERROR_OPT_INV_ARG, SerialPortDeviceEnum::keyList());
             }
             
             config.device = (SerialPortDevice)value;
@@ -69,7 +73,7 @@ SerialPort::setConfigItem(Option option, i64 value)
 }
 
 void
-SerialPort::_inspect() const
+SerialPort::cacheInfo(SerialPortInfo &info) const
 {
     {   SYNCHRONIZED
         
@@ -91,10 +95,7 @@ SerialPort::_dump(Category category, std::ostream& os) const
     
     if (category == Category::Config) {
         
-        os << tab("Connected device");
-        os << SerialPortDeviceEnum::key(config.device) << std::endl;
-        os << tab("Verbose");
-        os << bol(config.verbose) << std::endl;
+        dumpConfig(os);
     }
     
     if (category == Category::State) {
@@ -121,10 +122,8 @@ SerialPort::_dump(Category category, std::ostream& os) const
 }
 
 void
-SerialPort::_reset(bool hard)
+SerialPort::_didReset(bool hard)
 {
-    RESET_SNAPSHOT_ITEMS(hard)
-
     incoming.clear();
     outgoing.clear();
 }

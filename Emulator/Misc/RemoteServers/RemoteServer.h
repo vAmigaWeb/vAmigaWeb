@@ -21,6 +21,29 @@ class RemoteServer : public SubComponent {
 
     friend class RemoteManager;
 
+    Descriptions descriptions = {{
+
+        .name           = "SerServer",
+        .description    = "Serial Port Server",
+        .shell          = "serial"
+    }, {
+        .name           = "RshServer",
+        .description    = "Remote Shell Server",
+        .shell          = "rshell"
+    }, {
+        .name           = "GdbServer",
+        .description    = "GDB Remote Server",
+        .shell          = "gdb"
+    }};
+
+    ConfigOptions options = {
+
+        OPT_SRV_PORT,
+        OPT_SRV_PROTOCOL,
+        OPT_SRV_AUTORUN,
+        OPT_SRV_VERBOSE
+    };
+
 protected:
     
     // Current configuration
@@ -47,58 +70,66 @@ protected:
     
 public:
     
-    RemoteServer(Amiga& ref);
+    RemoteServer(Amiga& ref, isize objid);
     ~RemoteServer() { shutDownServer(); }
     void shutDownServer();
     
-    
+    RemoteServer& operator= (const RemoteServer& other) {
+
+        CLONE(config)
+        
+        return *this;
+    }
+
+
     //
     // Methods from CoreObject
     //
     
-public:
-    
-    const char *getDescription() const override { return "RemoteServer"; }
+protected:
+
     void _dump(Category category, std::ostream& os) const override;
     
-    
+public:
+
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
+
     //
     // Methods from CoreComponent
     //
     
 private:
     
-    void _reset(bool hard) override { }
     void _powerOff() override;
 
     template <class T>
     void serialize(T& worker)
     {
-        if (util::isResetter(worker)) return;
+        if (isResetter(worker)) return;
 
         worker
 
         << config.port
         << config.protocol
         << config.verbose;
-    }
 
-    isize _size() override { COMPUTE_SNAPSHOT_SIZE }
-    u64 _checksum() override { COMPUTE_SNAPSHOT_CHECKSUM }
-    isize _load(const u8 *buffer) override { LOAD_SNAPSHOT_ITEMS }
+    } SERIALIZERS(serialize);
+
     void _didLoad() override;
-    isize _save(u8 *buffer) override { SAVE_SNAPSHOT_ITEMS }
 
-    
+
     //
-    // Configuring
+    // Methods from Configurable
     //
-    
+
 public:
 
     const ServerConfig &getConfig() const { return config; }
-    i64 getConfigItem(Option option) const;
-    void setConfigItem(Option option, i64 value);
+    const ConfigOptions &getOptions() const override { return options; }
+    i64 getOption(Option option) const override;
+    void checkOption(Option opt, i64 value) override;
+    void setOption(Option option, i64 value) override;
 
 
     //
@@ -142,12 +173,9 @@ protected:
     
 private:
     
-    // Used by the launch manager to determine if actions should be taken
+    // Used by the launch daemon to determine if actions should be taken
     virtual bool shouldRun() { return true; }
-    
-    // Indicates if the server is able to run
-    // virtual bool canRun() { return true; }
-    
+        
     
     //
     // Running the server

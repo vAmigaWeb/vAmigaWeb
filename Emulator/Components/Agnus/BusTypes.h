@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 
 enum_i8(BUS_OWNER)
@@ -45,14 +45,13 @@ enum_i8(BUS_OWNER)
 typedef BUS_OWNER BusOwner;
 
 #ifdef __cplusplus
-struct BusOwnerEnum : util::Reflection<BusOwnerEnum, BusOwner>
+struct BusOwnerEnum : vamiga::util::Reflection<BusOwnerEnum, BusOwner>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = BUS_COUNT - 1;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "BUS"; }
-    static const char *key(BusOwner value)
+    static const char *_key(long value)
     {
         switch (value) {
                 

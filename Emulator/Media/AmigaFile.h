@@ -9,8 +9,8 @@
 
 #pragma once
 
-#include "AmigaFileTypes.h"
 #include "CoreObject.h"
+#include "MediaFile.h"
 #include "Checksum.h"
 #include "IOUtils.h"
 #include "Buffer.h"
@@ -18,9 +18,9 @@
 #include <sstream>
 #include <fstream>
 
-using util::Buffer;
-
 namespace vamiga {
+
+using util::Buffer;
 
 /* All media files are organized in the class hierarchy displayed below. Two
  * abstract classes are involed: AmigaFile, DiskFile, and FloppyFile.
@@ -60,13 +60,13 @@ namespace vamiga {
  *   ---------   ----------   ---------   ---------   ---------   ---------
  */
 
-class AmigaFile : public CoreObject {
-    
+class AmigaFile : public CoreObject, public MediaFile {
+
 public:
     
     // Physical location of this file
-    string path;
-    
+    std::filesystem::path path;
+
     // The raw data of this file
     Buffer<u8> data;
     
@@ -79,13 +79,14 @@ public:
 
     virtual ~AmigaFile();
 
-    void init(std::istream &stream) throws;
-    void init(const string &path, std::istream &stream) throws;
+    // void init(std::istream &stream) throws;
+    // void init(const std::filesystem::path &path, std::istream &stream) throws;
     void init(isize len) throws;
     void init(const u8 *buf, isize len) throws;
     void init(const Buffer<u8> &buffer) throws;
-    void init(const string &path) throws;
-    void init(FILE *file) throws;
+    void init(const string &str) throws;
+    void init(const std::filesystem::path &path) throws;
+    // void init(FILE *file) throws;
     
     explicit operator bool() const { return data.ptr != nullptr; }
 
@@ -94,30 +95,23 @@ public:
     // Methods from CoreObject
     //
     
+    /*
 private:
     
     void _dump(Category category, std::ostream& os) const override { }
+     */
 
-    
+
     //
-    // Accessing
+    // Methods from MediaFile
     //
     
 public:
-    
-    // Determines the type of an arbitrary file on file
-    static FileType type(const string &path);
-    
-    // Returns the type of this file
-    virtual FileType type() const { return FILETYPE_UNKNOWN; }
 
-    // Returns the file size
-    virtual isize size() { return data.size; }
-    virtual string sizeAsString();
-
-    // Returns a fingerprint (hash value) for this file
-    virtual u64 fnv64() const { return data.fnv64(); }
-    virtual u32 crc32() const { return data.crc32(); }
+    virtual isize getSize() const override { return data.size; }
+    virtual u8 *getData() const override { return data.ptr; }
+    virtual u64 fnv64() const override { return data.fnv64(); }
+    virtual u32 crc32() const override { return data.crc32(); }
 
     
     //
@@ -125,9 +119,8 @@ public:
     //
 
     // Copies the file contents into a buffer
-    virtual void flash(u8 *buf, isize offset, isize len) const;
-    virtual void flash(u8 *buf, isize offset) const;
-    virtual void flash(u8 *buf) const;
+    virtual void flash(u8 *buf, isize offset, isize len) const override;
+    virtual void flash(u8 *buf, isize offset = 0) const override;
 
     
     //
@@ -136,24 +129,26 @@ public:
     
 protected:
     
-    virtual bool isCompatiblePath(const string &path) const = 0;
-    virtual bool isCompatibleStream(std::istream &stream) const = 0;
-    
-    isize readFromStream(std::istream &stream) throws;
-    isize readFromFile(const string &path) throws;
-    isize readFromBuffer(const u8 *buf, isize len) throws;
+    virtual bool isCompatiblePath(const std::filesystem::path &path) const = 0;
+    virtual bool isCompatibleBuffer(const u8 *buf, isize len) = 0;
+    bool isCompatibleBuffer(const Buffer<u8> &buffer);
+
+    // isize readFromStream(std::istream &stream) throws override;
+    // isize readFromFile(const std::filesystem::path &path) throws override;
+    isize readFromBuffer(const u8 *buf, isize len) throws override;
     isize readFromBuffer(const Buffer<u8> &buffer) throws;
 
 public:
     
     isize writeToStream(std::ostream &stream, isize offset, isize len) throws;
-    isize writeToFile(const string &path, isize offset, isize len) throws;
+    isize writeToFile(const std::filesystem::path &path, isize offset, isize len) throws;
     isize writeToBuffer(u8 *buf, isize offset, isize len) throws;
     isize writeToBuffer(Buffer<u8> &buffer, isize offset, isize len) throws;
 
-    isize writeToStream(std::ostream &stream) throws;
-    isize writeToFile(const string &path) throws;
-    isize writeToBuffer(u8 *buf) throws;
+    isize writeToStream(std::ostream &stream) throws override;
+    isize writeToFile(const std::filesystem::path &path) throws override;
+    isize writePartitionToFile(const std::filesystem::path &path, isize partition) throws override;
+    isize writeToBuffer(u8 *buf) throws override;
     isize writeToBuffer(Buffer<u8> &buffer) throws;
 
 private:

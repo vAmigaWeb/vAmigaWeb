@@ -21,25 +21,29 @@
 namespace vamiga {
 
 bool
-ADFFile::isCompatible(const string &path)
+ADFFile::isCompatible(const std::filesystem::path &path)
 {
-    auto suffix = util::uppercased(util::extractSuffix(path));
-    return suffix == "ADF";
+    auto suffix = util::uppercased(path.extension().string());
+    return suffix == ".ADF";
 }
 
 bool
-ADFFile::isCompatible(std::istream &stream)
+ADFFile::isCompatible(const u8 *buf, isize len)
 {
-    isize length = util::streamLength(stream);
-
     // Some ADFs contain an additional byte at the end. Ignore it.
-    length &= ~1;
+    len &= ~1;
 
     // The size must be a multiple of the cylinder size
-    if (length % 11264) return false;
+    if (len % 11264) return false;
 
     // Check some more limits
-    return length <= ADFSIZE_35_DD_84 || length == ADFSIZE_35_HD;
+    return len <= ADFSIZE_35_DD_84 || len == ADFSIZE_35_HD;
+}
+
+bool
+ADFFile::isCompatible(const Buffer<u8> &buf)
+{
+    return isCompatible(buf.ptr, buf.size);
 }
 
 isize
@@ -48,12 +52,12 @@ ADFFile::fileSize(Diameter diameter, Density density)
     assert_enum(Diameter, diameter);
     assert_enum(Density, density);
 
-    if (diameter != INCH_35) throw VAError(ERROR_DISK_INVALID_DIAMETER);
+    if (diameter != INCH_35) throw Error(VAERROR_DISK_INVALID_DIAMETER);
     
     if (density == DENSITY_DD) return ADFSIZE_35_DD;
     if (density == DENSITY_HD) return ADFSIZE_35_HD;
 
-    throw VAError(ERROR_DISK_INVALID_DENSITY);
+    throw Error(VAERROR_DISK_INVALID_DENSITY);
 }
 
 void
@@ -68,7 +72,7 @@ ADFFile::init(Diameter diameter, Density density)
 void
 ADFFile::init(const FloppyDiskDescriptor &descr)
 {
-    if (descr.diameter != INCH_35) throw VAError(ERROR_DISK_INVALID_DIAMETER);
+    if (descr.diameter != INCH_35) throw Error(VAERROR_DISK_INVALID_DIAMETER);
 
     switch (descr.density) {
 
@@ -83,7 +87,7 @@ ADFFile::init(const FloppyDiskDescriptor &descr)
                 case 84: init(ADFSIZE_35_DD_84); break;
 
                 default:
-                    throw VAError(ERROR_DISK_INVALID_LAYOUT);
+                    throw Error(VAERROR_DISK_INVALID_LAYOUT);
             }
             break;
 
@@ -93,7 +97,7 @@ ADFFile::init(const FloppyDiskDescriptor &descr)
             break;
 
         default:
-            throw VAError(ERROR_DISK_INVALID_DENSITY);
+            throw Error(VAERROR_DISK_INVALID_DENSITY);
     }
 }
 
@@ -111,7 +115,7 @@ ADFFile::init(FloppyDisk &disk)
 void
 ADFFile::init(FloppyDrive &drive)
 {
-    if (drive.disk == nullptr) throw VAError(ERROR_DISK_MISSING);
+    if (drive.disk == nullptr) throw Error(VAERROR_DISK_MISSING);
     init(*drive.disk);
 }
 
@@ -129,7 +133,7 @@ ADFFile::init(MutableFileSystem &volume)
             break;
             
         default:
-            throw VAError(ERROR_FS_WRONG_CAPACITY);
+            throw Error(VAERROR_FS_WRONG_CAPACITY);
     }
 
     volume.exportVolume(data.ptr, data.size);
@@ -256,19 +260,19 @@ ADFFile::killVirus()
     
     if (isOFSVolumeType(getDos())) {
 
-        plain(ADF_DEBUG, "a standard OFS bootblock\n");
+        debug(ADF_DEBUG, "a standard OFS bootblock\n");
         BootBlockImage bb = BootBlockImage(BB_AMIGADOS_13);
         bb.write(data.ptr + 4, 4, 1023);
 
     } else if (isFFSVolumeType(getDos())) {
 
-        plain(ADF_DEBUG, "a standard FFS bootblock\n");
+        debug(ADF_DEBUG, "a standard FFS bootblock\n");
         BootBlockImage bb = BootBlockImage(BB_AMIGADOS_20);
         bb.write(data.ptr + 4, 4, 1023);
 
     } else {
 
-        plain(ADF_DEBUG, "zeroes\n");
+        debug(ADF_DEBUG, "zeroes\n");
         std::memset(data.ptr + 4, 0, 1020);
     }
 }
@@ -296,17 +300,17 @@ ADFFile::formatDisk(FSVolumeType fs, BootBlockId id, string name)
     volume.makeBootable(id);
     
     // Export the file system to the ADF
-    if (!volume.exportVolume(data.ptr, data.size)) throw VAError(ERROR_FS_UNKNOWN);
+    if (!volume.exportVolume(data.ptr, data.size)) throw Error(VAERROR_FS_UNKNOWN);
 }
 
 void
 ADFFile::encodeDisk(FloppyDisk &disk) const
 {
     if (disk.getDiameter() != getDiameter()) {
-        throw VAError(ERROR_DISK_INVALID_DIAMETER);
+        throw Error(VAERROR_DISK_INVALID_DIAMETER);
     }
     if (disk.getDensity() != getDensity()) {
-        throw VAError(ERROR_DISK_INVALID_DENSITY);
+        throw Error(VAERROR_DISK_INVALID_DENSITY);
     }
 
     isize tracks = numTracks();
@@ -322,7 +326,8 @@ ADFFile::encodeDisk(FloppyDisk &disk) const
     if (ADF_DEBUG) {
         
         ADFFile adf(disk);
-        auto tmp = Amiga::tmp("debug.adf").string();
+        // auto tmp = Amiga::tmp("debug.adf").string();
+        string tmp = "/tmp/debug.adf";
         debug(ADF_DEBUG, "Saving image to %s for debugging\n", tmp.c_str());
         adf.writeToFile(tmp);
     }
@@ -444,10 +449,10 @@ ADFFile::decodeDisk(FloppyDisk &disk)
     debug(ADF_DEBUG, "Decoding Amiga disk with %ld tracks\n", tracks);
     
     if (disk.getDiameter() != getDiameter()) {
-        throw VAError(ERROR_DISK_INVALID_DIAMETER);
+        throw Error(VAERROR_DISK_INVALID_DIAMETER);
     }
     if (disk.getDensity() != getDensity()) {
-        throw VAError(ERROR_DISK_INVALID_DENSITY);
+        throw Error(VAERROR_DISK_INVALID_DENSITY);
     }
 
     // Make the MFM stream scannable beyond the track end
@@ -490,7 +495,7 @@ ADFFile::decodeTrack(FloppyDisk &disk, Track t)
     if (nr != sectors) {
         
         warn("Found %ld sectors, expected %ld. Aborting.\n", nr, sectors);
-        throw VAError(ERROR_DISK_WRONG_SECTOR_COUNT);
+        throw Error(VAERROR_DISK_WRONG_SECTOR_COUNT);
     }
     
     // Decode all sectors
@@ -513,7 +518,7 @@ ADFFile::decodeSector(u8 *dst, u8 *src)
     u8 sector = info[2];
     if (sector >= numSectors()) {
         warn("Invalid sector number %d. Aborting.\n", sector);
-        throw VAError(ERROR_DISK_INVALID_SECTOR_NUMBER);
+        throw Error(VAERROR_DISK_INVALID_SECTOR_NUMBER);
     }
     
     // Skip sector header

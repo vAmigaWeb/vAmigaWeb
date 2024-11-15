@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Aliases.h"
+#include "Types.h"
 #include "Reflection.h"
 
 //
@@ -22,7 +22,6 @@ enum_long(FILTER_TYPE)
     FILTER_A500,
     FILTER_A1000,
     FILTER_A1200,
-    FILTER_VAMIGA,
     FILTER_LOW,
     FILTER_LED,
     FILTER_HIGH
@@ -30,14 +29,13 @@ enum_long(FILTER_TYPE)
 typedef FILTER_TYPE FilterType;
 
 #ifdef __cplusplus
-struct FilterTypeEnum : util::Reflection<FilterTypeEnum, FilterType>
+struct FilterTypeEnum : vamiga::util::Reflection<FilterTypeEnum, FilterType>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = FILTER_HIGH;
-    static bool isValid(auto val) { return val >= minVal && val <= maxVal; }
 
     static const char *prefix() { return "FILTER"; }
-    static const char *key(FilterType value)
+    static const char *_key(long value)
     {
         switch (value) {
                 
@@ -45,7 +43,6 @@ struct FilterTypeEnum : util::Reflection<FilterTypeEnum, FilterType>
             case FILTER_A500:       return "A500";
             case FILTER_A1000:      return "A1000";
             case FILTER_A1200:      return "A1200";
-            case FILTER_VAMIGA:     return "VAMIGA";
             case FILTER_LOW:        return "LOW";
             case FILTER_LED:        return "LED";
             case FILTER_HIGH:       return "HIGH";

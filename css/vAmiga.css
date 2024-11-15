@@ -110,13 +110,17 @@ background-color: var(--green) !important;
 
 #port1, #port2 {
     height:32px;
-    min-width:80px;
-    width: 48%;
-    padding-top: .165rem;
+    width: calc(100vw / 8);
+    padding-top: .18rem;
     margin-top: 1px; 
     background-color: inherit !important;
     border-color: var(--darkbg);
     color: var(--darkbg) !important;
+    font-size: 15px;
+    text-align: center;
+    text-align-last: center;
+    padding-left: 1px;
+    padding-right: 1px;
 }
 
     
@@ -229,7 +233,7 @@ color: #aaa !important;
     background-color:var(--darkbg);
 }
 
-.help_text span, .movable_button_label span, .gc_choice_text span, .vbk_choice_text span, .vjoy_choice_text span {
+.help_text span, .movable_button_label span, .gc_choice_text span, .vbk_choice_text span, .vjoy_choice_text span, .setting_text span {
     background-color: var(--gray);
     border-radius: 6px;
     padding-left: 4px;
@@ -245,7 +249,47 @@ color: #aaa !important;
     top:0; 
     left:0; 
     opacity: 0.85; backdrop-filter: blur(6px);
+
+    width: 100vw;
 }
+#navgrid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px;
+    width: 100%;
+}
+
+.left {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(36px, auto)); /* Responsive grid for left side */
+    gap: 0px;
+    justify-content: start;
+}
+
+.left > *, .right > * {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 45px;
+}
+#theFileInput {
+    grid-column: span 2;
+}
+
+.right {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 1px;
+    justify-content: end;
+    padding-right: 2px;
+}
+
+@media (max-width: 600px) {
+    .hide-on-small {
+      display: none;
+    }
+}
+
 
 [data-theme="dark"] #navbar {
     background-color:var(--darkbg);

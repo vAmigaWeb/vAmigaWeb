@@ -13,18 +13,51 @@
 #include "MutableFileSystem.h"
 #include "IOUtils.h"
 #include "OSDescriptors.h"
+#include "ErrorTypes.h"
 
 namespace vamiga {
 
+/*
+string
+extractSuffix(const string &s)
+{
+    auto idx = s.rfind('.');
+    auto pos = idx != string::npos ? idx + 1 : 0;
+    auto len = string::npos;
+    return s.substr(pos, len);
+}
 bool
-OtherFile::isCompatible(const string &path)
+OtherFile::isCompatible(string path)
 {
     //return true;
-    auto suffix = util::uppercased(util::extractSuffix(path));
+    auto suffix = util::uppercased(extractSuffix(path));
     return suffix == "DISK";
+}
+*/
+bool
+OtherFile::isCompatible(const std::filesystem::path &path)
+{
+    auto suffix = util::uppercased(path.extension().string());
+    return suffix == ".DISK";
 }
 
 bool
+OtherFile::isCompatible(const u8 *buf, isize len)
+{
+    return true;
+}
+
+bool
+OtherFile::isCompatible(const Buffer<u8> &buf)
+{
+    return isCompatible(buf.ptr, buf.size);
+}
+
+
+
+
+
+/*bool
 OtherFile::isCompatible(std::istream &stream)
 {
   //  u8 signature[] = { 0x00, 0x00, 0x03, 0xF3 };
@@ -32,7 +65,7 @@ OtherFile::isCompatible(std::istream &stream)
     // Only accept the file if it fits onto a HD disk
     //return util::matchingStreamHeader(stream, signature, sizeof(signature));
     return true;
-}
+}*/
 
 void
 OtherFile::finalizeRead()
@@ -48,7 +81,7 @@ OtherFile::finalizeRead()
     
     // Add the file
     FSBlock *file = volume.createFile(filename, data.ptr, data.size);
-    if (!file) throw VAError(ERROR_FS_OUT_OF_SPACE);
+    if (!file) throw Error(VAERROR_FS_OUT_OF_SPACE);
     
     // Add a script directory
 //    volume.createDir("s");

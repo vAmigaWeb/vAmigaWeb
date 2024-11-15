@@ -10,78 +10,34 @@
 #pragma once
 
 #include "Error.h"
+#include "Dumpable.h"
 
 namespace vamiga {
 
-/* Object model:
- *
- * ------------------
- * |   CoreObject   |
- * ------------------
- *         |
- * ------------------
- * | CoreComponent  |
- * ------------------
- *         |
- *         |   ------------------   ----------------
- *         |-->|     Thread     |-->|    Amiga     |
- *         |   ------------------   ----------------
- *         |   ------------------
- *         |-->|  SubComponent  |
- *             ------------------
- *
- * CoreObject is the base class for all Amiga related classes. It provides a
- * a textual description for the object as well as various functions for
- * printing debug information.
- *
- * CoreComponent defines the base functionality of all hardware components. It
- * comprises functions for initializing, configuring, and serializing the
- * object, as well as functions for powering up and down, running and
- * pausing. Furthermore, a 'SYNCHRONIZED' macro is provided to prevent mutual
- * execution of particular code blocks.
- *
- * Thread adds the ability to run the component asynchroneously. It implements
- * the emulator's state model (off, paused, running, suspended).
- */
-
-enum class Category
-{
-    BankMap, Beam, Blocks, Breakpoints, Bus, Catchpoints, Config, Current,
-    Defaults, Disk, Dma, Drive, Events, FileSystem, Geometry, Hunks,
-    List1, List2, Parameters, Partitions, Properties, Registers, Sections,
-    Segments, Signals, Slots, State, Stats, Status, SwTraps, Tod, Vectors,
-    Volumes, Watchpoints
-};
-
-class CoreObject {
+class CoreObject : public Dumpable {
 
 protected:
 
-    static bool verbose;
+    // Verbosity level
+    static isize verbosity;
 
+    
     //
     // Initializing
     //
 
 public:
 
-    virtual ~CoreObject() { };
+    virtual ~CoreObject() = default;
 
+    // Returns the name for this component
+    virtual const char *objectName() const = 0;
 
-    //
-    // Printing debug information
-    //
-
-    // Returns the name for this component (e.g., "Agnus" or "Denise")
-    virtual const char *getDescription() const = 0;
-
+    // Returns a textual description for this component
+    virtual const char *description() const { return ""; }
+    
     // Called by debug() and trace() to produce a detailed debug output
-    virtual void prefix() const;
-
-    // Prints debug information about this component
-    void dump(Category category, std::ostream& ss) const;
-    void dump(Category category) const;
-    virtual void _dump(Category category, std::ostream& ss) const = 0;
+    virtual void prefix(isize level, const char *component, isize line) const;
 };
 
 /* This file provides several macros for printing messages:
@@ -90,17 +46,19 @@ public:
  *   - warn   Warning message       (Shows up in all builds)
  *   - fatal  Error message + Exit  (Shows up in all builds)
  *   - debug  Debug message         (Shows up in debug builds, only)
- *   - plain  Plain debug message   (Shows up in debug builds, only)
  *   - trace  Detailed debug output (Shows up in debug builds, only)
- *
- * Debug messages are prefixed by the component name and a line number. Trace
- * messages are prefixed by a more detailed string description produced by the
- * prefix() function.
  *
  * Debug, plain, and trace messages are accompanied by an optional 'enable'
  * parameter. If 0 is passed in, no output will be generated. In addition,
  * variable 'verbose' is checked which is set to true by default. By setting
  * this variable to false, debug output can be silenced temporarily.
+ *
+ * Debug messages are also affected by the verbosity level which is a static
+ * member of the CoreComponent class. If set to 0, all debug messages are
+ * omitted. If set the 1, debug messages appear as plain text. If set to a
+ * value of 1 or above, the debug message is prefixed with additional
+ * information about the emulator state, such as the component name issuing
+ * the message, the currently processed frame, or the value of CPU flags.
  *
  * Sidenote: In previous releases the printing macros were implemented in form
  * of variadic functions. Although this might seem to be superior at first
@@ -110,30 +68,27 @@ public:
  */
 
 #define msg(format, ...) \
-fprintf(stderr, format, ##__VA_ARGS__);
+fprintf(stderr, format __VA_OPT__(,) __VA_ARGS__);
 
 #define warn(format, ...) \
-fprintf(stderr, "Warning: " format, ##__VA_ARGS__);
+fprintf(stderr, "Warning: " format __VA_OPT__(,) __VA_ARGS__);
 
 #define fatal(format, ...) \
-{ fprintf(stderr, "Fatal: " format, ##__VA_ARGS__); exit(1); }
+{ fprintf(stderr, "Fatal: " format __VA_OPT__(,) __VA_ARGS__); exit(1); }
 
 #define debug(enable, format, ...) \
-if (enable) { if (verbose) { \
-fprintf(stderr, "%s:%d " format, getDescription(), __LINE__, ##__VA_ARGS__); }}
-
-#define plain(enable, format, ...) \
-if (enable) { if (verbose) { \
-fprintf(stderr, format, ##__VA_ARGS__); }}
+if (enable) { if (verbosity) { \
+prefix(verbosity, objectName(), __LINE__); \
+fprintf(stderr, format __VA_OPT__(,) __VA_ARGS__); }}
 
 #define trace(enable, format, ...) \
-if (enable) { if (verbose) { \
-prefix(); \
-fprintf(stderr, "%s:%d " format, getDescription(), __LINE__, ##__VA_ARGS__); }}
+if (enable) { if (verbosity) { \
+prefix(5, objectName(),  __LINE__); \
+fprintf(stderr, format __VA_OPT__(,) __VA_ARGS__); }}
 
 #define xfiles(format, ...) \
-if (XFILES) { if (verbose) { \
-prefix(); \
-fprintf(stderr, "XFILES: " format, ##__VA_ARGS__); }}
+if (XFILES) { if (verbosity) { \
+prefix(verbosity, objectName(), __LINE__); \
+fprintf(stderr, "XFILES: " format __VA_OPT__(,) __VA_ARGS__); }}
 
 }

@@ -25,10 +25,8 @@ DiagBoard::_dump(Category category, std::ostream& os) const
 }
 
 void
-DiagBoard::_reset(bool hard)
-{
-    RESET_SNAPSHOT_ITEMS(hard)
-    
+DiagBoard::_didReset(bool hard)
+{    
     if (hard) {
         
         // Burn Expansion Rom
@@ -42,24 +40,8 @@ DiagBoard::_reset(bool hard)
     }
 }
 
-void
-DiagBoard::resetConfig()
-{
-    assert(isPoweredOff());
-    auto &defaults = amiga.defaults;
-
-    std::vector <Option> options = {
-        
-        OPT_DIAG_BOARD
-    };
-
-    for (auto &option : options) {
-        setConfigItem(option, defaults.get(option));
-    }
-}
-
 i64
-DiagBoard::getConfigItem(Option option) const
+DiagBoard::getOption(Option option) const
 {
     switch (option) {
             
@@ -71,15 +53,29 @@ DiagBoard::getConfigItem(Option option) const
 }
 
 void
-DiagBoard::setConfigItem(Option option, i64 value)
+DiagBoard::checkOption(Option opt, i64 value)
+{
+    switch (opt) {
+
+        case OPT_DIAG_BOARD:
+
+            if (!isPoweredOff()) {
+                throw Error(VAERROR_OPT_LOCKED);
+            }
+            return;
+
+        default:
+            throw(VAERROR_OPT_UNSUPPORTED);
+    }
+}
+
+void
+DiagBoard::setOption(Option option, i64 value)
 {
     switch (option) {
             
         case OPT_DIAG_BOARD:
 
-            if (!isPoweredOff()) {
-                throw VAError(ERROR_OPT_LOCKED);
-            }
             config.enabled = value;
             return;
             
@@ -325,7 +321,7 @@ DiagBoard::catchTask(const string &name)
     {   SUSPENDED
         
         if (!diagBoard.pluggedIn()) {
-            throw VAError(ERROR_OSDB, "Diagnose board is not plugged in.");
+            throw Error(VAERROR_OSDB, "Diagnose board is not plugged in.");
         }
         if (std::find(targets.begin(), targets.end(), name) == targets.end()) {
             targets.push_back(name);
