@@ -284,6 +284,12 @@ color: #aaa !important;
     padding-right: 2px;
 }
 
+@media (max-width: 600px) {
+    .hide-on-small {
+      display: none;
+    }
+}
+
 
 [data-theme="dark"] #navbar {
     background-color:var(--darkbg);

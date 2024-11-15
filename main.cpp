@@ -57,8 +57,8 @@ bool log_on=false;
 //312-50=262
 #define PAL_EXTRA_VPIXEL 50
 
-#define PAL_FPS 50.080128
-#define NTSC_FPS 59.94
+#define PAL_FPS 50.0 //50.080128
+#define NTSC_FPS 60.0 //59.94
 bool ntsc=false;
 double target_fps = PAL_FPS;
 

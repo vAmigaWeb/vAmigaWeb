@@ -375,10 +375,13 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
     {
         if(execute)
         {
-            if(document.querySelector("#activity"))
+            let activity_monitor_visible=document.querySelector("#activity")
+            if(activity_monitor_visible)
                 hide_activity();
             else
                 show_activity();
+
+            activity_monitor_switch.prop('checked', !activity_monitor_visible);
         }
     }
     else if(cmd == 'toggle_action_buttons')
