@@ -55,7 +55,7 @@ bool log_on=false;
 
 //HRM: In NTSC, the fields are 262, then 263 lines and in PAL, 312, then 313 lines.
 //312-50=262
-#define PAL_EXTRA_VPIXEL 50
+#define PAL_EXTRA_VPIXEL 40 //50
 
 #define PAL_FPS 50.0 //50.080128
 #define NTSC_FPS 60.0 //59.94
@@ -1273,7 +1273,7 @@ extern "C" void wasm_set_display(const char *name)
 //    clipped_height=312-yOff -2*4  ;
 //    clipped_height=(4*clipped_width/5 )/2 & 0xfffe;
     clipped_height=(3*clipped_width/4 +(ntsc?0:32) /*32 due to PAL?*/)/2 & 0xfffe;
-    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
+    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL-10;}
   }
   else if( strcmp(name,"wider") == 0)
   {
@@ -1285,7 +1285,7 @@ extern "C" void wasm_set_display(const char *name)
     clipped_width=(HPIXELS+HBLANK_MAX/2 )-xOff;
 //    clipped_height=312-yOff -2*2;
     clipped_height=(3*clipped_width/4 +(ntsc?0:32) /*32 due to PAL?*/)/2 & 0xfffe;
-    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
+    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL-8;}
   }
   else if( strcmp(name,"overscan") == 0)
   {
