@@ -2793,10 +2793,10 @@ set_activity_monitor = function(value){
     }
     activity_monitor_switch.prop('checked', value);
 }    
-set_activity_monitor(load_setting('activity_monitor', false));
+set_activity_monitor(false /*load_setting('activity_monitor', false)*/);
 activity_monitor_switch.change( function() {
     
-    save_setting('activity_monitor', this.checked);
+    //save_setting('activity_monitor', this.checked);
     set_activity_monitor(this.checked);
 });
 //----------
@@ -3507,8 +3507,9 @@ $('.layer').change( function(event) {
  
         current_speed=100;
         $('#button_speed_toggle').click();
+        
+        save_setting('frame_sync', new_speed);
     }
-    set_speed("100%");
     $('#choose_speed a').click(function () 
     {
         selected_speed=$(this).text();
@@ -3543,7 +3544,8 @@ $('.layer').change( function(event) {
             current_speed.toString());
 //        $("#modal_settings").focus();
     });
-
+    set_speed(load_setting("frame_sync","100%"));
+    $('#button_speed_toggle').click();
 //--
     set_run_ahead = function (run_ahead) {
         $("#button_run_ahead").text("run ahead = "+run_ahead);

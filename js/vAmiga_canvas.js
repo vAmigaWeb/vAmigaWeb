@@ -66,7 +66,7 @@ function scaleVMCanvas() {
     var src_height=clipped_height*2;//Module._wasm_get_render_height()*2; 
     if(use_ntsc_pixel)
     {
-        src_height*=52/44;
+        src_height*=52/44; //make NTSC a bit taller
     }
     var src_ratio = src_width/src_height; //1.25
 /*        if(Module._wasm_get_renderer()==0)
@@ -74,7 +74,9 @@ function scaleVMCanvas() {
         src_height*=2;
         src_ratio = src_width/src_height;
     }*/
-    src_ratio*=1.06; //make it a bit wider, because compared to other emus it seemed a bit too tall.Needs investigation why.
+    
+    src_ratio*=1.03; //make it a bit wider
+    
     var inv_src_ratio = src_height/src_width;
     var wratio = window.innerWidth / window.innerHeight;
 
