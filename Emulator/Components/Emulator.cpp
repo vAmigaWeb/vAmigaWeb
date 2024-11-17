@@ -313,6 +313,7 @@ Emulator::computeFrame()
     auto &config = main.getConfig();
 
     if (config.runAhead) {
+
         try {
 
             // Run the main instance
@@ -331,6 +332,7 @@ Emulator::computeFrame()
         }
 
     } else {
+
         // Only run the main instance
         main.computeFrame();
     }
@@ -340,8 +342,10 @@ void
 Emulator::cloneRunAheadInstance()
 {
     // clones++;
+
     // Recreate the runahead instance from scratch
     ahead = main; isDirty = false;
+
     if (RUA_CHECKSUM && ahead != main) {
 
         main.diff(ahead);
@@ -361,6 +365,7 @@ Emulator::recreateRunAheadInstance()
     } else {
         cloneRunAheadInstance();
     }
+
     // Advance to the proper frame
     if (RUA_DEBUG) {
         util::StopWatch watch("Run-ahead: Fast-forward");
