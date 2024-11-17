@@ -54,8 +54,8 @@ Defaults::Defaults()
     setFallback(OPT_DMA_DEBUG_CHANNEL3,         true);
     setFallback(OPT_DMA_DEBUG_CHANNEL4,         true);
     setFallback(OPT_DMA_DEBUG_CHANNEL5,         true);
-    setFallback(OPT_DMA_DEBUG_CHANNEL6,         true);
-    setFallback(OPT_DMA_DEBUG_CHANNEL7,         false);
+    setFallback(OPT_DMA_DEBUG_CHANNEL6,         false);
+    setFallback(OPT_DMA_DEBUG_CHANNEL7,         true);
     setFallback(OPT_DMA_DEBUG_COLOR0,           0xFFFF0000);
     setFallback(OPT_DMA_DEBUG_COLOR1,           0xFFCC0000);
     setFallback(OPT_DMA_DEBUG_COLOR2,           0x00FF0000);
