@@ -1386,7 +1386,8 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
     if (auto disk = load_disk(name, blob, len)) {
       if(drive_number>0)
       {//configure correct disk drive type (df0 does only accept DD, no HD)
-        wrapper->emu->set(OPT_DRIVE_TYPE, drive_number, disk->density==DENSITY_DD? DRIVE_DD_35:DRIVE_HD_35 );
+        wrapper->emu->set(OPT_DRIVE_TYPE, disk->density==DENSITY_DD? DRIVE_DD_35:DRIVE_HD_35, {drive_number} );
+        wrapper->emu->emu->update();
       }
 
       if(drive_number==0){
@@ -2025,6 +2026,7 @@ printf("wasm_configure %s = %s\n", option, _value);
   {
     auto warp_to_frame= util::parseNum(value);
     wrapper->emu->set(OPT_AMIGA_WARP_BOOT, warp_to_frame/(wrapper->emu->agnus.agnus->isPAL()?50:60));
+    wrapper->emu->emu->update();
     wrapper->emu->softReset(); //agnus.reset() schedules warp_off therefore we have to reset here after changing warp_boot 
     return config_result;
   }
@@ -2039,14 +2041,15 @@ printf("wasm_configure %s = %s\n", option, _value);
     int i=0;
     while(i<df_count)
     {
-      wrapper->emu->set(OPT_DRIVE_CONNECT,/*dfn*/ i, /*enable*/true);
+      wrapper->emu->set(OPT_DRIVE_CONNECT, true, {i});
       i++;
     }
     while(i<4)
     {
-      wrapper->emu->set(OPT_DRIVE_CONNECT,/*dfn*/ i, /*enable*/false);
+      wrapper->emu->set(OPT_DRIVE_CONNECT, false, {i});
       i++;
     }
+    wrapper->emu->emu->update();
     return config_result;
   }
 
