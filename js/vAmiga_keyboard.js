@@ -498,14 +498,14 @@ draggable="false">
         
         let key_down_handler=function(event) 
         {
-            if(keyboard_sound_volumne>0)
+            if(keyboard_sound_volume>0)
             {
                 if(keydef.s === undefined)
-                    play_sound(audio_key_standard,keyboard_sound_volumne);
+                    play_sound(audio_key_standard,keyboard_sound_volume);
                 else if(keydef.s == 2)
-                    play_sound(audio_key_space,keyboard_sound_volumne);
+                    play_sound(audio_key_space,keyboard_sound_volume);
                 else if(keydef.s == 3)
-                    play_sound(audio_key_backspace,keyboard_sound_volumne);
+                    play_sound(audio_key_backspace,keyboard_sound_volume);
             }
             if(key_haptic_feedback)
             {

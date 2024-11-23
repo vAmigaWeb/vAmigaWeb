@@ -1235,11 +1235,9 @@ function set_take_auto_snapshots(on) {
         auto_snap_interval=setInterval(() => {
             if(is_running() && emulator_currently_runs==true)
             {
-                wasm_halt();
-                wasm_take_user_snapshot(); 
-                wasm_run();
-                var snapshot_json= wasm_pull_user_snapshot_file();
-
+//                wasm_halt();
+                var snapshot_json= wasm_take_user_snapshot();
+//                wasm_run();
                 var snap_obj = JSON.parse(snapshot_json);
                 var snapshot_buffer = new Uint8Array(Module.HEAPU8.buffer, snap_obj.address, snap_obj.size);
         

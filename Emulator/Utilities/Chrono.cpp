@@ -15,7 +15,9 @@
 #ifdef __MACH__
 #include <mach/mach_time.h>
 #endif
-
+#ifdef __EMSCRIPTEN__    
+#include <emscripten.h>
+#endif
 
 namespace vamiga::util {
 
@@ -73,9 +75,7 @@ Time::sleepUntil()
 Time
 Time::now()
 {
-    struct timespec ts;
-    (void)clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (i64)ts.tv_sec * 1000000000 + ts.tv_nsec;
+    return (uint64_t)(emscripten_get_now()*1000000.0);
 }
 
 std::tm
@@ -102,7 +102,6 @@ Time::sleep()
 void
 Time::sleepUntil()
 {
-    (*this - now()).sleep();
 }
 
 #else
