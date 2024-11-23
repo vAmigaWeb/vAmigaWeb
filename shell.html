@@ -91,7 +91,7 @@
       }
     </style>
   </head>
-  <body data-theme="dark" oncontextmenu="event.preventDefault()">
+  <body data-theme="dark" oncontextmenu="event.preventDefault()" warpstate="0">
     <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><img src="img/icon_borderless_x413.png" style="width:38px;height:38px;margin-right:10px"/><strong>booting into vAmigaWeb ...</strong></center></figure>
     <div class="emscripten" id="status">Downloading...</div>
     <div class="emscripten">
@@ -143,11 +143,21 @@
           </svg>
         </button>
         </span>  
-      <button type="button" id="button_ff" class="btn btn-sm icon" data-toggle="tooltip" data-placement="top" title="warp">
-        <svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" fill="currentColor" class="bi bi-fast-forward" viewBox="0 0 16 16">
-          <path d="M6.804 8 1 4.633v6.734zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C.713 12.69 0 12.345 0 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
-          <path d="M14.804 8 9 4.633v6.734zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C8.713 12.69 8 12.345 8 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
-        </svg>
+      <button type="button" id="button_ff" style="position:relative" class="btn btn-sm icon" data-toggle="tooltip" data-placement="top" title="warp">
+        <div id="warping">
+          <svg xmlns="http://www.w3.org/2000/svg"  width="1.6em" height="1.6em" fill="currentColor" class="bi bi-fast-forward-fill" viewBox="0 0 16 16">
+            <path d="M7.596 7.304a.802.802 0 0 1 0 1.392l-6.363 3.692C.713 12.69 0 12.345 0 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
+            <path d="M15.596 7.304a.802.802 0 0 1 0 1.392l-6.363 3.692C8.713 12.69 8 12.345 8 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
+          </svg>
+          <div style="position:absolute;bottom:-1px;font-size:x-small;
+          animation: blink 1s infinite">warp</div>
+        </div>  
+        <div id="no_warping">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" fill="currentColor" class="bi bi-fast-forward" viewBox="0 0 16 16">
+                    <path d="M6.804 8 1 4.633v6.734zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C.713 12.69 0 12.345 0 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
+                    <path d="M14.804 8 9 4.633v6.734zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C8.713 12.69 8 12.345 8 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
+          </svg>
+        </div>          
       </button>
       
       <button type="button" id="button_speed_toggle" class="btn btn-sm icon" data-toggle="tooltip" data-placement="top" title="toggle speed">
@@ -800,10 +810,10 @@ touch screen settings for virtual keyboard
 </div>
 
 <div class="dropdown mr-1 mt-4">
-  <button id="button_keyboard_sound_volumne" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+  <button id="button_keyboard_sound_volume" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
     key press sound feedback=50%
   </button>
-  <div id="choose_keyboard_sound_volumne" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+  <div id="choose_keyboard_sound_volume" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
     <a class="dropdown-item" href="#">0</a>
     <a class="dropdown-item" href="#">5</a>
     <a class="dropdown-item" href="#">25</a>

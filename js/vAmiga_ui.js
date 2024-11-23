@@ -48,8 +48,8 @@ let load_sound = async function(url){
     return audio_buffer;
 } 
 let parallel_playing=0;
-let keyboard_sound_volumne=0.04;
-let play_sound = function(audio_buffer, sound_volumne=0.1){
+let keyboard_sound_volume=0.04;
+let play_sound = function(audio_buffer, sound_volume=0.1){
         if(audio_buffer== null)
         {                 
             load_all_sounds();
@@ -63,7 +63,7 @@ let play_sound = function(audio_buffer, sound_volumne=0.1){
         source.buffer = audio_buffer;
 
         let gain_node = audioContext.createGain();
-        gain_node.gain.value = sound_volumne; 
+        gain_node.gain.value = sound_volume; 
         gain_node.connect(audioContext.destination);
 
         source.addEventListener('ended', () => {
@@ -465,28 +465,17 @@ function message_handler_queue_worker(msg, data, data2)
     {
         required_roms_loaded=true;
         emulator_currently_runs=true;
+        document.body.setAttribute('warpstate',Module._wasm_is_warping());
     }
     else if(msg == "MSG_PAUSE")
     {
         emulator_currently_runs=false;
+        document.body.setAttribute('warpstate', 0);
     }
     else if(msg === "MSG_WARP")
     {
         let is_warping = Module._wasm_is_warping();
-        $("#button_ff").html(
-            is_warping ?
-            `
-<svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" fill="currentColor" class="bi bi-fast-forward-fill" viewBox="0 0 16 16">
-  <path d="M7.596 7.304a.802.802 0 0 1 0 1.392l-6.363 3.692C.713 12.69 0 12.345 0 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
-  <path d="M15.596 7.304a.802.802 0 0 1 0 1.392l-6.363 3.692C8.713 12.69 8 12.345 8 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
-</svg>`:
-`
-<svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" fill="currentColor" class="bi bi-fast-forward" viewBox="0 0 16 16">
-          <path d="M6.804 8 1 4.633v6.734zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C.713 12.69 0 12.345 0 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
-          <path d="M14.804 8 9 4.633v6.734zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C8.713 12.69 8 12.345 8 11.692V4.308c0-.653.713-.998 1.233-.696z"/>
-</svg>
-`
-);
+        document.body.setAttribute('warpstate', is_warping);
         window.parent.postMessage({ msg: 'render_run_state', value: is_running(), is_warping:  is_warping },"*");
     }
     else if(msg == "MSG_VIDEO_FORMAT")
@@ -2400,6 +2389,7 @@ function InitWrappers() {
     installKeyboard();
     $("#button_keyboard").click(function(){
         setTimeout( scaleVMCanvas, 500);
+        setTimeout( hide_all_tooltips, 1000);
     });
 
 
@@ -2660,16 +2650,16 @@ $('#choose_keyboard_bottom_margin a').click(function ()
     $("#modal_settings").focus();
 });
 //----
-set_keyboard_sound_volumne(load_setting('keyboard_sound_volumne', '50'));
-function set_keyboard_sound_volumne(volumne) {
-    keyboard_sound_volumne = 0.01 * volumne;
-    $("#button_keyboard_sound_volumne").text(`key press sound volumne=${volumne}%`);
+set_keyboard_sound_volume(load_setting('keyboard_sound_volume', '50'));
+function set_keyboard_sound_volume(volume) {
+    keyboard_sound_volume = 0.01 * volume;
+    $("#button_keyboard_sound_volume").text(`key press sound volume=${volume}%`);
 }
-$('#choose_keyboard_sound_volumne a').click(function () 
+$('#choose_keyboard_sound_volume a').click(function () 
 {
-    var sound_volumne=$(this).text();
-    set_keyboard_sound_volumne(sound_volumne);
-    save_setting('keyboard_sound_volumne',sound_volumne);
+    var sound_volume=$(this).text();
+    set_keyboard_sound_volume(sound_volume);
+    save_setting('keyboard_sound_volume',sound_volume);
     $("#modal_settings").focus();
 });
 //----
@@ -3235,7 +3225,10 @@ $('.layer').change( function(event) {
         //document.getElementById('canvas').focus();
     });
     
-    $("#button_ff").click(()=> action('toggle_warp'));
+    $("#button_ff").click(()=> {
+        action('toggle_warp'); 
+        hide_all_tooltips();
+    });
 
     $('#modal_file_slot').on('hidden.bs.modal', function () {
         $("#filedialog").val(''); //clear file slot after file has been loaded
@@ -3519,6 +3512,7 @@ $('.layer').change( function(event) {
     
     $('#button_speed_toggle').click(function () 
     {
+        hide_all_tooltips();
         if(current_speed==100)
             current_speed=selected_speed;    
         else

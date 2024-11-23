@@ -717,3 +717,18 @@ button[id^="detail_run"] {
     border-radius: 1px 1px 0 0;
     background: linear-gradient(to top, rgba(150,0,0,0.4), rgba(255,0,0,0.4));
 }
+
+@keyframes blink {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
+}
+[warpstate="1"] #no_warping {
+    display: none
+}
+[warpstate="0"] #warping {
+    display: none
+}
