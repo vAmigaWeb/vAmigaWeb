@@ -527,7 +527,7 @@ function message_handler_queue_worker(msg, data, data2)
         $(`#button_OPT_DRIVE_SPEED`).text(`drive speed=${v} (snapshot)`);
 
         v=wasm_get_config_item("CPU.REVISION");
-        $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v}0 (snapshot)`);
+        $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v==4?3:v}0 (snapshot)`);
         v=wasm_get_config_item("CPU.OVERCLOCKING");
         $(`#button_OPT_CPU_OVERCLOCKING`).text(`${Math.round((v==0?1:v)*7.09)} MHz (snapshot)`);
         v=wasm_get_config_item("AGNUS.REVISION");
@@ -1797,7 +1797,7 @@ function InitWrappers() {
     const volumeSlider = document.getElementById('volume-slider');
     set_volume = (new_volume)=>{
         const volume = parseFloat(new_volume);
-        current_sound_volume = volume*2; 
+        current_sound_volume = volume*10; 
         if(typeof gainNode !== "undefined") 
             gainNode.gain.value = current_sound_volume;
         console.log(`Volume set to: ${volume * 100}%`);
@@ -2956,12 +2956,12 @@ bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0', (v)=>`${v
 bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
 
 $('#hardware_settings').append("<div id='divCPU' style='display:flex;flex-direction:row'></div>");
-bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2], 0, 
-(v)=>{ return (68000+v*10)},
+bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2,4], 0, 
+(v)=>{ return  v==4 ?`68030 experimental`:(68000+v*10)},
 (t)=>{
-    let val = t;
+    let val = t.toString().replace(" experimental","");
     val = (val-68000)/10;
-    return val;
+    return val==3 ?4: val;
 }, "#divCPU");
 
 bind_config_choice("OPT_CPU_OVERCLOCKING", "",[0,2,3,4,5,6,8,12,14], 0, 
