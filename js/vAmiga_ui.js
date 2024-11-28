@@ -1792,6 +1792,28 @@ function InitWrappers() {
     wasm_get_config_item = Module.cwrap('wasm_get_config_item', 'number', ['string']);
     wasm_get_core_version = Module.cwrap('wasm_get_core_version', 'string');
 
+
+
+    const volumeSlider = document.getElementById('volume-slider');
+    set_volume = (new_volume)=>{
+        const volume = parseFloat(new_volume);
+        current_sound_volume = volume*2; 
+        if(typeof gainNode !== "undefined") 
+            gainNode.gain.value = current_sound_volume;
+        console.log(`Volume set to: ${volume * 100}%`);
+
+        $("#volumetext").text(`sound volume = ${Math.round(volume * 100)}%`)
+        save_setting('master_sound_volume', new_volume);
+    }
+    volumeSlider.addEventListener('input', (event) => {
+        set_volume(event.target.value);
+    });
+ 
+    let loaded_vol=load_setting('master_sound_volume', 0.5);
+    set_volume(loaded_vol);
+    $("#volume-slider").val(loaded_vol);
+
+
     resume_audio=async ()=>{
         try {
             await audioContext.resume();  
@@ -1832,7 +1854,11 @@ function InitWrappers() {
             numberOfInputs: 0,
             numberOfOutputs: 1
         });
-
+        gainNode = audioContext.createGain();
+        gainNode.gain.value = current_sound_volume;
+        worklet_node.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+      
         init_sound_buffer=function(){
             console.log("get wasm sound buffer adresses");
             let sound_buffer_address = wasm_get_sound_buffer_address();
@@ -1887,7 +1913,7 @@ function InitWrappers() {
         worklet_node.port.onmessageerror = (msg) => {
             console.log("audio processor error:"+msg);
         };
-        worklet_node.connect(audioContext.destination);        
+        //worklet_node.connect(audioContext.destination);        
     }
 
     connect_audio_processor_shared_memory= async ()=>{
@@ -1902,8 +1928,8 @@ function InitWrappers() {
         audio_connected=true;
 
         audioContext.onstatechange = () => console.log('Audio Context: state = ' + audioContext.state);
-        let gainNode = audioContext.createGain();
-        gainNode.gain.value = 0.15;
+        gainNode = audioContext.createGain();
+        gainNode.gain.value = current_sound_volume;
         gainNode.connect(audioContext.destination);
         wasm_set_sample_rate(audioContext.sampleRate);
         await audioContext.audioWorklet.addModule('js/vAmiga_audioprocessor_sharedarraybuffer.js');

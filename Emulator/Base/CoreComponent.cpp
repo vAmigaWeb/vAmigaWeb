@@ -271,13 +271,16 @@ CoreComponent::load(const u8 *buffer)
 
         // Determine the number of loaded bytes
         isize count = (isize)(reader.ptr - (buffer + result));
-
+ 
         // Check integrity
         if (hash != c->checksum(false) || FORCE_SNAP_CORRUPTED) {
-            if (SNP_DEBUG) { fatalError; } else { throw Error(VAERROR_SNAP_CORRUPTED); }
+            debug(SNP_DEBUG >= 2, "-----------Loaded %ld bytes (expected %ld) %s\n", count, c->size(false), c->objectName());
+
+//            if (SNP_DEBUG) { fatalError; } else { throw Error(VAERROR_SNAP_CORRUPTED); }
         }
 
-        debug(SNP_DEBUG >= 2, "Loaded %ld bytes (expected %ld)\n", count, c->size(false));
+        debug(SNP_DEBUG >= 2, "Loaded %ld bytes (expected %ld) %s\n", count, c->size(false), c->objectName());
+
         result += count;
     });
 

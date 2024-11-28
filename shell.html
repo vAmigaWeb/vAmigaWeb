@@ -468,6 +468,20 @@
             <button id="button_eject_hd3" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="disconnect hard drive 3">
                 <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> dh3</button>
 
+
+                <div id="mastervolume">
+                  <label for="volume-slider" id="volumetext">Volume</label>
+                  <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="0.5" list="volume_markers">
+                  <datalist id="volume_markers">
+                    <option value="0"></option>
+                    <option value="0.25"></option>
+                    <option value="0.5"></option>
+                    <option value="0.75"></option>
+                    <option value="1"></option>
+                  </datalist>
+              </div>
+    
+
             <div class="custom-control custom-switch mt-1">
               <input type="checkbox" class="custom-control-input" id="activity_monitor_switch" />
               <label class="custom-control-label" for="activity_monitor_switch">activity monitor</label>
