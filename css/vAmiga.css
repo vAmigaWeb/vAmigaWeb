@@ -732,3 +732,70 @@ button[id^="detail_run"] {
 [warpstate="0"] #warping {
     display: none
 }
+
+#mastervolume {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: center; /* Vertikale Zentrierung */
+    margin: 10px 0; /* Abstand um das Grid */
+}
+
+#volumetext 
+{
+    display: flex;
+    justify-content: center;
+    margin-bottom: -5px;
+}
+
+
+
+#volume-slider {
+    --c: #007bff; /* active color */
+    --l: 6px; /* line thickness*/
+    --s: 20px; /* thumb size */
+    
+    height: var(--s); /* needed for Firefox*/
+    --_c: color-mix(in srgb, var(--c), #000 var(--p,0%));
+    -webkit-appearance :none;
+    -moz-appearance :none;
+    appearance :none;
+    background: 
+      linear-gradient(-90deg,#ababab 60%,#0000 0) 100%/5% calc(var(--l) - 1px) repeat-x;
+    cursor: pointer;
+    overflow: hidden;
+    height: 140%; /* because firefox does not respect thumbs height*/
+}
+
+input:focus-visible,
+input:hover{
+  --p: 10%;
+}
+
+/* chromium */
+input[type="range" i]::-webkit-slider-thumb{
+  height: var(--s);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--_c);
+  border-image: linear-gradient(var(--_c) 0 0) 0 0 0 1/calc(50% - var(--l)/2) 0 calc(50% - var(--l)/2) 100vw/0 0 0 100vw;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: .3s;
+}
+/* Firefox */
+input[type="range"]::-moz-range-thumb {
+  height: var(--s);
+  width: var(--s);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--_c);
+  border-image: linear-gradient(var(--_c) 0 0) 0 0 0 1/calc(50% - var(--l)/2) 0 calc(50% - var(--l)/2) 100vw/0 0 0 100vw;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: .3s;
+}
+@supports not (color: color-mix(in srgb,red,red)) {
+  input {
+    --_c: var(--c);
+  }
+}

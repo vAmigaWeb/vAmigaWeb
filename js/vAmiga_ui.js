@@ -527,7 +527,7 @@ function message_handler_queue_worker(msg, data, data2)
         $(`#button_OPT_DRIVE_SPEED`).text(`drive speed=${v} (snapshot)`);
 
         v=wasm_get_config_item("CPU.REVISION");
-        $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v}0 (snapshot)`);
+        $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v==4?3:v}0 (snapshot)`);
         v=wasm_get_config_item("CPU.OVERCLOCKING");
         $(`#button_OPT_CPU_OVERCLOCKING`).text(`${Math.round((v==0?1:v)*7.09)} MHz (snapshot)`);
         v=wasm_get_config_item("AGNUS.REVISION");
@@ -1792,6 +1792,28 @@ function InitWrappers() {
     wasm_get_config_item = Module.cwrap('wasm_get_config_item', 'number', ['string']);
     wasm_get_core_version = Module.cwrap('wasm_get_core_version', 'string');
 
+
+
+    const volumeSlider = document.getElementById('volume-slider');
+    set_volume = (new_volume)=>{
+        const volume = parseFloat(new_volume);
+        current_sound_volume = volume*10; 
+        if(typeof gainNode !== "undefined") 
+            gainNode.gain.value = current_sound_volume;
+        console.log(`Volume set to: ${volume * 100}%`);
+
+        $("#volumetext").text(`sound volume = ${Math.round(volume * 100)}%`)
+        save_setting('master_sound_volume', new_volume);
+    }
+    volumeSlider.addEventListener('input', (event) => {
+        set_volume(event.target.value);
+    });
+ 
+    let loaded_vol=load_setting('master_sound_volume', 0.5);
+    set_volume(loaded_vol);
+    $("#volume-slider").val(loaded_vol);
+
+
     resume_audio=async ()=>{
         try {
             await audioContext.resume();  
@@ -1832,7 +1854,11 @@ function InitWrappers() {
             numberOfInputs: 0,
             numberOfOutputs: 1
         });
-
+        gainNode = audioContext.createGain();
+        gainNode.gain.value = current_sound_volume;
+        worklet_node.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+      
         init_sound_buffer=function(){
             console.log("get wasm sound buffer adresses");
             let sound_buffer_address = wasm_get_sound_buffer_address();
@@ -1887,7 +1913,7 @@ function InitWrappers() {
         worklet_node.port.onmessageerror = (msg) => {
             console.log("audio processor error:"+msg);
         };
-        worklet_node.connect(audioContext.destination);        
+        //worklet_node.connect(audioContext.destination);        
     }
 
     connect_audio_processor_shared_memory= async ()=>{
@@ -1902,8 +1928,8 @@ function InitWrappers() {
         audio_connected=true;
 
         audioContext.onstatechange = () => console.log('Audio Context: state = ' + audioContext.state);
-        let gainNode = audioContext.createGain();
-        gainNode.gain.value = 0.15;
+        gainNode = audioContext.createGain();
+        gainNode.gain.value = current_sound_volume;
         gainNode.connect(audioContext.destination);
         wasm_set_sample_rate(audioContext.sampleRate);
         await audioContext.audioWorklet.addModule('js/vAmiga_audioprocessor_sharedarraybuffer.js');
@@ -2930,12 +2956,12 @@ bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0', (v)=>`${v
 bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
 
 $('#hardware_settings').append("<div id='divCPU' style='display:flex;flex-direction:row'></div>");
-bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2], 0, 
-(v)=>{ return (68000+v*10)},
+bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2,4], 0, 
+(v)=>{ return  v==4 ?`68030 experimental`:(68000+v*10)},
 (t)=>{
-    let val = t;
+    let val = t.toString().replace(" experimental","");
     val = (val-68000)/10;
-    return val;
+    return val==3 ?4: val;
 }, "#divCPU");
 
 bind_config_choice("OPT_CPU_OVERCLOCKING", "",[0,2,3,4,5,6,8,12,14], 0, 
