@@ -100,7 +100,7 @@ async function load_all_sounds()
         audio_key_space=await load_sound('sounds/key_space.mp3');
 }
 load_all_sounds();
-
+df0_poll_sound=true;
 
 const load_script= (url) => {
     return new Promise(resolve =>
@@ -488,8 +488,9 @@ function message_handler_queue_worker(msg, data, data2)
             play_sound(audio_df_step);
             $("#drop_zone").html(`df${data} ${data2.toString().padStart(2, '0')}`);
         }
-        else if (data==0)
-        {//only for df0: play stepper sound in case of no disk
+        else if (data==0 && df0_poll_sound)
+        {
+            //only for df0: play stepper sound in case of no disk
             play_sound(audio_df_step);
         }
     }
@@ -527,7 +528,11 @@ function message_handler_queue_worker(msg, data, data2)
         $(`#button_OPT_DRIVE_SPEED`).text(`drive speed=${v} (snapshot)`);
 
         v=wasm_get_config_item("CPU.REVISION");
-        $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v==4?3:v}0 (snapshot)`);
+        if(v<=2)
+            $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v}0 (snapshot)`);
+        else
+            $(`#button_OPT_CPU_REVISION`).text(`CPU=fake 030 for Settlers map size 8`);
+        
         v=wasm_get_config_item("CPU.OVERCLOCKING");
         $(`#button_OPT_CPU_OVERCLOCKING`).text(`${Math.round((v==0?1:v)*7.09)} MHz (snapshot)`);
         v=wasm_get_config_item("AGNUS.REVISION");
@@ -2936,7 +2941,11 @@ show_drive_config = (c)=>{
     ${wasm_get_config_item("DRIVE_CONNECT",1)==1?"<span>df1</span>":""} 
     ${wasm_get_config_item("DRIVE_CONNECT",2)==1?"<span>df2</span>":""} 
     ${wasm_get_config_item("DRIVE_CONNECT",3)==1?"<span>df3</span>":""}
-    <br>(kickstart needs a reset to recognize new connected drives)
+    <div class="custom-control custom-switch" style="xxdisplay:inline">
+        <input type="checkbox" class="custom-control-input" id="cb_df0_poll_sound" />
+        <label class="custom-control-label" for="cb_df0_poll_sound">poll sound for df0</label>
+    </div>
+    (kickstart needs a reset to recognize new connected drives)
     `);
 }
 
@@ -2944,6 +2953,12 @@ bind_config_choice("OPT_floppy_drive_count", "floppy drives",['1', '2', '3', '4'
 null,null,null,show_drive_config);
 $('#hardware_settings').append(`<div id="div_drives"style="font-size: smaller" class="ml-3 vbk_choice_text"></div>`);
 show_drive_config();
+df0_poll_sound = load_setting('df0_poll_sound', true);
+$("#cb_df0_poll_sound").prop('checked',df0_poll_sound);
+$("#cb_df0_poll_sound").change( function() {
+    df0_poll_sound=this.checked;
+    save_setting('df0_poll_sound', this.checked);
+});
 
 bind_config_choice("OPT_DRIVE_SPEED", "floppy drive speed",['-1', '1', '2', '4', '8'],'1');
 
@@ -2957,9 +2972,9 @@ bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048',
 
 $('#hardware_settings').append("<div id='divCPU' style='display:flex;flex-direction:row'></div>");
 bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2,4], 0, 
-(v)=>{ return  v==4 ?`68030 experimental`:(68000+v*10)},
+(v)=>{ return  v==4 ?`fake 030 for Settlers map size 8`:(68000+v*10)},
 (t)=>{
-    let val = t.toString().replace(" experimental","");
+    let val = t.toString().replace("fake 030 for Settlers map size 8","68030");
     val = (val-68000)/10;
     return val==3 ?4: val;
 }, "#divCPU");

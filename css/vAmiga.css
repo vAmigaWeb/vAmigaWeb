@@ -799,3 +799,9 @@ input[type="range"]::-moz-range-thumb {
     --_c: var(--c);
   }
 }
+
+#choose_OPT_CPU_REVISION a:last-child {
+    font-size: x-small;
+    font-style: italic;
+    padding: 7px;
+}
