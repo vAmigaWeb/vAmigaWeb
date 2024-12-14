@@ -1696,7 +1696,7 @@ function InitWrappers() {
     queued_executes=0;
 
     wasm_run = function () {
-        Module._wasm_run();       
+        Module._wasm_run();
         if(do_animation_frame == null)
         {
             execute_amiga_frame=()=>{
@@ -3255,9 +3255,6 @@ $('.layer').change( function(event) {
             <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z"/>
           </svg>`).parent().attr("title", "pause").attr("data-original-title", "pause");
 
-            //have to catch an intentional "unwind" exception here, which is thrown
-            //by emscripten_set_main_loop() after emscripten_cancel_main_loop();
-            //to simulate infinity gamelloop see emscripten API for more info ... 
             try{wasm_run();} catch(e) {}        
             try {connect_audio_processor();} catch(e){ console.error(e);}
             running = true;
