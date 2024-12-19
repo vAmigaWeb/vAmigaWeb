@@ -41,7 +41,7 @@ set(LF_EXPORTS "-s EXPORTED_RUNTIME_METHODS=['cwrap','ccall'] -s EXPORTED_FUNCTI
 
 #only safari shows 20% performance regression since vamiga v2.4. To fix it safari
 #needs LF -s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=550
-set(LF_OTHER  "-s DISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=1  -s LLD_REPORT_UNDEFINED -s ASSERTIONS=0 -s GL_ASSERTIONS=0 -sNO_EXIT_RUNTIME=1 -s WARN_UNALIGNED=1 -mbulk-memory -s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=500")
+set(LF_OTHER  "-s MAXIMUM_MEMORY=4GB -s DISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=1  -s LLD_REPORT_UNDEFINED -s ASSERTIONS=0 -s GL_ASSERTIONS=0 -sNO_EXIT_RUNTIME=1 -s WARN_UNALIGNED=1 -mbulk-memory -s BINARYEN_EXTRA_PASSES=--one-caller-inline-max-function-size=500")
 
 #configure the service worker
 file(READ sw_template.js sw_template)
