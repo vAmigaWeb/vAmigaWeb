@@ -1420,32 +1420,63 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
   }
 
 
-  if (HDFFile::isCompatible(filename)) {
+  if (HDFFile::isCompatible(filename)) 
+  {
     printf("is hdf\n");
-    wrapper->emu->powerOff();
-    //HDFFile hdf{blob, len};  
-    HDFFile *hdf = new HDFFile(blob, len);
 
-    wrapper->emu->set(OPT_HDC_CONNECT, true, /*hd drive*/ {drive_number});
-    wrapper->emu->emu->update();
-    if(drive_number==0)
-    {
-      wrapper->emu->hd0.drive->init(*hdf);
+    HDFFile *hdf;
+
+    try{    
+      hdf = new HDFFile(blob, len);
     }
-    else if(drive_number==1)
+    catch(Error &exception) {
+      printf("Failed to create HDF image file %s\n", name);
+      ErrorCode ec=exception.data;
+      printf("%s - %s\n", ErrorCodeEnum::key(ec), exception.what());
+      EM_ASM(
+      {
+        alert(`${UTF8ToString($0)} - ${UTF8ToString($1)}`);
+      }, ErrorCodeEnum::key(ec), exception.what());
+      return ErrorCodeEnum::key(ec); 
+    }    
+
+    auto hard_drive = wrapper->emu->hd0.drive;
+    if(drive_number==1)
     {
-      wrapper->emu->hd1.drive->init(*hdf);
+      hard_drive = wrapper->emu->hd1.drive;
     }
     else if(drive_number==2)
     {
-      wrapper->emu->hd2.drive->init(*hdf);
+      hard_drive = wrapper->emu->hd2.drive;
     }
     else if(drive_number==3)
     {
-      wrapper->emu->hd3.drive->init(*hdf);
+      hard_drive = wrapper->emu->hd3.drive;
     }
 
+    try
+    {
+        hard_drive->init(*hdf);
+        if(!hard_drive->getInfo().hasDisk)
+        {
+          throw Error(VAERROR_OUT_OF_MEMORY);
+        }
+    }
+    catch(Error &exception) {
+      printf("Failed to init HDF image file %s\n", name);
+      EM_ASM(
+      {
+        alert(`${UTF8ToString($0)}`);
+      }, exception.what());
+      delete hdf;
+      return exception.what();
+    }
+ 
     delete hdf;
+
+    wrapper->emu->powerOff();
+    wrapper->emu->set(OPT_HDC_CONNECT, true, {drive_number});
+    wrapper->emu->emu->update();
     wrapper->emu->powerOn();
     return "";
   }
