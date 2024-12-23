@@ -638,6 +638,7 @@ void theListener(const void * emu, Message msg){
   {
     if(log_on) printf("video format=%s data1=%d\n",VideoFormatEnum::key(msg.value),data1);
 
+    EM_ASM({use_ntsc_pixel= $0==1?true:false},msg.value == NTSC);
     wasm_set_display(msg.value == NTSC? "ntsc":"pal");
     request_to_reset_calibration=true;
   }
