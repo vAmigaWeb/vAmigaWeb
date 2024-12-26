@@ -547,6 +547,9 @@ function message_handler_queue_worker(msg, data, data2)
         $(`#button_${"OPT_SLOW_RAM"}`).text(`slow ram=${wasm_get_config_item('SLOW_RAM')} KB (snapshot)`);
         $(`#button_${"OPT_FAST_RAM"}`).text(`fast ram=${wasm_get_config_item('FAST_RAM')} KB (snapshot)`);
     
+        wasm_configure("OPT_AMIGA_SPEED_BOOST", 
+            current_speed.toString());
+
         rom_restored_from_snapshot=true;
     } 
     else if(msg == "MSG_SER_OUT")
