@@ -136,15 +136,28 @@ bool request_to_reset_calibration=false;
 
 void set_viewport_dimensions()
 {
-    if(log_on) printf("calib: set_viewport_dimensions hmin=%d, hmax=%d, vmin=%d, vmax=%d\n",hstart_min,hstop_max,vstart_min, vstop_max);
 //    hstart_min=0; hstop_max=HPIXELS;
     
+    auto _vstop_max = vstop_max;
+    if(ntsc)
+    {
+      if(vstop_max > VPOS_MAX_NTSC)
+        _vstop_max = VPOS_MAX_NTSC;
+    }
+    else
+    {
+     if(vstop_max > VPOS_MAX_PAL) 
+        _vstop_max = VPOS_MAX_PAL; //312
+    }
+ 
+    if(log_on) printf("calib: set_viewport_dimensions hmin=%d, hmax=%d, vmin=%d, vmax=%d vmax_clipped=%d\n",hstart_min,hstop_max,vstart_min, vstop_max, _vstop_max);
+
     if(render_method==RENDER_SHADER)
     {
       if(geometry == DISPLAY_ADAPTIVE || geometry == DISPLAY_BORDERLESS)
       {         
         clipped_width = hstop_max-hstart_min;
-        clipped_height = vstop_max-vstart_min;
+        clipped_height = _vstop_max-vstart_min;
       } 
     }
     else
@@ -154,10 +167,13 @@ void set_viewport_dimensions()
         xOff = hstart_min;
         yOff = vstart_min;
         clipped_width = hstop_max-hstart_min;
-        clipped_height = vstop_max-vstart_min;
+        clipped_height = _vstop_max-vstart_min;
       }
     }
-    EM_ASM({js_set_display($0,$1,$2,$3); scaleVMCanvas();},xOff, yOff, clipped_width*TPP,clipped_height );
+    if(clipped_height>0 && clipped_width>0)
+    {
+      EM_ASM({js_set_display($0,$1,$2,$3); scaleVMCanvas();},xOff, yOff, clipped_width*TPP,clipped_height );
+    }
 }
 
 
@@ -606,10 +622,6 @@ void theListener(const void * emu, Message msg){
     if(vstart_min < 26) 
       vstart_min = 26;
 
-    if(vstop_max > VPOS_MAX) 
-      vstop_max = VPOS_MAX; //312
-    if(ntsc && vstop_max > VPOS_MAX-PAL_EXTRA_VPIXEL )
-      vstop_max = VPOS_MAX-PAL_EXTRA_VPIXEL; 
     
     if(log_on)
     {
@@ -2037,10 +2049,10 @@ void calibrate_boost(signed boost_param){
         host_refresh_rate * (boost_param);
       vframes=0;
       speed_boost= ((double)boost / target_fps /*which is PAL_FPS or NTSC_FPS */);
-      unsigned vc64_speed_boost_param=(unsigned)(speed_boost*100);
-      printf("host_refresh_rate=%d, boost=%d, speed_boost=%lf, vc64_speed_param=%d\n",host_refresh_rate, boost, speed_boost, vc64_speed_boost_param);
+      unsigned speed_boost_param=(unsigned)(speed_boost*100);
+      printf("host_refresh_rate=%d, boost=%d, speed_boost=%lf, speed_param=%d\n",host_refresh_rate, boost, speed_boost, speed_boost_param);
       
-      wrapper->emu->set(OPT_AMIGA_SPEED_BOOST,vc64_speed_boost_param );
+      wrapper->emu->set(OPT_AMIGA_SPEED_BOOST,speed_boost_param );
       
       EM_ASM({$("#host_fps").html(`${$0} Hz`)},
         vsync_speed <0 ? host_refresh_rate/(vsync_speed*-1) : host_refresh_rate*vsync_speed );
