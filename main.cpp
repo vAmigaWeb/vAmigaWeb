@@ -44,11 +44,12 @@ u8 render_method = RENDER_SOFTWARE;
 #define DISPLAY_OVERSCAN 3
 #define DISPLAY_ADAPTIVE 4
 #define DISPLAY_BORDERLESS 5
+#define DISPLAY_EXTREME 6
 u8 geometry  = DISPLAY_ADAPTIVE;
 
 
 const char* display_names[] = {"narrow","standard","wider","overscan",
-"viewport tracking","borderless"}; 
+"viewport tracking","borderless","extreme"}; 
 
 bool log_on=false;
 
@@ -156,6 +157,8 @@ void set_viewport_dimensions()
     {
       if(geometry == DISPLAY_ADAPTIVE || geometry == DISPLAY_BORDERLESS)
       {         
+        xOff = hstart_min;
+        yOff = vstart_min;
         clipped_width = hstop_max-hstart_min;
         clipped_height = _vstop_max-vstart_min;
       } 
@@ -616,7 +619,7 @@ void theListener(const void * emu, Message msg){
     hstart_min *=2;
     hstop_max *=2;
 
-    hstart_min=hstart_min<208 ? 208:hstart_min;
+    hstart_min=hstart_min<(208-48) ? (208-48):hstart_min;
     hstop_max=hstop_max>(HPIXELS+HBLANK_MAX)? (HPIXELS+HBLANK_MAX):hstop_max;
 
     if(vstart_min < 26) 
@@ -1251,12 +1254,6 @@ extern "C" void wasm_set_display(const char *name)
   {
     geometry=DISPLAY_ADAPTIVE;
     wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, true); 
- //   clip_offset = 0;
-
-    xOff=252;
-    yOff=26 + 6;
-    clipped_width=HPIXELS-xOff;
-    clipped_height=312-yOff -2*4  ;
   }
   else if( strcmp(name,"borderless") == 0)
   {
@@ -1306,12 +1303,31 @@ extern "C" void wasm_set_display(const char *name)
   
     geometry=DISPLAY_OVERSCAN;
 
-    xOff=208; //first pixel in dpaint iv,overscan=max 
+    xOff=208; //208 is first pixel in dpaint iv,overscan=max
     yOff=VBLANK_CNT; //must be even
     clipped_width=(HPIXELS+HBLANK_MAX)-xOff;
     //clipped_height=312-yOff; //must be even
     clipped_height=(3*clipped_width/4 +(ntsc?0:24) /*32 due to PAL?*/)/2 & 0xfffe;
     if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
+  }
+  else if( strcmp(name,"extreme") == 0)
+  {
+    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, false); 
+  
+    geometry=DISPLAY_EXTREME;
+
+    xOff=208-48; //208 is first pixel in dpaint iv,overscan=max
+    yOff=VBLANK_CNT; //must be even
+    clipped_width=(HPIXELS+HBLANK_MAX)-xOff;
+    //clipped_height=312-yOff; //must be even
+    if(ntsc)
+    {
+      clipped_height=(VPOS_MAX_NTSC - yOff) & 0xfffe;
+    }
+    else
+    {
+      clipped_height=(VPOS_MAX_PAL - yOff) & 0xfffe;
+    }
   }
   
   if(log_on) printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);
