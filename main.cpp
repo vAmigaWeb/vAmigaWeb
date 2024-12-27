@@ -157,6 +157,8 @@ void set_viewport_dimensions()
     {
       if(geometry == DISPLAY_ADAPTIVE || geometry == DISPLAY_BORDERLESS)
       {         
+        xOff = hstart_min;
+        yOff = vstart_min;
         clipped_width = hstop_max-hstart_min;
         clipped_height = _vstop_max-vstart_min;
       } 
@@ -1318,8 +1320,14 @@ extern "C" void wasm_set_display(const char *name)
     yOff=VBLANK_CNT; //must be even
     clipped_width=(HPIXELS+HBLANK_MAX)-xOff;
     //clipped_height=312-yOff; //must be even
-    clipped_height=(3*clipped_width/4 +(ntsc?0:24) /*32 due to PAL?*/)/2 & 0xfffe;
-    if(ntsc){clipped_height-=PAL_EXTRA_VPIXEL;}
+    if(ntsc)
+    {
+      clipped_height=(VPOS_MAX_NTSC - yOff) & 0xfffe;
+    }
+    else
+    {
+      clipped_height=(VPOS_MAX_PAL - yOff) & 0xfffe;
+    }
   }
   
   if(log_on) printf("width=%d, height=%d, ratio=%f\n", clipped_width, clipped_height, (float)clipped_width/(float)clipped_height);
