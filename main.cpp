@@ -123,12 +123,12 @@ unsigned host_refresh_count=0;
 signed boost_param=100;
 void calibrate_boost(signed boost_param);
 
-u16 vstart_min=26;
+u16 vstart_min=VBLANK_CNT;
 u16 vstop_max=256;
 u16 hstart_min=200;
 u16 hstop_max=HPIXELS;
 
-u16 vstart_min_tracking=26;
+u16 vstart_min_tracking=VBLANK_CNT;
 u16 vstop_max_tracking=256;
 u16 hstart_min_tracking=200;
 u16 hstop_max_tracking=HPIXELS;
@@ -622,8 +622,8 @@ void theListener(const void * emu, Message msg){
     hstart_min=hstart_min<(208-48) ? (208-48):hstart_min;
     hstop_max=hstop_max>(HPIXELS+HBLANK_MAX)? (HPIXELS+HBLANK_MAX):hstop_max;
 
-    if(vstart_min < 26) 
-      vstart_min = 26;
+    if(vstart_min < (ntsc ? 21:VBLANK_CNT)) 
+      vstart_min = (ntsc ? 21:VBLANK_CNT);
 
     
     if(log_on)
@@ -1266,7 +1266,7 @@ extern "C" void wasm_set_display(const char *name)
     wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, false); 
     geometry=DISPLAY_NARROW;
     xOff=252 + 4;
-    yOff=26 +16;
+    yOff=VBLANK_CNT +16;
     clipped_width=HPIXELS-xOff - 8;   
     //clipped_height=312-yOff -2*24 -2; 
     clipped_height=(3*clipped_width/4 +(ntsc?0:32) /*32 due to PAL?*/)/2 & 0xfffe;
@@ -1317,7 +1317,7 @@ extern "C" void wasm_set_display(const char *name)
     geometry=DISPLAY_EXTREME;
 
     xOff=208-48; //208 is first pixel in dpaint iv,overscan=max
-    yOff=VBLANK_CNT; //must be even
+    yOff=VBLANK_CNT - (ntsc ? 5:0 ); //must be even
     clipped_width=(HPIXELS+HBLANK_MAX)-xOff;
     //clipped_height=312-yOff; //must be even
     if(ntsc)
