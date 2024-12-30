@@ -1,7 +1,6 @@
 let TPP=1;
 let HBLANK_MIN=0x12*TPP;
 let HPIXELS=912*TPP;
-let PAL_EXTRA_VPIXELS=140;
 let VPIXELS=313;
 let xOff = HBLANK_MIN;//252
 let yOff=26 + 6;
