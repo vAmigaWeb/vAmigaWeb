@@ -66,6 +66,7 @@ PixelEngine::_didReset(bool hard)
 void
 PixelEngine::_didLoad()
 {
+    clearAll();
     updateRGBA();
 }
 
@@ -324,7 +325,6 @@ PixelEngine::swapBuffers()
 void
 PixelEngine::vsyncHandler()
 {
-    // swapBuffers();
     dmaDebugger.vSyncHandler();
 }
 
