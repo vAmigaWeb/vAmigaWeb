@@ -152,11 +152,19 @@ Agnus::scheduleDasEventForCycle(isize hpos)
 void
 Agnus::scheduleNextREGEvent()
 {
-    // Determine when the next register change happens
-    Cycle next = changeRecorder.trigger();
-
-    // Schedule a register change event for that cycle
-    /*if (next < trigger[SLOT_REG])*/ scheduleAbs<SLOT_REG>(next, REG_CHANGE);
+    if (syncEvent) {
+        
+        // Schedule an event for the next cycle as there are pending events
+        scheduleImm <SLOT_REG> (DMA_CYCLES(1), REG_CHANGE);
+        
+    } else {
+        
+        // Determine when the next register change happens
+        Cycle next = changeRecorder.trigger();
+        
+        // Schedule a register change event for that cycle
+        scheduleAbs<SLOT_REG>(next, REG_CHANGE);
+    }
 }
 
 void
