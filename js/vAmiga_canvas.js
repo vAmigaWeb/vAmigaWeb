@@ -33,7 +33,7 @@ function render_canvas()
 }
 
 function js_set_display(_xOff, _yOff, _clipped_width,_clipped_height) {
-    xOff=_xOff-HBLANK_MIN*4;
+    xOff=_xOff*TPP -HBLANK_MIN*4;
     yOff=_yOff;
     clipped_width =_clipped_width;
     clipped_height=_clipped_height;
@@ -82,7 +82,7 @@ function scaleVMCanvas() {
     var topPos=0;
     if(wratio < src_ratio)
     {
-        var reducedHeight=window.innerWidth*inv_src_ratio;
+        var reducedHeight=TPP*window.innerWidth*inv_src_ratio;
         //all lower than 1.25
         $("#canvas").css("width", "100%")
         .css("height", Math.round(reducedHeight)+'px');
