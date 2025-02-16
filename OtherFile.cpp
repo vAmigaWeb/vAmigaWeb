@@ -7,9 +7,9 @@
 // See https://www.gnu.org for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "VAmigaConfig.h"
 #include "OtherFile.h"
-#include "AmigaFile.h"
+//#include "AmigaFile.h"
 #include "MutableFileSystem.h"
 #include "IOUtils.h"
 #include "OSDescriptors.h"
@@ -74,14 +74,14 @@ OtherFile::finalizeRead()
     bool hd = data.size > 853000;
 
     // Create a new file system
-    MutableFileSystem volume(INCH_35, hd ? DENSITY_HD : DENSITY_DD, FS_OFS);
+    MutableFileSystem volume(Diameter::INCH_35, hd ? Density::HD : Density::DD, FSVolumeType::OFS);
     volume.setName(FSName(filename));
     // Make the volume bootable
-    volume.makeBootable(BB_AMIGADOS_13);
+    volume.makeBootable(BootBlockId::AMIGADOS_13);
     
     // Add the file
     FSBlock *file = volume.createFile(filename, data.ptr, data.size);
-    if (!file) throw Error(VAERROR_FS_OUT_OF_SPACE);
+    if (!file) throw CoreError(Fault::FS_OUT_OF_SPACE);
     
     // Add a script directory
 //    volume.createDir("s");

@@ -14,11 +14,19 @@ set(CMAKE_CXX_EXTENSIONS False)
 
 # Set the optimization level (if not specified on the command line)
 if(NOT CMAKE_BUILD_TYPE)
-set(CMAKE_BUILD_TYPE Release)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+# Find and optionally link zlib
+find_package(ZLIB QUIET)
+if(ZLIB_FOUND)
+  message(STATUS "Found ZLIB: ${ZLIB_LIBRARIES}")
+else()
+  message(STATUS "ZLIB not found. Compression support will be disabled.")
 endif()
 
 # Add the emulator library
-add_library(vAmigaCore VAmiga.cpp config.cpp)
+add_library(vAmigaCore VAmiga.cpp VAmigaConfig.cpp)
 
 # Add the console app (vAmiga Headless)
 #add_executable(vAmigaConsole Headless.cpp config.cpp)
@@ -27,7 +35,7 @@ add_library(vAmigaCore VAmiga.cpp config.cpp)
 # Specify compile options
 target_compile_definitions(vAmigaCore PUBLIC _USE_MATH_DEFINES)
 if(WIN32)
-  target_link_libraries(vAmigaConsole ws2_32)
+  target_link_libraries(vAmigaCheck ws2_32)
 endif()
 if(MSVC)
   target_compile_options(vAmigaCore PUBLIC /W4 /bigobj /Zc:preprocessor) # /WX disabled for now
@@ -58,22 +66,25 @@ endif()
 # Add include paths
 target_include_directories(vAmigaCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Add sub directories
-add_subdirectory(Base)
-add_subdirectory(Components)
-add_subdirectory(FileSystems)
-add_subdirectory(Media)
-add_subdirectory(Misc)
-add_subdirectory(Peripherals)
-add_subdirectory(ThirdParty)
-add_subdirectory(Utilities)
+# Add subdirectories
+add_subdirectory(VAmiga)
 
 # Add libraries
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 target_link_libraries(vAmigaCore xdms Threads::Threads)
 
+# Link zlib if available
+if(ZLIB_FOUND)
+  target_link_libraries(vAmigaCore ZLIB::ZLIB)
+  target_link_libraries(vAmigaCheck ZLIB::ZLIB)
+  target_compile_definitions(vAmigaCore PUBLIC USE_ZLIB=1)  # Optional define for conditional compilation
+endif()
+
+target_link_libraries(vAmigaCore lz4)
+#target_link_libraries(vAmigaCheck lz4)
+
 # Add tests
-add_test(NAME SelfTest1 COMMAND vAmigaConsole --verbose --footprint)
-add_test(NAME SelfTest2 COMMAND vAmigaConsole --verbose --smoke)
-add_test(NAME SelfTest3 COMMAND vAmigaConsole --verbose --diagnose)
+add_test(NAME SelfTest1 COMMAND vAmigaCheck --verbose --footprint)
+add_test(NAME SelfTest2 COMMAND vAmigaCheck --verbose --smoke)
+add_test(NAME SelfTest3 COMMAND vAmigaCheck --verbose --diagnose)

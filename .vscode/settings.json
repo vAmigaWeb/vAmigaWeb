@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "*.Puppet": "xml",
+        "*.PuppetAnim": "xml",
+        "typeinfo": "cpp",
+        "array": "cpp",
+        "string": "cpp",
+        "string_view": "cpp",
+        "vector": "cpp"
+    }
+}

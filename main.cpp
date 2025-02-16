@@ -5,7 +5,7 @@
  */
 
 #include <stdio.h>
-#include "config.h"
+#include "VAmigaConfig.h"
 #include "VAmiga.h"
 #include "VAmigaTypes.h"
 #include "Emulator.h"
@@ -123,12 +123,12 @@ unsigned host_refresh_count=0;
 signed boost_param=100;
 void calibrate_boost(signed boost_param);
 
-u16 vstart_min=VBLANK_CNT_PAL;
+u16 vstart_min=PAL::VBLANK_CNT;
 u16 vstop_max=256;
 u16 hstart_min=200;
 u16 hstop_max=HPIXELS;
 
-u16 vstart_min_tracking=VBLANK_CNT_NTSC;
+u16 vstart_min_tracking=NTSC::VBLANK_CNT;
 u16 vstop_max_tracking=256;
 u16 hstart_min_tracking=200;
 u16 hstop_max_tracking=HPIXELS;
@@ -142,13 +142,13 @@ void set_viewport_dimensions()
     auto _vstop_max = vstop_max;
     if(ntsc)
     {
-      if(vstop_max > VPOS_MAX_NTSC)
-        _vstop_max = VPOS_MAX_NTSC;
+      if(vstop_max > NTSC::VPOS_MAX)
+        _vstop_max = NTSC::VPOS_MAX;
     }
     else
     {
-     if(vstop_max > VPOS_MAX_PAL) 
-        _vstop_max = VPOS_MAX_PAL; //312
+     if(vstop_max > PAL::VPOS_MAX) 
+        _vstop_max = PAL::VPOS_MAX; //312
     }
  
     if(log_on) printf("calib: set_viewport_dimensions hmin=%d, hmax=%d, vmin=%d, vmax=%d vmax_clipped=%d\n",hstart_min,hstop_max,vstart_min, vstop_max, _vstop_max);
@@ -606,7 +606,7 @@ bool warp_mode=false;
 void theListener(const void * emu, Message msg){
   int data1=msg.value;
   int data2=0;
-  if(msg.type == MSG_VIEWPORT)
+  if(msg.type == Msg::VIEWPORT)
   {
     if(msg.viewport.hstrt==0 && msg.viewport.vstrt==0 && msg.viewport.hstop == 0 && msg.viewport.vstop == 0)
       return;
@@ -622,8 +622,8 @@ void theListener(const void * emu, Message msg){
     hstart_min=hstart_min<(208-48) ? (208-48):hstart_min;
     hstop_max=hstop_max>(HPIXELS+HBLANK_MAX)? (HPIXELS+HBLANK_MAX):hstop_max;
 
-    if(vstart_min < (ntsc ? VBLANK_CNT_NTSC:VBLANK_CNT_PAL)) 
-      vstart_min = (ntsc ? VBLANK_CNT_NTSC:VBLANK_CNT_PAL);
+    if(vstart_min < (ntsc ? NTSC::VBLANK_CNT : PAL::VBLANK_CNT)) 
+      vstart_min = (ntsc ? NTSC::VBLANK_CNT : PAL::VBLANK_CNT);
 
     
     if(log_on)
@@ -649,29 +649,29 @@ void theListener(const void * emu, Message msg){
 
     reset_calibration=true;
   }
-  else if(msg.type == MSG_VIDEO_FORMAT)
+  else if(msg.type == Msg::VIDEO_FORMAT)
   {
-    if(log_on) printf("video format=%s data1=%d\n",VideoFormatEnum::key(msg.value),data1);
+    if(log_on) printf("video format=%s data1=%d\n",TVEnum::key(TV(msg.value)),data1);
 
-    EM_ASM({use_ntsc_pixel= $0==1?true:false},msg.value == NTSC);
-    wasm_set_display(msg.value == NTSC? "ntsc":"pal");
+    EM_ASM({use_ntsc_pixel= $0==1?true:false},TV(msg.value) == TV::NTSC);
+    wasm_set_display(TV(msg.value) == TV::NTSC? "ntsc":"pal");
     request_to_reset_calibration=true;
   }
-  else if(msg.type == MSG_DRIVE_STEP || msg.type == MSG_DRIVE_POLL 
-     ||msg.type == MSG_HDR_STEP)
+  else if(msg.type == Msg::DRIVE_STEP || msg.type == Msg::DRIVE_POLL 
+     ||msg.type == Msg::HDR_STEP)
   {
       data1=msg.drive.nr;
       data2=msg.drive.value;
   }
   
-  if(msg.type == MSG_DRIVE_SELECT)
+  if(msg.type == Msg::DRIVE_SELECT)
   {
   }
   else
   {
-    const char *message_as_string =  (const char *)MsgTypeEnum::key((MsgType)msg.type);
+    const char *message_as_string =  (const char *)MsgEnum::key(Msg(msg.type));
 
-    if(msg.type == MSG_SER_OUT)
+    if(msg.type == Msg::SER_OUT)
     {
       int byte = ((VAmiga *)emu)->serialPort.serialPort->readOutgoingByte();
       while(byte>=0)
@@ -717,28 +717,28 @@ class vAmigaWrapper {
     printf("wrapper calls run on vAmiga->run() method\n");
 
 
-    emu->defaults.defaults->setFallback(OPT_HDC_CONNECT, false, {0});
+    emu->defaults.defaults->setFallback(Opt::HDC_CONNECT, false, {0});
 
 //  wrapper->emu->defaults.setFallback(OPT_FILTER_TYPE, FILTER_NONE);
 //  wrapper->emu->set(OPT_FILTER_TYPE, FILTER_NONE);
 
   // master Volumne
-    emu->set(OPT_AUD_VOLL, 100); 
-    emu->set(OPT_AUD_VOLR, 100);
+    emu->set(Opt::AUD_VOLL, 100); 
+    emu->set(Opt::AUD_VOLR, 100);
 
   //Volumne
 //  wrapper->emu->set(OPT_AUD_VOL0, 100); why did I set it only on channel 0? 
 //  wrapper->emu->set(OPT_AUD_PAN0, 0);
 
 
-  emu->set(OPT_MEM_CHIP_RAM, 512);
-  emu->set(OPT_MEM_SLOW_RAM, 512);
-  emu->set(OPT_AGNUS_REVISION, AGNUS_OCS);
+  emu->set(Opt::MEM_CHIP_RAM, 512);
+  emu->set(Opt::MEM_SLOW_RAM, 512);
+  emu->set(Opt::AGNUS_REVISION, (i64)AgnusRevision::OCS);
 
   //turn automatic hd mounting off because kick1.2 makes trouble
-  emu->set(OPT_HDC_CONNECT, false, /*hd drive*/ {0});
+  emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {0});
 
-  emu->set(OPT_DRIVE_CONNECT,true, /*df1*/ {1});
+  emu->set(Opt::DRIVE_CONNECT,true, /*df1*/ {1});
 
   emu->emu->update();
 
@@ -978,7 +978,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
     if(wrapper->emu->hd0.getInfo().hasDisk)
     {
       wrapper->emu->powerOff();
-      wrapper->emu->set(OPT_HDC_CONNECT, false, /*hd drive*/ {0});
+      wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {0});
       wrapper->emu->powerOn();
     }
   }
@@ -987,7 +987,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
     if(wrapper->emu->hd1.getInfo().hasDisk)
     {
       wrapper->emu->powerOff();
-      wrapper->emu->set(OPT_HDC_CONNECT, false, /*hd drive*/ {1});
+      wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {1});
       wrapper->emu->powerOn();
     }
   }
@@ -996,7 +996,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
     if(wrapper->emu->hd2.getInfo().hasDisk)
     {
       wrapper->emu->powerOff();
-      wrapper->emu->set(OPT_HDC_CONNECT, false, /*hd drive*/ {2});
+      wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {2});
       wrapper->emu->powerOn();
     }
   }
@@ -1005,7 +1005,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
     if(wrapper->emu->hd3.getInfo().hasDisk)
     {
       wrapper->emu->powerOff();
-      wrapper->emu->set(OPT_HDC_CONNECT, false, /*hd drive*/ {3});
+      wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {3});
       wrapper->emu->powerOn();
     }
   }
@@ -1190,7 +1190,7 @@ extern "C" unsigned wasm_copy_into_sound_buffer()
 
 extern "C" void wasm_set_warp(unsigned on)
 {
-  wrapper->emu->set(OPT_AMIGA_WARP_MODE, on == 1 ?WARP_AUTO:WARP_NEVER); 
+  wrapper->emu->set(Opt::AMIGA_WARP_MODE,(i64) (on == 1 ?Warp::AUTO:Warp::NEVER)); 
 }
 
 
@@ -1214,10 +1214,10 @@ extern "C" void wasm_set_display(const char *name)
     {
       if(log_on) printf("was not yet ntsc\n");
 
-      if(wrapper->emu->get(OPT_AMIGA_VIDEO_FORMAT)!=NTSC)
+      if(wrapper->emu->get(Opt::AMIGA_VIDEO_FORMAT)!= (i64)TV::NTSC)
       {
         if(log_on) printf("was not yet ntsc so we have to configure it\n");
-        wrapper->emu->set(OPT_AMIGA_VIDEO_FORMAT, NTSC);
+        wrapper->emu->set(Opt::AMIGA_VIDEO_FORMAT, (i64)TV::NTSC);
       }
       target_fps=NTSC_FPS;
       total_executed_frame_count=0;
@@ -1231,10 +1231,10 @@ extern "C" void wasm_set_display(const char *name)
     if(ntsc)
     {
       if(log_on) printf("was not yet PAL\n");
-      if(wrapper->emu->get(OPT_AMIGA_VIDEO_FORMAT)!=PAL)
+      if(wrapper->emu->get(Opt::AMIGA_VIDEO_FORMAT)!=(i64) TV::PAL)
       {
         if(log_on) printf("was not yet PAL so we have to configure it\n");
-        wrapper->emu->set(OPT_AMIGA_VIDEO_FORMAT, PAL);
+        wrapper->emu->set(Opt::AMIGA_VIDEO_FORMAT, (i64)TV::PAL);
       }
       target_fps=PAL_FPS;
       total_executed_frame_count=0;
@@ -1253,20 +1253,20 @@ extern "C" void wasm_set_display(const char *name)
       strcmp(name,"viewport tracking") == 0)
   {
     geometry=DISPLAY_ADAPTIVE;
-    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, true); 
+    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, true); 
   }
   else if( strcmp(name,"borderless") == 0)
   {
     geometry=DISPLAY_BORDERLESS;
-    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, true); 
+    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, true); 
     return;
   }
   else if( strcmp(name,"narrow") == 0)
   {
-    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, false); 
+    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, false); 
     geometry=DISPLAY_NARROW;
     xOff=252 + 4;
-    yOff=VBLANK_CNT_PAL +16;
+    yOff=PAL::VBLANK_CNT +16;
     clipped_width=HPIXELS-xOff - 8;   
     //clipped_height=312-yOff -2*24 -2; 
     clipped_height=(3*clipped_width/4 +(ntsc?0:32) /*32 due to PAL?*/)/2 & 0xfffe;
@@ -1274,11 +1274,11 @@ extern "C" void wasm_set_display(const char *name)
   }
   else if( strcmp(name,"standard") == 0)
   {
-    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, false); 
+    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, false); 
   
     geometry=DISPLAY_STANDARD;
     xOff=208+HBLANK_MAX;
-    yOff=VBLANK_CNT_PAL +10;
+    yOff=PAL::VBLANK_CNT +10;
     clipped_width=HPIXELS-xOff;
 //    clipped_height=312-yOff -2*4  ;
 //    clipped_height=(4*clipped_width/5 )/2 & 0xfffe;
@@ -1287,11 +1287,11 @@ extern "C" void wasm_set_display(const char *name)
   }
   else if( strcmp(name,"wider") == 0)
   {
-    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, false); 
+    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, false); 
   
     geometry=DISPLAY_WIDER;
     xOff=208+ HBLANK_MAX/2;
-    yOff=VBLANK_CNT_PAL + 2;
+    yOff=PAL::VBLANK_CNT + 2;
     clipped_width=(HPIXELS+HBLANK_MAX/2 )-xOff;
 //    clipped_height=312-yOff -2*2;
     clipped_height=(3*clipped_width/4 +(ntsc?0:32) /*32 due to PAL?*/)/2 & 0xfffe;
@@ -1299,12 +1299,12 @@ extern "C" void wasm_set_display(const char *name)
   }
   else if( strcmp(name,"overscan") == 0)
   {
-    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, false); 
+    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, false); 
   
     geometry=DISPLAY_OVERSCAN;
 
     xOff=208; //208 is first pixel in dpaint iv,overscan=max
-    yOff=VBLANK_CNT_PAL; //must be even
+    yOff=PAL::VBLANK_CNT; //must be even
     clipped_width=(HPIXELS+HBLANK_MAX)-xOff;
     //clipped_height=312-yOff; //must be even
     clipped_height=(3*clipped_width/4 +(ntsc?0:24) /*32 due to PAL?*/)/2 & 0xfffe;
@@ -1312,21 +1312,21 @@ extern "C" void wasm_set_display(const char *name)
   } 
   else if( strcmp(name,"extreme") == 0)
   {
-    wrapper->emu->set(OPT_DENISE_VIEWPORT_TRACKING, false); 
+    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, false); 
   
     geometry=DISPLAY_EXTREME;
 
     xOff=208-48; //208 is first pixel in dpaint iv,overscan=max
-    yOff=ntsc?VBLANK_CNT_NTSC:VBLANK_CNT_PAL; //must be even
+    yOff=ntsc?NTSC::VBLANK_CNT:PAL::VBLANK_CNT; //must be even
     clipped_width=(HPIXELS+HBLANK_MAX)-xOff;
     //clipped_height=312-yOff; //must be even
     if(ntsc)
     {
-      clipped_height=(VPOS_MAX_NTSC - yOff) & 0xfffe;
+      clipped_height=(NTSC::VPOS_MAX - yOff) & 0xfffe;
     }
     else
     {
-      clipped_height=(VPOS_MAX_PAL - yOff) & 0xfffe;
+      clipped_height=(PAL::VPOS_MAX - yOff) & 0xfffe;
     }
   }
   
@@ -1415,12 +1415,12 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
     if (auto disk = load_disk(name, blob, len)) {
       if(drive_number>0)
       {//configure correct disk drive type (df0 does only accept DD, no HD)
-        wrapper->emu->set(OPT_DRIVE_TYPE, disk->density==DENSITY_DD? DRIVE_DD_35:DRIVE_HD_35, {drive_number} );
+        wrapper->emu->set(Opt::DRIVE_TYPE, (i64)(disk->density==Density::DD? FloppyDriveType::DD_35:FloppyDriveType::HD_35), {drive_number} );
         wrapper->emu->emu->update();
       }
 
       if(drive_number==0){
-        if(disk->density == DENSITY_DD)
+        if(disk->density == Density::DD)
         {
           wrapper->emu->df0.drive->swapDisk(std::move(disk));
         }
@@ -1440,7 +1440,7 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
 
       return "";
     }
-  } catch (const Error& e) {
+  } catch (const CoreError& e) {
     printf("Error loading %s - %s\n", filename, e.what());
     EM_ASM(
     {
@@ -1458,15 +1458,15 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
     try{    
       hdf = new HDFFile(blob, len);
     }
-    catch(Error &exception) {
+    catch(CoreError &exception) {
       printf("Failed to create HDF image file %s\n", name);
-      ErrorCode ec=exception.data;
-      printf("%s - %s\n", ErrorCodeEnum::key(ec), exception.what());
+      Fault ec=Fault(exception.data);
+      printf("%s - %s\n", FaultEnum::key(ec), exception.what());
       EM_ASM(
       {
         alert(`${UTF8ToString($0)} - ${UTF8ToString($1)}`);
-      }, ErrorCodeEnum::key(ec), exception.what());
-      return ErrorCodeEnum::key(ec); 
+      }, FaultEnum::key(ec), exception.what());
+      return FaultEnum::key(ec); 
     }    
 
     auto hard_drive = wrapper->emu->hd0.drive;
@@ -1488,10 +1488,10 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
         hard_drive->init(*hdf);
         if(!hard_drive->getInfo().hasDisk)
         {
-          throw Error(VAERROR_OUT_OF_MEMORY);
+          throw Fault(Fault::OUT_OF_MEMORY);
         }
     }
-    catch(Error &exception) {
+    catch(CoreError &exception) {
       printf("Failed to init HDF image file %s\n", name);
       EM_ASM(
       {
@@ -1504,7 +1504,7 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
     delete hdf;
 
     wrapper->emu->powerOff();
-    wrapper->emu->set(OPT_HDC_CONNECT, true, {drive_number});
+    wrapper->emu->set(Opt::HDC_CONNECT, true, {drive_number});
     wrapper->emu->emu->update();
     wrapper->emu->powerOn();
     return "";
@@ -1531,9 +1531,9 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
 */
       printf("run snapshot at %f Hz, isPAL=%d\n", target_fps, !ntsc);
     }
-    catch(Error &exception) {
-      ErrorCode ec=exception.data;
-      printf("%s\n", ErrorCodeEnum::key(ec));
+    catch(CoreError &exception) {
+      Fault ec=Fault(exception.data);
+      printf("%s\n", FaultEnum::key(ec));
     }
   }
 
@@ -1548,10 +1548,10 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
       printf("try to build RomFile\n");
       rom = new RomFile(blob, len);
     }
-    catch(Error &exception) {
+    catch(CoreError &exception) {
       printf("Failed to read ROM image file %s\n", name);
-      ErrorCode ec=exception.data;
-      printf("%s\n", ErrorCodeEnum::key(ec));
+      Fault ec=Fault(exception.data);
+      printf("%s\n", FaultEnum::key(ec));
       return "";
     }
 
@@ -1567,7 +1567,7 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
       if(strncmp("EmuTOS",wrapper->emu->mem.getRomTraits().title,strlen("EmuTOS"))==0)
       {
         printf("detected EmuTOS rom, setting drive speed to -1\n");
-        wrapper->emu->set(OPT_DC_SPEED, -1);
+        wrapper->emu->set(Opt::DC_SPEED, -1);
       }
 /*      wrapper->emu->set(OPT_HDC_CONNECT,
         //hd drive
@@ -1577,10 +1577,10 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
       );
 */
     }  
-    catch(Error &exception) { 
+    catch(CoreError &exception) { 
       printf("Failed to flash ROM image %s.\n", name);
-      ErrorCode ec=exception.data;
-      printf("%s\n", ErrorCodeEnum::key(ec));
+      Fault ec=Fault(exception.data);
+      printf("%s\n", FaultEnum::key(ec));
       return "";
     }
     const char *rom_type="rom";
@@ -1604,9 +1604,9 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
         wrapper->emu->powerOn();
 //        wrapper->emu->resume();
     }    
-    catch(Error &exception) { 
-      ErrorCode ec=exception.data;
-      printf("%s\n", ErrorCodeEnum::key(ec));
+    catch(CoreError &exception) { 
+      Fault ec=Fault(exception.data);
+      printf("%s\n", FaultEnum::key(ec));
     } 
 
     return rom_type;    
@@ -1623,10 +1623,10 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
       printf("try to build ExtendedRomFile\n");
       rom = new ExtendedRomFile(blob, len);
     }
-    catch(Error &exception) {
+    catch(CoreError &exception) {
       printf("Failed to read ROM_EXT image file %s\n", name);
-      ErrorCode ec=exception.data;
-      printf("%s\n", ErrorCodeEnum::key(ec));
+      Fault ec=Fault(exception.data);
+      printf("%s\n", FaultEnum::key(ec));
       return "";
     }
 
@@ -1641,10 +1641,10 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
       printf("Loaded ROM_EXT image %s.\n", name);
       
     }  
-    catch(Error &exception) { 
+    catch(CoreError &exception) { 
       printf("Failed to flash ROM_EXT image %s.\n", name);
-      ErrorCode ec=exception.data;
-      printf("%s\n", ErrorCodeEnum::key(ec));
+      Fault ec=Fault(exception.data);
+      printf("%s\n", FaultEnum::key(ec));
     }
   
 
@@ -1726,17 +1726,21 @@ extern "C" void wasm_mouse(int port, int x, int y)
   else if(port==2)
     wrapper->emu->controlPort2.mouse->setDxDy(x,y);
   */
-  wrapper->emu->put(CMD_MOUSE_MOVE_REL, CoordCmd(port-1, x, y));
+  wrapper->emu->put(Cmd::MOUSE_MOVE_REL, CoordCommand(port-1, x, y));
 }
 
 extern "C" void wasm_mouse_button(int port, int button_id, int pressed)
 { 
     if(button_id==1)
-      wrapper->emu->put(CMD_MOUSE_EVENT, GamePadCmd(port-1,(pressed==1?PRESS_LEFT:RELEASE_LEFT)));
+      wrapper->emu->put(Cmd::MOUSE_BUTTON, GamePadCommand(port-1, (pressed==1?GamePadAction::PRESS_LEFT:GamePadAction::RELEASE_LEFT)));
+      //wrapper->emu->put(CMD_MOUSE_EVENT, GamePadCmd(port-1,(pressed==1?PRESS_LEFT:RELEASE_LEFT)));
     else if(button_id==2)
-      wrapper->emu->put(CMD_MOUSE_EVENT, GamePadCmd(port-1,(pressed==1?PRESS_MIDDLE:RELEASE_MIDDLE)));
+    wrapper->emu->put(Cmd::MOUSE_BUTTON, GamePadCommand(port-1, (pressed==1?GamePadAction::PRESS_MIDDLE:GamePadAction::RELEASE_MIDDLE)));
+    //      wrapper->emu->put(CMD_MOUSE_EVENT, GamePadCmd(port-1,(pressed==1?PRESS_MIDDLE:RELEASE_MIDDLE)));
     else if(button_id==3)
-      wrapper->emu->put(CMD_MOUSE_EVENT, GamePadCmd(port-1,(pressed==1?PRESS_RIGHT:RELEASE_RIGHT)));
+    //      wrapper->emu->put(CMD_MOUSE_EVENT, GamePadCmd(port-1,(pressed==1?PRESS_RIGHT:RELEASE_RIGHT)));
+    wrapper->emu->put(Cmd::MOUSE_BUTTON, GamePadCommand(port-1, (pressed==1?GamePadAction::PRESS_RIGHT:GamePadAction::RELEASE_RIGHT)));
+
 }
 
 extern "C" void wasm_joystick(char* port_plus_event)
@@ -1764,55 +1768,55 @@ RELEASE_FIRE
   GamePadAction code;
   if( strcmp(event,"PULL_UP") == 0)
   {
-    code = PULL_UP;
+    code = GamePadAction::PULL_UP;
   }
   else if( strcmp(event,"PULL_LEFT") == 0)
   {
-    code = PULL_LEFT;
+    code = GamePadAction::PULL_LEFT;
   }
   else if( strcmp(event,"PULL_DOWN") == 0)
   {
-    code = PULL_DOWN;
+    code = GamePadAction::PULL_DOWN;
   }
   else if( strcmp(event,"PULL_RIGHT") == 0)
   {
-    code = PULL_RIGHT;
+    code = GamePadAction::PULL_RIGHT;
   }
   else if( strcmp(event,"PRESS_FIRE") == 0)
   {
-    code = PRESS_FIRE;
+    code = GamePadAction::PRESS_FIRE;
   }
   else if( strcmp(event,"PRESS_FIRE2") == 0)
   {
-    code = PRESS_FIRE2;
+    code = GamePadAction::PRESS_FIRE2;
   }
   else if( strcmp(event,"PRESS_FIRE3") == 0)
   {
-    code = PRESS_FIRE3;
+    code = GamePadAction::PRESS_FIRE3;
   }
   else if( strcmp(event,"RELEASE_XY") == 0)
   {
-    code = RELEASE_XY;
+    code = GamePadAction::RELEASE_XY;
   }
   else if( strcmp(event,"RELEASE_X") == 0)
   {
-    code = RELEASE_X;
+    code = GamePadAction::RELEASE_X;
   }
   else if( strcmp(event,"RELEASE_Y") == 0)
   {
-    code = RELEASE_Y;
+    code = GamePadAction::RELEASE_Y;
   }
   else if( strcmp(event,"RELEASE_FIRE") == 0)
   {
-    code = RELEASE_FIRE;
+    code = GamePadAction::RELEASE_FIRE;
   }
   else if( strcmp(event,"RELEASE_FIRE2") == 0)
   {
-    code = RELEASE_FIRE2;
+    code = GamePadAction::RELEASE_FIRE2;
   }
   else if( strcmp(event,"RELEASE_FIRE3") == 0)
   {
-    code = RELEASE_FIRE3;
+    code = GamePadAction::RELEASE_FIRE3;
   }
   else
   {
@@ -1876,9 +1880,9 @@ extern "C" char* wasm_sprite_info()
 
 extern "C" void wasm_cut_layers(unsigned cut_layers)
 {
-  wrapper->emu->set(OPT_DENISE_HIDDEN_LAYER_ALPHA,255);
+  wrapper->emu->set(Opt::DENISE_HIDDEN_LAYER_ALPHA,255);
 //  wrapper->emu->set(OPT_HIDDEN_SPRITES, 0x100 | (SPR0|SPR1|SPR2|SPR3|SPR4|SPR5|SPR6|SPR7)); 
-  wrapper->emu->set(OPT_DENISE_HIDDEN_LAYERS, cut_layers); 
+  wrapper->emu->set(Opt::DENISE_HIDDEN_LAYERS, cut_layers); 
 }
 
 
@@ -1927,27 +1931,27 @@ extern "C" void wasm_set_color_palette(char* palette)
 
   if( strcmp(palette,"color") == 0)
   {
-    wrapper->emu->set(OPT_MON_PALETTE, PALETTE_COLOR);
+    wrapper->emu->set(Opt::MON_PALETTE, (i64)Palette::COLOR);
   }
   else if( strcmp(palette,"black white") == 0)
   { 
-    wrapper->emu->set(OPT_MON_PALETTE, PALETTE_BLACK_WHITE); 
+    wrapper->emu->set(Opt::MON_PALETTE, (i64)Palette::BLACK_WHITE); 
   }
   else if( strcmp(palette,"paper white") == 0)
   { 
-    wrapper->emu->set(OPT_MON_PALETTE, PALETTE_PAPER_WHITE); 
+    wrapper->emu->set(Opt::MON_PALETTE, (i64)Palette::PAPER_WHITE); 
   }
   else if( strcmp(palette,"green") == 0)
   { 
-    wrapper->emu->set(OPT_MON_PALETTE, PALETTE_GREEN); 
+    wrapper->emu->set(Opt::MON_PALETTE, (i64)Palette::GREEN); 
   }
   else if( strcmp(palette,"amber") == 0)
   { 
-    wrapper->emu->set(OPT_MON_PALETTE, PALETTE_AMBER); 
+    wrapper->emu->set(Opt::MON_PALETTE, (i64)Palette::AMBER); 
   }
   else if( strcmp(palette,"sepia") == 0)
   { 
-    wrapper->emu->set(OPT_MON_PALETTE, PALETTE_SEPIA); 
+    wrapper->emu->set(Opt::MON_PALETTE, (i64)Palette::SEPIA); 
   }
 
 }
@@ -1972,7 +1976,7 @@ extern "C" const char* wasm_power_on(unsigned power_on)
         wrapper->emu->powerOff();
     }
   }  
-  catch(Error &exception) {   
+  catch(CoreError &exception) {   
     sprintf(config_result,"%s", exception.what());
   }
   return config_result; 
@@ -1983,8 +1987,8 @@ extern "C" void wasm_set_sample_rate(unsigned sample_rate)
 {
     printf("set paula.muxer to freq= %d\n", sample_rate);
 
-    wrapper->emu->set(OPT_HOST_SAMPLE_RATE,sample_rate);
-    auto got_sample_rate=wrapper->emu->get(OPT_HOST_SAMPLE_RATE);
+    wrapper->emu->set(Opt::HOST_SAMPLE_RATE,sample_rate);
+    auto got_sample_rate=wrapper->emu->get(Opt::HOST_SAMPLE_RATE);
 
     printf("amiga.host.getSampleRate()==%lld\n", got_sample_rate);
 }
@@ -1997,11 +2001,11 @@ extern "C" i64 wasm_get_config_item(char* item_name, unsigned data)
   
   if(strcmp(item_name,"DRIVE_CONNECT") == 0 )
   {
-    return wrapper->emu->get(OPT_DRIVE_CONNECT,data);
+    return wrapper->emu->get(Opt::DRIVE_CONNECT,data);
   }
   else
   {
-    return wrapper->emu->get(util::parseEnum <OptionEnum>(std::string(item_name)));
+    return wrapper->emu->get(Opt(util::parseEnum <OptEnum>(std::string(item_name))));
   }
 }
 
@@ -2035,15 +2039,15 @@ extern "C" const char* wasm_configure_key(char* option, char* key, char* _value)
     setFallback(OPT_DMA_DEBUG_COLOR, DMA_CHANNEL_CPU, 0xFFFFFF00);
     setFallback(OPT_DMA_DEBUG_COLOR, DMA_CHANNEL_REFRESH, 0xFF000000);
 */
-        wrapper->emu->set(OPT_DMA_DEBUG_ENABLE, true);   
+        wrapper->emu->set(Opt::DMA_DEBUG_ENABLE, true);   
         wrapper->emu->set(
          //OPT_DMA_DEBUG_CHANNEL6,
-         util::parseEnum <OptionEnum>(std::string(option)),
+         Opt(util::parseEnum <OptEnum>(std::string(option))),
 //         util::parseEnum <DmaChannelEnum>(std::string(key)), 
          util::parseBool(std::string(key))); 
       
   }
-  catch(Error &exception) {
+  catch(CoreError &exception) {
       printf("unknown key %s %s = %s\n", option, key, value.c_str());
 
 //    ErrorCode ec=exception.data;
@@ -2068,7 +2072,7 @@ void calibrate_boost(signed boost_param){
       unsigned speed_boost_param=(unsigned)(speed_boost*100);
       printf("host_refresh_rate=%d, boost=%d, speed_boost=%lf, speed_param=%d\n",host_refresh_rate, boost, speed_boost, speed_boost_param);
       
-      wrapper->emu->set(OPT_AMIGA_SPEED_BOOST,speed_boost_param );
+      wrapper->emu->set(Opt::AMIGA_SPEED_BOOST,speed_boost_param );
       
       EM_ASM({$("#host_fps").html(`${$0} Hz`)},
         vsync_speed <0 ? host_refresh_rate/(vsync_speed*-1) : host_refresh_rate*vsync_speed );
@@ -2085,7 +2089,7 @@ printf("wasm_configure %s = %s\n", option, _value);
   if(strcmp(option,"warp_to_frame") == 0 )
   {
     auto warp_to_frame= util::parseNum(value);
-    wrapper->emu->set(OPT_AMIGA_WARP_BOOT, warp_to_frame/(wrapper->emu->agnus.agnus->isPAL()?50:60));
+    wrapper->emu->set(Opt::AMIGA_WARP_BOOT, warp_to_frame/(wrapper->emu->agnus.agnus->isPAL()?50:60));
     wrapper->emu->emu->update();
     wrapper->emu->softReset(); //agnus.reset() schedules warp_off therefore we have to reset here after changing warp_boot 
     return config_result;
@@ -2101,12 +2105,12 @@ printf("wasm_configure %s = %s\n", option, _value);
     int i=0;
     while(i<df_count)
     {
-      wrapper->emu->set(OPT_DRIVE_CONNECT, true, {i});
+      wrapper->emu->set(Opt::DRIVE_CONNECT, true, {i});
       i++;
     }
     while(i<4)
     {
-      wrapper->emu->set(OPT_DRIVE_CONNECT, false, {i});
+      wrapper->emu->set(Opt::DRIVE_CONNECT, false, {i});
       i++;
     }
     wrapper->emu->emu->update();
@@ -2130,19 +2134,19 @@ printf("wasm_configure %s = %s\n", option, _value);
   try{
     if( strcmp(option,"AGNUS_REVISION") == 0)
     {
-      wrapper->emu->set(OPT_AGNUS_REVISION, util::parseEnum <AgnusRevisionEnum>(value)); 
+      wrapper->emu->set(Opt::AGNUS_REVISION, util::parseEnum <AgnusRevisionEnum>(value)); 
     }
     else if( strcmp(option,"DENISE_REVISION") == 0)
     {
-      wrapper->emu->set(OPT_DENISE_REVISION, util::parseEnum <DeniseRevisionEnum>(value));
+      wrapper->emu->set(Opt::DENISE_REVISION, util::parseEnum <DeniseRevEnum>(value));
     }
     else if( strcmp(option,"WARP_MODE") == 0)
     {
-      wrapper->emu->set(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum <WarpModeEnum>(value));
+      wrapper->emu->set(Opt(util::parseEnum <OptEnum>(std::string(option))), util::parseEnum <WarpEnum>(value));
     }
     else if( strcmp(option,"SER_DEVICE") == 0)
     {
-      wrapper->emu->set(util::parseEnum <OptionEnum>(std::string(option)), util::parseEnum<SerialPortDeviceEnum>(value));
+      wrapper->emu->set(Opt(util::parseEnum <OptEnum>(std::string(option))), util::parseEnum<SerialPortDeviceEnum>(value));
     }
     else if ( strcmp(option,"BLITTER_ACCURACY") == 0 ||
               strcmp(option,"DRIVE_SPEED") == 0  ||
@@ -2155,33 +2159,33 @@ printf("wasm_configure %s = %s\n", option, _value);
     {
       if(strcmp(option,"BLITTER_ACCURACY") == 0)
       {//TODO kann nicht so bleiben
-        wrapper->emu->set(OPT_BLITTER_ACCURACY, util::parseNum(value));
+        wrapper->emu->set(Opt::BLITTER_ACCURACY, util::parseNum(value));
       }
       else if(strcmp(option,"DRIVE_SPEED") == 0)
       {//TODO kann nicht so bleiben
-        wrapper->emu->set(OPT_DC_SPEED, util::parseNum(value));
+        wrapper->emu->set(Opt::DC_SPEED, util::parseNum(value));
       }
       else if(strcmp(option,"CPU_REVISION") == 0)
       {//TODO kann nicht so bleiben
-        wrapper->emu->set(OPT_CPU_REVISION, util::parseNum(value));
+        wrapper->emu->set(Opt::CPU_REVISION, util::parseNum(value));
       }
       else if(strcmp(option,"CPU_OVERCLOCKING") == 0)
       {//TODO kann nicht so bleiben
-        wrapper->emu->set(OPT_CPU_OVERCLOCKING, util::parseNum(value));
+        wrapper->emu->set(Opt::CPU_OVERCLOCKING, util::parseNum(value));
       }
       else
-        wrapper->emu->set(util::parseEnum <OptionEnum>(std::string(option)), util::parseNum(value));
+        wrapper->emu->set(Opt(util::parseEnum <OptEnum>(std::string(option))), util::parseNum(value));
     }
     else if ( strcmp(option,"DMA_DEBUG_CHANNEL") == 0 )
     {
 //todo
-      wrapper->emu->set(util::parseEnum <OptionEnum>(std::string(option)),  util::parseBool(value));
+      wrapper->emu->set(Opt(util::parseEnum <OptEnum>(std::string(option))),  util::parseBool(value));
     }
     else if(strcmp(option,"OPT_EMU_RUN_AHEAD") == 0)
     {
       auto frames=util::parseNum(value);
       printf("calling amiga->configure %s = %ld\n", option, frames);
-      wrapper->emu->set(OPT_AMIGA_RUN_AHEAD, frames);
+      wrapper->emu->set(Opt::AMIGA_RUN_AHEAD, frames);
     }
     else if( strcmp(option,"OPT_AMIGA_SPEED_BOOST") == 0)
     {
@@ -2197,7 +2201,7 @@ printf("wasm_configure %s = %s\n", option, _value);
       else
       {
         vsync=false;
-        wrapper->emu->set(OPT_AMIGA_SPEED_BOOST, boost_param);
+        wrapper->emu->set(Opt::AMIGA_SPEED_BOOST, boost_param);
         speed_boost= ((double) boost_param) / 100.0;
       }
       requested_targetFrameCount_reset=true; 
@@ -2205,8 +2209,7 @@ printf("wasm_configure %s = %s\n", option, _value);
 
     else
     {
-//todo
-      wrapper->emu->set(util::parseEnum <OptionEnum>(std::string(option)), util::parseBool(value)); 
+      wrapper->emu->set(Opt(util::parseEnum <OptEnum>(std::string(option))), util::parseBool(value)); 
     }
 
     if(was_powered_on && must_be_off)
@@ -2214,7 +2217,7 @@ printf("wasm_configure %s = %s\n", option, _value);
         wrapper->emu->powerOn();
     }
   }
-  catch(Error &exception) {    
+  catch(CoreError &exception) {    
 //    ErrorCode ec=exception.data;
 //    sprintf(config_result,"%s", ErrorCodeEnum::key(ec));
     printf("unknown key wasm_configure %s = %s\n", option, value.c_str());
@@ -2323,7 +2326,7 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
         addValues(Monitors.Monitor.fastRam, fastR, fastW)
         addValues(Monitors.Monitor.kickRom, kickR, kickW)*/
         auto mem = wrapper->emu->mem.getStats();
-        auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
+        auto max = float(PAL::HPOS_CNT * VPOS_CNT) / 2.0;
         value = float(
           read_or_write == 0 ? mem.chipReads.accumulated : mem.chipWrites.accumulated
           )  / max;
@@ -2331,7 +2334,7 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
     else if(id==7)
     {
         auto mem = wrapper->emu->mem.getStats();
-        auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
+        auto max = float(PAL::HPOS_CNT * VPOS_CNT) / 2.0;
         value= float(
           read_or_write == 0 ? mem.slowReads.accumulated : mem.slowWrites.accumulated
           )  / max;
@@ -2339,7 +2342,7 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
     else if(id==8)
     {
         auto mem = wrapper->emu->mem.getStats();
-        auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
+        auto max = float(PAL::HPOS_CNT * VPOS_CNT) / 2.0;
         value = float(
           read_or_write == 0 ? mem.fastReads.accumulated : mem.fastWrites.accumulated
           )  / max;
@@ -2347,7 +2350,7 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
     else if(id==9)
     {
         auto mem = wrapper->emu->mem.getStats();
-        auto max = float(HPOS_CNT_PAL * VPOS_CNT) / 2.0;
+        auto max = float(PAL::HPOS_CNT * VPOS_CNT) / 2.0;
         value = float(
           read_or_write == 0 ? mem.kickReads.accumulated : mem.kickWrites.accumulated
           )  / max;
