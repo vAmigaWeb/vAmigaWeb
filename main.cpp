@@ -2140,7 +2140,7 @@ printf("wasm_configure %s = %s\n", option, _value);
     }
     else if( strcmp(option,"WARP_MODE") == 0)
     {
-      wrapper->emu->set(Opt(util::parseEnum <OptEnum>(std::string(option))), util::parseEnum <WarpEnum>(value));
+      wrapper->emu->set(Opt::AMIGA_WARP_MODE, util::parseEnum <WarpEnum>(value));
     }
     else if( strcmp(option,"SER_DEVICE") == 0)
     {
