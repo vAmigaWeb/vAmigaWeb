@@ -1448,7 +1448,6 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
     }, filename, e.what());    
   }
 
-
   if (HDFFile::isCompatible(filename)) 
   {
     printf("is hdf\n");
@@ -1509,10 +1508,9 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
     wrapper->emu->powerOn();
     return "";
   }
-
   bool file_still_unprocessed=true;
-  if (Snapshot::isCompatible(filename) && extractSuffix(filename)!="rom")
-  {
+  if (Snapshot::isCompatible(blob,len) && extractSuffix(filename)!="rom")
+  {  
     try
     {
       if(log_on) printf("try to build Snapshot\n");

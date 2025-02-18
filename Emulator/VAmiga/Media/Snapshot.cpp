@@ -41,7 +41,7 @@ Thumbnail::take(Amiga &amiga, isize dx, isize dy)
 }
 
 bool
-Snapshot::isCompatible(const std::filesystem::path &path)
+Snapshot::isCompatible(const fs::path &path)
 {
     auto suffix = util::uppercased(path.extension().string());
     return suffix == ".VASNAP" && util::matchingFileHeader(path, "VASNAP");
@@ -177,10 +177,9 @@ Snapshot::compress(Compressor compressor)
                     
                 case Compressor::NONE:  break;
                 case Compressor::GZIP:  data.gzip(sizeof(SnapshotHeader)); break;
-                case Compressor::RLE2:  data.rle(2, sizeof(SnapshotHeader)); break;
-                case Compressor::RLE3:  data.rle(3, sizeof(SnapshotHeader)); break;
-                case Compressor::RLE4:  data.rle(4, sizeof(SnapshotHeader)); break;
-                case Compressor::LZ4:   data.lz4(sizeof(SnapshotHeader)); break;
+                case Compressor::LZ4:   data.lz4 (sizeof(SnapshotHeader)); break;
+                case Compressor::RLE2:  data.rle2(sizeof(SnapshotHeader)); break;
+                case Compressor::RLE3:  data.rle3(sizeof(SnapshotHeader)); break;
             }
             
             getHeader()->compressor = u8(compressor);
@@ -205,10 +204,9 @@ Snapshot::uncompress()
                     
                 case Compressor::NONE:  break;
                 case Compressor::GZIP:  data.gunzip(sizeof(SnapshotHeader), expectedSize); break;
-                case Compressor::RLE2:  data.unrle(2, sizeof(SnapshotHeader), expectedSize); break;
-                case Compressor::RLE3:  data.unrle(3, sizeof(SnapshotHeader), expectedSize); break;
-                case Compressor::RLE4:  data.unrle(4, sizeof(SnapshotHeader), expectedSize); break;
-                case Compressor::LZ4:   data.unlz4(sizeof(SnapshotHeader)); break;
+                case Compressor::LZ4:   data.unlz4 (sizeof(SnapshotHeader), expectedSize); break;
+                case Compressor::RLE2:  data.unrle2(sizeof(SnapshotHeader), expectedSize); break;
+                case Compressor::RLE3:  data.unrle3(sizeof(SnapshotHeader), expectedSize); break;
             }
             
             getHeader()->compressor = u8(Compressor::NONE);

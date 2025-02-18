@@ -11,10 +11,10 @@
 
 #include "BasicTypes.h"
 #include "Checksum.h"
+#include "Compression.h"
+#include <functional>
 
 namespace vamiga::util {
-
-namespace fs = ::std::filesystem;
 
 template <class T> struct Allocator {
 
@@ -67,37 +67,34 @@ template <class T> struct Allocator {
     u32 crc32() const { return ptr ? util::crc32((u8 *)ptr, bytesize()) : 0; }
 
     // Compresses or uncompresses a buffer
-    void rle(isize n = 2, isize offset = 0);
-    void unrle(isize n = 2, isize offset = 0, isize expectedSize = 0);
+    void gzip(isize offset = 0) { compress(util::gzip, offset); }
+    void gunzip(isize offset = 0, isize sizeEstimate = 0) { uncompress(util::gunzip, offset, sizeEstimate); }
 
-    void gzip(isize offset = 0);
-    void gunzip(isize offset = 0, isize sizeEstimate = 0);
+    void lz4(isize offset = 0) { compress(util::lz4, offset); }
+    void unlz4(isize offset = 0, isize sizeEstimate = 0) { uncompress(util::unlz4, offset, sizeEstimate); }
 
-    void lz4(isize offset = 0);
-    void unlz4(isize offset = 0, isize sizeEstimate = 0);
+    void rle2(isize offset = 0) { compress(util::rle2, offset); }
+    void unrle2(isize offset = 0, isize sizeEstimate = 0) { uncompress(util::unrle2, offset, sizeEstimate); }
+
+    void rle3(isize offset = 0) { compress(util::rle3, offset); }
+    void unrle3(isize offset = 0, isize sizeEstimate = 0) { uncompress(util::unrle3, offset, sizeEstimate); }
 
 private:
 
-    void gzip(u8 *uncompressed, isize len, std::vector<u8> &result);
-    void gunzip(u8 *compressed, isize len, std::vector<u8> &result);
+    void compress(std::function<void(u8 *,isize,std::vector<u8>&)> algo, isize offset = 0);
+    void uncompress(std::function<void(u8 *,isize,std::vector<u8>&, isize)> algo, isize offset = 0, isize sizeEstimate = 0);
 };
 
 template <class T> struct Buffer : public Allocator <T> {
 
     T *ptr = nullptr;
 
-    Buffer()
-    : Allocator<T>(ptr) { };
-    Buffer(isize bytes)
-    : Allocator<T>(ptr) { this->init(bytes); }
-    Buffer(isize bytes, T value)
-    : Allocator<T>(ptr) { this->init(bytes, value); }
-    Buffer(const T *buf, isize len)
-    : Allocator<T>(ptr) { this->init(buf, len); }
-    Buffer(const fs::path &path)
-    : Allocator<T>(ptr) { this->init(path); }
-    Buffer(const fs::path &path, const string &name)
-    : Allocator<T>(ptr) { this->init(path, name); }
+    Buffer() : Allocator<T>(ptr) { };
+    Buffer(isize bytes) : Allocator<T>(ptr) { this->init(bytes); }
+    Buffer(isize bytes, T value) : Allocator<T>(ptr) { this->init(bytes, value); }
+    Buffer(const T *buf, isize len) : Allocator<T>(ptr) { this->init(buf, len); }
+    Buffer(const fs::path &path) : Allocator<T>(ptr) { this->init(path); }
+    Buffer(const fs::path &path, const string &name) : Allocator<T>(ptr) { this->init(path, name); }
 
     Buffer& operator= (const Buffer& other) { Allocator<T>::operator=(other); return *this; }
 

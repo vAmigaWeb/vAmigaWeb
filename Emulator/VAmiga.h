@@ -78,7 +78,7 @@ public:
      *  @param  snapshot    Reference to a snapshot.
      */
     void loadSnapshot(const MediaFile &snapshot);
-    void loadSnapshot(const std::filesystem::path &path);
+    void loadSnapshot(const fs::path &path);
     
     /** @brief  Saves a snapshot to disk.
      *
@@ -523,9 +523,9 @@ class MemoryAPI : public API {
 
     /** @brief  Saves a Rom to disk
      */
-    void saveRom(const std::filesystem::path &path);
-    void saveWom(const std::filesystem::path &path);
-    void saveExt(const std::filesystem::path &path);
+    void saveRom(const fs::path &path);
+    void saveWom(const fs::path &path);
+    void saveExt(const fs::path &path);
 
     /** @brief  Removes a ROM
      */
@@ -781,7 +781,7 @@ public:
     /** @brief  Attaches a hard drive provided by an URL to a media file.
      *  @param  path    Path to the media file.
      */
-    void attach(const std::filesystem::path &path);
+    void attach(const fs::path &path);
 
     /** @brief  Attaches a hard drive provided by a media file.
      *  @param  file    A media file wrapper object.
@@ -800,7 +800,7 @@ public:
      */
     void format(FSVolumeType fs, const string &name);
 
-    void writeToFile(std::filesystem::path path);
+    void writeToFile(fs::path path);
 
     MediaFile *createHDF();
 };
@@ -1191,7 +1191,7 @@ class DefaultsAPI : public API {
      *  @throw  CoreError (#Fault::FILE_NOT_FOUND)
      *  @throw  CoreError (#Fault::SYNTAX)
      */
-    void load(const std::filesystem::path &path);
+    void load(const fs::path &path);
 
     /** @brief  Loads a storage file from a stream
      *  @throw  CoreError (#Fault::SYNTAX)
@@ -1206,7 +1206,7 @@ class DefaultsAPI : public API {
     /** @brief  Saves a storage file to disk
      *  @throw  CoreError (#Fault::FILE_CANT_WRITE)
      */
-    void save(const std::filesystem::path &path);
+    void save(const fs::path &path);
 
     /** @brief  Saves a storage file to stream
      */
@@ -1475,7 +1475,7 @@ public:
     // const RecorderInfo &getInfo() const;
     // const RecorderInfo &getCachedInfo() const;
 
-    const std::vector<std::filesystem::path> &paths() const;
+    const std::vector<fs::path> &paths() const;
     bool hasFFmpeg() const;
 
     /** @brief  Returns the path to the FFmpeg executable.
@@ -1484,7 +1484,7 @@ public:
 
     /** @brief  Sets the path to the FFmpeg executable.
      */
-    void setExecPath(const std::filesystem::path &path);
+    void setExecPath(const fs::path &path);
 
     // INTEGRATE INTO RecorderInfo, RecorderConfig
     double getDuration() const;
@@ -1516,7 +1516,7 @@ public:
      *  @param  path    The export destination.
      *  @return true on success.
      */
-    bool exportAs(const std::filesystem::path &path);
+    bool exportAs(const fs::path &path);
 };
 
 
@@ -1900,7 +1900,7 @@ public:
      *              This feature is useful for debugging to compare two virtual
      *              machine configurations.
      */
-    void exportConfig(const std::filesystem::path &path, bool diff = false) const;
+    void exportConfig(const fs::path &path, bool diff = false) const;
     void exportConfig(std::ostream& stream, bool diff = false) const;
     
     

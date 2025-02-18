@@ -19,7 +19,7 @@
 namespace vamiga {
 
 bool
-HDFFile::isCompatible(const std::filesystem::path &path)
+HDFFile::isCompatible(const fs::path &path)
 {
     auto suffix = util::uppercased(path.extension().string());
     return suffix == ".HDF";
@@ -56,7 +56,7 @@ HDFFile::finalizeRead()
 }
 
 void
-HDFFile::init(const std::filesystem::path &path)
+HDFFile::init(const fs::path &path)
 {
     // Check size
     if (isOversized(util::getSizeOfFile(path))) throw CoreError(Fault::HDR_TOO_LARGE);
@@ -311,6 +311,26 @@ HDFFile::hasRDB() const
     return false;
 }
 
+/*
+bool
+HDFFile::hasUserDir() const
+{
+    auto bsize = getGeometry().bsize;
+    
+    // Crawl through all blocks
+    for (isize i = 0; i < data.size; i += bsize) {
+        
+        u8 *p = data.ptr + i;
+        u32 type = R32BE(p);
+        u32 subtype = R32BE(p + bsize - 4);
+
+        if (type == 2  && subtype == 2) { return true; }
+    }
+    
+    return false;
+}
+*/
+
 isize
 HDFFile::partitionSize(isize nr) const
 {
@@ -469,7 +489,7 @@ HDFFile::dos(isize blockNr) const
 }
 
 isize
-HDFFile::writePartitionToFile(const std::filesystem::path &path, isize nr) const
+HDFFile::writePartitionToFile(const fs::path &path, isize nr) const
 {
     auto offset = partitionOffset(nr);
     auto size = partitionSize(nr);

@@ -98,7 +98,6 @@ class HardDrive final : public Drive, public Inspectable<HardDriveInfo> {
     
     // Disk state flags
     long flags = 0;
-    // optional <bool> bootable;
 
     
     //
@@ -129,7 +128,7 @@ public:
     void init(const class HDZFile &hdz) throws;
 
     // Creates a hard drive with the contents of an HDF file
-    void init(const std::filesystem::path &path) throws;
+    void init(const fs::path &path) throws;
 
     const HardDriveTraits &getTraits() const {
 
@@ -317,6 +316,9 @@ public:
     // Checks whether the drive will work with the currently installed Rom
     bool isCompatible() const;
     
+    // Checks whether the drive has a user directory block
+    bool hasUserDir() const;
+    
     
     //
     // Formatting
@@ -368,7 +370,7 @@ public:
     bool restoreDisk() throws;
 
     // Exports the disk in HDF format
-    void writeToFile(const std::filesystem::path &path) throws;
+    void writeToFile(const fs::path &path) throws;
 
     
     //
