@@ -977,7 +977,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
   {
     if(wrapper->emu->hd0.getInfo().hasDisk)
     {
-      wrapper->emu->powerOff();
+      wrapper->emu->powerOff();wrapper->emu->emu->update();
       wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {0});
       wrapper->emu->powerOn();
     }
@@ -986,7 +986,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
   {
     if(wrapper->emu->hd1.getInfo().hasDisk)
     {
-      wrapper->emu->powerOff();
+      wrapper->emu->powerOff();wrapper->emu->emu->update();
       wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {1});
       wrapper->emu->powerOn();
     }
@@ -995,7 +995,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
   {
     if(wrapper->emu->hd2.getInfo().hasDisk)
     {
-      wrapper->emu->powerOff();
+      wrapper->emu->powerOff();wrapper->emu->emu->update();
       wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {2});
       wrapper->emu->powerOn();
     }
@@ -1004,7 +1004,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
   {
     if(wrapper->emu->hd3.getInfo().hasDisk)
     {
-      wrapper->emu->powerOff();
+      wrapper->emu->powerOff();wrapper->emu->emu->update();
       wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {3});
       wrapper->emu->powerOn();
     }
@@ -1403,7 +1403,7 @@ extractSuffix(const string &s)
     return s.substr(pos, len);
 }
 
-extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_number)
+extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_number)
 {
   printf("load drive=%d, file=%s len=%ld, header bytes= %x, %x, %x\n", drive_number, name, len, blob[0],blob[1],blob[2]);
   filename=name;
@@ -1502,10 +1502,10 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
  
     delete hdf;
 
-    wrapper->emu->powerOff();
+    wrapper->emu->powerOff(); wrapper->emu->emu->update();
     wrapper->emu->set(Opt::HDC_CONNECT, true, {drive_number});
     wrapper->emu->emu->update();
-    wrapper->emu->powerOn();
+    wrapper->emu->powerOn(); wrapper->emu->emu->update();
     return "";
   }
   bool file_still_unprocessed=true;
@@ -1555,7 +1555,7 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
 
     if(wrapper->emu->isPoweredOn())
     {
-      wrapper->emu->powerOff();
+      wrapper->emu->powerOff(); wrapper->emu->emu->update();
     }
 //    wrapper->emu->suspend();
     try { 
@@ -1630,7 +1630,7 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
 
     if(wrapper->emu->isPoweredOn())
     {
-      wrapper->emu->powerOff();
+      wrapper->emu->powerOff(); wrapper->emu->emu->update();
     }
     //wrapper->emu->suspend();
     try { 
@@ -1670,6 +1670,21 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
   return "";
 }
 
+
+extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_number)
+{
+  try
+  {
+    return _wasm_loadFile(name, blob, len, drive_number);
+  }
+  catch (const CoreError& e) {
+    EM_ASM(
+    {
+      alert(`Error loading ${UTF8ToString($0)} - ${UTF8ToString($1)}`);
+    }, name, e.what());    
+  }
+  return "";
+}
 
 extern "C" void wasm_reset()
 {
@@ -1971,7 +1986,7 @@ extern "C" const char* wasm_power_on(unsigned power_on)
     }
     else if(power_on == 0 && was_powered_on)
     {
-        wrapper->emu->powerOff();
+        wrapper->emu->powerOff();wrapper->emu->emu->update();
     }
   }  
   catch(CoreError &exception) {   
@@ -2126,7 +2141,7 @@ printf("wasm_configure %s = %s\n", option, _value);
  
   if(was_powered_on && must_be_off)
   {
-      wrapper->emu->powerOff();
+      wrapper->emu->powerOff();wrapper->emu->emu->update();
   }
 
   try{

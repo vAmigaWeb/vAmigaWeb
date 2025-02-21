@@ -217,10 +217,11 @@ Amiga::checkOption(Opt opt, i64 value)
             return;
             
         case Opt::AMIGA_SPEED_BOOST:
-            
+/*vAmigaWeb            
             if (value < 50 || value > 200) {
                 throw CoreError(Fault::OPT_INV_ARG, "50...200");
             }
+*/
             return;
             
         case Opt::AMIGA_RUN_AHEAD:
