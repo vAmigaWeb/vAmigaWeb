@@ -22,13 +22,15 @@ enum class CPURev : long
 {
     CPU_68000,
     CPU_68010,
-    CPU_68EC020
+    CPU_68EC020,
+    CPU_68020,
+    CPU_68EC030
 };
 
 struct CPURevEnum : Reflection<CPURevEnum, CPURev>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = long(CPURev::CPU_68EC020);
+    static constexpr long maxVal = long(CPURev::CPU_68EC030);
     
     static const char *_key(CPURev value)
     {
@@ -37,6 +39,9 @@ struct CPURevEnum : Reflection<CPURevEnum, CPURev>
             case CPURev::CPU_68000:     return "68000";
             case CPURev::CPU_68010:     return "68010";
             case CPURev::CPU_68EC020:   return "68EC020";
+            case CPURev::CPU_68020:   return "68020";
+            case CPURev::CPU_68EC030:   return "68EC030";
+            
         }
         return "???";
     }
@@ -47,6 +52,8 @@ struct CPURevEnum : Reflection<CPURevEnum, CPURev>
             case CPURev::CPU_68000:     return "Motorola 68000 CPU";
             case CPURev::CPU_68010:     return "Motorola 68010 CPU";
             case CPURev::CPU_68EC020:   return "Motorola 68EC020 CPU";
+            case CPURev::CPU_68020:   return "Motorola 68020 CPU";
+            case CPURev::CPU_68EC030:   return "Motorola 68EC030 CPU";
         }
         return "???";
     }
