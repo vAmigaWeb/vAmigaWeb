@@ -4450,12 +4450,7 @@ Moira::execDivlMoira(u16 opcode, bool *divByZero)
     int dh  = _____________xxx(ext);
     int dl  = _xxx____________(ext);
 
-    try {
-        readOp<C, M, S>(src, &ea, &divisor);
-    } catch(...) {
-        // TODO: Change return type from bool to void
-        return false;
-    }
+    try { readOp<C, M, S>(src, &ea, &divisor); } catch(...) { return false; }
 
     if (ext & 0x400) {
         dividend = (u64)readD(dh) << 32 | readD(dl);
@@ -4511,7 +4506,6 @@ Moira::execDivlMoira(u16 opcode, bool *divByZero)
         }
         case 0b10:
         {
-            // auto result = divlsMusashi<Word>(dividend, divisor);
             auto result = divlsMoira<Word>(dividend, divisor);
 
             writeD(dh, result.second);
@@ -4951,17 +4945,15 @@ Moira::execRte(u16 opcode)
 
         case C68000:
         {
-            // TODO: Use pop instead of read (?)
-            newsr = (u16)read<C, MEM_DATA, Word>(reg.sp);
-            reg.sp += 2;
+            // Status register
+            newsr = (u16)pop<C, Word>();
 
-            newpc = read<C, MEM_DATA, Long>(reg.sp);
-            reg.sp += 4;
+            // Program counter
+            newpc = pop<C, Long>();
             break;
         }
         case C68010:
         {
-            // TODO: Use pop instead of read (?)
             u16 format = (u16)read<C, MEM_DATA, Word>(reg.sp + 6);
 
             // Check the frame format
@@ -5045,49 +5037,43 @@ Moira::execRte(u16 opcode)
 
                 if (format == 0b000) {  // Standard frame
 
-                    // TODO: Use pop instead of read
-
-                    newsr = (u16)read<C, MEM_DATA, Word>(reg.sp);
-                    reg.sp += 2;
-
-                    newpc = read<C, MEM_DATA, Long>(reg.sp);
-                    reg.sp += 4;
-
-                    (void)read<C, MEM_DATA, Word>(reg.sp);
-                    reg.sp += 2;
+                    // Status register
+                    newsr = (u16)pop<C, Word>();
+                    
+                    // Program counter
+                    newpc = pop<C, Long>();
+                    
+                    //
+                    (void)pop<C, Word>();
                     break;
 
                 } else if (format == 0b001) {  // Throwaway frame
 
-                    // TODO: Use pop instead of read
-
-                    newsr = (u16)read<C, MEM_DATA, Word>(reg.sp);
-                    reg.sp += 2;
-
-                    (void)read<C, MEM_DATA, Long>(reg.sp);
-                    reg.sp += 4;
-
-                    (void)read<C, MEM_DATA, Word>(reg.sp);
-                    reg.sp += 2;
-
+                    // Status register
+                    newsr = (u16)pop<C, Word>();
+                    
+                    //
+                    (void)pop<C, Long>();
+                    
+                    //
+                    (void)pop<C, Word>();
+                    
                     setSR(newsr);
                     continue;
 
                 } else if (format == 0b010) {  // Trap
 
-                    // TODO: Use pop instead of read
-
-                    newsr = (u16)read<C, MEM_DATA, Word>(reg.sp);
-                    reg.sp += 2;
-
-                    newpc = read<C, MEM_DATA, Long>(reg.sp);
-                    reg.sp += 4;
-
-                    (void)read<C, MEM_DATA, Word>(reg.sp);
-                    reg.sp += 2;
-
-                    (void)read<C, MEM_DATA, Long>(reg.sp);
-                    reg.sp += 4;
+                    // Status register
+                    newsr = (u16)pop<C, Word>();
+                    
+                    // Program counter
+                    newpc = pop<C, Long>();
+                    
+                    //
+                    (void)pop<C, Word>();
+                    
+                    //
+                    (void)pop<C, Long>();
                     break;
 
                 } else if (format == 0b1011) {

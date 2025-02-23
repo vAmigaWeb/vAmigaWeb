@@ -92,7 +92,7 @@ HdController::getOption(Opt option) const
 {
     switch (option) {
             
-        case Opt::HDC_CONNECT:       return (long)config.connected;
+        case Opt::HDC_CONNECT:       return (i64)config.connected;
 
         default:
             fatalError;
@@ -105,10 +105,6 @@ HdController::checkOption(Opt opt, i64 value)
     switch (opt) {
 
         case Opt::HDC_CONNECT:
-
-            if (!isPoweredOff()) {
-                throw CoreError(Fault::OPT_LOCKED);
-            }
             return;
 
         default:
@@ -263,7 +259,7 @@ HdController::spypeek16(u32 addr) const
         case EXPROM_SIZE + 4:
             
             // Should auto boot be disabled?
-            if (df0.hasDisk()) {
+            if (df0.hasDisk() || !drive.isBootable()) {
 
                 debug(HDR_DEBUG, "Disabling auto boot\n");
                 return u16(true);
@@ -482,9 +478,9 @@ HdController::processInit(u32 ptr)
         // Experimental (don't boot from empty drives such as the default drive)
         auto bootFlag = part.flags & 1;
         
-        if (!drive.hasUserDir()) {
-
-            warn("Removing boot flag because the disk is empty\n");
+        if (!drive.isBootable()) {
+            
+            debug(HDR_DEBUG, "Removing boot flag\n");
             bootFlag = 0;
         }
         

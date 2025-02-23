@@ -27,7 +27,7 @@ struct TooManyArgumentsError : public util::ParseError {
     using ParseError::ParseError;
 };
 
-struct ScriptInterruption: util::CoreException {
+struct ScriptInterruption: CoreException {
     using CoreException::CoreException;
 };
 
@@ -61,6 +61,8 @@ protected:
     // Root node of the command tree
     RetroShellCmd root;
 
+    // Memory pointer for commands accpeting default addresses
+    u32 current = 0;
 
     //
     // Text storage

@@ -235,8 +235,7 @@ ADFFile::getFileSystemDescriptor() const
     if (bitmap == 0 || bitmap >= (Block)numBlocks()) bitmap = root + 1;
 
     // Setup the descriptor
-    result.numBlocks = numCyls() * numHeads() * numSectors(); // TODO: REPLACE BY numBlocks()
-    assert(result.numBlocks == numBlocks());
+    result.numBlocks = numBlocks();
     result.bsize = 512;
     result.numReserved = 2;
     result.dos = getDos();
@@ -350,18 +349,10 @@ ADFFile::encodeTrack(FloppyDisk &disk, Track t) const
     // Encode all sectors
     for (Sector s = 0; s < sectors; s++) encodeSector(disk, t, s);
     
-    // TODO: Remove after while
-    assert((disk.data.track[t][disk.length.track[t] - 1] & 1) == disk.readBit(t, disk.length.track[t] * 8 - 1));
-
     // Rectify the first clock bit (where the buffer wraps over)
     if (disk.readBit(t, disk.length.track[t] * 8 - 1)) {
         disk.writeBit(t, 0, 0);
     }
-    /*
-    if (disk.data.track[t][disk.length.track[t] - 1] & 1) {
-        disk.data.track[t][0] &= 0x7F;
-    }
-    */
 
     // Compute a debug checksum
     debug(ADF_DEBUG, "Track %ld checksum = %x\n",

@@ -10,7 +10,7 @@
 #include "VAmigaConfig.h"
 #include "HardDrive.h"
 #include "Emulator.h"
-#include "HdControllerTypes.h"
+#include "FileSystem.h"
 #include "HDFFile.h"
 #include "HDZFile.h"
 #include "IOUtils.h"
@@ -347,20 +347,22 @@ HardDrive::isCompatible() const
 }
 
 bool
-HardDrive::hasUserDir() const
+HardDrive::isBootable()
 {
-    auto bsize = getGeometry().bsize;
-    
-    // Search for a user directory block
-    for (isize i = 0; i < data.size; i += bsize) {
+    try {
         
-        u8 *p = data.ptr + i;
-        u32 type = R32BE(p);
-        u32 subtype = R32BE(p + bsize - 4);
+        if (FileSystem(*this).seekPath("s/startup-sequence")) {
 
-        if (type == 2 && subtype == 2) { return true; }
+            debug(HDR_DEBUG, "Bootable drive\n");
+            return true;
+        }
+        
+    } catch (...) {
+        
+        debug(HDR_DEBUG, "No file system found\n");
     }
     
+    debug(HDR_DEBUG, "Unbootable drive\n");
     return false;
 }
 

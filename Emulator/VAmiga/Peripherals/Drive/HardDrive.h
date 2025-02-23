@@ -10,9 +10,9 @@
 #pragma once
 
 #include "HardDriveTypes.h"
-#include "Drive.h"
-#include "AgnusTypes.h"
 #include "HdControllerTypes.h"
+#include "AgnusTypes.h"
+#include "Drive.h"
 #include "Buffer.h"
 #include "MemUtils.h"
 
@@ -315,10 +315,9 @@ public:
 
     // Checks whether the drive will work with the currently installed Rom
     bool isCompatible() const;
-    
-    // Checks whether the drive has a user directory block
-    bool hasUserDir() const;
-    
+       
+    // Checks whether the drive is bootable
+    bool isBootable();
     
     //
     // Formatting
