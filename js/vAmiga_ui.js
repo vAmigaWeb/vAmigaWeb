@@ -1799,7 +1799,8 @@ function InitWrappers() {
     wasm_get_renderer = Module.cwrap('wasm_get_renderer', 'number');
     wasm_get_config_item = Module.cwrap('wasm_get_config_item', 'number', ['string']);
     wasm_get_core_version = Module.cwrap('wasm_get_core_version', 'string');
-
+    wasm_save_workspace = Module.cwrap('wasm_save_workspace', 'undefined', ['string']);
+    wasm_load_workspace = Module.cwrap('wasm_load_workspace', 'undefined', ['string']);
 
 
     const volumeSlider = document.getElementById('volume-slider');
@@ -3475,6 +3476,35 @@ $('.layer').change( function(event) {
             window.URL.revokeObjectURL(url);
         });
     }
+
+
+
+
+    $('#button_save_workspace').click(async function() 
+    {       
+        let app_name = $("#input_app_title").val();
+        
+        try{
+            FS.mkdir(workspace_path) 
+        } catch(e) {console.log(e)}
+        try{
+        FS.mount(IDBFS, {}, workspace_path);
+        } catch(e) {console.log(e)}
+
+        FS.syncfs(true,(error)=>{
+            FS.mkdir(workspace_path+"/"+app_name); 
+        
+            wasm_save_workspace(workspace_path+"/"+app_name);
+            FS.syncfs(false,(error)=>
+                {
+                    $("#modal_take_snapshot").modal('hide');
+                }
+            )
+        })
+        
+        //document.getElementById('canvas').focus();
+    });
+
     $('#button_save_snapshot').click(async function() 
     {       
         let app_name = $("#input_app_title").val();

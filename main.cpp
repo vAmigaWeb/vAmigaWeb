@@ -2373,3 +2373,38 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
 
     return value;
 }
+
+
+
+extern "C" void wasm_save_workspace(char* path)
+{
+  printf("----------------------- save workspace %s\n",path);
+  try{
+    wrapper->emu->amiga.saveWorkspace(path);
+    printf("----------------------- saved\n");
+  }
+  catch (const CoreError& e) {
+    printf("Error %s\n", e.what());
+    EM_ASM(
+    {
+      alert(`Error - ${UTF8ToString($0)}`);
+    }, e.what());    
+  }
+}
+
+extern "C" void wasm_load_workspace(char* path)
+{
+  printf("----------------------- load workspace\n");
+  try{
+    wrapper->emu->amiga.loadWorkspace(path);
+    printf("----------------------- loaded\n");
+  }
+  catch (const CoreError& e) {
+    printf("Error %s\n", e.what());
+    EM_ASM(
+    {
+      alert(`Error - ${UTF8ToString($0)}`);
+    }, e.what());    
+  }
+}
+

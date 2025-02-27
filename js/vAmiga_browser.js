@@ -8,6 +8,8 @@ var snapshot_browser_first_click=true;
 var search_term='';
 var latest_load_query_context=0;
 
+workspace_path="/vamiga_workspaces"
+
 function setup_browser_interface()
 {
     var search_func= async function(){
@@ -760,7 +762,7 @@ var collectors = {
             last_load_was_a_search=false;
             try
             {
-                //this.loaded_feeds = null; //force reload
+                this.loaded_feeds = null; //force reload
                 if(this.loaded_feeds!=null)
                 {
                     this.all_items=[];
@@ -813,32 +815,59 @@ var collectors = {
                     catch {}
                 }
 
+                try
+                {
+                    console.log("***mkdir vamiga workspaces");
+                    FS.mkdir(workspace_path);
+                } catch(e) { console.log("kann keine dir machen")}
+              
+                try
+                {
+                    console.log("***mount IDBFS");
+                    FS.mount(IDBFS, {}, workspace_path);
+                } catch(e) { console.log("kann nicht mounten")}
+                
+                console.log("***syncfs");
+                FS.syncfs(true,(e)=>
+                {
+                    console.log(e)
+                    let dirs = FS.readdir(workspace_path);
+                    console.log(dirs)
+              
+//                    console.log("***wasm_load_workspaces");
+//                    wasm_load_workspace(workspace_path+"/"+global_apptitle)      
+                    let id_counter=0;
+                    for(ws_item of dirs)
+                    {
+                        items = []
+                        if(!ws_item.startsWith("."))
+                        {
+                            this.row_name = ws_item;
+                            let files = FS.readdir(workspace_path+"/"+ws_item);
+                            for(let file of files.filter(f=>!f.startsWith(".")))
+                            {
+
+                                let new_item = { 
+                                    id:id_counter++,
+                                    workspace_name: ws_item, 
+                                    name: file,
+                                    links: files.filter(f=>!f.startsWith("."))
+                                }
+                                this.all_items[new_item.id] = new_item;
+                                items.push(new_item)
+                            }
+                            row_renderer(latest_load_query_context, this.row_name,items);
+                        }                     
+                    }
+                })
+                              
+/*
                 this.row_name='top one file demos';
                 await fetch('https://csdb.dk/webservice/?type=chart&ctype=release&subtype=2&depth=1.5').then( webservice_loader );
             
                 this.row_name='top demos';
                 await fetch('https://csdb.dk/webservice/?type=chart&ctype=release&subtype=1&depth=1.5').then( webservice_loader );
-                
-                this.row_name='latest releases';
-                await fetch('https://csdb.dk/webservice/?type=latestrel&depth=1.5').then( webservice_loader );        
-
-                this.row_name='latest additions';
-                await fetch("https://csdb.dk/webservice/?type=latestadd&addtype=release&depth=1.5").then( webservice_loader );
-                
-                this.row_name='top music';
-                await fetch("https://csdb.dk/webservice/?type=chart&ctype=release&subtype=7&depth=1.5").then( webservice_loader );
-                
-                this.row_name='top music - part2';
-                await fetch("https://csdb.dk/webservice/?type=chart&ctype=release&subtype=8&depth=1.5").then( webservice_loader );
-
-                this.row_name='top graphics';
-                await fetch("https://csdb.dk/webservice/?type=chart&ctype=release&subtype=9&depth=1.5").then( webservice_loader );
-
-                this.row_name='top graphics - part2';
-                await fetch("https://csdb.dk/webservice/?type=chart&ctype=release&subtype=10&depth=1.5").then( webservice_loader );
-
-                this.row_name='top games';
-                await fetch("https://csdb.dk/webservice/?type=chart&ctype=release&subtype=11&depth=1.5").then( webservice_loader );
+*/                
             }
             finally
             {
@@ -876,6 +905,7 @@ var collectors = {
                 this.render_detail(app_title, id);
 
                 //fetch more details about the entry
+                if("nodontdo"=="yes")
                 fetch(csdb_detail_url).then( async response => {
                     var text = await response.text();
                     //alert(text);
@@ -883,17 +913,7 @@ var collectors = {
                     var xmlDoc = parser.parseFromString(text,"text/xml");
 
                     //already loaded with depth=1.5
-/*                  
-                    //getting links <Release><DownloadLinks><DownloadLink><Link>
-                    var dl_links = property_path(xmlDoc, "Release/DownloadLinks");
-                    item.links = [];
-                    for(var dl_link of dl_links)
-                    {
-                        item.links.push.apply(item.links, 
-                            property_list(dl_link,"Link", matches=/http.*?[.](zip|prg|t64|d64|g64|tap|crt)$/i)
-                            );
-                    }
-*/
+
                     //getting user comments
                     item.comments = [];
                     var user_comments= property_path(xmlDoc,"Release/Comments/UserComment");
@@ -977,36 +997,19 @@ var collectors = {
             var vc64web_URL='https://vc64web.github.io/';
             var link_id=0;
             for(var link of item.links)
-            {
-                if(link.match(/https?:\/\/csdb.dk/i))
-                {
-                    var link_path = link.split('/');
-                    var link_name = decodeURIComponent(link_path[link_path.length-1]);
-                    var encoded_link = '';
-                    for(var i=0; i<link_path.length-1;i++)
-                    {
-                        encoded_link += link_path[i] + '/'; 
-                    }
-                    encoded_link += encodeURIComponent(link_name);
-                    
-                    content += `<button type="button" id="detail_run${link_id}" class="btn btn-primary my-2">
-                    ${link_name}
-                    <svg width="1.8em" height="1.8em" viewBox="0 0 16 16" class="bi bi-play-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
-                    </button>`;
+            {                
+                content += `<button type="button" id="detail_run${link_id}" class="btn btn-primary my-2">
+                ${link}
+                <svg width="1.8em" height="1.8em" viewBox="0 0 16 16" class="bi bi-play-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
+                </button>`;
 
-                    content += `
-                    <div class="row">
-                    <div class="col-12">
-                    <button type="button" data-toggle="tooltip" data-placement="bottom" title="copy to clipboard for sharing"
-                    onclick="var copyText = document.getElementById('detail_link${link_id}');copyText.select();copyText.setSelectionRange(0, 99999);document.execCommand('copy');"
-                    class="btn btn-secondary btn-sm copy-btn" id="copy_${link_id}"><svg width="1.8em" height="1.8em" viewBox="0 0 16 16" class="bi bi-clipboard-plus" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                    <path fill-rule="evenodd" d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
-                    <path fill-rule="evenodd" d="M9.5 1h-3a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3zM8 7a.5.5 0 0 1 .5.5V9H10a.5.5 0 0 1 0 1H8.5v1.5a.5.5 0 0 1-1 0V10H6a.5.5 0 0 1 0-1h1.5V7.5A.5.5 0 0 1 8 7z"/>
-                </svg></button>
-                    <input class="copy_run_link" type="text" value="${vc64web_URL}#${encoded_link}" id="detail_link${link_id}"></input>
-                    </div>
-                    </div>`;
-                }
+                content += `
+                <div class="row">
+                <div class="col-12">
+                <input class="copy_run_link" type="text" value="#" id="detail_link${link_id}"></input>
+                </div>
+                </div>`;
+
                 link_id++;
             }
             content += '</div>'; //col
@@ -1027,11 +1030,15 @@ var collectors = {
             for(var link of item.links)
             {
                 $(`#detail_run${link_id}`).click(function (){
-                    if(already_loaded_collector != get_data_collector("csdb"))
-                        return;
+             
+                   // if(already_loaded_collector != get_data_collector("csdb"))
+                   //     return;
                     //only run when collector is fully loaded
                     var clicked_link_id=this.id.match("detail_run(.*)")[1];
-                    already_loaded_collector.run_link(app_title, id, item.links[clicked_link_id]);
+                    //already_loaded_collector.run_link(app_title, id, item.links[clicked_link_id]);
+                    //alert(`run ${item.workspace_name} ${item.name}`)
+                    wasm_load_workspace(workspace_path+"/"+item.workspace_name)
+                    $('#snapshotModal').modal('hide');
                 });
                 link_id++;
             }
