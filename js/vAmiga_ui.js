@@ -3492,7 +3492,27 @@ $('.layer').change( function(event) {
         } catch(e) {console.log(e)}
 
         FS.syncfs(true,(error)=>{
-            FS.mkdir(workspace_path+"/"+app_name); 
+            try
+            {
+                let deleteAllFiles = function(path) {
+                    let files = FS.readdir(path);
+                    for (let file of files) {
+                        if (file === '.' || file === '..') continue;
+                        let fullPath = path + '/' + file;
+                        let stats = FS.stat(fullPath);
+                        if (!stats.isDir) {
+                            FS.unlink(fullPath);
+                        }
+                    }
+                }
+                deleteAllFiles(workspace_path+"/"+app_name);
+                FS.rmdir(workspace_path+"/"+app_name)
+            } catch(e) {console.log(e)}
+
+            try
+            {
+                FS.mkdir(workspace_path+"/"+app_name); 
+            } catch(e) {console.log(e)}
         
             wasm_save_workspace(workspace_path+"/"+app_name);
             FS.syncfs(false,(error)=>

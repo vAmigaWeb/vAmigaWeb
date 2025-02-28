@@ -1038,6 +1038,7 @@ var collectors = {
                     //already_loaded_collector.run_link(app_title, id, item.links[clicked_link_id]);
                     //alert(`run ${item.workspace_name} ${item.name}`)
                     wasm_load_workspace(workspace_path+"/"+item.workspace_name)
+                    global_apptitle=item.workspace_name;
                     $('#snapshotModal').modal('hide');
                 });
                 link_id++;
