@@ -2375,13 +2375,11 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
 }
 
 
-
-extern "C" void wasm_save_workspace(char* path)
+Thumbnail preview;
+extern "C" char* wasm_save_workspace(char* path)
 {
-  printf("----------------------- save workspace %s\n",path);
   try{
     wrapper->emu->amiga.saveWorkspace(path);
-    printf("----------------------- saved\n");
   }
   catch (const CoreError& e) {
     printf("Error %s\n", e.what());
@@ -2390,14 +2388,22 @@ extern "C" void wasm_save_workspace(char* path)
       alert(`Error - ${UTF8ToString($0)}`);
     }, e.what());    
   }
+
+  preview.take(*(wrapper->emu->amiga.amiga));
+
+  sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %u, \"width\": %d, \"height\":%d }",
+    (unsigned long)preview.screen, 
+    preview.width*preview.height*4,
+    preview.width,
+    preview.height
+    );
+  return wasm_pull_user_snapshot_file_json_result;
 }
 
 extern "C" void wasm_load_workspace(char* path)
 {
-  printf("----------------------- load workspace\n");
   try{
     wrapper->emu->amiga.loadWorkspace(path);
-    printf("----------------------- loaded\n");
   }
   catch (const CoreError& e) {
     printf("Error %s\n", e.what());

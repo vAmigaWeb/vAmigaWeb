@@ -37,9 +37,9 @@ public:
 class AmigaAPI : public API {
 
     friend class VAmiga;
-    class Amiga *amiga = nullptr;
     
 public:
+class Amiga *amiga = nullptr;
     
     /// @name Analyzing the emulator
     /// @{

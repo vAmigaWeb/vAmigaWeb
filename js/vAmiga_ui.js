@@ -1799,7 +1799,7 @@ function InitWrappers() {
     wasm_get_renderer = Module.cwrap('wasm_get_renderer', 'number');
     wasm_get_config_item = Module.cwrap('wasm_get_config_item', 'number', ['string']);
     wasm_get_core_version = Module.cwrap('wasm_get_core_version', 'string');
-    wasm_save_workspace = Module.cwrap('wasm_save_workspace', 'undefined', ['string']);
+    wasm_save_workspace = Module.cwrap('wasm_save_workspace', 'string', ['string']);
     wasm_load_workspace = Module.cwrap('wasm_load_workspace', 'undefined', ['string']);
 
 
@@ -3514,9 +3514,35 @@ $('.layer').change( function(event) {
                 FS.mkdir(workspace_path+"/"+app_name); 
             } catch(e) {console.log(e)}
         
-            wasm_save_workspace(workspace_path+"/"+app_name);
+            let thumbnail_json = wasm_save_workspace(workspace_path+"/"+app_name);
+            var thumbnail = JSON.parse(thumbnail_json);
+            var heap_buffer = new Uint8Array(Module.HEAPU8.buffer, thumbnail.address, thumbnail.size);
+               
+            //thumbnail_buffer is only a typed array view therefore slice, which creates a new array with byteposition 0 ...
+            let thumbnail_buffer = heap_buffer.slice(0,thumbnail.size);
+
+            let preview_canvas = document.createElement('canvas');
+            preview_canvas.width = thumbnail.width;  
+            preview_canvas.height = thumbnail.height;
+
+            var preview_ctx = preview_canvas.getContext('2d');  
+
+            image_data=preview_ctx.createImageData(thumbnail.width,thumbnail.height);
+            image_data.data.set(thumbnail_buffer);
+        
+            preview_ctx.putImageData(image_data,
+                0/*TPP*/,/*-yOff*/0, 
+                /*x,y*/ 
+                0/*TPP*/,/*yOff*/0 
+                /* width, height */, 
+                thumbnail.width, thumbnail.height);
+        
+            var dataURL = preview_canvas.toDataURL('image/png');
+            var uint8Array = FromBase64(dataURL.split(',')[1]);
+            FS.createDataFile(workspace_path+"/"+app_name+"/", 'preview.png', uint8Array, true, true);
+
             FS.syncfs(false,(error)=>
-                {
+                {  
                     $("#modal_take_snapshot").modal('hide');
                 }
             )

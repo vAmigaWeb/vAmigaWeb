@@ -833,41 +833,59 @@ var collectors = {
                     console.log(e)
                     let dirs = FS.readdir(workspace_path);
                     console.log(dirs)
-              
-//                    console.log("***wasm_load_workspaces");
-//                    wasm_load_workspace(workspace_path+"/"+global_apptitle)      
+                    dirs.sort((a,b)=>a.localeCompare(b));
+                    
+                    function loadImageFromFS(path) {
+                        try
+                        {
+                            let data = FS.readFile(path, { encoding: 'binary' });
+
+                            let blob = new Blob([data], { type: 'image/png' });
+                            let url = URL.createObjectURL(blob);
+                            return url;    
+                        }
+                        catch(e) {
+                            return null;
+                        }
+                    }
+
+
                     let id_counter=0;
+                    let last_ws_item=null;
+                    items= []
                     for(ws_item of dirs)
                     {
-                        items = []
                         if(!ws_item.startsWith("."))
                         {
-                            this.row_name = ws_item;
-                            let files = FS.readdir(workspace_path+"/"+ws_item);
-                            for(let file of files.filter(f=>!f.startsWith(".")))
+                            if(items.length>0 && last_ws_item[0] != ws_item[0])
                             {
-
-                                let new_item = { 
-                                    id:id_counter++,
-                                    workspace_name: ws_item, 
-                                    name: file,
-                                    links: files.filter(f=>!f.startsWith("."))
-                                }
-                                this.all_items[new_item.id] = new_item;
-                                items.push(new_item)
+                                this.row_name = last_ws_item[0].toUpperCase();
+                                row_renderer(latest_load_query_context, this.row_name,items);
+                                items = []
                             }
-                            row_renderer(latest_load_query_context, this.row_name,items);
+    
+                            let urlPreview= loadImageFromFS(workspace_path+"/"+ws_item+"/preview.png")
+
+                            let files = FS.readdir(workspace_path+"/"+ws_item);
+                            
+                            let new_item = { 
+                                id:id_counter++,
+                                workspace_name: ws_item, 
+                                name: ws_item,
+                                links: files.filter(f=>!f.startsWith(".")),
+                                screen_shot: urlPreview
+                            }
+                            this.all_items[new_item.id] = new_item;
+                            items.push(new_item)
+
+                            
+                            last_ws_item = ws_item;
+                            
                         }                     
                     }
                 })
                               
-/*
-                this.row_name='top one file demos';
-                await fetch('https://csdb.dk/webservice/?type=chart&ctype=release&subtype=2&depth=1.5').then( webservice_loader );
-            
-                this.row_name='top demos';
-                await fetch('https://csdb.dk/webservice/?type=chart&ctype=release&subtype=1&depth=1.5').then( webservice_loader );
-*/                
+              
             }
             finally
             {
