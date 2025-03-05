@@ -44,7 +44,7 @@ function setup_browser_interface()
             $('#sel_browser_snapshots').parent().removeClass('btn-secondary').removeClass('btn-primary')
             .addClass('btn-secondary');
 
-            search_term=''; $('#search').val('').attr("placeholder", "search inside csdb.dk");
+            search_term=''; $('#search').val('').attr("placeholder", "search for workspace");
         }
         browser_datasource=collector_name;
 
@@ -870,11 +870,18 @@ var collectors = {
                             let urlPreview= loadImageFromFS(workspace_path+"/"+ws_item+"/preview.png")
 
                             let files = FS.readdir(workspace_path+"/"+ws_item);
+                            let time_stamp="";
+                            try{
+                                let stat=FS.stat(workspace_path+"/"+ws_item+"/config.retrosh");
+                                time_stamp = stat.mtime.toLocaleString();
+                            }
+                            catch {}
                             
                             let new_item = { 
                                 id:id_counter++,
                                 workspace_name: ws_item, 
                                 name: ws_item,
+                                date: time_stamp,
                                 links: files.filter(f=>!f.startsWith(".")),
                                 screen_shot: urlPreview
                             }
@@ -980,42 +987,32 @@ var collectors = {
             var item = this.all_items[id];
 
 
-            
-            var content = '<div class="container-xl">';
-
             var like_icon = this.is_like(app_title, item) ? like_icon_filled : like_icon_empty;
-            content += `<button id="like_detail_${item.id}" type="button" style="position:absolute;top:10%;right:10%;padding:0;z-index:3000" class="btn btn-sm icon">${like_icon}</button>`;
             
-            content += '<div class="row justify-content-md-center">';
-            content += '<div class="col col-md-12">';
-                content += `<image src="${item.screen_shot}" class="detail_screenshot"/>`;
-            content += '</div>';
-            content += '</div>'; //row
-            
-            content += '<div class="row justify-content-md-center mt-4">';
-            content += '<div class="col col-xs-auto">';
+var content = `
+<div class="container-xl">
+    <button id="like_detail_${item.id}" type="button" style="position:absolute;top:10%;right:10%;padding:0;z-index:3000" class="btn btn-sm icon">${like_icon}</button>
+ 
     
-                content += `<h2>${item.name}</h2>`;
-                content += `<h4>${item.type} | ${item.date}</h4>`;
-        
-            content += '</div>'; //col
+    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px">
+        <div class="row justify-content-md-center">
+            <div class="col col-md-12">
+                <image src="${item.screen_shot}" class="detail_screenshot"/>
+            </div>
+        </div>     
 
+        <div class="row justify-content-md-center mt-4">
+            <div class="col col-xs-auto">
+            
+            <h2>${item.name}</h2>
+            <h4>${item.date}</h4>
+        </div>
+    </div>
+</div>
 
-            content += '<div class="col-xs text-right px-0 mr-3">';
-                content += `<a style="color: var(--secondary);font-size: large;" href="https://csdb.dk/release/?id=${id}" target="_blank"><svg class="mr-3" width="1.8em" height="1.8em" viewBox="0 0 16 16" class="bi bi-box-arrow-up" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-  <path fill-rule="evenodd" d="M3.5 6a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5v-8a.5.5 0 0 0-.5-.5h-2a.5.5 0 0 1 0-1h2A1.5 1.5 0 0 1 14 6.5v8a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 14.5v-8A1.5 1.5 0 0 1 3.5 5h2a.5.5 0 0 1 0 1h-2z"/>
-  <path fill-rule="evenodd" d="M7.646.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 1.707V10.5a.5.5 0 0 1-1 0V1.707L5.354 3.854a.5.5 0 1 1-.708-.708l3-3z"/>
-</svg><br><span class="mr-1">open in</span><br><span class="mr-0">csdb.dk</span></a>`;
-            content += '</div>'; //col
+<div class="row justify-content-md-center mt-4 pb-4">
+<div class="col col-md-12">`;
 
-
-            content += '</div>'; //row
-
-
-
-            content += '<div class="row justify-content-md-center mt-4 pb-4">';
-            content += '<div class="col col-md-12">';
-            var vc64web_URL='https://vc64web.github.io/';
             var link_id=0;
             for(var link of item.links)
             {                

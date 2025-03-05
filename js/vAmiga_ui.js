@@ -3500,7 +3500,7 @@ $('.layer').change( function(event) {
 
             try
             {
-                FS.mkdir(workspace_path+"/"+app_name); 
+                FS.mkdir(workspace_path+"/"+app_name);
             } catch(e) {console.log(e)}
         
             let thumbnail_json = wasm_save_workspace(workspace_path+"/"+app_name);
