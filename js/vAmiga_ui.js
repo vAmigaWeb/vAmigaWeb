@@ -3494,17 +3494,6 @@ $('.layer').change( function(event) {
         FS.syncfs(true,(error)=>{
             try
             {
-                let deleteAllFiles = function(path) {
-                    let files = FS.readdir(path);
-                    for (let file of files) {
-                        if (file === '.' || file === '..') continue;
-                        let fullPath = path + '/' + file;
-                        let stats = FS.stat(fullPath);
-                        if (!stats.isDir) {
-                            FS.unlink(fullPath);
-                        }
-                    }
-                }
                 deleteAllFiles(workspace_path+"/"+app_name);
                 FS.rmdir(workspace_path+"/"+app_name)
             } catch(e) {console.log(e)}

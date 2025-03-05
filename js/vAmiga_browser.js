@@ -186,7 +186,7 @@ async function load_browser(datasource_name, command="feeds")
         if(collector.can_like(app_title, item))
         {
             var like_icon = collector.is_like(app_title, item) ? like_icon_filled : like_icon_empty;
-            the_html += '<button id="like_snap_'+item.id+'" type="button" style="position:absolute;top:3px;right:3px;padding:0;" class="btn btn-sm icon">'+like_icon+'</button>';
+            the_html += '<button id="like_snap_'+item.id+'" type="button" style="position:absolute;top:3px;left:3px;padding:0;" class="btn btn-sm icon">'+like_icon+'</button>';
         }
 
         var label = item.name;
@@ -242,8 +242,7 @@ async function load_browser(datasource_name, command="feeds")
             {
                 delete_btn.onclick = function() {
                     let id = this.id.match(/delete_snap_(.*)/)[1];
-                    //alert('delete id='+id);
-                    delete_snapshot_per_id(id);
+                    collector.delete(id)
                     $("#card_snap_"+id).remove();
                     hide_all_tooltips();
                 };
@@ -252,26 +251,7 @@ async function load_browser(datasource_name, command="feeds")
             {
                 export_btn.onclick = function() {
                     let id = this.id.match(/export_snap_(.*)/)[1];
-                    get_snapshot_per_id(id,
-                        function (snapshot) {
-                            let blob_data = new Blob([snapshot.data], {type: 'application/octet-binary'});
-                            const url = window.URL.createObjectURL(blob_data);
-                            const a = document.createElement('a');
-                            a.style.display = 'none';
-                            a.href = url;
-                    
-                            let app_name = snapshot.title;
-                            let extension_pos = app_name.indexOf(".");
-                            if(extension_pos >=0)
-                            {
-                                app_name = app_name.substring(0,extension_pos);
-                            }
-                            a.download = app_name+'_snap'+snapshot.id+'.vAmiga';
-                            document.body.appendChild(a);
-                            a.click();
-                            window.URL.revokeObjectURL(url);
-                        }
-                    );
+                    collector.export(id);
                     hide_all_tooltips();
                 };
             }
@@ -517,8 +497,31 @@ var collectors = {
         can_delete: function(app_title, the_id){
             return app_title == 'auto_save' ? false: true;
         },
+        delete: function(id) {delete_snapshot_per_id(id)},
         can_export: function(app_title, the_id){
             return app_title == 'auto_save' ? false: true;
+        },
+        export: function(id) {
+            get_snapshot_per_id(id,
+                function (snapshot) {
+                    let blob_data = new Blob([snapshot.data], {type: 'application/octet-binary'});
+                    const url = window.URL.createObjectURL(blob_data);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+            
+                    let app_name = snapshot.title;
+                    let extension_pos = app_name.indexOf(".");
+                    if(extension_pos >=0)
+                    {
+                        app_name = app_name.substring(0,extension_pos);
+                    }
+                    a.download = app_name+'_snap'+snapshot.id+'.vAmiga';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                }
+            );
         },
         can_like: function(app_title, item){
             return false;
@@ -1145,10 +1148,52 @@ var collectors = {
             return; 
         },
         can_delete: function(app_title, the_id){
-            return false;
+            return true;
+        },
+        delete: function(id) {
+            let item = this.all_items[id];
+            deleteAllFiles(workspace_path+"/"+item.name);
+            FS.rmdir(workspace_path+"/"+item.name);
+
+             FS.syncfs(false,(error)=>
+                {  
+                   // $("#modal_take_snapshot").modal('hide');
+                }
+            )
         },
         can_export: function(app_title, the_id){
-            return false;
+            return true;
+        },
+        export: function(id) {
+            function zipFilesInTmpFolder(name) {
+                const zip = new JSZip();
+                const workspace_path=`/vamiga_workspaces/${name}`
+                const files = FS.readdir(workspace_path);
+    
+                // Alle Dateien im Verzeichnis durchlaufen und zum Zip hinzufügen
+                files.forEach(function(file) {
+                    if (file !== '.' && file !== '..') {
+                        const filePath = `${workspace_path}/${file}`;
+                        const fileData = FS.readFile(filePath);  // Datei als Byte-Array lesen
+                        zip.file(file, fileData);  // Datei in das Zip-Archiv einfügen
+                    }
+                });
+    
+                // Zip-Datei generieren und zum Download anbieten
+                zip.generateAsync({ type: "blob" })
+                    .then(function(content) {
+                        // Blob URL erzeugen und Download-Link erstellen
+                        const url = URL.createObjectURL(content);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `workspace_${name}.zip`;  // Name des Zip-Archivs
+                        link.click();  // Download starten
+                        URL.revokeObjectURL(url);  // Blob URL wieder freigeben
+                    });
+            }
+            let item = this.all_items[id];
+
+            zipFilesInTmpFolder(item.name);
         },
         can_like: function(app_title, item){
             if(this.like_values == null)
@@ -1277,3 +1322,14 @@ function set_take_auto_snapshots(on) {
     }
 }
 
+function deleteAllFiles(path) {
+    let files = FS.readdir(path);
+    for (let file of files) {
+        if (file === '.' || file === '..') continue;
+        let fullPath = path + '/' + file;
+        let stats = FS.stat(fullPath);
+        if (!stats.isDir) {
+            FS.unlink(fullPath);
+        }
+    }
+}
