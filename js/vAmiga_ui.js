@@ -3530,6 +3530,11 @@ $('.layer').change( function(event) {
             var uint8Array = FromBase64(dataURL.split(',')[1]);
             FS.createDataFile(workspace_path+"/"+app_name+"/", 'preview.png', uint8Array, true, true);
 
+            if(last_zip_archive != null)
+            {
+                FS.createDataFile(workspace_path+"/"+app_name+"/", last_zip_archive_name, last_zip_archive, true, true);
+            }
+
             FS.syncfs(false,(error)=>
                 {  
                     $("#modal_take_snapshot").modal('hide');
