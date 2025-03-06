@@ -992,43 +992,29 @@ var collectors = {
 var content = `
 <div class="container-xl">
     <button id="like_detail_${item.id}" type="button" style="position:absolute;top:10%;right:10%;padding:0;z-index:3000" class="btn btn-sm icon">${like_icon}</button>
- 
-    
-    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px">
-        <div class="row justify-content-md-center">
-            <div class="col col-md-12">
-                <image src="${item.screen_shot}" class="detail_screenshot"/>
-            </div>
-        </div>     
-
-        <div class="row justify-content-md-center mt-4">
-            <div class="col col-xs-auto">
-            
-            <h2>${item.name}</h2>
-            <h4>${item.date}</h4>
-        </div>
-    </div>
 </div>
 
-<div class="row justify-content-md-center mt-4 pb-4">
-<div class="col col-md-12">`;
+<div style="margin-left:10%;margin-right:10%">
+    <span style="font-size:xx-large">${item.name}</span> <br>
+    <span style="font-size:large">last saved ${item.date}</span>
+</div>
+<br>
+`;
 
+
+content += `<button type="button" id="detail_run${0}" class="btn btn-primary my-2">
+load workspace
+<svg width="1.8em" height="1.8em" viewBox="0 0 16 16" class="bi bi-play-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
+</button>
+<br>
+`;
+
+            content+=`<div style="margin-left:20%;margin-top:15px;">
+            <div>workspace files:</div>`;
             var link_id=0;
-            for(var link of item.files)
-            {                
-                content += `<button type="button" id="detail_run${link_id}" class="btn btn-primary my-2">
-                ${link}
-                <svg width="1.8em" height="1.8em" viewBox="0 0 16 16" class="bi bi-play-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
-                </button>`;
-
-                content += `
-                <div class="row">
-                <div class="col-12">
-                <input class="copy_run_link" type="text" value="#" id="detail_link${link_id}"></input>
-                </div>
-                </div>`;
-
-                link_id++;
+            for(var file of item.files.filter(f => f != "config.retrosh" && f != "preview.png"))
+            {              
+                content += `<div style="margin-left:15px">${file}</div>`;
             }
             content += '</div>'; //col
             content += '</div>'; //row
