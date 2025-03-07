@@ -519,38 +519,41 @@ function message_handler_queue_worker(msg, data, data2)
     {
         on_power_led_dim();
     }
-    else if(msg == "MSG_SNAPSHOT_RESTORED")
+    else if(msg == "MSG_SNAPSHOT_RESTORED" || msg == "MSG_WORKSPACE_LOADED")
     {
+        let cause = msg == "MSG_SNAPSHOT_RESTORED" ? "(snapshot)":"(workspace)";
+
         let v=wasm_get_config_item("BLITTER.ACCURACY");
-        $(`#button_OPT_BLITTER_ACCURACY`).text(`blitter accuracy=${v} (snapshot)`);
+        $(`#button_OPT_BLITTER_ACCURACY`).text(`blitter accuracy=${v} ${cause}`);
         
         v=wasm_get_config_item("DC.SPEED");
-        $(`#button_OPT_DRIVE_SPEED`).text(`drive speed=${v} (snapshot)`);
+        $(`#button_OPT_DRIVE_SPEED`).text(`drive speed=${v} ${cause}`);
 
         v=wasm_get_config_item("CPU.REVISION");
         if(v<=2)
-            $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v}0 (snapshot)`);
+            $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v}0 ${cause}`);
         else
             $(`#button_OPT_CPU_REVISION`).text(`CPU=fake 030 for Settlers map size 8`);
         
         v=wasm_get_config_item("CPU.OVERCLOCKING");
-        $(`#button_OPT_CPU_OVERCLOCKING`).text(`${Math.round((v==0?1:v)*7.09)} MHz (snapshot)`);
+        $(`#button_OPT_CPU_OVERCLOCKING`).text(`${Math.round((v==0?1:v)*7.09)} MHz ${cause}`);
         v=wasm_get_config_item("AGNUS.REVISION");
         let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB'];
-        $(`#button_OPT_AGNUS_REVISION`).text(`agnus revision=${agnus_revs[v]} (snapshot)`);
+        $(`#button_OPT_AGNUS_REVISION`).text(`agnus revision=${agnus_revs[v]} ${cause}`);
 
         v=wasm_get_config_item("DENISE.REVISION");
         let denise_revs=['OCS','ECS'];
-        $(`#button_OPT_DENISE_REVISION`).text(`denise revision=${denise_revs[v]} (snapshot)`);
+        $(`#button_OPT_DENISE_REVISION`).text(`denise revision=${denise_revs[v]} ${cause}`);
       
-        $(`#button_${"OPT_CHIP_RAM"}`).text(`chip ram=${wasm_get_config_item('CHIP_RAM')} KB (snapshot)`);
-        $(`#button_${"OPT_SLOW_RAM"}`).text(`slow ram=${wasm_get_config_item('SLOW_RAM')} KB (snapshot)`);
-        $(`#button_${"OPT_FAST_RAM"}`).text(`fast ram=${wasm_get_config_item('FAST_RAM')} KB (snapshot)`);
+        $(`#button_${"OPT_CHIP_RAM"}`).text(`chip ram=${wasm_get_config_item('CHIP_RAM')} KB ${cause}`);
+        $(`#button_${"OPT_SLOW_RAM"}`).text(`slow ram=${wasm_get_config_item('SLOW_RAM')} KB ${cause}`);
+        $(`#button_${"OPT_FAST_RAM"}`).text(`fast ram=${wasm_get_config_item('FAST_RAM')} KB ${cause}`);
     
         wasm_configure("OPT_AMIGA_SPEED_BOOST", 
             current_speed.toString());
 
         rom_restored_from_snapshot=true;
+        rom_restored_cause = cause;
     } 
     else if(msg == "MSG_SER_OUT")
     {
@@ -4059,7 +4062,7 @@ $('.layer').change( function(event) {
         let html_rom_list=`<option value="empty">empty</option>`;
         if(rom_restored_from_snapshot)
         {
-            html_rom_list+=`<option value="restored_from_snapshot" hidden selected>restored from snapshot</option>`
+            html_rom_list+=`<option value="restored_from_snapshot" hidden selected>restored from ${rom_restored_cause}</option>`
         }
         let selected_rom=local_storage_get(rom_type);
         for(rom of stored_roms)
