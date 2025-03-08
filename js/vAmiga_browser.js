@@ -588,7 +588,7 @@ var collectors = {
         last_load_was_a_search: false,
         needs_reload: function ()
         { 
-            return already_loaded_collector != this || this.loaded_feeds == null || last_load_was_a_search;
+            return true;
         },
         map_xml_to_item: function (xml_item)
         {
@@ -606,160 +606,14 @@ var collectors = {
             return new_item;
         },
         favourites: async function (row_renderer){
-            await this.wait_until_finish();
-            this.set_busy(true);
-            last_load_was_a_search=true;
-            try
-            {
-                this.all_ids= [];
-                this.all_items= [];
-                this.loaded_favourites = [];
-                var webservice_loader = async response => {
-                    try{
-                        var items=[];
-
-                        var text = await response.text();
-                        //alert(text);
-                        var parser = new DOMParser();
-                        var xmlDoc = parser.parseFromString(text,"text/xml");
-
-                        var releases = xmlDoc.getElementsByTagName("Release");
-
-                        for(var xml_item of releases)
-                        {
-                            var id = xml_item.getElementsByTagName("ID")[0].textContent;
-
-                            if(this.all_ids.includes(id))
-                            {//this entry was already in another feed, skip it
-                                continue;
-                            }
-                            this.all_ids.push(id);
-
-                            var new_item = this.map_xml_to_item(xml_item);
-  
-                            //alert(`id=${id}, name=${name}, screen_shot=${screen_shot}`);
-                            if(new_item.screen_shot!= null)
-                            {
-                                this.all_items[id] = new_item;
-                                items.push(new_item);
-                            }
-                        }
-                        for(item of items)
-                        {
-                            this.loaded_favourites.push(item);
-                        }
- 
-                    }
-                    catch {}
-                }
-
-                
-                for(id in this.like_values)
-                {
-                    this.row_name='suche';
-                    var csdb_detail_url = `https://csdb.dk/webservice/?type=release&id=${id}&depth=1.5&cache_me=true`;
-                    await fetch(csdb_detail_url).then( webservice_loader );
-                }
-
-                var type_rows = [];
-                for(item of this.loaded_favourites)
-                {
-                    if(type_rows[item.type]==null)
-                    {
-                        type_rows[item.type] = [];
-                    }
-                    type_rows[item.type].push(item);
-                }
-                for(row_type in type_rows)
-                {
-                    row_renderer(latest_load_query_context,row_type,type_rows[row_type]);
-                }
-
-            }
-            finally
-            {
-                this.set_busy(false);
-            }
+            this.load(row_renderer, 
+                path=>this.like_values.includes(path)
+            )
         },
         search: async function (row_renderer){
-            await this.wait_until_finish();
-            this.set_busy(true);
-            last_load_was_a_search=true;
-            try
-            {
-                this.all_ids= [];
-                this.all_items= [];
-                this.loaded_search = [];
-                var webservice_loader = async response => {
-                    try{
-                        var items=[];
-
-                        var text = await response.text();
-                        //alert(text);
-                        var parser = new DOMParser();
-                        var xmlDoc = parser.parseFromString(text,"text/xml");
-
-                        var releases = xmlDoc.getElementsByTagName("Release");
-
-                        for(var xml_item of releases)
-                        {
-                            var id = xml_item.getElementsByTagName("ID")[0].textContent;
-
-                            if(this.all_ids.includes(id))
-                            {//this entry was already in another feed, skip it
-                                continue;
-                            }
-                            this.all_ids.push(id);
-
-                            var new_item = this.map_xml_to_item(xml_item);
-  
-                            //alert(`id=${id}, name=${name}, screen_shot=${screen_shot}`);
-                            if(new_item.screen_shot!= null)
-                            {
-                                this.all_items[id] = new_item;
-                                items.push(new_item);
-                            }
-                        }
-                        this.loaded_search[this.row_name] = items;
-
-                        var type_rows = [];
-                        for(item of items)
-                        {
-                            if(type_rows[item.type]==null)
-                            {
-                                type_rows[item.type] = [];
-                            }
-                            type_rows[item.type].push(item);
-                        }
-                        for(row_type in type_rows)
-                        {
-                            row_renderer(latest_load_query_context, row_type,type_rows[row_type]);
-                        }
-
-                    }
-                    catch {}
-                }
-
-                if(search_term.startsWith("https://csdb.dk/release/?id="))
-                {
-
-                    var dropped_id = search_term.match(`id=([0-9]+)`)[1]; 
-                    var csdb_detail_url = `https://csdb.dk/webservice/?type=release&id=${dropped_id}&depth=1.5`;
-                    await fetch(csdb_detail_url).then( webservice_loader );        
-                    await this.show_detail("csdblink", dropped_id);
-                }
-                else
-                {
-                    this.row_name='suche';
-                    await fetch(`https://csdb.dk/webservice/?type=search&stype=release&q=${search_term}&depth=1.5`).then( webservice_loader );
-                }
-            }
-            finally
-            {
-                this.set_busy(false);
-            }
+            this.load(row_renderer, path=>path.toLowerCase().includes(search_term.toLowerCase()))
         },
-        load: async function (row_renderer){
+        load: async function (row_renderer, filter_func=()=>true){
             await this.wait_until_finish();
             this.set_busy(true);
             last_load_was_a_search=false;
@@ -782,41 +636,6 @@ var collectors = {
                 this.all_ids= [];
                 this.all_items= [];
                 this.loaded_feeds = [];
-                var webservice_loader = async response => {
-                    try{
-                        var items=[];
-
-                        var text = await response.text();
-                        //alert(text);
-                        var parser = new DOMParser();
-                        var xmlDoc = parser.parseFromString(text,"text/xml");
-
-                        var releases = xmlDoc.getElementsByTagName("Release");
-
-                        for(var xml_item of releases)
-                        {
-                            var id = xml_item.getElementsByTagName("ID")[0].textContent;
-
-                            if(this.all_ids.includes(id))
-                            {//this entry was already in another feed, skip it
-                                continue;
-                            }
-                            this.all_ids.push(id);
-
-                            var new_item = this.map_xml_to_item(xml_item);
-  
-                            //alert(`id=${id}, name=${name}, screen_shot=${screen_shot}`);
-                            if(new_item.screen_shot!= null)
-                            {
-                                this.all_items[id] = new_item;
-                                items.push(new_item);
-                            }
-                        }
-                        this.loaded_feeds[this.row_name] = items;
-                        row_renderer(latest_load_query_context, this.row_name,items);
-                    }
-                    catch {}
-                }
 
                 try
                 {
@@ -837,6 +656,7 @@ var collectors = {
                     let dirs = FS.readdir(workspace_path);
                     console.log(dirs)
                     dirs.sort((a,b)=>a.localeCompare(b));
+                    dirs=dirs.filter(filter_func);
                     
                     function loadImageFromFS(path) {
                         try
@@ -888,10 +708,14 @@ var collectors = {
                             this.all_items[new_item.id] = new_item;
                             items.push(new_item)
 
-                            
                             last_ws_item = ws_item;
-                            
-                        }                     
+                        }
+                    }
+                    if(items.length>0)
+                    {
+                        this.row_name = last_ws_item[0].toUpperCase();
+                        row_renderer(latest_load_query_context, this.row_name,items);
+                        items = []
                     }
                 })
                               
@@ -1195,31 +1019,29 @@ load workspace
         can_like: function(app_title, item){
             if(this.like_values == null)
             {
-               this.like_values = JSON.parse(load_setting('likes', '{}'));
+               this.like_values = JSON.parse(load_setting('workspace_likes', '[]'));
             }
             return true;
         },
         is_like: function(app_title, item){
-            return this.like_values[item.id] === undefined || this.like_values[item.id] == false ? false:true;
+            return this.like_values.includes(item.name)
         },
         like_values: null,  
         set_like: function(app_title, id){
-            if(this.like_values[id] === undefined)
+
+            let name = this.all_items[id].name;
+
+            if(this.like_values.includes(name))
             {
-                this.like_values[id]= true;
+                this.like_values = this.like_values.filter(n=>n != name); 
             }
             else
             {
-                this.like_values[id] = this.like_values[id] == true ? false:true;
-                if(this.like_values[id] == false)
-                {
-                    delete this.like_values[id];
-                }
+                this.like_values.push(name);
             }
-
             //hier die positiven werte abspeichern z.b. in 
-            save_setting('likes', JSON.stringify(this.like_values));
-            return this.like_values[id];
+            save_setting('workspace_likes', JSON.stringify(this.like_values));
+            return this.like_values.includes(name);
         }
     }
 
