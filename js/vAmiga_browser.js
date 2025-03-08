@@ -32,14 +32,14 @@ function setup_browser_interface()
         {
             $('#sel_browser_snapshots').parent().removeClass('btn-secondary').removeClass('btn-primary')
             .addClass('btn-primary');
-            $('#sel_browser_csdb').parent().removeClass('btn-secondary').removeClass('btn-primary')
+            $('#sel_browser_workspace_db').parent().removeClass('btn-secondary').removeClass('btn-primary')
             .addClass('btn-secondary');
             search_term=''; $('#search').val('').attr("placeholder", "search snapshots (local browser storage)");
 
         }
         else
         {
-            $('#sel_browser_csdb').parent().removeClass('btn-secondary').removeClass('btn-primary')
+            $('#sel_browser_workspace_db').parent().removeClass('btn-secondary').removeClass('btn-primary')
             .addClass('btn-primary');
             $('#sel_browser_snapshots').parent().removeClass('btn-secondary').removeClass('btn-primary')
             .addClass('btn-secondary');
@@ -56,9 +56,9 @@ function setup_browser_interface()
         load_browser('snapshots');
     }
 
-    document.getElementById('sel_browser_csdb').onclick = async function(){
-        await switch_collector('csdb');
-        load_browser('csdb');
+    document.getElementById('sel_browser_workspace_db').onclick = async function(){
+        await switch_collector('workspace_db');
+        load_browser('workspace_db');
     }
 
 
@@ -86,7 +86,7 @@ function setup_browser_interface()
     {
         await load_browser(current_browser_datasource);
         if(snapshot_browser_first_click)
-        {//if there are no taken snapshots -> select csdb
+        {//if there are no taken snapshots -> select workspace_db
             snapshot_browser_first_click=false;
             var snapshot_collector=get_data_collector("snapshots");
             //wait until snapshots are a loaded
@@ -94,8 +94,7 @@ function setup_browser_interface()
             //and now look into snapshots
             if(snapshot_collector.total_count==0)
             { 
-//vAmigaWeb has no csdb yet
-//                document.getElementById('sel_browser_csdb').click();   
+//                document.getElementById('sel_browser_workspace_db').click();   
             }
         }   
     }
@@ -554,11 +553,11 @@ var collectors = {
 
     },
 
-    csdb: {
+    workspace_db: {
         busy: false,
         set_busy: function (busy_value) 
         { 
-            console.log("csdb.busy="+busy_value);
+            console.log("workspace_db.busy="+busy_value);
             this.busy = busy_value;
 
             if(busy_value)
@@ -572,10 +571,10 @@ var collectors = {
         },
         wait_until_finish: async function() {
             var i=0;
-            console.log(`csdb.check on busy in waituntil busy=`+this.busy);
+            console.log(`workspace_db.check on busy in waituntil busy=`+this.busy);
             while(this.busy)
             {
-                console.log(`csdb collector is busy since ${i*10}ms`);
+                console.log(`workspace_db collector is busy since ${i*10}ms`);
                 await sleep(100);
                 i++;
             }
@@ -589,21 +588,6 @@ var collectors = {
         needs_reload: function ()
         { 
             return true;
-        },
-        map_xml_to_item: function (xml_item)
-        {
-            var new_item = new Object();
-            new_item.id=xml_item.getElementsByTagName("ID")[0].textContent;
-            new_item.name = property(xml_item,"Name");
-            new_item.type = property(xml_item,"Type");
-            new_item.date = new Date(
-                property(xml_item,"ReleaseYear"),
-                property(xml_item,"ReleaseMonth")-1,  //month is 0 indexed
-                property(xml_item,"ReleaseDay")
-            ).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-            new_item.screen_shot = property(xml_item,"ScreenShot");
-            new_item.links = property_list(xml_item,"Link", matches=/http.*?[.](zip|prg|t64|d64|g64|tap|crt)$/i);
-            return new_item;
         },
         favourites: async function (row_renderer){
             this.load(row_renderer, 
@@ -619,37 +603,20 @@ var collectors = {
             last_load_was_a_search=false;
             try
             {
-                this.loaded_feeds = null; //force reload
-                if(this.loaded_feeds!=null)
-                {
-                    this.all_items=[];
-                    for(var row_key in this.loaded_feeds)
-                    {
-                        for(feed_item of this.loaded_feeds[row_key])
-                        {
-                            this.all_items[feed_item.id]=feed_item;
-                        }
-                        row_renderer(latest_load_query_context, row_key, this.loaded_feeds[row_key]);
-                    }
-                    return;
-                }
                 this.all_ids= [];
                 this.all_items= [];
                 this.loaded_feeds = [];
 
                 try
                 {
-                    console.log("***mkdir vamiga workspaces");
                     FS.mkdir(workspace_path);
-                } catch(e) { console.log("kann keine dir machen")}
+                } catch(e) { console.log("cannot make a dir")}
               
                 try
                 {
-                    console.log("***mount IDBFS");
                     FS.mount(IDBFS, {}, workspace_path);
-                } catch(e) { console.log("kann nicht mounten")}
+                } catch(e) { console.log("can not mount")}
                 
-                console.log("***syncfs");
                 FS.syncfs(true,(e)=>
                 {
                     console.log(e)
@@ -718,8 +685,6 @@ var collectors = {
                         items = []
                     }
                 })
-                              
-              
             }
             finally
             {
@@ -744,59 +709,14 @@ var collectors = {
         show_detail:function (app_title, id){
             var item = this.all_items[id];
             //fetching details
-            var csdb_detail_url = `https://csdb.dk/webservice/?type=release&id=${id}&depth=2`;
-
             if(item == null || item.details_already_fetched !== undefined )
             {
                 this.render_detail(app_title, id);
-                this.render_detail2(app_title, id);
             }
             else
             {
                 //show already loaded content
                 this.render_detail(app_title, id);
-
-                //fetch more details about the entry
-                if("nodontdo"=="yes")
-                fetch(csdb_detail_url).then( async response => {
-                    var text = await response.text();
-                    //alert(text);
-                    var parser = new DOMParser();
-                    var xmlDoc = parser.parseFromString(text,"text/xml");
-
-                    //already loaded with depth=1.5
-
-                    //getting user comments
-                    item.comments = [];
-                    var user_comments= property_path(xmlDoc,"Release/Comments/UserComment");
-                    if(user_comments != null)
-                    {
-                        for(var user_comment of user_comments)
-                        {
-                            var new_user_comment = new Object();
-                            new_user_comment.text= property(user_comment, "Text");
-                            new_user_comment.date= property(user_comment, "Date");
-                            new_user_comment.user= property(user_comment, "CSDbUser/Login");
-                            
-                            item.comments.push(new_user_comment);
-                        }
-                    }
-
-                    //getting summary                   
-                    var summary= property_path(xmlDoc,"Release/Comments/Summary");
-                    if(summary != null && summary.length>0)
-                    {
-                        var new_summary = new Object();
-                        new_summary.text= property(user_comment, "Text");
-                        new_summary.date= property(user_comment, "Date");
-                        new_summary.user= property(user_comment, "CSDbUser/Login");
-
-                        item.summary=new_summary;
-                    }
-
-                    item.details_already_fetched=true;
-                    this.render_detail2(app_title, id);
-                });
             }
         },
         render_detail: function (app_title, id){
@@ -849,7 +769,7 @@ load workspace
 
             document.getElementById(`like_detail_${item.id}`).onclick = function() {
                 let id = this.id.match(/like_detail_(.*)/)[1];
-                var like_val = get_data_collector("csdb").set_like(app_title, id);
+                var like_val = get_data_collector("workspace_db").set_like(app_title, id);
                 $(this).html(like_val ? like_icon_filled : like_icon_empty);
                 $(`#like_snap_${id}`).html(like_val ? like_icon_filled : like_icon_empty);
             };
@@ -859,12 +779,10 @@ load workspace
             {
                 $(`#detail_run${link_id}`).click(function (){
              
-                   // if(already_loaded_collector != get_data_collector("csdb"))
+                   // if(already_loaded_collector != get_data_collector("workspace_db"))
                    //     return;
                     //only run when collector is fully loaded
                     var clicked_link_id=this.id.match("detail_run(.*)")[1];
-                    //already_loaded_collector.run_link(app_title, id, item.links[clicked_link_id]);
-                    //alert(`run ${item.workspace_name} ${item.name}`)
                     wasm_load_workspace(workspace_path+"/"+item.workspace_name)
                     global_apptitle=item.workspace_name;
 
@@ -902,71 +820,6 @@ load workspace
                 return false;
             });
 
-        },
-        render_detail2: function (app_title, id){
-            var item = this.all_items[id];
-
-            var content = '<div class="container">';
-            var the_date= null;
-            if(item.summary !== undefined )
-            {
-                the_date=item.summary.date;
-                content+=`<h4 class="mx-1">summary</h4>
-                <p class="px-2 mb-0 font-weight-light" style="color:darkgoldenrod">${item.summary.date}</p>
-                <p class="px-4 mx-1 mb-0 font-weight-light">${item.summary.user == null ? "": item.summary.user}</p>
-                <p class="font-italic mx-4 px-4">${item.summary.text}</p>
-                `;
-            }
-
-            if(item.comments.length>0)
-            {
-                content += `<h4 class="mx-1">comments</h4>`;
-            }
-
-            for(var comment of item.comments)
-            {
-                if(comment.date != the_date)
-                {
-                    content+=`
-                    <p class="px-2 mb-0 font-weight-light" style="color:darkgoldenrod">${comment.date}</p>`;
-                    the_date=comment.date;
-                }
-                content+=`
-                    <p class="px-4 mx-1 mb-0 font-weight-light">${comment.user==null?"":comment.user}  </p>
-                    <p class="font-italic mx-4 px-4">${comment.text}</p>
-                `;
-            }
-            content += '</div>';
-
-          
-
-            $("#detail_content").append(content);
-            
-        },
-        run_link: function (app_title, id, link){
-            //alert(`run ${app_title} with ${id}`);
-            var download_url = link.replace('http://', 'https://')
-            //alert(download_url);
-
-            fetch(download_url).then( async response => {
-                file_slot_file_name = decodeURIComponent(response.url.match(".*/(.*)$")[1]);
-                file_slot_file = new Uint8Array( await response.arrayBuffer());
-
-                //if there is still a zip file in the fileslot, eject it now
-                $("#button_eject_zip").click();
-
-                if(app_title == "call_parameter" && id == 0)
-                {
-                    configure_file_dialog(reset=true);
-                }   
-                else
-                {               
-                    configure_file_dialog(reset=true);
-                }
-            });
-
-            $('#snapshotModal').modal('hide');
-            return; 
         },
         can_delete: function(app_title, the_id){
             return true;
