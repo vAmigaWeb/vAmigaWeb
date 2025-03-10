@@ -10,6 +10,22 @@ var latest_load_query_context=0;
 
 workspace_path="/vamiga_workspaces"
 
+function load_workspace(name){
+    wasm_load_workspace(workspace_path+"/"+name)
+    global_apptitle=name;
+
+    let files = FS.readdir(workspace_path+"/"+name);
+    let zip_file=files.filter(f=>f.toLowerCase().endsWith(".zip"));
+    if(zip_file.length>0)
+    {
+        last_zip_archive_name = zip_file[0];
+        last_zip_archive = FS.readFile(workspace_path+"/"+name+"/"+last_zip_archive_name, { encoding: 'binary' });
+
+        $("#drop_zone").html('<svg width="1.3em" height="1.3em" viewBox="0 0 16 16" class="bi bi-archive-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M12.643 15C13.979 15 15 13.845 15 12.5V5H1v7.5C1 13.845 2.021 15 3.357 15h9.286zM5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM.8 1a.8.8 0 0 0-.8.8V3a.8.8 0 0 0 .8.8h14.4A.8.8 0 0 0 16 3V1.8a.8.8 0 0 0-.8-.8H.8z"/></svg> zip');
+        $("#drop_zone").css("border", "3px solid var(--green)");
+    }
+}
+
 function setup_browser_interface()
 {
     var search_func= async function(){
@@ -597,7 +613,7 @@ var collectors = {
         search: async function (row_renderer){
             this.load(row_renderer, path=>path.toLowerCase().includes(search_term.toLowerCase()))
         },
-        load: async function (row_renderer, filter_func=()=>true){
+        load: async function (row_renderer, filter_func=async ()=>true){
             await this.wait_until_finish();
             this.set_busy(true);
             last_load_was_a_search=false;
@@ -607,84 +623,72 @@ var collectors = {
                 this.all_items= [];
                 this.loaded_feeds = [];
 
-                try
-                {
-                    FS.mkdir(workspace_path);
-                } catch(e) { console.log("cannot make a dir")}
-              
-                try
-                {
-                    FS.mount(IDBFS, {}, workspace_path);
-                } catch(e) { console.log("can not mount")}
+                await mount_workspaces();
+ 
+                let dirs = FS.readdir(workspace_path);
+                console.log(dirs)
+                dirs.sort((a,b)=>a.localeCompare(b));
+                dirs=dirs.filter(filter_func);
                 
-                FS.syncfs(true,(e)=>
+                function loadImageFromFS(path) {
+                    try
+                    {
+                        let data = FS.readFile(path, { encoding: 'binary' });
+
+                        let blob = new Blob([data], { type: 'image/png' });
+                        let url = URL.createObjectURL(blob);
+                        return url;    
+                    }
+                    catch(e) {
+                        return null;
+                    }
+                }
+
+
+                let id_counter=0;
+                let last_ws_item=null;
+                items= []
+                for(ws_item of dirs)
                 {
-                    console.log(e)
-                    let dirs = FS.readdir(workspace_path);
-                    console.log(dirs)
-                    dirs.sort((a,b)=>a.localeCompare(b));
-                    dirs=dirs.filter(filter_func);
-                    
-                    function loadImageFromFS(path) {
-                        try
-                        {
-                            let data = FS.readFile(path, { encoding: 'binary' });
-
-                            let blob = new Blob([data], { type: 'image/png' });
-                            let url = URL.createObjectURL(blob);
-                            return url;    
-                        }
-                        catch(e) {
-                            return null;
-                        }
-                    }
-
-
-                    let id_counter=0;
-                    let last_ws_item=null;
-                    items= []
-                    for(ws_item of dirs)
+                    if(!ws_item.startsWith("."))
                     {
-                        if(!ws_item.startsWith("."))
+                        if(items.length>0 && last_ws_item[0] != ws_item[0])
                         {
-                            if(items.length>0 && last_ws_item[0] != ws_item[0])
-                            {
-                                this.row_name = last_ws_item[0].toUpperCase();
-                                row_renderer(latest_load_query_context, this.row_name,items);
-                                items = []
-                            }
-    
-                            let urlPreview= loadImageFromFS(workspace_path+"/"+ws_item+"/preview.png")
-
-                            let files = FS.readdir(workspace_path+"/"+ws_item);
-                            let time_stamp="";
-                            try{
-                                let stat=FS.stat(workspace_path+"/"+ws_item+"/config.retrosh");
-                                time_stamp = stat.mtime.toLocaleString();
-                            }
-                            catch {}
-                            
-                            let new_item = { 
-                                id:id_counter++,
-                                workspace_name: ws_item, 
-                                name: ws_item,
-                                date: time_stamp,
-                                files: files.filter(f=>!f.startsWith(".")),
-                                screen_shot: urlPreview
-                            }
-                            this.all_items[new_item.id] = new_item;
-                            items.push(new_item)
-
-                            last_ws_item = ws_item;
+                            this.row_name = last_ws_item[0].toUpperCase();
+                            row_renderer(latest_load_query_context, this.row_name,items);
+                            items = []
                         }
+
+                        let urlPreview= loadImageFromFS(workspace_path+"/"+ws_item+"/preview.png")
+
+                        let files = FS.readdir(workspace_path+"/"+ws_item);
+                        let time_stamp="";
+                        try{
+                            let stat=FS.stat(workspace_path+"/"+ws_item+"/config.retrosh");
+                            time_stamp = stat.mtime.toLocaleString();
+                        }
+                        catch {}
+                        
+                        let new_item = { 
+                            id:id_counter++,
+                            workspace_name: ws_item, 
+                            name: ws_item,
+                            date: time_stamp,
+                            files: files.filter(f=>!f.startsWith(".")),
+                            screen_shot: urlPreview
+                        }
+                        this.all_items[new_item.id] = new_item;
+                        items.push(new_item)
+
+                        last_ws_item = ws_item;
                     }
-                    if(items.length>0)
-                    {
-                        this.row_name = last_ws_item[0].toUpperCase();
-                        row_renderer(latest_load_query_context, this.row_name,items);
-                        items = []
-                    }
-                })
+                }
+                if(items.length>0)
+                {
+                    this.row_name = last_ws_item[0].toUpperCase();
+                    row_renderer(latest_load_query_context, this.row_name,items);
+                    items = []
+                }
             }
             finally
             {
@@ -778,26 +782,7 @@ load workspace
             for(var link of item.files)
             {
                 $(`#detail_run${link_id}`).click(function (){
-             
-                   // if(already_loaded_collector != get_data_collector("workspace_db"))
-                   //     return;
-                    //only run when collector is fully loaded
-                    var clicked_link_id=this.id.match("detail_run(.*)")[1];
-                    wasm_load_workspace(workspace_path+"/"+item.workspace_name)
-                    global_apptitle=item.workspace_name;
-
-                    let zip_file=item.files.filter(f=>f.toLowerCase().endsWith(".zip"));
-                    if(zip_file.length>0)
-                    {
-                        last_zip_archive_name = zip_file[0];
-                        last_zip_archive = FS.readFile(workspace_path+"/"+item.workspace_name+"/"+last_zip_archive_name, { encoding: 'binary' });
-
-                        $("#drop_zone").html('<svg width="1.3em" height="1.3em" viewBox="0 0 16 16" class="bi bi-archive-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M12.643 15C13.979 15 15 13.845 15 12.5V5H1v7.5C1 13.845 2.021 15 3.357 15h9.286zM5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM.8 1a.8.8 0 0 0-.8.8V3a.8.8 0 0 0 .8.8h14.4A.8.8 0 0 0 16 3V1.8a.8.8 0 0 0-.8-.8H.8z"/></svg> zip');
-                        $("#drop_zone").css("border", "3px solid var(--green)");
-                    }
-
-
-
+                    load_workspace(item.workspace_name);
 
                     $('#snapshotModal').modal('hide');
                 });
@@ -849,7 +834,7 @@ load workspace
                     if (file !== '.' && file !== '..') {
                         const filePath = `${workspace_path}/${file}`;
                         const fileData = FS.readFile(filePath);  // Datei als Byte-Array lesen
-                        zip.file(file, fileData);  // Datei in das Zip-Archiv einfügen
+                        zip.file(`${name}.vamiga/${file}`, fileData);  // Datei in das Zip-Archiv einfügen
                     }
                 });
     
