@@ -1184,7 +1184,7 @@ function prompt_for_drive()
     {
         let df_count=0;
         for(let i = 0; i<4;i++)
-            df_count+=wasm_get_config_item("DRIVE_CONNECT",i);
+            df_count+=Number(wasm_get_config_item("DRIVE_CONNECT",i));
 
         if(df_count==1 || parameter_link_mount_in_df0)
         {

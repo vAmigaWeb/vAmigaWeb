@@ -2009,9 +2009,7 @@ extern "C" void wasm_set_sample_rate(unsigned sample_rate)
 
 
 extern "C" i64 wasm_get_config_item(char* item_name, unsigned data)
-{
-  //if(wrapper->emu->getConfigItem(OPT_VIDEO_FORMAT)!=NTSC)
-  
+{  
   if(strcmp(item_name,"DRIVE_CONNECT") == 0 )
   {
     return wrapper->emu->get(Opt::DRIVE_CONNECT,data);
