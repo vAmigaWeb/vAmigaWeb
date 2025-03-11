@@ -486,7 +486,7 @@ var collectors = {
 
                         if(!version.match(compatible_snapshot_version_format))
                         {
-                            alert(`This snapshot has been taken with vAmiga version ${version} and can not be loaded with the current version ${vAmigaWeb_version}, sorry.`);
+                            alert(`This snapshot has been taken with vAmiga version ${version} and can not be loaded with the current version ${vAmigaWeb_version}. You can switch back to version ${version} in the settings, or alternatively, use workspaces, which remain compatible.`);
                             return;
                         }
                         wasm_loadfile(
