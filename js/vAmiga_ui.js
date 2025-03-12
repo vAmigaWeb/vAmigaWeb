@@ -113,6 +113,22 @@ const load_script= (url) => {
     });
 }
 
+async function mount_workspaces() {
+    return new Promise((resolve, reject) => {
+        try{
+            FS.mkdir(workspace_path) 
+        } catch(e) {console.log(e)}
+        try{
+        FS.mount(IDBFS, {}, workspace_path);
+        } catch(e) {console.log(e)}
+
+        FS.syncfs(true, () => {
+        // Callback function when sync is complete
+            resolve();
+        });
+    });
+}
+
 function ToBase64_small(u8) 
 {
     return btoa(String.fromCharCode.apply(null, u8));
@@ -519,38 +535,41 @@ function message_handler_queue_worker(msg, data, data2)
     {
         on_power_led_dim();
     }
-    else if(msg == "MSG_SNAPSHOT_RESTORED")
+    else if(msg == "MSG_SNAPSHOT_RESTORED" || msg == "MSG_WORKSPACE_LOADED")
     {
+        let cause = msg == "MSG_SNAPSHOT_RESTORED" ? "(snapshot)":"(workspace)";
+
         let v=wasm_get_config_item("BLITTER.ACCURACY");
-        $(`#button_OPT_BLITTER_ACCURACY`).text(`blitter accuracy=${v} (snapshot)`);
+        $(`#button_OPT_BLITTER_ACCURACY`).text(`blitter accuracy=${v} ${cause}`);
         
         v=wasm_get_config_item("DC.SPEED");
-        $(`#button_OPT_DRIVE_SPEED`).text(`drive speed=${v} (snapshot)`);
+        $(`#button_OPT_DRIVE_SPEED`).text(`drive speed=${v} ${cause}`);
 
         v=wasm_get_config_item("CPU.REVISION");
         if(v<=2)
-            $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v}0 (snapshot)`);
+            $(`#button_OPT_CPU_REVISION`).text(`CPU=680${v}0 ${cause}`);
         else
             $(`#button_OPT_CPU_REVISION`).text(`CPU=fake 030 for Settlers map size 8`);
         
         v=wasm_get_config_item("CPU.OVERCLOCKING");
-        $(`#button_OPT_CPU_OVERCLOCKING`).text(`${Math.round((v==0?1:v)*7.09)} MHz (snapshot)`);
+        $(`#button_OPT_CPU_OVERCLOCKING`).text(`${Math.round((v==0?1:v)*7.09)} MHz ${cause}`);
         v=wasm_get_config_item("AGNUS.REVISION");
         let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB'];
-        $(`#button_OPT_AGNUS_REVISION`).text(`agnus revision=${agnus_revs[v]} (snapshot)`);
+        $(`#button_OPT_AGNUS_REVISION`).text(`agnus revision=${agnus_revs[v]} ${cause}`);
 
         v=wasm_get_config_item("DENISE.REVISION");
         let denise_revs=['OCS','ECS'];
-        $(`#button_OPT_DENISE_REVISION`).text(`denise revision=${denise_revs[v]} (snapshot)`);
+        $(`#button_OPT_DENISE_REVISION`).text(`denise revision=${denise_revs[v]} ${cause}`);
       
-        $(`#button_${"OPT_CHIP_RAM"}`).text(`chip ram=${wasm_get_config_item('CHIP_RAM')} KB (snapshot)`);
-        $(`#button_${"OPT_SLOW_RAM"}`).text(`slow ram=${wasm_get_config_item('SLOW_RAM')} KB (snapshot)`);
-        $(`#button_${"OPT_FAST_RAM"}`).text(`fast ram=${wasm_get_config_item('FAST_RAM')} KB (snapshot)`);
+        $(`#button_${"OPT_CHIP_RAM"}`).text(`chip ram=${wasm_get_config_item('CHIP_RAM')} KB ${cause}`);
+        $(`#button_${"OPT_SLOW_RAM"}`).text(`slow ram=${wasm_get_config_item('SLOW_RAM')} KB ${cause}`);
+        $(`#button_${"OPT_FAST_RAM"}`).text(`fast ram=${wasm_get_config_item('FAST_RAM')} KB ${cause}`);
     
         wasm_configure("OPT_AMIGA_SPEED_BOOST", 
             current_speed.toString());
 
         rom_restored_from_snapshot=true;
+        rom_restored_cause = cause;
     } 
     else if(msg == "MSG_SER_OUT")
     {
@@ -922,7 +941,75 @@ function configure_file_dialog(reset=false)
                 });
 
                 var zip = new JSZip();
-                zip.loadAsync(file_slot_file).then(function (zip) {
+                zip.loadAsync(file_slot_file).then(async function (zip) {
+                    if(Object.keys(zip.files).filter(f=>f.includes(".vamiga/config")).length>0)
+                    {//vamiga workspace detected
+                      //  alert("workspace detected")
+                        let current_path = Object.keys(zip.files).filter(f=>f.includes(".vamiga/config"))
+                        let alternate_filename=null;
+                        await mount_workspaces();
+                        let s = FS.readdir("/")
+                        
+                        current_path = current_path[0].replace('/config.retrosh','')
+                        if (!FS.analyzePath(workspace_path+"/"+current_path).exists) {
+                            FS.mkdir(workspace_path +"/"+ current_path);  // Verzeichnis erstellen
+                        }
+                        else
+                        {
+                            function incrementBeforeDot(str) {
+                                // Teilt den String an der Stelle des Punkts
+                                const parts = str.split('.');
+                              
+                                // Der erste Teil ist der Teil vor dem Punkt
+                                const firstPart = parts[0];
+                              
+                                // Prüfen, ob der erste Teil eine Zahl am Ende hat
+                                const numberMatch = firstPart.match(/(\d+)$/); // Sucht nach einer Zahl am Ende des Textes
+                              
+                                let incrementedNumber;
+                                if (numberMatch) {
+                                  // Wenn eine Zahl gefunden wird, erhöhe sie um 1
+                                  const number = parseInt(numberMatch[0], 10);
+                                  incrementedNumber = number + 1;
+                                  // Entferne die Zahl am Ende und hänge die neue Zahl an
+                                  return firstPart.replace(numberMatch[0], incrementedNumber) + '.' + parts.slice(1).join('.');
+                                } else {
+                                  // Wenn keine Zahl gefunden wird, hänge die Zahl 1 an
+                                  incrementedNumber = 1;
+                                  return firstPart + incrementedNumber + '.' + parts.slice(1).join('.');
+                                }
+                            }
+
+                            alternate_filename = incrementBeforeDot(current_path)                              
+                            while (FS.analyzePath(workspace_path+"/"+alternate_filename).exists) {
+                                alternate_filename = incrementBeforeDot(alternate_filename)
+                            }
+
+                            FS.mkdir(workspace_path +"/"+ alternate_filename);  // Verzeichnis erstellen
+                        }
+
+                        for (let [relativePath, file] of Object.entries(zip.files)) {
+                            let fileData = await file.async("uint8array");
+                            if(fileData.length > 0)
+                            {
+                                let fs_path = workspace_path+"/"+relativePath;
+                                if(alternate_filename){
+                                    fs_path = fs_path.replace(current_path, alternate_filename); // Path in FS                          
+                                }
+                                FS.writeFile(fs_path, fileData);
+                            }
+                        }
+                        FS.syncfs(()=>{});
+
+                        let load_now = confirm(`imported workspace ${alternate_filename?alternate_filename:current_path} would you like to load it now ?`);
+                        if(load_now)
+                        {
+                            load_workspace(alternate_filename?alternate_filename:current_path)
+                        }
+
+                        return;
+                    }
+                    
                     var list='<ul id="ui_file_list" class="list-group">';
                     var mountable_count=0;
                     zip.forEach(function (relativePath, zipfile){
@@ -1097,7 +1184,7 @@ function prompt_for_drive()
     {
         let df_count=0;
         for(let i = 0; i<4;i++)
-            df_count+=wasm_get_config_item("DRIVE_CONNECT",i);
+            df_count+=Number(wasm_get_config_item("DRIVE_CONNECT",i));
 
         if(df_count==1 || parameter_link_mount_in_df0)
         {
@@ -1799,7 +1886,8 @@ function InitWrappers() {
     wasm_get_renderer = Module.cwrap('wasm_get_renderer', 'number');
     wasm_get_config_item = Module.cwrap('wasm_get_config_item', 'number', ['string']);
     wasm_get_core_version = Module.cwrap('wasm_get_core_version', 'string');
-
+    wasm_save_workspace = Module.cwrap('wasm_save_workspace', 'string', ['string']);
+    wasm_load_workspace = Module.cwrap('wasm_load_workspace', 'undefined', ['string']);
 
 
     const volumeSlider = document.getElementById('volume-slider');
@@ -3475,6 +3563,68 @@ $('.layer').change( function(event) {
             window.URL.revokeObjectURL(url);
         });
     }
+
+
+
+
+    $('#button_save_workspace').click(async function() 
+    {       
+        let app_name = $("#input_app_title").val();
+        
+        await mount_workspaces();
+        try
+        {
+            deleteAllFiles(workspace_path+"/"+app_name);
+            FS.rmdir(workspace_path+"/"+app_name)
+        } catch(e) {console.log(e)}
+
+        try
+        {
+            FS.mkdir(workspace_path+"/"+app_name);
+        } catch(e) {console.log(e)}
+    
+        let thumbnail_json = wasm_save_workspace(workspace_path+"/"+app_name);
+        var thumbnail = JSON.parse(thumbnail_json);
+        var heap_buffer = new Uint8Array(Module.HEAPU8.buffer, thumbnail.address, thumbnail.size);
+            
+        //thumbnail_buffer is only a typed array view therefore slice, which creates a new array with byteposition 0 ...
+        let thumbnail_buffer = heap_buffer.slice(0,thumbnail.size);
+
+        let preview_canvas = document.createElement('canvas');
+        preview_canvas.width = thumbnail.width;  
+        preview_canvas.height = thumbnail.height;
+
+        var preview_ctx = preview_canvas.getContext('2d');  
+
+        image_data=preview_ctx.createImageData(thumbnail.width,thumbnail.height);
+        image_data.data.set(thumbnail_buffer);
+    
+        preview_ctx.putImageData(image_data,
+            0/*TPP*/,/*-yOff*/0, 
+            /*x,y*/ 
+            0/*TPP*/,/*yOff*/0 
+            /* width, height */, 
+            thumbnail.width, thumbnail.height);
+    
+        var dataURL = preview_canvas.toDataURL('image/png');
+        var uint8Array = FromBase64(dataURL.split(',')[1]);
+        FS.createDataFile(workspace_path+"/"+app_name+"/", 'preview.png', uint8Array, true, true);
+
+        if(last_zip_archive != null)
+        {
+            FS.createDataFile(workspace_path+"/"+app_name+"/", last_zip_archive_name, last_zip_archive, true, true);
+        }
+
+        FS.syncfs(false,(error)=>
+            {  
+                $("#modal_take_snapshot").modal('hide');
+            }
+        )
+
+        
+        //document.getElementById('canvas').focus();
+    });
+
     $('#button_save_snapshot').click(async function() 
     {       
         let app_name = $("#input_app_title").val();
@@ -3989,7 +4139,7 @@ $('.layer').change( function(event) {
         let html_rom_list=`<option value="empty">empty</option>`;
         if(rom_restored_from_snapshot)
         {
-            html_rom_list+=`<option value="restored_from_snapshot" hidden selected>restored from snapshot</option>`
+            html_rom_list+=`<option value="restored_from_snapshot" hidden selected>restored from ${rom_restored_cause}</option>`
         }
         let selected_rom=local_storage_get(rom_type);
         for(rom of stored_roms)

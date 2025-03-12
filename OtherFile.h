@@ -30,7 +30,7 @@ public:
     
 public:
     
-    using AmigaFile::init;
+    using AnyFile::init;
     
 //    OtherFile(const std::filesystem::path &path) throws { init(path); }
 //    OtherFile(const u8 *buf, isize len) throws { init(buf, len); }
@@ -48,10 +48,10 @@ public:
 
     
     //
-    // Methods from AmigaFile
+    // Methods from AnyFile
     //
     
-    FileType type() const override { return FILETYPE_EXE; }
+    FileType type() const override { return FileType::EXE; }
     u64 fnv64() const override { return adf.fnv64(); }
     bool isCompatiblePath(const std::filesystem::path &path) const override { return isCompatible(path); }
     bool isCompatibleBuffer(const u8 *buf, isize len) override { return isCompatible(buf, len); }

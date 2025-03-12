@@ -10,14 +10,8 @@
 #pragma once
 
 #include "VAmigaTypes.h"
-#include "Error.h"
-#include "MediaFile.h"
-#include <filesystem>
-
 
 namespace vamiga {
-
-namespace moira { class Guards; class Debugger; }
 
 //
 // Base class for all APIs
@@ -32,22 +26,21 @@ public:
     API() { }
     API(Emulator *emu) : emu(emu) { }
 
-    void suspend();
-    void resume();
-
-protected:
-
-    bool isUserThread() const;
+    void suspend() const;
+    void resume() const;
 };
 
 //
 // Components
 //
 
-struct AmigaAPI : public API {
+class AmigaAPI : public API {
 
-    class Amiga *amiga = nullptr;
-
+    friend class VAmiga;
+    
+public:
+class Amiga *amiga = nullptr;
+    
     /// @name Analyzing the emulator
     /// @{
 
@@ -59,26 +52,16 @@ struct AmigaAPI : public API {
      */
     const AmigaInfo &getInfo() const;
     const AmigaInfo &getCachedInfo() const;
+    
+    /** @brief  Prints debug information about the component
+     *
+     *  @param  category    Debug information category
+     *  @param  os Output stream
+     */
+    void dump(Category category, std::ostream& os) const;
 
     /// @}
-    /// @name Resetting the Amiga
-    /// @{
-
-    /** @brief  Performs a hard reset
-     *
-     *  A hard reset affects all components. The effect is similar to
-     *  switching power off and on.
-     */
-    void hardReset();
-
-    /** @brief  Performs a hard reset
-     *
-     *  A soft reset emulates the execution of the CPU's reset instruction.
-     */
-    void softReset();
-
-    /// @}
-    /// @name Handling snapshots
+    /// @name Managing workspaces and snapshots
     /// @{
 
     /** @brief  Takes a snapshot
@@ -88,14 +71,27 @@ struct AmigaAPI : public API {
      *  @note   The function transfers the ownership to the caller. It is
      *          his responsibility of the caller to free the object.
      */
-    MediaFile *takeSnapshot();
+    class MediaFile *takeSnapshot();
 
     /** @brief  Loads a snapshot into the emulator.
      *
      *  @param  snapshot    Reference to a snapshot.
      */
     void loadSnapshot(const MediaFile &snapshot);
-
+    void loadSnapshot(const fs::path &path);
+    
+    /** @brief  Saves a snapshot to disk.
+     *
+     *  @param  path    Destination path
+     */
+    void saveSnapshot(const fs::path &path) const;
+    
+    /** @brief  Experimental
+     */
+    void loadWorkspace(const fs::path &path);
+    void saveWorkspace(const fs::path &path) const;
+    
+    
     /// @}
     /// @name Auto-inspecting components
     /// @{
@@ -119,8 +115,10 @@ struct AmigaAPI : public API {
      *  @param  mask A bit mask indicating the components under inspection
      */
     void setAutoInspectionMask(u64 mask);
-
+    
     /// @}
+    
+    bool getMsg(Message &msg);
 };
 
 
@@ -128,10 +126,13 @@ struct AmigaAPI : public API {
 // Agnus
 //
 
-struct DmaDebuggerAPI : public API {
+class DmaDebuggerAPI : public API {
 
+    friend class VAmiga;
     class DmaDebugger *dmaDebugger = nullptr;
 
+public:
+    
     /** @brief  Returns the component's current configuration.
      */
     const DmaDebuggerConfig &getConfig() const;
@@ -142,15 +143,30 @@ struct DmaDebuggerAPI : public API {
     const DmaDebuggerInfo &getCachedInfo() const;
 };
 
-struct DmaAPI : public API {
+class LogicAnalyzerAPI : public API {
 
-    DmaDebuggerAPI debugger;
+    friend class VAmiga;
+    class LogicAnalyzer *logicAnalyzer = nullptr;
+
+public:
+    
+    /** @brief  Returns the component's current configuration.
+     */
+    const LogicAnalyzerConfig &getConfig() const;
+    
+    /** @brief  Returns the component's current state.
+     */
+    const LogicAnalyzerInfo &getInfo() const;
+    const LogicAnalyzerInfo &getCachedInfo() const;
 };
 
-struct BlitterAPI : public API {
+class BlitterAPI : public API {
 
+    friend class VAmiga;
     class Blitter *blitter = nullptr;
 
+public:
+    
     /** @brief  Returns the component's current configuration.
      */
     const BlitterConfig &getConfig() const;
@@ -161,9 +177,12 @@ struct BlitterAPI : public API {
     const BlitterInfo &getCachedInfo() const;
 };
 
-struct CopperAPI : public API {
+class CopperAPI : public API {
 
+    friend class VAmiga;
     class Copper *copper = nullptr;
+
+public:
 
     /** @brief  Returns the component's current state.
      */
@@ -195,14 +214,19 @@ struct CopperAPI : public API {
     bool isIllegalInstr(u32 addr) const;
 };
 
-struct AgnusAPI : public API {
+class AgnusAPI : public API {
+
+    friend class VAmiga;
+    public:
 
     class Agnus *agnus = nullptr;
 
-    DmaAPI dma;
+    
     CopperAPI copper;
     BlitterAPI blitter;
-
+    DmaDebuggerAPI dmaDebugger;
+    LogicAnalyzerAPI logicAnalyzer;
+    
     /** @brief  Returns the component's current configuration.
      */
     const AgnusConfig &getConfig() const;
@@ -226,10 +250,13 @@ struct AgnusAPI : public API {
 // CIA
 //
 
-struct CIAAPI : public API {
+class CIAAPI : public API {
 
+    friend class VAmiga;
     class CIA *cia = nullptr;
 
+public:
+    
     /** @brief  Returns the component's current configuration.
      */
     const CIAConfig &getConfig() const;
@@ -249,10 +276,15 @@ struct CIAAPI : public API {
 // CPU
 //
 
-struct GuardsAPI : public API {
+namespace moira { class Guards; class Debugger; }
 
+class GuardsAPI : public API {
+
+    friend class VAmiga;
     class GuardList *guards = nullptr;
 
+public:
+    
     /** @brief  Returns the number of guards in the guard list.
      */
     isize elements() const;
@@ -328,9 +360,12 @@ struct GuardsAPI : public API {
 
 };
 
-struct CPUDebuggerAPI : public API {
+class CPUDebuggerAPI : public API {
 
+    friend class VAmiga;
     class CPU *cpu = nullptr;
+
+public:
 
     /** @brief  Returns the number of instructions in the record buffer.
      *  @note   The record buffer is only filled in track mode. To save
@@ -361,9 +396,13 @@ struct CPUDebuggerAPI : public API {
     string vectorName(isize i);
 };
 
-struct CPUAPI : public API {
+class CPUAPI : public API {
+
+    friend class VAmiga;
+    public:
 
     class CPU *cpu = nullptr;
+
 
     CPUDebuggerAPI debugger;
     GuardsAPI breakpoints;
@@ -379,10 +418,14 @@ struct CPUAPI : public API {
     const CPUInfo &getCachedInfo() const;
 };
 
-struct DeniseAPI : public API {
+class DeniseAPI : public API {
+
+    friend class VAmiga;
+    public:
 
     class Denise *denise = nullptr;
 
+    
     /** @brief  Returns the component's current configuration.
      */
     const DeniseConfig &getConfig() const;
@@ -398,17 +441,20 @@ struct DeniseAPI : public API {
 // Memory
 //
 
-struct MemoryDebuggerAPI : public API {
+class MemoryDebuggerAPI : public API {
 
+    friend class VAmiga;
     class Memory *mem = nullptr;
 
+public:
+    
     /// @name Debugging memory
     /// @{
 
     /**  @brief  Returns the memory source for a given address
      */
-    MemorySource getMemSrc(Accessor acc, u32 addr) const;
-
+    MemSrc getMemSrc(Accessor acc, u32 addr) const;
+    
     /** @brief  Reads a value from memory without causing side effects.
      */
     u8 spypeek8(Accessor acc, u32 addr) const;
@@ -423,10 +469,14 @@ struct MemoryDebuggerAPI : public API {
     /// @}
 };
 
-struct MemoryAPI : public API {
+class MemoryAPI : public API {
+
+    friend class VAmiga;
+    public:
 
     class Memory *mem = nullptr;
 
+    
     MemoryDebuggerAPI debugger;
 
     /// @name Analying the component
@@ -473,9 +523,9 @@ struct MemoryAPI : public API {
 
     /** @brief  Saves a Rom to disk
      */
-    void saveRom(const std::filesystem::path &path);
-    void saveWom(const std::filesystem::path &path);
-    void saveExt(const std::filesystem::path &path);
+    void saveRom(const fs::path &path);
+    void saveWom(const fs::path &path);
+    void saveExt(const fs::path &path);
 
     /** @brief  Removes a ROM
      */
@@ -490,11 +540,14 @@ struct MemoryAPI : public API {
 // Paula
 //
 
-struct AudioChannelAPI : public API {
+class AudioChannelAPI : public API {
 
+    friend class VAmiga;
     class Paula *paula = nullptr;
     isize channel = 0;
 
+public:
+    
     AudioChannelAPI(isize channel) : API(), channel(channel) { }
 
     /** @brief  Returns the component's current state.
@@ -503,10 +556,13 @@ struct AudioChannelAPI : public API {
     const StateMachineInfo &getCachedInfo() const;
 };
 
-struct DiskControllerAPI : public API {
+class DiskControllerAPI : public API {
 
+    friend class VAmiga;
     class DiskController *diskController = nullptr;
 
+public:
+    
     /** @brief  Returns the component's current configuration.
      */
     const DiskControllerConfig &getConfig() const;
@@ -517,20 +573,26 @@ struct DiskControllerAPI : public API {
     const DiskControllerInfo &getCachedInfo() const;
 };
 
-struct UARTAPI : public API {
+class UARTAPI : public API {
 
+    friend class VAmiga;
     class UART *uart = nullptr;
 
+public:
+    
     /** @brief  Returns the component's current state.
      */
     const UARTInfo &getInfo() const;
     const UARTInfo &getCachedInfo() const;
 };
 
-struct PaulaAPI : public API {
+class PaulaAPI : public API {
 
+    friend class VAmiga;
     class Paula *paula = nullptr;
 
+public:
+    
     AudioChannelAPI audioChannel0 = AudioChannelAPI(0);
     AudioChannelAPI audioChannel1 = AudioChannelAPI(1);
     AudioChannelAPI audioChannel2 = AudioChannelAPI(2);
@@ -548,10 +610,13 @@ struct PaulaAPI : public API {
     const PaulaInfo &getCachedInfo() const;
 };
 
-struct RTCAPI : public API {
+class RTCAPI : public API {
 
+    friend class VAmiga;
     class RTC *rtc = nullptr;
 
+public:
+    
     /** @brief  Returns the component's current configuration.
      */
     const RTCConfig &getConfig() const;
@@ -572,10 +637,14 @@ struct RTCAPI : public API {
 // Peripherals (FloppyDrive)
 //
 
-struct FloppyDriveAPI : public API {
+class FloppyDriveAPI : public API {
 
+    friend class VAmiga;
+
+    public:
     class FloppyDrive *drive = nullptr;
 
+    
     /** @brief  Returns the component's current configuration.
      */
     const FloppyDriveConfig &getConfig() const;
@@ -588,7 +657,7 @@ struct FloppyDriveAPI : public API {
     /** @brief  Getter for the raw disk object
      *  @return A pointer to the disk object or nullptr if no disk is present.
      */
-    class FloppyDisk &getDisk();
+    class FloppyDisk &getDisk() const;
 
     /** @brief Queries a disk flag
      */
@@ -626,7 +695,7 @@ struct FloppyDriveAPI : public API {
      */
     void ejectDisk();
 
-    class MediaFile *exportDisk(FileType type);
+    MediaFile *exportDisk(FileType type);
 
     /** @brief  Creates a textual bit representation of a track's data
      */
@@ -638,10 +707,13 @@ struct FloppyDriveAPI : public API {
 // Peripherals (HardDrive)
 //
 
-struct HdControllerAPI : public API {
+class HdControllerAPI : public API {
 
+    friend class VAmiga;
     class HdController *controller = nullptr;
 
+public:
+    
     /** @brief  Provides details about the controller
      */
     // const HdcTraits &getTraits() const;
@@ -656,10 +728,14 @@ struct HdControllerAPI : public API {
     const HdcStats &getStats() const;
 };
 
-struct HardDriveAPI : public API {
+class HardDriveAPI : public API {
 
+    friend class VAmiga;
+
+public:
     class HardDrive *drive = nullptr;
 
+    
     HdControllerAPI controller;
 
     /** @brief  Getter for the raw disk object
@@ -692,7 +768,7 @@ struct HardDriveAPI : public API {
      *  The function takes a number of blocks and returns all common
      *  cyclinder/heads/sectors combinations that match the given size.
      */
-    std::vector<std::tuple<isize,isize,isize>> geometries(isize numBlocks);
+    std::vector<std::tuple<isize,isize,isize>> geometries(isize numBlocks) const;
 
     /** @brief Changes the drives geometry.
      *  @param c    Cylinders
@@ -705,7 +781,7 @@ struct HardDriveAPI : public API {
     /** @brief  Attaches a hard drive provided by an URL to a media file.
      *  @param  path    Path to the media file.
      */
-    void attach(const std::filesystem::path &path);
+    void attach(const fs::path &path);
 
     /** @brief  Attaches a hard drive provided by a media file.
      *  @param  file    A media file wrapper object.
@@ -724,7 +800,7 @@ struct HardDriveAPI : public API {
      */
     void format(FSVolumeType fs, const string &name);
 
-    void writeToFile(std::filesystem::path path);
+    void writeToFile(fs::path path);
 
     MediaFile *createHDF();
 };
@@ -734,10 +810,13 @@ struct HardDriveAPI : public API {
 // Peripherals (Joystick)
 //
 
-struct JoystickAPI : public API {
+class JoystickAPI : public API {
 
+    friend class VAmiga;
     class Joystick *joystick = nullptr;
 
+public:
+    
     /** @brief  Returns the component's current configuration.
      */
     const JoystickConfig &getConfig() const;
@@ -757,18 +836,22 @@ struct JoystickAPI : public API {
 // Peripherals (Keyboard)
 //
 
-struct KeyboardAPI : public API {
+class KeyboardAPI : public API {
 
+    friend class VAmiga;
+
+    public:
     class Keyboard *keyboard = nullptr;
 
+    
     /** @brief  Returns the component's current configuration.
      */
     const KeyboardConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
      */
-    // const KeyboardInfo &getInfo() const;
-    // const KeyboardInfo &getCachedInfo() const;
+    const KeyboardInfo &getInfo() const;
+    const KeyboardInfo &getCachedInfo() const;
 
     /** @brief  Checks if a key is currently pressed.
      *  @param  key     The key to check.
@@ -799,14 +882,9 @@ struct KeyboardAPI : public API {
      */
     void releaseAll();
 
-    /** @brief  Uses the auto-typing daemon to type a string.
-     *  @param  text    The text to type.
+    /** @brief  Deletes all pending keyboard events
      */
-    // void autoType(const string &text);
-
-    /** @brief  Aborts any active auto-typing activity.
-     */
-    void abortAutoTyping();
+    void abortTyping();
 };
 
 
@@ -814,10 +892,13 @@ struct KeyboardAPI : public API {
 // Peripherals (Mouse)
 //
 
-struct MouseAPI : public API {
+class MouseAPI : public API {
 
+    friend class VAmiga;
     class Mouse *mouse = nullptr;
 
+public:
+    
     /** @brief  Returns the component's current configuration.
      */
     const MouseConfig &getConfig() const;
@@ -879,10 +960,12 @@ struct MouseAPI : public API {
 // Ports (AudioPort)
 //
 
-struct AudioPortAPI : public API {
+class AudioPortAPI : public API {
 
+    friend class VAmiga;
+    public:
     class AudioPort *port = nullptr;
-
+    
     /** @brief  Returns the component's current configuration.
      */
     const AudioPortConfig &getConfig() const;
@@ -942,10 +1025,13 @@ struct AudioPortAPI : public API {
 // Ports (ControlPort)
 //
 
-struct ControlPortAPI : public API {
+class ControlPortAPI : public API {
 
+    friend class VAmiga;
     class ControlPort *controlPort = nullptr;
 
+public:
+    
     JoystickAPI joystick;
     MouseAPI mouse;
 
@@ -960,8 +1046,10 @@ struct ControlPortAPI : public API {
 // Ports (SerialPort)
 //
 
-struct SerialPortAPI : public API {
+class SerialPortAPI : public API {
+    friend class VAmiga;
 
+    public:
     class SerialPort *serialPort = nullptr;
 
     /** @brief  Returns the component's current configuration.
@@ -982,10 +1070,13 @@ struct SerialPortAPI : public API {
 // Ports (VideoPort)
 //
 
-struct VideoPortAPI : public API {
+class VideoPortAPI : public API {
 
+    friend class VAmiga;
     class VideoPort *videoPort = nullptr;
 
+public:
+    
     /** @brief  Returns the component's current configuration.
      */
     const VideoPortConfig &getConfig() const;
@@ -999,6 +1090,20 @@ struct VideoPortAPI : public API {
     /// @name Retrieving video data
     /// @{
 
+    /** @brief  Locks the emulator texture
+     *
+     * This function aquires a mutex that prevents the emulator to modify the
+     * stable texture. Call this function prior to getTexture().
+     */
+    void lockTexture();
+
+    /** @brief  Unlocks the emulator texture
+     *
+     * This function releases the mutex acquired in lockTexture(). Call this
+     * function when the pointer returned by getTexture() is no longer needed.
+     */
+    void unlockTexture();
+
     /** @brief  Returns a pointer to the most recent stable texture
      *
      * The texture dimensions are given by constants vamiga::Texture::width
@@ -1008,7 +1113,10 @@ struct VideoPortAPI : public API {
     const u32 *getTexture() const;
     const u32 *getTexture(isize *nr, bool *lof, bool *prevlof) const;
 
-
+    /** @brief Experimental
+     */
+    void findInnerArea(isize &x1, isize &x2, isize &y1, isize &y2) const;
+    void findInnerAreaNormalized(double &x1, double &x2, double &y1, double &y2) const;
 };
 
 
@@ -1021,10 +1129,13 @@ struct VideoPortAPI : public API {
 // Misc (Debugger)
 //
 
-struct DebuggerAPI : public API {
+class DebuggerAPI : public API {
 
+    friend class VAmiga;
     class Debugger *debugger = nullptr;
 
+public:
+    
     /** @brief  Returns a string representations for a portion of memory.
      */
     /*
@@ -1063,10 +1174,13 @@ struct DebuggerAPI : public API {
  *    storing shader-relevant parameters that are irrelevant to the emulation
  *    core.
  */
-struct DefaultsAPI : public API {
+class DefaultsAPI : public API {
 
+    friend class VAmiga;
+    public:
     class Defaults *defaults = nullptr;
 
+    
     DefaultsAPI(Defaults *defaults) : defaults(defaults) { }
 
     ///
@@ -1074,25 +1188,25 @@ struct DefaultsAPI : public API {
     /// @name Loading and saving the key-value storage
 
     /** @brief  Loads a storage file from disk
-     *  @throw  VC64Error (#VAERROR_FILE_NOT_FOUND)
-     *  @throw  VC64Error (#VAERROR_SYNTAX)
+     *  @throw  CoreError (#Fault::FILE_NOT_FOUND)
+     *  @throw  CoreError (#Fault::SYNTAX)
      */
-    void load(const std::filesystem::path &path);
+    void load(const fs::path &path);
 
     /** @brief  Loads a storage file from a stream
-     *  @throw  VC64Error (#VAERROR_SYNTAX)
+     *  @throw  CoreError (#Fault::SYNTAX)
      */
     void load(std::ifstream &stream);
 
     /** @brief  Loads a storage file from a string stream
-     *  @throw  VC64Error (#VAERROR_SYNTAX)
+     *  @throw  CoreError (#Fault::SYNTAX)
      */
     void load(std::stringstream &stream);
 
     /** @brief  Saves a storage file to disk
-     *  @throw  VC64Error (#VAERROR_FILE_CANT_WRITE)
+     *  @throw  CoreError (#Fault::FILE_CANT_WRITE)
      */
-    void save(const std::filesystem::path &path);
+    void save(const fs::path &path);
 
     /** @brief  Saves a storage file to stream
      */
@@ -1110,14 +1224,14 @@ struct DefaultsAPI : public API {
     /** @brief  Queries a key-value pair.
      *  @param  key     The key.
      *  @result The value as a string.
-     *  @throw  VC64Error (#ERROR\_INVALID\_KEY)
+     *  @throw  CoreError (#ERROR\_INVALID\_KEY)
      */
     string getRaw(const string &key) const;
 
     /** @brief  Queries a key-value pair.
      *  @param  key     The key.
      *  @result The value as an integer. 0 if the value cannot not be parsed.
-     *  @throw  VC64Error (#ERROR\_INVALID\_KEY)
+     *  @throw  CoreError (#ERROR\_INVALID\_KEY)
      */
     i64 get(const string &key) const;
 
@@ -1125,21 +1239,21 @@ struct DefaultsAPI : public API {
      *  @param  option  A config option whose name is used as the prefix of the key.
      *  @param  nr      Optional number that is appened to the key as suffix.
      *  @result The value as an integer.
-     *  @throw  VC64Error (#ERROR\_INVALID\_KEY)
+     *  @throw  CoreError (#ERROR\_INVALID\_KEY)
      */
-    i64 get(Option option, isize nr = 0) const;
+    i64 get(Opt option, isize nr = 0) const;
 
     /** @brief  Queries a fallback key-value pair.
      *  @param  key     The key.
      *  @result The value as a string.
-     *  @throw  VC64Error (#ERROR\_INVALID\_KEY)
+     *  @throw  CoreError (#ERROR\_INVALID\_KEY)
      */
     string getFallbackRaw(const string &key) const;
 
     /** @brief  Queries a fallback key-value pair.
      *  @param  key     The key.
      *  @result The value as an integer. 0 if the value cannot not be parsed.
-     *  @throw  VC64Error (#ERROR\_INVALID\_KEY)
+     *  @throw  CoreError (#ERROR\_INVALID\_KEY)
      */
     i64 getFallback(const string &key) const;
 
@@ -1147,9 +1261,9 @@ struct DefaultsAPI : public API {
      *  @param  option  A config option whose name is used as the key.
      *  @param  nr      Optional number that is appened to the key as suffix.
      *  @result The value as an integer.
-     *  @throw  VC64Error (#ERROR\_INVALID\_KEY)
+     *  @throw  CoreError (#ERROR\_INVALID\_KEY)
      */
-    i64 getFallback(Option option, isize nr = 0) const;
+    i64 getFallback(Opt option, isize nr = 0) const;
 
 
     /// @}
@@ -1159,39 +1273,39 @@ struct DefaultsAPI : public API {
     /** @brief  Writes a key-value pair into the user storage.
      *  @param  key     The key, given as a string.
      *  @param  value   The value, given as a string.
-     *  @throw  VC64Error (#VAERROR_INVALID_KEY)
+     *  @throw  CoreError (#Fault::INVALID_KEY)
      */
     void set(const string &key, const string &value);
 
     /** @brief  Writes a key-value pair into the user storage.
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The value, given as a string.
-     *  @throw  VC64Error (#VAERROR_INVALID_KEY)
+     *  @throw  CoreError (#Fault::INVALID_KEY)
      */
-    void set(Option opt, const string &value);
+    void set(Opt opt, const string &value);
 
     /** @brief  Writes multiple key-value pairs into the user storage.
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The value for all pairs, given as a string.
      *  @param  objids  The keys are parameterized by adding the vector values as suffixes.
-     *  @throw  VC64Error (#VAERROR_INVALID_KEY)
+     *  @throw  CoreError (#Fault::INVALID_KEY)
      */
-    void set(Option opt, const string &value, std::vector<isize> objids);
+    void set(Opt opt, const string &value, std::vector<isize> objids);
 
     /** @brief  Writes a key-value pair into the user storage.
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The value, given as an integer.
-     *  @throw  VC64Error (#VAERROR_INVALID_KEY)
+     *  @throw  CoreError (#Fault::INVALID_KEY)
      */
-    void set(Option opt, i64 value);
+    void set(Opt opt, i64 value);
 
     /** @brief  Writes multiple key-value pairs into the user storage.
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The value for all pairs, given as an integer.
      *  @param  objids  The keys are parameterized by adding the vector values as suffixes.
-     *  @throw  VC64Error (#VAERROR_INVALID_KEY)
+     *  @throw  CoreError (#Fault::INVALID_KEY)
      */
-    void set(Option opt, i64 value, std::vector<isize> objids);
+    void set(Opt opt, i64 value, std::vector<isize> objids);
 
     /** @brief  Writes a key-value pair into the fallback storage.
      *  @param  key     The key, given as a string.
@@ -1202,30 +1316,30 @@ struct DefaultsAPI : public API {
     /** @brief  Writes a key-value pair into the fallback storage.
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The value, given as an integer.
-     *  @throw  VC64Error (#VAERROR_INVALID_KEY)
+     *  @throw  CoreError (#Fault::INVALID_KEY)
      */
-    void setFallback(Option opt, const string &value);
+    void setFallback(Opt opt, const string &value);
 
     /** @brief  Writes multiple key-value pairs into the fallback storage.
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The shared value for all pairs, given as a string.
      *  @param  objids  The keys are parameterized by adding the vector values as suffixes.
      */
-    void setFallback(Option opt, const string &value, std::vector<isize> objids);
+    void setFallback(Opt opt, const string &value, std::vector<isize> objids);
 
     /** @brief  Writes a key-value pair into the fallback storage.
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The value, given as an integer.
-     *  @throw  VC64Error (#VAERROR_INVALID_KEY)
+     *  @throw  CoreError (#Fault::INVALID_KEY)
      */
-    void setFallback(Option opt, i64 value);
+    void setFallback(Opt opt, i64 value);
 
     /** @brief  Writes multiple key-value pairs into the fallback storage.
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The shared value for all pairs, given as an integer.
      *  @param  objids  The keys are parameterized by adding the vector values as suffixes.
      */
-    void setFallback(Option opt, i64 value, std::vector<isize> objids);
+    void setFallback(Opt opt, i64 value, std::vector<isize> objids);
 
 
     /// @}
@@ -1238,30 +1352,24 @@ struct DefaultsAPI : public API {
 
     /** @brief  Deletes a key-value pair
      *  @param  key     The key of the key-value pair.
-     *  @throw  VC64Error (#VAERROR_INVALID_KEY)
+     *  @throw  CoreError (#Fault::INVALID_KEY)
      */
-    void remove(const string &key) throws;
+    void remove(const string &key);
 
     /** @brief  Deletes a key-value pair
      *  @param  option  The option's name forms the key.
-     *  @throw  VC64Error (#VAERROR_INVALID_KEY)
+     *  @throw  CoreError (#Fault::INVALID_KEY)
      */
-    void remove(Option option) throws;
+    void remove(Opt option);
 
     /** @brief  Deletes multiple key-value pairs.
      *  @param  option  The option's name forms the prefix of the keys.
      *  @param  objids  The keys are parameterized by adding the vector values as suffixes.
-     *  @throw  VC64Error (#VAERROR_INVALID_KEY)
+     *  @throw  CoreError (#Fault::INVALID_KEY)
      */
-    void remove(Option option, std::vector <isize> objids) throws;
+    void remove(Opt option, std::vector <isize> objids);
 
     /// @}
-};
-
-struct HostAPI : public API {
-
-    class Host *host = nullptr;
-
 };
 
 
@@ -1271,10 +1379,13 @@ struct HostAPI : public API {
 
 /** RetroShell Public API
  */
-struct RetroShellAPI : public API {
+class RetroShellAPI : public API {
 
+    friend class VAmiga;
     class RetroShell *retroShell = nullptr;
 
+public:
+    
     /// @name Querying the console
     /// @{
     ///
@@ -1348,20 +1459,23 @@ struct RetroShellAPI : public API {
 // Misc (Recorder)
 //
 
-struct RecorderAPI : public API {
+class RecorderAPI : public API {
 
+    friend class VAmiga;
     class Recorder *recorder = nullptr;
 
+public:
+    
     /** @brief  Returns the component's configuration.
      */
-    // const RecorderConfig &getConfig() const;
+    const RecorderConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
      */
     // const RecorderInfo &getInfo() const;
     // const RecorderInfo &getCachedInfo() const;
 
-    const std::vector<std::filesystem::path> &paths() const;
+    const std::vector<fs::path> &paths() const;
     bool hasFFmpeg() const;
 
     /** @brief  Returns the path to the FFmpeg executable.
@@ -1370,13 +1484,15 @@ struct RecorderAPI : public API {
 
     /** @brief  Sets the path to the FFmpeg executable.
      */
-    void setExecPath(const std::filesystem::path &path);
+    void setExecPath(const fs::path &path);
 
     // INTEGRATE INTO RecorderInfo, RecorderConfig
     double getDuration() const;
+    /*
     isize getFrameRate() const;
     isize getBitRate() const;
     isize getSampleRate() const;
+    */
     bool isRecording() const;
 
     /** @brief  Starts the recorder.
@@ -1390,7 +1506,7 @@ struct RecorderAPI : public API {
      */
     void startRecording(isize x1, isize y1, isize x2, isize y2,
                         isize bitRate,
-                        isize aspectX, isize aspectY) throws;
+                        isize aspectX, isize aspectY);
 
     /** @brief  Interrupts a recording in progress.
      */
@@ -1400,7 +1516,7 @@ struct RecorderAPI : public API {
      *  @param  path    The export destination.
      *  @return true on success.
      */
-    bool exportAs(const std::filesystem::path &path);
+    bool exportAs(const fs::path &path);
 };
 
 
@@ -1408,10 +1524,14 @@ struct RecorderAPI : public API {
 // Misc (RemoteManager)
 //
 
-struct RemoteManagerAPI : public API {
+class RemoteManagerAPI : public API {
+
+    friend class VAmiga;
+    public:
 
     class RemoteManager *remoteManager = nullptr;
 
+    
     /// @name Analyzing the emulator
     /// @{
 
@@ -1429,11 +1549,11 @@ struct RemoteManagerAPI : public API {
 //
 
 class VAmiga : public API {
-
+    
 public:
-
+    
     static DefaultsAPI defaults;
-
+    
     // Components
     AmigaAPI amiga;
     AgnusAPI agnus;
@@ -1443,7 +1563,7 @@ public:
     MemoryAPI mem;
     PaulaAPI paula;
     RTCAPI rtc;
-
+    
     // Ports
     AudioPortAPI audioPort;
     VideoPortAPI videoPort;
@@ -1452,99 +1572,98 @@ public:
     GuardsAPI copperBreakpoints;
     DebuggerAPI debugger;
     SerialPortAPI serialPort;
-
+    
     // Peripherals
     FloppyDriveAPI df0, df1, df2, df3;
     HardDriveAPI hd0, hd1, hd2, hd3;
     KeyboardAPI keyboard;
-
+    
     // Misc
-    HostAPI host;
     RecorderAPI recorder;
     RemoteManagerAPI remoteManager;
     RetroShellAPI retroShell;
-
-
+    
+    
     //
     // Static methods
     //
-
+    
     /** @brief  Returns a version string for this release.
      */
     static string version();
-
+    
     /** @brief  Returns a build-number string for this release.
      */
     static string build();
-
+    
     
     //
     // Initializing
     //
-
+    
     VAmiga();
     ~VAmiga();
-
+    
     /// @name Analyzing the emulator
     /// @{
-
+    
     /** @brief  Returns the component's current state.
      */
     const EmulatorInfo &getInfo() const;
     const EmulatorInfo &getCachedInfo() const;
-
+    
     /** @brief  Returns statistical information about the components.
      */
     const EmulatorStats &getStats() const;
-
+    
     /// @}
     /// @name Querying the emulator state
     /// @{
-
+    
     /** @brief  Returns true iff the emulator if the emulator is powered on.
      */
     bool isPoweredOn() const;
-
+    
     /** @brief  Returns true iff the emulator if the emulator is powered off.
      */
     bool isPoweredOff() const;
-
+    
     /** @brief  Returns true iff the emulator is in paused state.
      */
     bool isPaused() const;
-
+    
     /** @brief  Returns true iff the emulator is running.
      */
     bool isRunning() const;
-
+    
     /** @brief  Returns true iff the emulator has been suspended.
      */
     bool isSuspended() const;
-
+    
     /** @brief  Returns true iff the emulator has shut down.
      */
     bool isHalted() const;
-
+    
     /** @brief  Returns true iff warp mode is active.
      */
     bool isWarping() const;
-
+    
     /** @brief  Returns true iff the emulator runs in track mode.
      */
     bool isTracking() const;
-
+    
     /** @brief  Checks if the emulator is runnable.
      *  The function checks if the necessary ROMs are installed to lauch the
      *  emulator. On success, the functions returns. Otherwise, an exception
      *  is thrown.
      */
     void isReady() const;
-
-
+    
+    
     /// @}
     /// @name Controlling the emulator state
     /// @{
-
+    
     /** @brief  Switches the emulator on
      *
      *  Powering on the emulator changes the interal state to #STATE\_PAUSED,
@@ -1552,14 +1671,14 @@ public:
      *  Calling this function on an already powered-on emulator has no effect.
      *  */
     void powerOn();
-
+    
     /** @brief  Switches the emulator off
      *
      *  Powering off the emulator changes the interal state of #STATE\_OFF.
      *  Calling this function on an already powered-off emulator has no effect.
      */
     void powerOff();
-
+    
     /** @brief  Starts emulation
      *
      *  Running the emulator changes the internal state to #STATE\_RUNNING,
@@ -1569,7 +1688,7 @@ public:
      *  emulator, an implicit call to powerOn() will be performed.
      */
     void run();
-
+    
     /** @brief   Pauses emulation
      *
      * Pausing the emulator changes the interal state from #STATE\_RUNNING
@@ -1577,20 +1696,20 @@ public:
      * enteres a frozes state where no more frames are computed.
      */
     void pause();
-
+    
     /** @brief   Performs a hard reset
      *
      *  A hard reset affects all components. The effect is similar to
      *  switching power off and on.
      */
     void hardReset();
-
+    
     /** @brief   Performs a soft reset
      *
      *  A soft reset is similar to executing the CPU's reset instruction.
      */
     void softReset();
-
+    
     /** @brief   Terminates the emulator thread
      *
      *  Halting the emulator changes the internal state to #STATE\_HALTED.
@@ -1598,42 +1717,42 @@ public:
      *  normal operation.
      */
     void halt();
-
+    
     /** @brief   Suspends the emulator thread
      *
      *  See the \ref vc64::Suspendable "Suspendable" class for a detailes
      *  description of the suspend-resume machanism.
      */
-    void suspend();
-
+    void suspend() const;
+    
     /** @brief   Suspends the emulator thread
      *
      *  See the \ref vc64::Suspendable "Suspendable" class for a detailes
      *  description of the suspend-resume machanism.
      */
-    void resume();
-
+    void resume() const;
+    
     /** @brief  Enables warp mode.
      */
     void warpOn(isize source = 0);
-
+    
     /** @brief  Disables warp mode.
      */
     void warpOff(isize source = 0);
-
+    
     /** @brief  Enables track mode.
      */
     void trackOn(isize source = 0);
-
+    
     /** @brief  Disables track mode.
      */
     void trackOff(isize source = 0);
-
+    
     
     /// @}
     /// @name Single-stepping
     /// @{
-
+    
     /** @brief  Steps a single instruction
      *
      *  If the emulator is paused, calling this functions steps the CPU for
@@ -1642,7 +1761,7 @@ public:
      *  stepping.
      */
     void stepInto();
-
+    
     /** @brief  Steps over the current instruction
      *
      *  If the emulator is paused, calling this functions runs the emulator
@@ -1663,12 +1782,24 @@ public:
      *  location.
      */
     void stepOver();
-
-
+    
+    /** @brief  Fnishes the current rasterline
+     *
+     *  Calling this functions runs the CPU until the end of the current rasterline.
+     */
+    void finishLine();
+    
+    /** @brief  Fnishes the current frame
+     *
+     *  Calling this functions runs the CPU until the end of the current frame.
+     */
+    void finishFrame();
+    
+    
     /// @}
     /// @name Synchronizing the emulator thread
     /// @{
-
+    
     /** @brief  Sends a wakeup signal to the emulator thread.
      *
      *  To compute frames at the proper pace, the emulator core expects the GUI
@@ -1678,12 +1809,12 @@ public:
      *  current texture has been handed over to the GPU.
      */
     void wakeUp();
-
-
+    
+    
     /// @}
     /// @name Configuring the emulator
     /// @{
-
+    
     /** @brief  Launches the emulator thread.
      *
      *  This function must be called in the initialization procedure of the
@@ -1698,12 +1829,12 @@ public:
      *  function on that object.
      *  @param  func        The callback function.
      */
-    void launch(const void *listener, Callback *func);
-
+    void launch(const void *listener = nullptr, Callback *func = nullptr);
+    
     /** @brief  Returns true if the emulator has been launched.
      */
     bool isLaunched() const;
-
+    
     /** @brief  Queries a configuration option.
      *
      *  This is the main function to query a configuration option.
@@ -1714,8 +1845,8 @@ public:
      *  determine the configured component. For those options, this function
      *  must not be called.
      */
-    i64 get(Option option) const;
-
+    i64 get(Opt option) const;
+    
     /** @brief  Queries a configuration option.
      *
      *  This is the main function to query a configuration option.
@@ -1726,14 +1857,14 @@ public:
      *  @note This function must only be called for those options that require
      *  an additional parameter to uniquely determine the configured component.
      */
-    i64 get(Option option, long id) const throws;
-
+    i64 get(Opt option, long id) const;
+    
     /** Configures the emulator to match a specific Amiga model
      *
      *  @param model    The Amiga model to emulate
      */
     void set(ConfigScheme model);
-
+    
     /** @brief  Configures a component.
      *
      *  This is the main function to set an configuration option.
@@ -1744,8 +1875,8 @@ public:
      *  @note If this function is called for an options that applies to multiple
      *  components, all components are configured with the specified value.
      */
-    void set(Option opt, i64 value) throws;
-
+    void set(Opt opt, i64 value);
+    
     /** @brief  Configures a component.
      *
      *  This is the main function to set an configuration option.
@@ -1757,8 +1888,7 @@ public:
      *  @note This function must only be called for those options that require
      *  an additional parameter to uniquely determine the configured component.
      */
-    void set(Option opt, i64 value, long id) throws;
-
+    void set(Opt opt, i64 value, long id);
 
     /** @brief  Exports the current configuration.
      *
@@ -1770,24 +1900,24 @@ public:
      *              This feature is useful for debugging to compare two virtual
      *              machine configurations.
      */
-    void exportConfig(const std::filesystem::path &path, bool diff = false) const;
+    void exportConfig(const fs::path &path, bool diff = false) const;
     void exportConfig(std::ostream& stream, bool diff = false) const;
-
-
+    
+    
     /// @}
     /// @name Using the command queue
     /// @{
-
+    
     /** @brief  Feeds a command into the command queue.
      */
-    void put(const Cmd &cmd);
-    void put(CmdType type, i64 payload = 0, i64 payload2 = 0) { put(Cmd(type, payload, payload2)); }
-    void put(CmdType type, ConfigCmd payload)  { put(Cmd(type, payload)); }
-    void put(CmdType type, KeyCmd payload)  { put(Cmd(type, payload)); }
-    void put(CmdType type, GamePadCmd payload)  { put(Cmd(type, payload)); }
-    void put(CmdType type, CoordCmd payload)  { put(Cmd(type, payload)); }
-    void put(CmdType type, AlarmCmd payload)  { put(Cmd(type, payload)); }
-
+    void put(const Command &cmd);
+    void put(Cmd type, i64 payload = 0, i64 payload2 = 0) { put(Command(type, payload, payload2)); }
+    void put(Cmd type, ConfigCommand payload)  { put(Command(type, payload)); }
+    void put(Cmd type, KeyCommand payload)  { put(Command(type, payload)); }
+    void put(Cmd type, GamePadCommand payload)  { put(Command(type, payload)); }
+    void put(Cmd type, CoordCommand payload)  { put(Command(type, payload)); }
+    void put(Cmd type, AlarmCommand payload)  { put(Command(type, payload)); }
+    
     /// @}
 };
 

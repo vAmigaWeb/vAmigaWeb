@@ -1,5 +1,5 @@
-const vAmigaWeb_version="3.0.1"; //minimum requirement for snapshot version to be compatible
-const compatible_snapshot_version_format=/^(3[.]0[.]1)$/g
+const vAmigaWeb_version="4.0.0"; //minimum requirement for snapshot version to be compatible
+const compatible_snapshot_version_format=/^(4[.]0[.]0)$/g
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 
@@ -7,6 +7,24 @@ var already_loaded_collector = null;
 var snapshot_browser_first_click=true;
 var search_term='';
 var latest_load_query_context=0;
+
+workspace_path="/vamiga_workspaces"
+
+function load_workspace(name){
+    wasm_load_workspace(workspace_path+"/"+name)
+    global_apptitle=name;
+
+    let files = FS.readdir(workspace_path+"/"+name);
+    let zip_file=files.filter(f=>f.toLowerCase().endsWith(".zip"));
+    if(zip_file.length>0)
+    {
+        last_zip_archive_name = zip_file[0];
+        last_zip_archive = FS.readFile(workspace_path+"/"+name+"/"+last_zip_archive_name, { encoding: 'binary' });
+
+        $("#drop_zone").html('<svg width="1.3em" height="1.3em" viewBox="0 0 16 16" class="bi bi-archive-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M12.643 15C13.979 15 15 13.845 15 12.5V5H1v7.5C1 13.845 2.021 15 3.357 15h9.286zM5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM.8 1a.8.8 0 0 0-.8.8V3a.8.8 0 0 0 .8.8h14.4A.8.8 0 0 0 16 3V1.8a.8.8 0 0 0-.8-.8H.8z"/></svg> zip');
+        $("#drop_zone").css("border", "3px solid var(--green)");
+    }
+}
 
 function setup_browser_interface()
 {
@@ -30,19 +48,19 @@ function setup_browser_interface()
         {
             $('#sel_browser_snapshots').parent().removeClass('btn-secondary').removeClass('btn-primary')
             .addClass('btn-primary');
-            $('#sel_browser_csdb').parent().removeClass('btn-secondary').removeClass('btn-primary')
+            $('#sel_browser_workspace_db').parent().removeClass('btn-secondary').removeClass('btn-primary')
             .addClass('btn-secondary');
             search_term=''; $('#search').val('').attr("placeholder", "search snapshots (local browser storage)");
 
         }
         else
         {
-            $('#sel_browser_csdb').parent().removeClass('btn-secondary').removeClass('btn-primary')
+            $('#sel_browser_workspace_db').parent().removeClass('btn-secondary').removeClass('btn-primary')
             .addClass('btn-primary');
             $('#sel_browser_snapshots').parent().removeClass('btn-secondary').removeClass('btn-primary')
             .addClass('btn-secondary');
 
-            search_term=''; $('#search').val('').attr("placeholder", "search inside csdb.dk");
+            search_term=''; $('#search').val('').attr("placeholder", "search for workspace");
         }
         browser_datasource=collector_name;
 
@@ -54,9 +72,9 @@ function setup_browser_interface()
         load_browser('snapshots');
     }
 
-    document.getElementById('sel_browser_csdb').onclick = async function(){
-        await switch_collector('csdb');
-        load_browser('csdb');
+    document.getElementById('sel_browser_workspace_db').onclick = async function(){
+        await switch_collector('workspace_db');
+        load_browser('workspace_db');
     }
 
 
@@ -84,7 +102,7 @@ function setup_browser_interface()
     {
         await load_browser(current_browser_datasource);
         if(snapshot_browser_first_click)
-        {//if there are no taken snapshots -> select csdb
+        {//if there are no taken snapshots -> select workspace_db
             snapshot_browser_first_click=false;
             var snapshot_collector=get_data_collector("snapshots");
             //wait until snapshots are a loaded
@@ -92,8 +110,7 @@ function setup_browser_interface()
             //and now look into snapshots
             if(snapshot_collector.total_count==0)
             { 
-//vAmigaWeb has no csdb yet
-//                document.getElementById('sel_browser_csdb').click();   
+//                document.getElementById('sel_browser_workspace_db').click();   
             }
         }   
     }
@@ -184,7 +201,7 @@ async function load_browser(datasource_name, command="feeds")
         if(collector.can_like(app_title, item))
         {
             var like_icon = collector.is_like(app_title, item) ? like_icon_filled : like_icon_empty;
-            the_html += '<button id="like_snap_'+item.id+'" type="button" style="position:absolute;top:3px;right:3px;padding:0;" class="btn btn-sm icon">'+like_icon+'</button>';
+            the_html += '<button id="like_snap_'+item.id+'" type="button" style="position:absolute;top:3px;left:3px;padding:0;" class="btn btn-sm icon">'+like_icon+'</button>';
         }
 
         var label = item.name;
@@ -240,8 +257,7 @@ async function load_browser(datasource_name, command="feeds")
             {
                 delete_btn.onclick = function() {
                     let id = this.id.match(/delete_snap_(.*)/)[1];
-                    //alert('delete id='+id);
-                    delete_snapshot_per_id(id);
+                    collector.delete(id)
                     $("#card_snap_"+id).remove();
                     hide_all_tooltips();
                 };
@@ -250,26 +266,7 @@ async function load_browser(datasource_name, command="feeds")
             {
                 export_btn.onclick = function() {
                     let id = this.id.match(/export_snap_(.*)/)[1];
-                    get_snapshot_per_id(id,
-                        function (snapshot) {
-                            let blob_data = new Blob([snapshot.data], {type: 'application/octet-binary'});
-                            const url = window.URL.createObjectURL(blob_data);
-                            const a = document.createElement('a');
-                            a.style.display = 'none';
-                            a.href = url;
-                    
-                            let app_name = snapshot.title;
-                            let extension_pos = app_name.indexOf(".");
-                            if(extension_pos >=0)
-                            {
-                                app_name = app_name.substring(0,extension_pos);
-                            }
-                            a.download = app_name+'_snap'+snapshot.id+'.vAmiga';
-                            document.body.appendChild(a);
-                            a.click();
-                            window.URL.revokeObjectURL(url);
-                        }
-                    );
+                    collector.export(id);
                     hide_all_tooltips();
                 };
             }
@@ -421,7 +418,7 @@ var collectors = {
                     width=src_data[13+4]*256+ src_data[12+4];
                     height=src_data[17+4]*256+ src_data[16+4];
                 }
-                if(version.startsWith("3"))
+                if(version[0]>=3)
                 {
                     width=src_data[13+4]*256+ src_data[12+4];
                     height=src_data[17+4]*256+ src_data[16+4];
@@ -489,7 +486,7 @@ var collectors = {
 
                         if(!version.match(compatible_snapshot_version_format))
                         {
-                            alert(`This snapshot has been taken with vAmiga version ${version} and can not be loaded with the current version ${vAmigaWeb_version}, sorry.`);
+                            alert(`This snapshot has been taken with vAmiga version ${version} and can not be loaded with the current version ${vAmigaWeb_version}. You can switch back to version ${version} in the settings, or alternatively, use workspaces, which remain compatible.`);
                             return;
                         }
                         wasm_loadfile(
@@ -515,8 +512,31 @@ var collectors = {
         can_delete: function(app_title, the_id){
             return app_title == 'auto_save' ? false: true;
         },
+        delete: function(id) {delete_snapshot_per_id(id)},
         can_export: function(app_title, the_id){
             return app_title == 'auto_save' ? false: true;
+        },
+        export: function(id) {
+            get_snapshot_per_id(id,
+                function (snapshot) {
+                    let blob_data = new Blob([snapshot.data], {type: 'application/octet-binary'});
+                    const url = window.URL.createObjectURL(blob_data);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+            
+                    let app_name = snapshot.title;
+                    let extension_pos = app_name.indexOf(".");
+                    if(extension_pos >=0)
+                    {
+                        app_name = app_name.substring(0,extension_pos);
+                    }
+                    a.download = app_name+'_snap'+snapshot.id+'.vAmiga';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                }
+            );
         },
         can_like: function(app_title, item){
             return false;
@@ -549,11 +569,11 @@ var collectors = {
 
     },
 
-    csdb: {
+    workspace_db: {
         busy: false,
         set_busy: function (busy_value) 
         { 
-            console.log("csdb.busy="+busy_value);
+            console.log("workspace_db.busy="+busy_value);
             this.busy = busy_value;
 
             if(busy_value)
@@ -567,10 +587,10 @@ var collectors = {
         },
         wait_until_finish: async function() {
             var i=0;
-            console.log(`csdb.check on busy in waituntil busy=`+this.busy);
+            console.log(`workspace_db.check on busy in waituntil busy=`+this.busy);
             while(this.busy)
             {
-                console.log(`csdb collector is busy since ${i*10}ms`);
+                console.log(`workspace_db collector is busy since ${i*10}ms`);
                 await sleep(100);
                 i++;
             }
@@ -583,262 +603,92 @@ var collectors = {
         last_load_was_a_search: false,
         needs_reload: function ()
         { 
-            return already_loaded_collector != this || this.loaded_feeds == null || last_load_was_a_search;
-        },
-        map_xml_to_item: function (xml_item)
-        {
-            var new_item = new Object();
-            new_item.id=xml_item.getElementsByTagName("ID")[0].textContent;
-            new_item.name = property(xml_item,"Name");
-            new_item.type = property(xml_item,"Type");
-            new_item.date = new Date(
-                property(xml_item,"ReleaseYear"),
-                property(xml_item,"ReleaseMonth")-1,  //month is 0 indexed
-                property(xml_item,"ReleaseDay")
-            ).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-            new_item.screen_shot = property(xml_item,"ScreenShot");
-            new_item.links = property_list(xml_item,"Link", matches=/http.*?[.](zip|prg|t64|d64|g64|tap|crt)$/i);
-            return new_item;
+            return true;
         },
         favourites: async function (row_renderer){
-            await this.wait_until_finish();
-            this.set_busy(true);
-            last_load_was_a_search=true;
-            try
-            {
-                this.all_ids= [];
-                this.all_items= [];
-                this.loaded_favourites = [];
-                var webservice_loader = async response => {
-                    try{
-                        var items=[];
-
-                        var text = await response.text();
-                        //alert(text);
-                        var parser = new DOMParser();
-                        var xmlDoc = parser.parseFromString(text,"text/xml");
-
-                        var releases = xmlDoc.getElementsByTagName("Release");
-
-                        for(var xml_item of releases)
-                        {
-                            var id = xml_item.getElementsByTagName("ID")[0].textContent;
-
-                            if(this.all_ids.includes(id))
-                            {//this entry was already in another feed, skip it
-                                continue;
-                            }
-                            this.all_ids.push(id);
-
-                            var new_item = this.map_xml_to_item(xml_item);
-  
-                            //alert(`id=${id}, name=${name}, screen_shot=${screen_shot}`);
-                            if(new_item.screen_shot!= null)
-                            {
-                                this.all_items[id] = new_item;
-                                items.push(new_item);
-                            }
-                        }
-                        for(item of items)
-                        {
-                            this.loaded_favourites.push(item);
-                        }
- 
-                    }
-                    catch {}
-                }
-
-                
-                for(id in this.like_values)
-                {
-                    this.row_name='suche';
-                    var csdb_detail_url = `https://csdb.dk/webservice/?type=release&id=${id}&depth=1.5&cache_me=true`;
-                    await fetch(csdb_detail_url).then( webservice_loader );
-                }
-
-                var type_rows = [];
-                for(item of this.loaded_favourites)
-                {
-                    if(type_rows[item.type]==null)
-                    {
-                        type_rows[item.type] = [];
-                    }
-                    type_rows[item.type].push(item);
-                }
-                for(row_type in type_rows)
-                {
-                    row_renderer(latest_load_query_context,row_type,type_rows[row_type]);
-                }
-
-            }
-            finally
-            {
-                this.set_busy(false);
-            }
+            this.load(row_renderer, 
+                path=>this.like_values.includes(path)
+            )
         },
         search: async function (row_renderer){
-            await this.wait_until_finish();
-            this.set_busy(true);
-            last_load_was_a_search=true;
-            try
-            {
-                this.all_ids= [];
-                this.all_items= [];
-                this.loaded_search = [];
-                var webservice_loader = async response => {
-                    try{
-                        var items=[];
-
-                        var text = await response.text();
-                        //alert(text);
-                        var parser = new DOMParser();
-                        var xmlDoc = parser.parseFromString(text,"text/xml");
-
-                        var releases = xmlDoc.getElementsByTagName("Release");
-
-                        for(var xml_item of releases)
-                        {
-                            var id = xml_item.getElementsByTagName("ID")[0].textContent;
-
-                            if(this.all_ids.includes(id))
-                            {//this entry was already in another feed, skip it
-                                continue;
-                            }
-                            this.all_ids.push(id);
-
-                            var new_item = this.map_xml_to_item(xml_item);
-  
-                            //alert(`id=${id}, name=${name}, screen_shot=${screen_shot}`);
-                            if(new_item.screen_shot!= null)
-                            {
-                                this.all_items[id] = new_item;
-                                items.push(new_item);
-                            }
-                        }
-                        this.loaded_search[this.row_name] = items;
-
-                        var type_rows = [];
-                        for(item of items)
-                        {
-                            if(type_rows[item.type]==null)
-                            {
-                                type_rows[item.type] = [];
-                            }
-                            type_rows[item.type].push(item);
-                        }
-                        for(row_type in type_rows)
-                        {
-                            row_renderer(latest_load_query_context, row_type,type_rows[row_type]);
-                        }
-
-                    }
-                    catch {}
-                }
-
-                if(search_term.startsWith("https://csdb.dk/release/?id="))
-                {
-
-                    var dropped_id = search_term.match(`id=([0-9]+)`)[1]; 
-                    var csdb_detail_url = `https://csdb.dk/webservice/?type=release&id=${dropped_id}&depth=1.5`;
-                    await fetch(csdb_detail_url).then( webservice_loader );        
-                    await this.show_detail("csdblink", dropped_id);
-                }
-                else
-                {
-                    this.row_name='suche';
-                    await fetch(`https://csdb.dk/webservice/?type=search&stype=release&q=${search_term}&depth=1.5`).then( webservice_loader );
-                }
-            }
-            finally
-            {
-                this.set_busy(false);
-            }
+            this.load(row_renderer, path=>path.toLowerCase().includes(search_term.toLowerCase()))
         },
-        load: async function (row_renderer){
+        load: async function (row_renderer, filter_func=async ()=>true){
             await this.wait_until_finish();
             this.set_busy(true);
             last_load_was_a_search=false;
             try
             {
-                //this.loaded_feeds = null; //force reload
-                if(this.loaded_feeds!=null)
-                {
-                    this.all_items=[];
-                    for(var row_key in this.loaded_feeds)
-                    {
-                        for(feed_item of this.loaded_feeds[row_key])
-                        {
-                            this.all_items[feed_item.id]=feed_item;
-                        }
-                        row_renderer(latest_load_query_context, row_key, this.loaded_feeds[row_key]);
-                    }
-                    return;
-                }
                 this.all_ids= [];
                 this.all_items= [];
                 this.loaded_feeds = [];
-                var webservice_loader = async response => {
-                    try{
-                        var items=[];
 
-                        var text = await response.text();
-                        //alert(text);
-                        var parser = new DOMParser();
-                        var xmlDoc = parser.parseFromString(text,"text/xml");
+                await mount_workspaces();
+ 
+                let dirs = FS.readdir(workspace_path);
+                console.log(dirs)
+                dirs.sort((a,b)=>a.localeCompare(b));
+                dirs=dirs.filter(filter_func);
+                
+                function loadImageFromFS(path) {
+                    try
+                    {
+                        let data = FS.readFile(path, { encoding: 'binary' });
 
-                        var releases = xmlDoc.getElementsByTagName("Release");
-
-                        for(var xml_item of releases)
-                        {
-                            var id = xml_item.getElementsByTagName("ID")[0].textContent;
-
-                            if(this.all_ids.includes(id))
-                            {//this entry was already in another feed, skip it
-                                continue;
-                            }
-                            this.all_ids.push(id);
-
-                            var new_item = this.map_xml_to_item(xml_item);
-  
-                            //alert(`id=${id}, name=${name}, screen_shot=${screen_shot}`);
-                            if(new_item.screen_shot!= null)
-                            {
-                                this.all_items[id] = new_item;
-                                items.push(new_item);
-                            }
-                        }
-                        this.loaded_feeds[this.row_name] = items;
-                        row_renderer(latest_load_query_context, this.row_name,items);
+                        let blob = new Blob([data], { type: 'image/png' });
+                        let url = URL.createObjectURL(blob);
+                        return url;    
                     }
-                    catch {}
+                    catch(e) {
+                        return null;
+                    }
                 }
 
-                this.row_name='top one file demos';
-                await fetch('https://csdb.dk/webservice/?type=chart&ctype=release&subtype=2&depth=1.5').then( webservice_loader );
-            
-                this.row_name='top demos';
-                await fetch('https://csdb.dk/webservice/?type=chart&ctype=release&subtype=1&depth=1.5').then( webservice_loader );
-                
-                this.row_name='latest releases';
-                await fetch('https://csdb.dk/webservice/?type=latestrel&depth=1.5').then( webservice_loader );        
 
-                this.row_name='latest additions';
-                await fetch("https://csdb.dk/webservice/?type=latestadd&addtype=release&depth=1.5").then( webservice_loader );
-                
-                this.row_name='top music';
-                await fetch("https://csdb.dk/webservice/?type=chart&ctype=release&subtype=7&depth=1.5").then( webservice_loader );
-                
-                this.row_name='top music - part2';
-                await fetch("https://csdb.dk/webservice/?type=chart&ctype=release&subtype=8&depth=1.5").then( webservice_loader );
+                let id_counter=0;
+                let last_ws_item=null;
+                items= []
+                for(ws_item of dirs)
+                {
+                    if(!ws_item.startsWith("."))
+                    {
+                        if(items.length>0 && last_ws_item[0] != ws_item[0])
+                        {
+                            this.row_name = last_ws_item[0].toUpperCase();
+                            row_renderer(latest_load_query_context, this.row_name,items);
+                            items = []
+                        }
 
-                this.row_name='top graphics';
-                await fetch("https://csdb.dk/webservice/?type=chart&ctype=release&subtype=9&depth=1.5").then( webservice_loader );
+                        let urlPreview= loadImageFromFS(workspace_path+"/"+ws_item+"/preview.png")
 
-                this.row_name='top graphics - part2';
-                await fetch("https://csdb.dk/webservice/?type=chart&ctype=release&subtype=10&depth=1.5").then( webservice_loader );
+                        let files = FS.readdir(workspace_path+"/"+ws_item);
+                        let time_stamp="";
+                        try{
+                            let stat=FS.stat(workspace_path+"/"+ws_item+"/config.retrosh");
+                            time_stamp = stat.mtime.toLocaleString();
+                        }
+                        catch {}
+                        
+                        let new_item = { 
+                            id:id_counter++,
+                            workspace_name: ws_item, 
+                            name: ws_item,
+                            date: time_stamp,
+                            files: files.filter(f=>!f.startsWith(".")),
+                            screen_shot: urlPreview
+                        }
+                        this.all_items[new_item.id] = new_item;
+                        items.push(new_item)
 
-                this.row_name='top games';
-                await fetch("https://csdb.dk/webservice/?type=chart&ctype=release&subtype=11&depth=1.5").then( webservice_loader );
+                        last_ws_item = ws_item;
+                    }
+                }
+                if(items.length>0)
+                {
+                    this.row_name = last_ws_item[0].toUpperCase();
+                    row_renderer(latest_load_query_context, this.row_name,items);
+                    items = []
+                }
             }
             finally
             {
@@ -863,68 +713,14 @@ var collectors = {
         show_detail:function (app_title, id){
             var item = this.all_items[id];
             //fetching details
-            var csdb_detail_url = `https://csdb.dk/webservice/?type=release&id=${id}&depth=2`;
-
             if(item == null || item.details_already_fetched !== undefined )
             {
                 this.render_detail(app_title, id);
-                this.render_detail2(app_title, id);
             }
             else
             {
                 //show already loaded content
                 this.render_detail(app_title, id);
-
-                //fetch more details about the entry
-                fetch(csdb_detail_url).then( async response => {
-                    var text = await response.text();
-                    //alert(text);
-                    var parser = new DOMParser();
-                    var xmlDoc = parser.parseFromString(text,"text/xml");
-
-                    //already loaded with depth=1.5
-/*                  
-                    //getting links <Release><DownloadLinks><DownloadLink><Link>
-                    var dl_links = property_path(xmlDoc, "Release/DownloadLinks");
-                    item.links = [];
-                    for(var dl_link of dl_links)
-                    {
-                        item.links.push.apply(item.links, 
-                            property_list(dl_link,"Link", matches=/http.*?[.](zip|prg|t64|d64|g64|tap|crt)$/i)
-                            );
-                    }
-*/
-                    //getting user comments
-                    item.comments = [];
-                    var user_comments= property_path(xmlDoc,"Release/Comments/UserComment");
-                    if(user_comments != null)
-                    {
-                        for(var user_comment of user_comments)
-                        {
-                            var new_user_comment = new Object();
-                            new_user_comment.text= property(user_comment, "Text");
-                            new_user_comment.date= property(user_comment, "Date");
-                            new_user_comment.user= property(user_comment, "CSDbUser/Login");
-                            
-                            item.comments.push(new_user_comment);
-                        }
-                    }
-
-                    //getting summary                   
-                    var summary= property_path(xmlDoc,"Release/Comments/Summary");
-                    if(summary != null && summary.length>0)
-                    {
-                        var new_summary = new Object();
-                        new_summary.text= property(user_comment, "Text");
-                        new_summary.date= property(user_comment, "Date");
-                        new_summary.user= property(user_comment, "CSDbUser/Login");
-
-                        item.summary=new_summary;
-                    }
-
-                    item.details_already_fetched=true;
-                    this.render_detail2(app_title, id);
-                });
             }
         },
         render_detail: function (app_title, id){
@@ -939,75 +735,34 @@ var collectors = {
             var item = this.all_items[id];
 
 
-            
-            var content = '<div class="container-xl">';
-
             var like_icon = this.is_like(app_title, item) ? like_icon_filled : like_icon_empty;
-            content += `<button id="like_detail_${item.id}" type="button" style="position:absolute;top:10%;right:10%;padding:0;z-index:3000" class="btn btn-sm icon">${like_icon}</button>`;
             
-            content += '<div class="row justify-content-md-center">';
-            content += '<div class="col col-md-12">';
-                content += `<image src="${item.screen_shot}" class="detail_screenshot"/>`;
-            content += '</div>';
-            content += '</div>'; //row
-            
-            content += '<div class="row justify-content-md-center mt-4">';
-            content += '<div class="col col-xs-auto">';
-    
-                content += `<h2>${item.name}</h2>`;
-                content += `<h4>${item.type} | ${item.date}</h4>`;
-        
-            content += '</div>'; //col
+var content = `
+<div class="container-xl">
+    <button id="like_detail_${item.id}" type="button" style="position:absolute;top:10%;right:10%;padding:0;z-index:3000" class="btn btn-sm icon">${like_icon}</button>
+</div>
+
+<div style="margin-left:10%;margin-right:10%">
+    <span style="font-size:xx-large">${item.name}</span> <br>
+    <span style="font-size:large">last saved ${item.date}</span>
+</div>
+<br>
+`;
 
 
-            content += '<div class="col-xs text-right px-0 mr-3">';
-                content += `<a style="color: var(--secondary);font-size: large;" href="https://csdb.dk/release/?id=${id}" target="_blank"><svg class="mr-3" width="1.8em" height="1.8em" viewBox="0 0 16 16" class="bi bi-box-arrow-up" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-  <path fill-rule="evenodd" d="M3.5 6a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5v-8a.5.5 0 0 0-.5-.5h-2a.5.5 0 0 1 0-1h2A1.5 1.5 0 0 1 14 6.5v8a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 14.5v-8A1.5 1.5 0 0 1 3.5 5h2a.5.5 0 0 1 0 1h-2z"/>
-  <path fill-rule="evenodd" d="M7.646.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 1.707V10.5a.5.5 0 0 1-1 0V1.707L5.354 3.854a.5.5 0 1 1-.708-.708l3-3z"/>
-</svg><br><span class="mr-1">open in</span><br><span class="mr-0">csdb.dk</span></a>`;
-            content += '</div>'; //col
+content += `<button type="button" id="detail_run${0}" class="btn btn-primary my-2">
+load workspace
+<svg width="1.8em" height="1.8em" viewBox="0 0 16 16" class="bi bi-play-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
+</button>
+<br>
+`;
 
-
-            content += '</div>'; //row
-
-
-
-            content += '<div class="row justify-content-md-center mt-4 pb-4">';
-            content += '<div class="col col-md-12">';
-            var vc64web_URL='https://vc64web.github.io/';
+            content+=`<div style="margin-left:20%;margin-top:15px;">
+            <div>workspace files:</div>`;
             var link_id=0;
-            for(var link of item.links)
-            {
-                if(link.match(/https?:\/\/csdb.dk/i))
-                {
-                    var link_path = link.split('/');
-                    var link_name = decodeURIComponent(link_path[link_path.length-1]);
-                    var encoded_link = '';
-                    for(var i=0; i<link_path.length-1;i++)
-                    {
-                        encoded_link += link_path[i] + '/'; 
-                    }
-                    encoded_link += encodeURIComponent(link_name);
-                    
-                    content += `<button type="button" id="detail_run${link_id}" class="btn btn-primary my-2">
-                    ${link_name}
-                    <svg width="1.8em" height="1.8em" viewBox="0 0 16 16" class="bi bi-play-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
-                    </button>`;
-
-                    content += `
-                    <div class="row">
-                    <div class="col-12">
-                    <button type="button" data-toggle="tooltip" data-placement="bottom" title="copy to clipboard for sharing"
-                    onclick="var copyText = document.getElementById('detail_link${link_id}');copyText.select();copyText.setSelectionRange(0, 99999);document.execCommand('copy');"
-                    class="btn btn-secondary btn-sm copy-btn" id="copy_${link_id}"><svg width="1.8em" height="1.8em" viewBox="0 0 16 16" class="bi bi-clipboard-plus" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                    <path fill-rule="evenodd" d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
-                    <path fill-rule="evenodd" d="M9.5 1h-3a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3zM8 7a.5.5 0 0 1 .5.5V9H10a.5.5 0 0 1 0 1H8.5v1.5a.5.5 0 0 1-1 0V10H6a.5.5 0 0 1 0-1h1.5V7.5A.5.5 0 0 1 8 7z"/>
-                </svg></button>
-                    <input class="copy_run_link" type="text" value="${vc64web_URL}#${encoded_link}" id="detail_link${link_id}"></input>
-                    </div>
-                    </div>`;
-                }
-                link_id++;
+            for(var file of item.files.filter(f => f != "config.retrosh" && f != "preview.png"))
+            {              
+                content += `<div style="margin-left:15px">${file}</div>`;
             }
             content += '</div>'; //col
             content += '</div>'; //row
@@ -1018,20 +773,18 @@ var collectors = {
 
             document.getElementById(`like_detail_${item.id}`).onclick = function() {
                 let id = this.id.match(/like_detail_(.*)/)[1];
-                var like_val = get_data_collector("csdb").set_like(app_title, id);
+                var like_val = get_data_collector("workspace_db").set_like(app_title, id);
                 $(this).html(like_val ? like_icon_filled : like_icon_empty);
                 $(`#like_snap_${id}`).html(like_val ? like_icon_filled : like_icon_empty);
             };
 
             link_id=0;
-            for(var link of item.links)
+            for(var link of item.files)
             {
                 $(`#detail_run${link_id}`).click(function (){
-                    if(already_loaded_collector != get_data_collector("csdb"))
-                        return;
-                    //only run when collector is fully loaded
-                    var clicked_link_id=this.id.match("detail_run(.*)")[1];
-                    already_loaded_collector.run_link(app_title, id, item.links[clicked_link_id]);
+                    load_workspace(item.workspace_name);
+
+                    $('#snapshotModal').modal('hide');
                 });
                 link_id++;
             }
@@ -1053,105 +806,80 @@ var collectors = {
             });
 
         },
-        render_detail2: function (app_title, id){
-            var item = this.all_items[id];
-
-            var content = '<div class="container">';
-            var the_date= null;
-            if(item.summary !== undefined )
-            {
-                the_date=item.summary.date;
-                content+=`<h4 class="mx-1">summary</h4>
-                <p class="px-2 mb-0 font-weight-light" style="color:darkgoldenrod">${item.summary.date}</p>
-                <p class="px-4 mx-1 mb-0 font-weight-light">${item.summary.user == null ? "": item.summary.user}</p>
-                <p class="font-italic mx-4 px-4">${item.summary.text}</p>
-                `;
-            }
-
-            if(item.comments.length>0)
-            {
-                content += `<h4 class="mx-1">comments</h4>`;
-            }
-
-            for(var comment of item.comments)
-            {
-                if(comment.date != the_date)
-                {
-                    content+=`
-                    <p class="px-2 mb-0 font-weight-light" style="color:darkgoldenrod">${comment.date}</p>`;
-                    the_date=comment.date;
-                }
-                content+=`
-                    <p class="px-4 mx-1 mb-0 font-weight-light">${comment.user==null?"":comment.user}  </p>
-                    <p class="font-italic mx-4 px-4">${comment.text}</p>
-                `;
-            }
-            content += '</div>';
-
-          
-
-            $("#detail_content").append(content);
-            
-        },
-        run_link: function (app_title, id, link){
-            //alert(`run ${app_title} with ${id}`);
-            var download_url = link.replace('http://', 'https://')
-            //alert(download_url);
-
-            fetch(download_url).then( async response => {
-                file_slot_file_name = decodeURIComponent(response.url.match(".*/(.*)$")[1]);
-                file_slot_file = new Uint8Array( await response.arrayBuffer());
-
-                //if there is still a zip file in the fileslot, eject it now
-                $("#button_eject_zip").click();
-
-                if(app_title == "call_parameter" && id == 0)
-                {
-                    configure_file_dialog(reset=true);
-                }   
-                else
-                {               
-                    configure_file_dialog(reset=true);
-                }
-            });
-
-            $('#snapshotModal').modal('hide');
-            return; 
-        },
         can_delete: function(app_title, the_id){
-            return false;
+            return true;
+        },
+        delete: function(id) {
+            let item = this.all_items[id];
+            deleteAllFiles(workspace_path+"/"+item.name);
+            FS.rmdir(workspace_path+"/"+item.name);
+
+             FS.syncfs(false,(error)=>
+                {  
+                   // $("#modal_take_snapshot").modal('hide');
+                }
+            )
         },
         can_export: function(app_title, the_id){
-            return false;
+            return true;
+        },
+        export: function(id) {
+            function zipFilesInTmpFolder(name) {
+                const zip = new JSZip();
+                const workspace_path=`/vamiga_workspaces/${name}`
+                const files = FS.readdir(workspace_path);
+    
+                // Alle Dateien im Verzeichnis durchlaufen und zum Zip hinzufügen
+                files.forEach(function(file) {
+                    if (file !== '.' && file !== '..') {
+                        const filePath = `${workspace_path}/${file}`;
+                        const fileData = FS.readFile(filePath);  // Datei als Byte-Array lesen
+                        zip.file(`${name}.vamiga/${file}`, fileData);  // Datei in das Zip-Archiv einfügen
+                    }
+                });
+    
+                // Zip-Datei generieren und zum Download anbieten
+                zip.generateAsync({ type: "blob" })
+                    .then(function(content) {
+                        // Blob URL erzeugen und Download-Link erstellen
+                        const url = URL.createObjectURL(content);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `workspace_${name}.zip`;  // Name des Zip-Archivs
+                        link.click();  // Download starten
+                        URL.revokeObjectURL(url);  // Blob URL wieder freigeben
+                    });
+            }
+            let item = this.all_items[id];
+
+            zipFilesInTmpFolder(item.name);
         },
         can_like: function(app_title, item){
             if(this.like_values == null)
             {
-               this.like_values = JSON.parse(load_setting('likes', '{}'));
+               this.like_values = JSON.parse(load_setting('workspace_likes', '[]'));
             }
             return true;
         },
         is_like: function(app_title, item){
-            return this.like_values[item.id] === undefined || this.like_values[item.id] == false ? false:true;
+            return this.like_values.includes(item.name)
         },
         like_values: null,  
         set_like: function(app_title, id){
-            if(this.like_values[id] === undefined)
+
+            let name = this.all_items[id].name;
+
+            if(this.like_values.includes(name))
             {
-                this.like_values[id]= true;
+                this.like_values = this.like_values.filter(n=>n != name); 
             }
             else
             {
-                this.like_values[id] = this.like_values[id] == true ? false:true;
-                if(this.like_values[id] == false)
-                {
-                    delete this.like_values[id];
-                }
+                this.like_values.push(name);
             }
-
             //hier die positiven werte abspeichern z.b. in 
-            save_setting('likes', JSON.stringify(this.like_values));
-            return this.like_values[id];
+            save_setting('workspace_likes', JSON.stringify(this.like_values));
+            return this.like_values.includes(name);
         }
     }
 
@@ -1251,3 +979,14 @@ function set_take_auto_snapshots(on) {
     }
 }
 
+function deleteAllFiles(path) {
+    let files = FS.readdir(path);
+    for (let file of files) {
+        if (file === '.' || file === '..') continue;
+        let fullPath = path + '/' + file;
+        let stats = FS.stat(fullPath);
+        if (!stats.isDir) {
+            FS.unlink(fullPath);
+        }
+    }
+}
