@@ -2153,7 +2153,12 @@ printf("wasm_configure %s = %s\n", option, _value);
     }
     else if( strcmp(option,"WARP_MODE") == 0)
     {
-      wrapper->emu->set(Opt::AMIGA_WARP_MODE, util::parseEnum <WarpEnum>(value));
+      wrapper->emu->set(Opt::AMIGA_WARP_MODE, util::parseEnum <WarpEnum>(
+        value.size() > 5 && value.substr(0, 5) == "WARP_" ? 
+        value.substr(5) //legacy: some websites still use the WARP_ prefix variant 
+        : 
+        value
+      ));
     }
     else if( strcmp(option,"SER_DEVICE") == 0)
     {
