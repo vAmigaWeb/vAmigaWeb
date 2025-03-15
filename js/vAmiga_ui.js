@@ -948,36 +948,61 @@ function configure_file_dialog(reset=false)
                     if(workspaces_found.length>0)
                     {
                         let current_path="";
+                        let alternate_filename;
                         for(current_path of workspaces_found)
                         {
-                            let alternate_filename=null;
+                            alternate_filename=null;
                             current_path = current_path.replace('/config.retrosh','').replace(".vamiga","").replace(".vamiga","").replace(".vamiga","")
                             if (!FS.analyzePath(workspace_path+"/"+current_path).exists) {
                                 FS.mkdir(workspace_path +"/"+ current_path);
                             }
                             else
                             {
-                                function incrementBeforeDot(str) {
-                                    const parts = str.split('.');
-                                    const firstPart = parts[0];
-                                    const numberMatch = firstPart.match(/(\d+)$/);
-                                    let incrementedNumber;
+                                function incrementLastNumber(str) {
+                                    // Find the index of the last dot in the string
+                                    const lastDotIndex = str.lastIndexOf('.');
+                                
+                                    // If there's no dot, check the whole string for a number at the end
+                                    if (lastDotIndex === -1) {
+                                        const numberMatch = str.match(/(\d+)$/);
+                                        
+                                        if (numberMatch) {
+                                            // If a number is found at the end, increment it by 1
+                                            const number = parseInt(numberMatch[0], 10);
+                                            const incrementedNumber = number + 1;
+                                
+                                            // Replace the old number with the incremented one
+                                            return str.replace(numberMatch[0], incrementedNumber);
+                                        } else {
+                                            // If no number is found, append '1' to the string
+                                            return str + '1';
+                                        }
+                                    }
+                                
+                                    // If there's a dot, extract the part after the last dot
+                                    const lastPart = str.slice(lastDotIndex + 1);
+                                
+                                    // Search for a number at the end of the last part
+                                    const numberMatch = lastPart.match(/(\d+)$/);
+                                
                                     if (numberMatch) {
-                                    const number = parseInt(numberMatch[0], 10);
-                                    incrementedNumber = number + 1;
-                                    return firstPart.replace(numberMatch[0], incrementedNumber) + '.' + parts.slice(1).join('.');
+                                        // If a number is found, increment it by 1
+                                        const number = parseInt(numberMatch[0], 10);
+                                        const incrementedNumber = number + 1;
+                                
+                                        // Replace the old number with the incremented one
+                                        const newStr = str.slice(0, lastDotIndex + 1) + lastPart.replace(numberMatch[0], incrementedNumber);
+                                        return newStr;
                                     } else {
-                                    incrementedNumber = 1;
-                                    return firstPart + incrementedNumber + '.' + parts.slice(1).join('.');
+                                        // If no number is found, append '1' to the last part of the string
+                                        return str + '1';
                                     }
                                 }
+                                
 
-                                alternate_filename = incrementBeforeDot(current_path)                              
+                                alternate_filename = incrementLastNumber(current_path)                              
                                 while (FS.analyzePath(workspace_path+"/"+alternate_filename).exists) {
-                                    alternate_filename = incrementBeforeDot(alternate_filename)
-                                }
-                                if (alternate_filename.endsWith('.')) {
-                                    alternate_filename = alternate_filename.slice(0, -1); //remove last dot
+                                    alternate_filename = incrementLastNumber(alternate_filename)
                                 }
 
                                 FS.mkdir(workspace_path +"/"+ alternate_filename);
@@ -1008,7 +1033,7 @@ function configure_file_dialog(reset=false)
                         {
                             alert(`imported ${workspaces_found.length} workspaces`);
                         }
-
+                        setTimeout(()=>document.getElementById("sel_browser_workspace_db").click(), 500);
                         return;
                     }
                     
@@ -1890,7 +1915,7 @@ function InitWrappers() {
     wasm_get_core_version = Module.cwrap('wasm_get_core_version', 'string');
     wasm_save_workspace = Module.cwrap('wasm_save_workspace', 'string', ['string']);
     wasm_load_workspace = Module.cwrap('wasm_load_workspace', 'undefined', ['string']);
-
+    wasm_retro_shell = Module.cwrap('wasm_retro_shell', 'undefined', ['string']);
 
     const volumeSlider = document.getElementById('volume-slider');
     set_volume = (new_volume)=>{

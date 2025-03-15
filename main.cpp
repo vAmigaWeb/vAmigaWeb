@@ -2009,7 +2009,7 @@ extern "C" void wasm_set_sample_rate(unsigned sample_rate)
 
 
 
-extern "C" i64 wasm_get_config_item(char* item_name, unsigned data)
+extern "C" i32 wasm_get_config_item(char* item_name, unsigned data)
 {  
   if(strcmp(item_name,"DRIVE_CONNECT") == 0 )
   {
@@ -2418,3 +2418,7 @@ extern "C" void wasm_load_workspace(char* path)
   }
 }
 
+extern "C" void wasm_retro_shell(char* cmd)
+{
+  wrapper->emu->retroShell.execScript(cmd);  
+}

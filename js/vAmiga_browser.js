@@ -57,15 +57,6 @@ function zip_and_download_workspaces(zip_filename, names) {
 
 function setup_browser_interface()
 {
-    document.getElementById("export_workspaces").onclick = function() {
-        let names = [];
-        for(let item  of collectors.workspace_db.all_items)
-        {
-            names.push(item.name);
-        }
-        zip_and_download_workspaces(`vAmigaWeb_workspaces_export_${new Date().toLocaleString().replaceAll(" ", "_")}.zip`, names);
-    }
-
     var search_func= async function(){
         //window.alert('suche:'+ $('#search').val());
         search_term=$('#search').val();
@@ -100,6 +91,15 @@ function setup_browser_interface()
 
             search_term=''; $('#search').val('').attr("placeholder", "search for workspace");
             document.getElementById("export_workspaces").style.visibility="visible";
+
+            document.getElementById("export_workspaces").onclick = function() {
+                let names = [];
+                for(let item  of collectors.workspace_db.all_items)
+                {
+                    names.push(item.name);
+                }
+                zip_and_download_workspaces(`vAmigaWeb_workspaces_export_${new Date().toLocaleString().replaceAll(" ", "_")}.zip`, names);
+            }        
         }
         browser_datasource=collector_name;
 
