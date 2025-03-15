@@ -26,8 +26,46 @@ function load_workspace(name){
     }
 }
 
+
+function zip_and_download_workspaces(zip_filename, names) {
+    const zip = new JSZip();
+    for(let name of names)
+    {
+        const workspace_path=`/vamiga_workspaces/${name}`
+         const files = FS.readdir(workspace_path);
+
+        files.forEach(function(file) {
+            if (file !== '.' && file !== '..') {
+                const filePath = `${workspace_path}/${file}`;
+                const fileData = FS.readFile(filePath);  // Datei als Byte-Array lesen
+                zip.file(`${name}.vamiga/${file}`, fileData, { compression: "DEFLATE" });  // Datei in das Zip-Archiv einfügen
+            }
+        });
+    }
+    zip.generateAsync({ type: "blob", compression: "DEFLATE" })
+        .then(function(content) {
+            const url = URL.createObjectURL(content);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = zip_filename;
+            link.click();
+            URL.revokeObjectURL(url);
+        });
+}
+
+
+
 function setup_browser_interface()
 {
+    document.getElementById("export_workspaces").onclick = function() {
+        let names = [];
+        for(let item  of collectors.workspace_db.all_items)
+        {
+            names.push(item.name);
+        }
+        zip_and_download_workspaces(`vAmigaWeb_workspaces_export_${new Date().toLocaleString().replaceAll(" ", "_")}.zip`, names);
+    }
+
     var search_func= async function(){
         //window.alert('suche:'+ $('#search').val());
         search_term=$('#search').val();
@@ -51,7 +89,7 @@ function setup_browser_interface()
             $('#sel_browser_workspace_db').parent().removeClass('btn-secondary').removeClass('btn-primary')
             .addClass('btn-secondary');
             search_term=''; $('#search').val('').attr("placeholder", "search snapshots (local browser storage)");
-
+            document.getElementById("export_workspaces").style.visibility="hidden";
         }
         else
         {
@@ -61,6 +99,7 @@ function setup_browser_interface()
             .addClass('btn-secondary');
 
             search_term=''; $('#search').val('').attr("placeholder", "search for workspace");
+            document.getElementById("export_workspaces").style.visibility="visible";
         }
         browser_datasource=collector_name;
 
@@ -824,35 +863,8 @@ load workspace
             return true;
         },
         export: function(id) {
-            function zipFilesInTmpFolder(name) {
-                const zip = new JSZip();
-                const workspace_path=`/vamiga_workspaces/${name}`
-                const files = FS.readdir(workspace_path);
-    
-                // Alle Dateien im Verzeichnis durchlaufen und zum Zip hinzufügen
-                files.forEach(function(file) {
-                    if (file !== '.' && file !== '..') {
-                        const filePath = `${workspace_path}/${file}`;
-                        const fileData = FS.readFile(filePath);  // Datei als Byte-Array lesen
-                        zip.file(`${name}.vamiga/${file}`, fileData);  // Datei in das Zip-Archiv einfügen
-                    }
-                });
-    
-                // Zip-Datei generieren und zum Download anbieten
-                zip.generateAsync({ type: "blob" })
-                    .then(function(content) {
-                        // Blob URL erzeugen und Download-Link erstellen
-                        const url = URL.createObjectURL(content);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `workspace_${name}.zip`;  // Name des Zip-Archivs
-                        link.click();  // Download starten
-                        URL.revokeObjectURL(url);  // Blob URL wieder freigeben
-                    });
-            }
             let item = this.all_items[id];
-
-            zipFilesInTmpFolder(item.name);
+            zip_and_download_workspaces(`workspace_${item.name}.zip`, [item.name]);
         },
         can_like: function(app_title, item){
             if(this.like_values == null)

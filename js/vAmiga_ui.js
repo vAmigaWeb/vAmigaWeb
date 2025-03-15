@@ -942,69 +942,71 @@ function configure_file_dialog(reset=false)
 
                 var zip = new JSZip();
                 zip.loadAsync(file_slot_file).then(async function (zip) {
-                    if(Object.keys(zip.files).filter(f=>f.includes(".vamiga/config")).length>0)
-                    {//vamiga workspace detected
-                      //  alert("workspace detected")
-                        let current_path = Object.keys(zip.files).filter(f=>f.includes(".vamiga/config"))
-                        let alternate_filename=null;
-                        await mount_workspaces();
-                        let s = FS.readdir("/")
-                        
-                        current_path = current_path[0].replace('/config.retrosh','')
-                        if (!FS.analyzePath(workspace_path+"/"+current_path).exists) {
-                            FS.mkdir(workspace_path +"/"+ current_path);  // Verzeichnis erstellen
-                        }
-                        else
+                    await mount_workspaces();
+ 
+                    let workspaces_found = Object.keys(zip.files).filter(f=>f.includes(".vamiga/config") && !f.startsWith("__MACOSX"));
+                    if(workspaces_found.length>0)
+                    {
+                        let current_path="";
+                        for(current_path of workspaces_found)
                         {
-                            function incrementBeforeDot(str) {
-                                // Teilt den String an der Stelle des Punkts
-                                const parts = str.split('.');
-                              
-                                // Der erste Teil ist der Teil vor dem Punkt
-                                const firstPart = parts[0];
-                              
-                                // Prüfen, ob der erste Teil eine Zahl am Ende hat
-                                const numberMatch = firstPart.match(/(\d+)$/); // Sucht nach einer Zahl am Ende des Textes
-                              
-                                let incrementedNumber;
-                                if (numberMatch) {
-                                  // Wenn eine Zahl gefunden wird, erhöhe sie um 1
-                                  const number = parseInt(numberMatch[0], 10);
-                                  incrementedNumber = number + 1;
-                                  // Entferne die Zahl am Ende und hänge die neue Zahl an
-                                  return firstPart.replace(numberMatch[0], incrementedNumber) + '.' + parts.slice(1).join('.');
-                                } else {
-                                  // Wenn keine Zahl gefunden wird, hänge die Zahl 1 an
-                                  incrementedNumber = 1;
-                                  return firstPart + incrementedNumber + '.' + parts.slice(1).join('.');
-                                }
+                            let alternate_filename=null;
+                            current_path = current_path.replace('/config.retrosh','').replace(".vamiga","").replace(".vamiga","").replace(".vamiga","")
+                            if (!FS.analyzePath(workspace_path+"/"+current_path).exists) {
+                                FS.mkdir(workspace_path +"/"+ current_path);
                             }
-
-                            alternate_filename = incrementBeforeDot(current_path)                              
-                            while (FS.analyzePath(workspace_path+"/"+alternate_filename).exists) {
-                                alternate_filename = incrementBeforeDot(alternate_filename)
-                            }
-
-                            FS.mkdir(workspace_path +"/"+ alternate_filename);  // Verzeichnis erstellen
-                        }
-
-                        for (let [relativePath, file] of Object.entries(zip.files)) {
-                            let fileData = await file.async("uint8array");
-                            if(fileData.length > 0)
+                            else
                             {
-                                let fs_path = workspace_path+"/"+relativePath;
-                                if(alternate_filename){
-                                    fs_path = fs_path.replace(current_path, alternate_filename); // Path in FS                          
+                                function incrementBeforeDot(str) {
+                                    const parts = str.split('.');
+                                    const firstPart = parts[0];
+                                    const numberMatch = firstPart.match(/(\d+)$/);
+                                    let incrementedNumber;
+                                    if (numberMatch) {
+                                    const number = parseInt(numberMatch[0], 10);
+                                    incrementedNumber = number + 1;
+                                    return firstPart.replace(numberMatch[0], incrementedNumber) + '.' + parts.slice(1).join('.');
+                                    } else {
+                                    incrementedNumber = 1;
+                                    return firstPart + incrementedNumber + '.' + parts.slice(1).join('.');
+                                    }
                                 }
-                                FS.writeFile(fs_path, fileData);
+
+                                alternate_filename = incrementBeforeDot(current_path)                              
+                                while (FS.analyzePath(workspace_path+"/"+alternate_filename).exists) {
+                                    alternate_filename = incrementBeforeDot(alternate_filename)
+                                }
+                                if (alternate_filename.endsWith('.')) {
+                                    alternate_filename = alternate_filename.slice(0, -1); //remove last dot
+                                }
+
+                                FS.mkdir(workspace_path +"/"+ alternate_filename);
                             }
+                            for (let [relativePath, file] of Object.entries(zip.files).filter(f=>f[0].startsWith(current_path+".vamiga"))) {
+                                let fileData = await file.async("uint8array");
+                                if(fileData.length > 0)
+                                {
+                                    let fs_path = workspace_path+"/"+relativePath.replace(".vamiga","").replace(".vamiga","").replace(".vamiga","");
+                                    if(alternate_filename){
+                                        fs_path = fs_path.replace(current_path, alternate_filename); // Path in FS                          
+                                    }
+                                    FS.writeFile(fs_path, fileData);
+                                }
+                            }    
                         }
                         FS.syncfs(()=>{});
 
-                        let load_now = confirm(`imported workspace ${alternate_filename?alternate_filename:current_path} would you like to load it now ?`);
-                        if(load_now)
+                        if(workspaces_found.length==1)
                         {
-                            load_workspace(alternate_filename?alternate_filename:current_path)
+                            let load_now = confirm(`imported workspace ${alternate_filename?alternate_filename:current_path} would you like to load it now ?`);
+                            if(load_now)
+                            {
+                                load_workspace(alternate_filename?alternate_filename:current_path)
+                            }
+                        }
+                        else
+                        {
+                            alert(`imported ${workspaces_found.length} workspaces`);
                         }
 
                         return;

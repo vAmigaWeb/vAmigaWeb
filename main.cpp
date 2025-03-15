@@ -2001,6 +2001,7 @@ extern "C" void wasm_set_sample_rate(unsigned sample_rate)
     printf("set paula.muxer to freq= %d\n", sample_rate);
 
     wrapper->emu->set(Opt::HOST_SAMPLE_RATE,sample_rate);
+    wrapper->emu->emu->update();
     auto got_sample_rate=wrapper->emu->get(Opt::HOST_SAMPLE_RATE);
 
     printf("amiga.host.getSampleRate()==%lld\n", got_sample_rate);
