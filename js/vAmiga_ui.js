@@ -942,71 +942,98 @@ function configure_file_dialog(reset=false)
 
                 var zip = new JSZip();
                 zip.loadAsync(file_slot_file).then(async function (zip) {
-                    if(Object.keys(zip.files).filter(f=>f.includes(".vamiga/config")).length>0)
-                    {//vamiga workspace detected
-                      //  alert("workspace detected")
-                        let current_path = Object.keys(zip.files).filter(f=>f.includes(".vamiga/config"))
-                        let alternate_filename=null;
-                        await mount_workspaces();
-                        let s = FS.readdir("/")
-                        
-                        current_path = current_path[0].replace('/config.retrosh','')
-                        if (!FS.analyzePath(workspace_path+"/"+current_path).exists) {
-                            FS.mkdir(workspace_path +"/"+ current_path);  // Verzeichnis erstellen
-                        }
-                        else
+                    await mount_workspaces();
+ 
+                    let workspaces_found = Object.keys(zip.files).filter(f=>f.includes(".vamiga/config") && !f.startsWith("__MACOSX"));
+                    if(workspaces_found.length>0)
+                    {
+                        let current_path="";
+                        let alternate_filename;
+                        for(current_path of workspaces_found)
                         {
-                            function incrementBeforeDot(str) {
-                                // Teilt den String an der Stelle des Punkts
-                                const parts = str.split('.');
-                              
-                                // Der erste Teil ist der Teil vor dem Punkt
-                                const firstPart = parts[0];
-                              
-                                // Prüfen, ob der erste Teil eine Zahl am Ende hat
-                                const numberMatch = firstPart.match(/(\d+)$/); // Sucht nach einer Zahl am Ende des Textes
-                              
-                                let incrementedNumber;
-                                if (numberMatch) {
-                                  // Wenn eine Zahl gefunden wird, erhöhe sie um 1
-                                  const number = parseInt(numberMatch[0], 10);
-                                  incrementedNumber = number + 1;
-                                  // Entferne die Zahl am Ende und hänge die neue Zahl an
-                                  return firstPart.replace(numberMatch[0], incrementedNumber) + '.' + parts.slice(1).join('.');
-                                } else {
-                                  // Wenn keine Zahl gefunden wird, hänge die Zahl 1 an
-                                  incrementedNumber = 1;
-                                  return firstPart + incrementedNumber + '.' + parts.slice(1).join('.');
-                                }
+                            alternate_filename=null;
+                            current_path = current_path.replace('/config.retrosh','').replace(".vamiga","").replace(".vamiga","").replace(".vamiga","")
+                            if (!FS.analyzePath(workspace_path+"/"+current_path).exists) {
+                                FS.mkdir(workspace_path +"/"+ current_path);
                             }
-
-                            alternate_filename = incrementBeforeDot(current_path)                              
-                            while (FS.analyzePath(workspace_path+"/"+alternate_filename).exists) {
-                                alternate_filename = incrementBeforeDot(alternate_filename)
-                            }
-
-                            FS.mkdir(workspace_path +"/"+ alternate_filename);  // Verzeichnis erstellen
-                        }
-
-                        for (let [relativePath, file] of Object.entries(zip.files)) {
-                            let fileData = await file.async("uint8array");
-                            if(fileData.length > 0)
+                            else
                             {
-                                let fs_path = workspace_path+"/"+relativePath;
-                                if(alternate_filename){
-                                    fs_path = fs_path.replace(current_path, alternate_filename); // Path in FS                          
+                                function incrementLastNumber(str) {
+                                    // Find the index of the last dot in the string
+                                    const lastDotIndex = str.lastIndexOf('.');
+                                
+                                    // If there's no dot, check the whole string for a number at the end
+                                    if (lastDotIndex === -1) {
+                                        const numberMatch = str.match(/(\d+)$/);
+                                        
+                                        if (numberMatch) {
+                                            // If a number is found at the end, increment it by 1
+                                            const number = parseInt(numberMatch[0], 10);
+                                            const incrementedNumber = number + 1;
+                                
+                                            // Replace the old number with the incremented one
+                                            return str.replace(numberMatch[0], incrementedNumber);
+                                        } else {
+                                            // If no number is found, append '1' to the string
+                                            return str + '1';
+                                        }
+                                    }
+                                
+                                    // If there's a dot, extract the part after the last dot
+                                    const lastPart = str.slice(lastDotIndex + 1);
+                                
+                                    // Search for a number at the end of the last part
+                                    const numberMatch = lastPart.match(/(\d+)$/);
+                                
+                                    if (numberMatch) {
+                                        // If a number is found, increment it by 1
+                                        const number = parseInt(numberMatch[0], 10);
+                                        const incrementedNumber = number + 1;
+                                
+                                        // Replace the old number with the incremented one
+                                        const newStr = str.slice(0, lastDotIndex + 1) + lastPart.replace(numberMatch[0], incrementedNumber);
+                                        return newStr;
+                                    } else {
+                                        // If no number is found, append '1' to the last part of the string
+                                        return str + '1';
+                                    }
                                 }
-                                FS.writeFile(fs_path, fileData);
+                                
+
+                                alternate_filename = incrementLastNumber(current_path)                              
+                                while (FS.analyzePath(workspace_path+"/"+alternate_filename).exists) {
+                                    alternate_filename = incrementLastNumber(alternate_filename)
+                                }
+
+                                FS.mkdir(workspace_path +"/"+ alternate_filename);
                             }
+                            for (let [relativePath, file] of Object.entries(zip.files).filter(f=>f[0].startsWith(current_path+".vamiga"))) {
+                                let fileData = await file.async("uint8array");
+                                if(fileData.length > 0)
+                                {
+                                    let fs_path = workspace_path+"/"+relativePath.replace(".vamiga","").replace(".vamiga","").replace(".vamiga","");
+                                    if(alternate_filename){
+                                        fs_path = fs_path.replace(current_path, alternate_filename); // Path in FS                          
+                                    }
+                                    FS.writeFile(fs_path, fileData);
+                                }
+                            }    
                         }
                         FS.syncfs(()=>{});
 
-                        let load_now = confirm(`imported workspace ${alternate_filename?alternate_filename:current_path} would you like to load it now ?`);
-                        if(load_now)
+                        if(workspaces_found.length==1)
                         {
-                            load_workspace(alternate_filename?alternate_filename:current_path)
+                            let load_now = confirm(`imported workspace ${alternate_filename?alternate_filename:current_path} would you like to load it now ?`);
+                            if(load_now)
+                            {
+                                load_workspace(alternate_filename?alternate_filename:current_path)
+                            }
                         }
-
+                        else
+                        {
+                            alert(`imported ${workspaces_found.length} workspaces`);
+                        }
+                        setTimeout(()=>document.getElementById("sel_browser_workspace_db").click(), 500);
                         return;
                     }
                     
@@ -1888,7 +1915,7 @@ function InitWrappers() {
     wasm_get_core_version = Module.cwrap('wasm_get_core_version', 'string');
     wasm_save_workspace = Module.cwrap('wasm_save_workspace', 'string', ['string']);
     wasm_load_workspace = Module.cwrap('wasm_load_workspace', 'undefined', ['string']);
-
+    wasm_retro_shell = Module.cwrap('wasm_retro_shell', 'undefined', ['string']);
 
     const volumeSlider = document.getElementById('volume-slider');
     set_volume = (new_volume)=>{
