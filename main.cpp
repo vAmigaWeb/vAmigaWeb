@@ -2092,8 +2092,6 @@ void calibrate_boost(signed boost_param){
 
 extern "C" const char* wasm_configure(char* option, char* _value)
 {  
-printf("wasm_configure %s = %s\n", option, _value);
-//return config_result;
   sprintf(config_result,""); 
   auto value = std::string(_value);
   if(log_on) printf("wasm_configure %s = %s\n", option, value.c_str());
@@ -2223,10 +2221,10 @@ printf("wasm_configure %s = %s\n", option, _value);
       }
       requested_targetFrameCount_reset=true; 
     }
-
     else
     {
       wrapper->emu->set(Opt(util::parseEnum <OptEnum>(std::string(option))), util::parseBool(value)); 
+      wrapper->emu->emu->update();
     }
 
     if(was_powered_on && must_be_off)
@@ -2383,7 +2381,15 @@ Thumbnail preview;
 extern "C" char* wasm_save_workspace(char* path)
 {
   try{
+    //save with DMA_DEBUG_ENABLE=false otherwise vAmiga.app for macOS would trigger minimized debug screen 
+    auto debug_enable = wrapper->emu->get(Opt::DMA_DEBUG_ENABLE);
+    wrapper->emu->set(Opt::DMA_DEBUG_ENABLE,false);
+    wrapper->emu->emu->update();
+
     wrapper->emu->amiga.saveWorkspace(path);
+
+    wrapper->emu->set(Opt::DMA_DEBUG_ENABLE,debug_enable);
+    wrapper->emu->emu->update();
   }
   catch (const CoreError& e) {
     printf("Error %s\n", e.what());
@@ -2407,7 +2413,31 @@ extern "C" char* wasm_save_workspace(char* path)
 extern "C" void wasm_load_workspace(char* path)
 {
   try{
+    //don't respect the DMA_DEBUG_ENABLE setting in the workspace file
+    //instead keep current user choice
+    auto debug_enable = wrapper->emu->get(Opt::DMA_DEBUG_ENABLE);
+    auto channel0 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL0);
+    auto channel1 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL1);
+    auto channel2 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL2);
+    auto channel3 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL3);
+    auto channel4 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL4);
+    auto channel5 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL5);
+    auto channel6 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL6);
+    auto channel7 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL7);
+
     wrapper->emu->amiga.loadWorkspace(path);
+
+    wrapper->emu->set(Opt::DMA_DEBUG_ENABLE,debug_enable);
+    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL0,channel0);
+    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL1,channel1);
+    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL2,channel2);
+    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL3,channel3);
+    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL4,channel4);
+    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL5,channel5);
+    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL6,channel6);
+    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL7,channel7);
+    wrapper->emu->emu->update();
+
   }
   catch (const CoreError& e) {
     printf("Error %s\n", e.what());
