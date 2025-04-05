@@ -3598,6 +3598,8 @@ $('.layer').change( function(event) {
     {       
         let app_name = $("#input_app_title").val();
         
+        global_apptitle = app_name;
+
         await mount_workspaces();
         try
         {
@@ -3655,6 +3657,8 @@ $('.layer').change( function(event) {
     $('#button_save_snapshot').click(async function() 
     {       
         let app_name = $("#input_app_title").val();
+
+        global_apptitle = app_name;
         
         var snapshot_json= wasm_take_user_snapshot();
         var snap_obj = JSON.parse(snapshot_json);
