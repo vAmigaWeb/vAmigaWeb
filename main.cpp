@@ -951,6 +951,16 @@ extern "C" bool wasm_has_disk(const char *drive_name)
   return false;
 }
 
+void eject_harddisk(int drive)
+{
+    auto runs = wrapper->emu->isRunning();
+    wrapper->emu->powerOff();wrapper->emu->emu->update();
+    wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {drive});
+    wrapper->emu->powerOn();
+    if(runs) wrapper->emu->run();
+}
+
+
 extern "C" void wasm_eject_disk(const char *drive_name)
 {
   if(strcmp(drive_name,"df0") == 0)
@@ -977,36 +987,28 @@ extern "C" void wasm_eject_disk(const char *drive_name)
   {
     if(wrapper->emu->hd0.getInfo().hasDisk)
     {
-      wrapper->emu->powerOff();wrapper->emu->emu->update();
-      wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {0});
-      wrapper->emu->powerOn();
+      eject_harddisk(0);
     }
   }
   else if (strcmp(drive_name,"dh1") == 0)
   {
     if(wrapper->emu->hd1.getInfo().hasDisk)
     {
-      wrapper->emu->powerOff();wrapper->emu->emu->update();
-      wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {1});
-      wrapper->emu->powerOn();
+      eject_harddisk(1);
     }
   }
   else if (strcmp(drive_name,"dh2") == 0)
   {
     if(wrapper->emu->hd2.getInfo().hasDisk)
     {
-      wrapper->emu->powerOff();wrapper->emu->emu->update();
-      wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {2});
-      wrapper->emu->powerOn();
+      eject_harddisk(2);
     }
   }
   else if (strcmp(drive_name,"dh3") == 0)
   {
     if(wrapper->emu->hd3.getInfo().hasDisk)
     {
-      wrapper->emu->powerOff();wrapper->emu->emu->update();
-      wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {3});
-      wrapper->emu->powerOn();
+      eject_harddisk(3);
     }
   }
 
@@ -1505,7 +1507,9 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
     wrapper->emu->powerOff(); wrapper->emu->emu->update();
     wrapper->emu->set(Opt::HDC_CONNECT, true, {drive_number});
     wrapper->emu->emu->update();
-    wrapper->emu->powerOn(); wrapper->emu->emu->update();
+    wrapper->emu->powerOn(); //does set emu in paused mode
+    wrapper->emu->run(); //needed otherwise core will stay muted if it was paused
+    wrapper->emu->emu->update();
     return "";
   }
   bool file_still_unprocessed=true;
@@ -1600,7 +1604,7 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
 
         delete rom;
         wrapper->emu->powerOn();
-//        wrapper->emu->resume();
+        wrapper->emu->run();
     }    
     catch(CoreError &exception) { 
       Fault ec=Fault(exception.data);
@@ -1628,6 +1632,7 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
       return "";
     }
 
+    auto was_running = wrapper->emu->isRunning();
     if(wrapper->emu->isPoweredOn())
     {
       wrapper->emu->powerOff(); wrapper->emu->emu->update();
@@ -1662,8 +1667,8 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
 
     const char *rom_type="rom_ext";
     delete rom;
-    //wrapper->emu->resume();
     wrapper->emu->powerOn();
+    if(was_running) wrapper->emu->run();
     return rom_type;    
   }
 
@@ -1983,6 +1988,7 @@ extern "C" const char* wasm_power_on(unsigned power_on)
     if(power_on == 1 && !was_powered_on)
     {
         wrapper->emu->powerOn();
+        wrapper->emu->run();
     }
     else if(power_on == 0 && was_powered_on)
     {
@@ -2128,6 +2134,8 @@ extern "C" const char* wasm_configure(char* option, char* _value)
   }
 
   bool was_powered_on=wrapper->emu->isPoweredOn();
+  bool was_running =wrapper->emu->isRunning();
+
 
   bool must_be_off= strcmp(option,"AGNUS_REVISION") == 0 || 
                     strcmp(option,"DENISE_REVISION") == 0 ||
@@ -2230,6 +2238,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
     if(was_powered_on && must_be_off)
     {
         wrapper->emu->powerOn();
+        if(was_running) wrapper->emu->run();
     }
   }
   catch(CoreError &exception) {    
@@ -2450,5 +2459,11 @@ extern "C" void wasm_load_workspace(char* path)
 
 extern "C" void wasm_retro_shell(char* cmd)
 {
-  wrapper->emu->retroShell.execScript(cmd);  
+  if( strcmp(cmd,"unmute") == 0)
+  {
+    printf("do unmute\n");
+    wrapper->emu->audioPort.port->unmute(10000);
+  }
+  else
+    wrapper->emu->retroShell.execScript(cmd);  
 }
