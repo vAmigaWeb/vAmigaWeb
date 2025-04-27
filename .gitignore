@@ -42,3 +42,4 @@ vAmiga.wasm
 *.app
 
 sw.js
+.vscode/settings.json
