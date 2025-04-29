@@ -805,3 +805,10 @@ input[type="range"]::-moz-range-thumb {
     font-style: italic;
     padding: 7px;
 }
+
+[ntsc="true"] #MOS8371, 
+[ntsc="true"] #MOS8367,
+[ntsc="false"] #MOS8361, 
+[ntsc="false"] #MOS8370 {
+    display: none
+}
