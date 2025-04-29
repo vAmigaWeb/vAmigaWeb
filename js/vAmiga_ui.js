@@ -2998,13 +2998,13 @@ function validate_hardware()
     {
         alert(`${agnes_desc} agnus can address max. 512KB of chip ram. Correcting to highest possible setting.`);
         set_hardware("OPT_CHIP_RAM", '512');
-        $(`#button_${"OPT_CHIP_RAM"}`).text("chip ram"+'='+'512 (corrected)');
+        $(`#button_${"OPT_CHIP_RAM"}`).text("chip ram"+'='+'512 KB (corrected)');
     }
     else if(agnes== "ECS_1MB" && chip_ram > 1024)
     {
         alert(`${agnes_desc} agnus can address max. 1024KB of chip ram. Correcting to highest possible setting.`);
         set_hardware("OPT_CHIP_RAM", '1024');
-        $(`#button_${"OPT_CHIP_RAM"}`).text("chip ram"+'='+'1024 (corrected)');
+        $(`#button_${"OPT_CHIP_RAM"}`).text("chip ram"+'='+'1024 KB (corrected)');
     }
 }
 
@@ -3035,9 +3035,9 @@ function bind_config_choice(key, name, values, default_value, value2text=null, t
     `);
 
     let set_choice = function (choice) {
-        $(`#button_${key}`).text(`${name}${name.length>0?'=':''}${choice}`);
+        $(`#button_${key}`).html(`${name}${name.length>0?'=':''}${choice}`);
         save_setting(key, text2value(choice));
-        validate_hardware();
+        validate_hardware(); 
 
         let result=wasm_configure(key.substring(4),`${text2value(choice)}`);
         if(result.length>0)
@@ -3054,7 +3054,7 @@ function bind_config_choice(key, name, values, default_value, value2text=null, t
 
     $(`#choose_${key} a`).click(function () 
     {
-        let choice=$(this).text();
+        let choice=$(this).html();
         set_choice(choice);
         $("#modal_settings").focus();
     });
@@ -3093,14 +3093,15 @@ bind_config_choice("OPT_DRIVE_SPEED", "floppy drive speed",['-1', '1', '2', '4',
 $('#hardware_settings').append(`<div class="mt-4">hardware settings</div><span style="font-size: smaller;">(shuts machine down on agnus model or memory change)</span>`);
 
 
-agnus_map = [{v: "OCS_OLD", t:"Early OCS (512KB) | A1000, A2000a (MOS8367)"},
-    {v: "OCS", t:"OCS (512KB) | Early A500, A2000 (MOS8371)"},
+agnus_map = [
+    {v: "OCS_OLD", t:`Early OCS (512KB) | A1000, A2000a (<span id="MOS8367">MOS8367</span><span id="MOS8361">MOS8361</span>)`},
+    {v: "OCS", t:`OCS (512KB) | Early A500, A2000 (<span id="MOS8370">MOS8370</span><span id="MOS8371">MOS8371</span>)`},
     {v: "ECS_1MB", t:"ECS (1MB) | Later A500, A2000 (MOS8372A)"},
-    {v: "ECS_2MB", t:"ECS (2MB) | A500+, A600 (MOS8375)"}];
-    
+    {v: "ECS_2MB", t:"ECS (2MB) | A500+, A600 (MOS8375)"}];    
+ 
 bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_OLD','OCS','ECS_1MB','ECS_2MB'],'ECS_2MB',
     (v)=> {
-        let found = agnus_map.filter(e=>e.v==v);
+        let found = agnus_map.filter(e=>e.v === v);
         if(found.length>0)
             return found[0].t;
         else
@@ -3108,7 +3109,7 @@ bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_OLD','OCS','ECS_
     }
     , t=>
     {
-        let found = agnus_map.filter(e=>e.t==t);
+        let found = agnus_map.filter(e=>e.t.split('|')[0] === t.split('|')[0]);
         if(found.length>0)
             return found[0].v;
         else
@@ -3175,12 +3176,13 @@ auto_snapshot_switch.change( function() {
 ntsc_pixel_ratio_switch = $('#ntsc_pixel_ratio_switch');
 use_ntsc_pixel=load_setting('ntsc_pixel', false);
 wasm_set_display(use_ntsc_pixel ? 'ntsc':'pal');
-
+document.body.setAttribute("ntsc", use_ntsc_pixel);
 ntsc_pixel_ratio_switch.prop('checked', use_ntsc_pixel);
 ntsc_pixel_ratio_switch.change( function() {
     use_ntsc_pixel  = this.checked;
     save_setting('ntsc_pixel', this.checked);
     wasm_set_display(use_ntsc_pixel ? 'ntsc':'pal');
+    document.body.setAttribute("ntsc", use_ntsc_pixel);
 });
 //------
 
