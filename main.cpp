@@ -12,7 +12,6 @@
 #include "Amiga.h"
 #include "AmigaTypes.h"
 #include "RomFile.h"
-#include "ExtendedRomFile.h"
 #include "ADFFile.h"
 #include "DMSFile.h"
 #include "EXEFile.h"
@@ -1619,11 +1618,11 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
     bool wasRunnable = true;
     try { wrapper->emu->isReady(); } catch(...) { wasRunnable=false; }
 
-    ExtendedRomFile *rom = NULL;
+    RomFile *rom = NULL;
     try
     {
-      printf("try to build ExtendedRomFile\n");
-      rom = new ExtendedRomFile(blob, len);
+      printf("try to build RomFile\n");
+      rom = new RomFile(blob, len);
     }
     catch(CoreError &exception) {
       printf("Failed to read ROM_EXT image file %s\n", name);

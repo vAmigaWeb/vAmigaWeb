@@ -343,6 +343,7 @@ Amiga::loadWorkspace(const fs::path &path)
     }
 
     // Execute the setup script
+    retroShell.enterCommander();
     retroShell.asyncExecScript(ss);
 }
 
@@ -464,7 +465,7 @@ Amiga::initWorkspace()
     /* This function is called at the beginning of a workspace script */
     
     // Power off the Amiga to make it configurable
-    powerOff();
+    emulator.powerOff();
 }
 
 void
@@ -473,7 +474,7 @@ Amiga::activateWorkspace()
     /* This function is called at the end of a workspace script */
      
     // Power on the Amiga
-    powerOn();
+    emulator.run();
     
     // Inform the GUI
     msgQueue.put(Msg::WORKSPACE_LOADED);

@@ -20,7 +20,7 @@
  *
  * Enable to improve accuracy, disable to gain speed.
  */
-#define PRECISE_TIMING true
+#define MOIRA_PRECISE_TIMING true
 
 /* Set to true to implement the CPU interface as virtual functions.
  *
@@ -33,7 +33,7 @@
  *
  * Enable to follow the standard OOP paradigm, disable to gain speed.
  */
-#define VIRTUAL_API false
+#define MOIRA_VIRTUAL_API false
 
 /* Set to true to enable address error checking.
  *
@@ -42,7 +42,7 @@
  *
  * Enable to improve accuracy, disable to gain speed.
  */
-#define EMULATE_ADDRESS_ERROR true
+#define MOIRA_EMULATE_ADDRESS_ERROR true
 
 /* Set to true to emulate function code pins FC0 - FC2.
  *
@@ -52,7 +52,7 @@
  *
  * Enable to improve accuracy, disable to gain speed.
  */
-#define EMULATE_FC true
+#define MOIRA_EMULATE_FC true
 
 /* Set to true to enable the disassembler.
  *
@@ -60,7 +60,7 @@
  *
  * Disable to save space.
  */
-#define ENABLE_DASM true
+#define MOIRA_ENABLE_DASM true
 
 /* Set to true to build the InstrInfo lookup table.
  *
@@ -72,7 +72,7 @@
  *
  * Disable to save space.
  */
-#define BUILD_INSTR_INFO_TABLE false
+#define MOIRA_BUILD_INSTR_INFO_TABLE false
 
 /* Set to true to run Moira in a special Musashi compatibility mode.
  *
@@ -81,80 +81,14 @@
  *
  * Disable to improve accuracy.
  */
-#define MIMIC_MUSASHI false
+#define MOIRA_MIMIC_MUSASHI false
 
 /* The following macro appears at the beginning of each instruction handler.
  * Moira will call 'willExecute(...)' for all listed instructions.
  */
-#define WILL_EXECUTE I == STOP || I == TAS || I == BKPT
-/*
-#define WILL_EXECUTE \
-I == FABS || \
-I == FADD || \
-I == FBcc || \
-I == FCMP || \
-I == FDBcc || \
-I == FDIV || \
-I == FMOVE || \
-I == FMOVEM || \
-I == FMUL || \
-I == FNEG || \
-I == FNOP || \
-I == FRESTORE || \
-I == FSAVE || \
-I == FScc || \
-I == FSQRT || \
-I == FSUB || \
-I == FTRAPcc || \
-I == FTST || \
-I == FSABS || \
-I == FDABS || \
-I == FSADD || \
-I == FDADD || \
-I == FSDIV || \
-I == FDDIV || \
-I == FSMOVE || \
-I == FDMOVE || \
-I == FSMUL || \
-I == FDMUL || \
-I == FSNEG || \
-I == FDNEG || \
-I == FSSQRT || \
-I == FDSQRT || \
-I == FSSUB || \
-I == FDSUB || \
-I == FACOS || \
-I == FASIN || \
-I == FATAN || \
-I == FATANH || \
-I == FCOS || \
-I == FCOSH || \
-I == FETOX || \
-I == FETOXM1 || \
-I == FGETEXP || \
-I == FGETMAN || \
-I == FINT || \
-I == FINTRZ || \
-I == FLOG10 || \
-I == FLOG2 || \
-I == FLOGN || \
-I == FLOGNP1 || \
-I == FMOD || \
-I == FMOVECR || \
-I == FREM || \
-I == FSCAL || \
-I == FSGLDIV || \
-I == FSGLMUL || \
-I == FSIN || \
-I == FSINCOS || \
-I == FSINH || \
-I == FTAN || \
-I == FTANH || \
-I == FTENTOX || \
-I == FTWOTOX
-*/
+#define MOIRA_WILL_EXECUTE I == Instr::STOP || I == Instr::TAS || I == Instr::BKPT
 
 /* The following macro appear at the end of each instruction handler.
  * Moira will call 'didExecute(...)' for all listed instructions.
  */
-#define DID_EXECUTE     I == RESET
+#define MOIRA_DID_EXECUTE I == Instr::RESET

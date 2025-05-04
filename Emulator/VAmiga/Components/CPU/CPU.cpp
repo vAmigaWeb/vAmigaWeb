@@ -123,19 +123,19 @@ Moira::willExecute(const char *func, Instr I, Mode M, Size S, u16 opcode)
 {
     switch (I) {
 
-        case STOP:
+        case Instr::STOP:
 
             if (!(opcode & 0x2000)) {
                 // xfiles("STOP instruction (%x)\n", opcode);
             }
             break;
 
-        case TAS:
+        case Instr::TAS:
 
             xfiles("TAS instruction\n");
             break;
 
-        case BKPT:
+        case Instr::BKPT:
 
             xfiles("BKPT instruction\n");
             break;
@@ -156,7 +156,7 @@ Moira::didExecute(const char *func, Instr I, Mode M, Size S, u16 opcode)
 {
     switch (I) {
 
-        case RESET:
+        case Instr::RESET:
 
             xfiles("RESET instruction\n");
             amiga.softReset();
@@ -168,26 +168,26 @@ Moira::didExecute(const char *func, Instr I, Mode M, Size S, u16 opcode)
 }
 
 void
-Moira::willExecute(ExceptionType exc, u16 vector)
+Moira::willExecute(M68kException exc, u16 vector)
 {
     /*
     switch (exc) {
 
-        case EXC_RESET:             xfiles("EXC_RESET\n");              break;
-        case EXC_BUS_ERROR:         xfiles("EXC_BUS_ERROR\n");          break;
-        case EXC_ADDRESS_ERROR:     xfiles("EXC_ADDRESS_ERROR\n");      break;
-        case EXC_ILLEGAL:           xfiles("EXC_ILLEGAL\n");            break;
-        case EXC_DIVIDE_BY_ZERO:    xfiles("EXC_DIVIDE_BY_ZERO\n");     break;
-        case EXC_CHK:               xfiles("EXC_CHK\n");                break;
-        case EXC_TRAPV:             xfiles("EXC_TRAPV\n");              break;
-        case EXC_PRIVILEGE:         xfiles("EXC_PRIVILEGE\n");          break;
-        case EXC_TRACE:             xfiles("EXC_TRACE\n");              break;
-        case EXC_LINEA:             xfiles("EXC_LINEA\n");              break;
-        case EXC_LINEF:             xfiles("EXC_LINEF\n");              break;
-        case EXC_FORMAT_ERROR:      xfiles("EXC_FORMAT_ERROR\n");       break;
-        case EXC_IRQ_UNINITIALIZED: xfiles("EXC_IRQ_UNINITIALIZED\n");  break;
-        case EXC_IRQ_SPURIOUS:      xfiles("EXC_IRQ_SPURIOUS\n");       break;
-        case EXC_TRAP:              xfiles("EXC_TRAP\n");               break;
+        case RESET:             xfiles("RESET\n");              break;
+        case EXC_BUS_ERROR:     xfiles("EXC_BUS_ERROR\n");      break;
+        case ADDRESS_ERROR:     xfiles("ADDRESS_ERROR\n");      break;
+        case ILLEGAL:           xfiles("ILLEGAL\n");            break;
+        case DIVIDE_BY_ZERO:    xfiles("DIVIDE_BY_ZERO\n");     break;
+        case CHK:               xfiles("CHK\n");                break;
+        case TRAPV:             xfiles("TRAPV\n");              break;
+        case EXC_PRIVILEGE:     xfiles("EXC_PRIVILEGE\n");      break;
+        case TRACE:             xfiles("TRACE\n");              break;
+        case LINEA:             xfiles("LINEA\n");              break;
+        case LINEF:             xfiles("LINEF\n");              break;
+        case FORMAT_ERROR:      xfiles("FORMAT_ERROR\n");       break;
+        case IRQ_UNINITIALIZED: xfiles("IRQ_UNINITIALIZED\n");  break;
+        case IRQ_SPURIOUS:      xfiles("IRQ_SPURIOUS\n");       break;
+        case TRAP:              xfiles("TRAP\n");               break;
 
         default:
             break;
@@ -196,7 +196,7 @@ Moira::willExecute(ExceptionType exc, u16 vector)
 }
 
 void
-Moira::didExecute(ExceptionType exc, u16 vector)
+Moira::didExecute(M68kException exc, u16 vector)
 {
 
 }
@@ -242,31 +242,31 @@ Moira::didChangeCAAR(u32 value)
 }
 
 void
-Moira::softstopReached(u32 addr)
+Moira::didReachSoftstop(u32 addr)
 {
     amiga.setFlag(RL::SOFTSTOP_REACHED);
 }
 
 void
-Moira::breakpointReached(u32 addr)
+Moira::didReachBreakpoint(u32 addr)
 {
     amiga.setFlag(RL::BREAKPOINT_REACHED);
 }
 
 void
-Moira::watchpointReached(u32 addr)
+Moira::didReachWatchpoint(u32 addr)
 {
     amiga.setFlag(RL::WATCHPOINT_REACHED);
 }
 
 void
-Moira::catchpointReached(u8 vector)
+Moira::didReachCatchpoint(u8 vector)
 {
     amiga.setFlag(RL::CATCHPOINT_REACHED);
 }
 
 void
-Moira::softwareTrapReached(u32 addr)
+Moira::didReachSoftwareTrap(u32 addr)
 {
     amiga.setFlag(RL::SWTRAP_REACHED);
 }
@@ -350,7 +350,7 @@ CPU::setOption(Opt option, i64 value)
 {
     auto cpuModel = [&](CPURev rev) { return moira::Model(rev); };
     auto dasmModel = [&](DasmRev rev) { return moira::Model(rev); };
-    auto syntax = [&](DasmSyntax rev) { return moira::DasmSyntax(rev); };
+    auto syntax = [&](DasmSyntax rev) { return moira::Syntax(rev); };
 
     switch (option) {
 
@@ -433,7 +433,7 @@ CPU::_didReset(bool hard)
         
         // Remove all recorded instructions and set the log flag if needed
         debugger.clearLog();
-        if (emulator.isTracking()) flags |= moira::CPU_LOG_INSTRUCTION;
+        if (emulator.isTracking()) flags |= moira::State::LOGGING;
 
     } else {
         
@@ -554,17 +554,19 @@ CPU::_dump(Category category, std::ostream& os) const
 
         if (flags) {
 
+            using namespace moira::State;
+            
             os << std::endl;
-            if (flags & moira::CPU_IS_HALTED) os << util::tab("") << "CPU_IS_HALTED" << std::endl;
-            if (flags & moira::CPU_IS_STOPPED) os << util::tab("") << "CPU_IS_STOPPED" << std::endl;
-            if (flags & moira::CPU_IS_LOOPING) os << util::tab("") << "CPU_IS_LOOPING" << std::endl;
-            if (flags & moira::CPU_LOG_INSTRUCTION) os << util::tab("") << "CPU_LOG_INSTRUCTION" << std::endl;
-            if (flags & moira::CPU_CHECK_IRQ) os << util::tab("") << "CPU_CHECK_IRQ" << std::endl;
-            if (flags & moira::CPU_TRACE_EXCEPTION) os << util::tab("") << "CPU_TRACE_EXCEPTION" << std::endl;
-            if (flags & moira::CPU_TRACE_FLAG) os << util::tab("") << "CPU_TRACE_FLAG" << std::endl;
-            if (flags & moira::CPU_CHECK_BP) os << util::tab("") << "CPU_CHECK_BP" << std::endl;
-            if (flags & moira::CPU_CHECK_WP) os << util::tab("") << "CPU_CHECK_WP" << std::endl;
-            if (flags & moira::CPU_CHECK_CP) os << util::tab("") << "CPU_CHECK_CP" << std::endl;
+            if (flags & HALTED)    os << util::tab("") << "HALTED" << std::endl;
+            if (flags & STOPPED)   os << util::tab("") << "STOPPED" << std::endl;
+            if (flags & LOOPING)   os << util::tab("") << "LOOPING" << std::endl;
+            if (flags & LOGGING)   os << util::tab("") << "LOGGING" << std::endl;
+            if (flags & CHECK_IRQ) os << util::tab("") << "CHECK_IRQ" << std::endl;
+            if (flags & TRACE_EXC) os << util::tab("") << "TRACE_EXC" << std::endl;
+            if (flags & TRACING)   os << util::tab("") << "TRACING" << std::endl;
+            if (flags & CHECK_BP)  os << util::tab("") << "CHECK_BP" << std::endl;
+            if (flags & CHECK_WP)  os << util::tab("") << "CHECK_WP" << std::endl;
+            if (flags & CHECK_CP)  os << util::tab("") << "CHECK_CP" << std::endl;
             os << std::endl;
         }
 

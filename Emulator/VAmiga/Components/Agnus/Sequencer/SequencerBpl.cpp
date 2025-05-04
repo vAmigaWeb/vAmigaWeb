@@ -400,7 +400,8 @@ Sequencer::processSignal <true> (u32 signal, DDFState &state)
             
             state.bphstop |= state.bprun;
             state.stopreq |= state.bprun;
-            state.bphstart = true;
+            //state.bphstart = true;
+            state.bphstart = state.bpv; //fix for testcase arosddf4 and arosddf2
             state.bprun = (state.bprun || state.shw) && state.bpv && state.bmapen;
             break;
 
