@@ -15,13 +15,13 @@
 
 // Version number
 static constexpr int VER_MAJOR      = 4;
-static constexpr int VER_MINOR      = 0;
+static constexpr int VER_MINOR      = 1;
 static constexpr int VER_SUBMINOR   = 0;
 static constexpr int VER_BETA       = 0;
 
 // Snapshot version number
 static constexpr int SNP_MAJOR      = 4;
-static constexpr int SNP_MINOR      = 0;
+static constexpr int SNP_MINOR      = 1;
 static constexpr int SNP_SUBMINOR   = 0;
 static constexpr int SNP_BETA       = 0;
 
@@ -43,7 +43,7 @@ static constexpr int SNP_BETA       = 0;
 //
 
 static constexpr int DIAG_BOARD     = 0; // Plug in the diagnose board
-static constexpr int ALLOW_ALL_ROMS = 0; // Disable the magic bytes check
+static constexpr int ALLOW_ALL_ROMS = 1; // Disable the magic bytes check
 
 
 //
