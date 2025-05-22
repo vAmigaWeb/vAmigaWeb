@@ -88,6 +88,7 @@ body
     user-select: none;
     -webkit-user-select: none;
     overflow:hidden;
+    overscroll-behavior: none; /* blocks swipe navigation */
     background-color: var(--lighterbg) !important;
 }
 
@@ -812,3 +813,10 @@ input[type="range"]::-moz-range-thumb {
 [ntsc="false"] #MOS8370 {
     display: none
 }
+
+#ui_file_list {
+    overflow: auto;
+    min-width: fit-content;
+    padding-right: 10px;
+}
+

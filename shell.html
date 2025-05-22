@@ -1148,14 +1148,14 @@ touch screen settings for virtual keyboard
     <!-- file slot modal--->
     <div class="modal fade" id="modal_file_slot" tabindex="-1" role="dialog" aria-labelledby="file_slot_ModalLabel" aria-hidden="true">
       <div class="modal-dialog" role="document">
-        <div class="modal-content">
+        <div class="modal-content" style="display: grid;grid-template-rows: auto 1fr auto;max-height: 91vh;">
           <div class="modal-header">
             <h5 class="modal-title" id="file_slot_ModalLabel"><span id="file_slot_dialog_label"></span></h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </button>
           </div>
-          <div class="modal-body">            
+          <div class="modal-body" style="overflow: auto">            
             <div id="div_zip_content"></div>
           </div>
           <div class="modal-footer">
