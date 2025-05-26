@@ -1167,10 +1167,10 @@ FloppyDriveAPI::isInsertable(Diameter t, Density d) const
 }
 
 void
-FloppyDriveAPI::insertBlankDisk(FSVolumeType fstype, BootBlockId bb, string name)
+FloppyDriveAPI::insertBlankDisk(FSVolumeType fstype, BootBlockId bb, string name, const std::filesystem::path &path)
 {
     VAMIGA_PUBLIC_SUSPEND
-    drive->insertNew(fstype, bb, name);
+    drive->insertNew(fstype, bb, name, path);
     emu->isDirty = true;
 }
 
@@ -1179,6 +1179,15 @@ FloppyDriveAPI::insertMedia(MediaFile &file, bool wp)
 {
     VAMIGA_PUBLIC_SUSPEND
     drive->insertMediaFile(file, wp);
+    emu->isDirty = true;
+}
+
+void
+FloppyDriveAPI::insert(const fs::path &path, bool wp)
+{
+    VAMIGA_PUBLIC_SUSPEND
+    drive->swapDisk(path);
+    if (drive->disk) drive->disk->setWriteProtection(wp);
     emu->isDirty = true;
 }
 
@@ -1307,7 +1316,14 @@ HardDriveAPI::format(FSVolumeType fs, const string &name)
     drive->format(fs, name);
 }
 
-void 
+void
+HardDriveAPI::importFiles(const fs::path &path)
+{
+    VAMIGA_PUBLIC_SUSPEND
+    drive->importFolder(path);
+}
+
+void
 HardDriveAPI::writeToFile(fs::path path)
 {
     VAMIGA_PUBLIC_SUSPEND
@@ -2073,6 +2089,8 @@ VAmiga::softReset()
 void
 VAmiga::halt()
 {
+    VAMIGA_PUBLIC
+    
     // Signal the emulator to halt
     emu->put(Cmd::HALT);
     

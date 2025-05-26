@@ -1023,7 +1023,7 @@ extern "C" void wasm_delete_disk()
     if(log_on) printf("disk memory deleted\n");
   }
 }
-extern "C" char* wasm_export_disk(const char *drive_name)
+extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10, const char *hd_name="vAmiga HDF")
 {
   wasm_delete_disk();
   Buffer<u8> *data=NULL;
@@ -1104,6 +1104,27 @@ extern "C" char* wasm_export_disk(const char *drive_name)
 
     export_disk = new HDFFile(wrapper->emu->hd3.getDrive());
     data=&(export_disk->data);
+  }
+  else if (strcmp(drive_name,"/imported_hd") == 0)
+  {
+    try {
+    auto drive=new HardDrive(*wrapper->emu->amiga.amiga,-1);
+
+    drive->init(MB(capacity_in_mb));
+    drive->format(FSVolumeType::FFS, hd_name);
+    drive->importFolder("/imported_hd");
+    export_disk = new HDFFile(*drive);
+    delete drive;
+  
+    data=&(export_disk->data);
+  } catch (const CoreError& e) {
+    printf("Error importing into hard drive - %s\n",e.what());
+    EM_ASM(
+    {
+      alert(`Error importing into hard drive - ${UTF8ToString($0)}`);
+    }, e.what());    
+  }
+
   }
   
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",

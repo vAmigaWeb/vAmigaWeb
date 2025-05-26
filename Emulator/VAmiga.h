@@ -674,17 +674,19 @@ class FloppyDriveAPI : public API {
 
     /** @brief  Inserts a new disk.
      *  @param  fstype  File system format
-     *  @param  id      Boot block identifier
-     *  @param  name    Name of the disk
+     *  @param  id  Boot block identifier
+     *  @param  name  Name of the disk
+     *  @param  path Optional folder to import
      */
-    void insertBlankDisk(FSVolumeType fstype, BootBlockId id, string name);
+    void insertBlankDisk(FSVolumeType fstype, BootBlockId id, string name, const std::filesystem::path &path = {});
 
     /** @brief  Inserts a disk created from a media file.
      *  @param  file    A media file wrapper object.
      *  @param  wp      Write-protection status of the disk.
      */
     void insertMedia(MediaFile &file, bool wp);
-
+    void insert(const fs::path &path, bool wp);
+    
     /** @brief  Inserts a disk created from a file system.
      *  @param  fs      A file system wrapper object.
      *  @param  wp      Write-protection status of the disk.
@@ -778,6 +780,10 @@ public:
      */
     void changeGeometry(isize c, isize h, isize s, isize b = 512);
 
+    /** @brief  Formats the hard drive
+     */
+    void format(FSVolumeType fs, const string &name);
+    
     /** @brief  Attaches a hard drive provided by an URL to a media file.
      *  @param  path    Path to the media file.
      */
@@ -796,12 +802,17 @@ public:
      */
     void attach(isize c, isize h, isize s, isize b = 512);
 
-    /** @brief  Formats the hard drive
+    /** @brief  Imports files from a folder
+     *  @note   All existing files are deleted prior to importing the folder.
      */
-    void format(FSVolumeType fs, const string &name);
-
+    void importFiles(const fs::path &path);
+    
+    /** @brief  Exports the hard drive to an HDF file on disk
+     */
     void writeToFile(fs::path path);
 
+    /** @brief  Converts the hard drive to an HDF media file
+     */
     MediaFile *createHDF();
 };
 

@@ -113,13 +113,32 @@ const load_script= (url) => {
     });
 }
 
+imported_hd_path = '/imported_hd';
+async function mount_import_folder() {
+    return new Promise((resolve, reject) => {
+        try{
+            FS.mkdir(imported_hd_path) 
+        } catch(e) {console.log(e)}
+        try{
+            FS.mount(IDBFS, {}, imported_hd_path);
+        } catch(e) {console.log(e)}
+
+        FS.syncfs(true, () => {
+        // Callback function when sync is complete
+            resolve();
+        });
+    });
+}
+
 async function mount_workspaces() {
     return new Promise((resolve, reject) => {
         try{
             FS.mkdir(workspace_path) 
+            FS.mkdir(imported_hd_path) 
         } catch(e) {console.log(e)}
         try{
-        FS.mount(IDBFS, {}, workspace_path);
+            FS.mount(IDBFS, {}, workspace_path);
+            FS.mount(IDBFS, {}, imported_hd_path);
         } catch(e) {console.log(e)}
 
         FS.syncfs(true, () => {
@@ -1048,6 +1067,7 @@ function configure_file_dialog(reset=false)
                         {
                             let mountable = true; //relativePath.toLowerCase().match(/[.](zip|adf|hdf|dms|exe|vAmiga)$/i) || true;
                             list+='<li '+
+//                            `${zipfile.dir ? 'style="background-color: #444 !important"':""}` +
                             (mountable ? 'id="li_fileselect'+mountable_count+'"':'')
                             +' class="list-group-item list-group-item-action'+ 
                                 (mountable ? '':' disabled')+'">'+relativePath+'</li>';
@@ -1187,7 +1207,18 @@ function configure_file_dialog(reset=false)
     }
 }
 
-function prompt_for_drive()
+function sync_fs(populate) {
+  return new Promise((resolve, reject) => {
+    FS.syncfs(populate, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+
+
+async function prompt_for_drive()
 {
     let cancel=`<div id="prompt_drive_cancel" class="close" style="position:absolute;top:0.2em;right:0.4em;cursor:pointer" onclick="show_drive_select(false)">×</div>`;
     let_drive_select_stay_open=false;
@@ -1209,6 +1240,32 @@ function prompt_for_drive()
         {
             setTimeout(()=>$("#div_drive_select").hide(),1000); 
         }
+    }
+
+    if(file_slot_file_name.match(/[.](disk)$/i) && file_slot_file.length>1710000) //HD floppy disk 1.71MB
+    {
+        //if(confirm(`trying to import ${Number(file_slot_file.length/(1024*1024)).toFixed(0)}MB file into Amiga hard drive. \n\n drive connect needs a system power off... \n\n do you whish me to proceed?`))
+        {
+            $('#alert_import').show();
+            await mount_import_folder();
+            deleteAllFiles(imported_hd_path); 
+            FS.writeFile(imported_hd_path+"/"+file_slot_file_name.replace(".disk",""), file_slot_file);
+            await sync_fs();
+
+            let json = wasm_export_disk(imported_hd_path, 4+ 1.2*(file_slot_file.length/(1024*1024)) , file_slot_file_name);
+            let hd_obj = JSON.parse(json);
+            let hd_buffer = new Uint8Array(Module.HEAPU8.buffer, hd_obj.address, hd_obj.size);
+            let filebuffer = hd_buffer.slice(0,hd_obj.size);
+
+            file_slot_file_name = file_slot_file_name.replace(".disk",".hdf");
+            file_slot_file = filebuffer;
+
+            console.log("imported "+file_slot_file_name.replace(".disk","")+" into "+imported_hd_path);
+            deleteAllFiles(imported_hd_path); 
+            await sync_fs();
+            $('#alert_import').hide(); 
+        }
+        //else return;
     }
 
     if(file_slot_file_name.match(/[.](adf|dms|exe|st|disk)$/i))
@@ -1899,7 +1956,7 @@ function InitWrappers() {
     wasm_poke = Module.cwrap('wasm_poke', 'undefined', ['number', 'number']);
     wasm_has_disk = Module.cwrap('wasm_has_disk', 'number', ['string']);
     wasm_eject_disk = Module.cwrap('wasm_eject_disk', 'undefined', ['string']);
-    wasm_export_disk = Module.cwrap('wasm_export_disk', 'string', ['string']);
+    wasm_export_disk = Module.cwrap('wasm_export_disk', 'string', ['string', 'number', 'string']);
     wasm_configure = Module.cwrap('wasm_configure', 'string', ['string', 'string']);
     wasm_configure_key = Module.cwrap('wasm_configure_key', 'string', ['string', 'string', 'string']);
     wasm_write_string_to_ser = Module.cwrap('wasm_write_string_to_ser', 'undefined', ['string']);
@@ -3485,7 +3542,7 @@ $('.layer').change( function(event) {
             }
             if(call_param_dialog_on_disk == false)
             {//loading is probably done by scripting
-            }
+            }            
         };
 
         if(!is_running())
