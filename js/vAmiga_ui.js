@@ -576,7 +576,7 @@ function message_handler_queue_worker(msg, data, data2)
         let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB'];
         let agnus_description = agnus_map.filter((e) => e.v == agnus_revs[v]);
         agnus_description= agnus_description.length>0 ? agnus_description[0].t : agnus_revs[v];
-        $(`#button_OPT_AGNUS_REVISION`).text(`agnus revision=${agnus_description} ${cause}`);
+        $(`#button_OPT_AGNUS_REVISION`).html(`agnus revision=${agnus_description} ${cause}`);
 
         v=wasm_get_config_item("DENISE.REVISION");
         let denise_revs=['OCS','ECS'];
