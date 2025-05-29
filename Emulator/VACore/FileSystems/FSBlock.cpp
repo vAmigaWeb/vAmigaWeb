@@ -16,24 +16,30 @@ namespace vamiga {
 
 FSBlock::FSBlock(FileSystem &ref, Block nr, FSBlockType t) : device(ref)
 {
-    assert(t != FSBlockType::UNKNOWN_BLOCK);
-    
     this->nr = nr;
-    this->type = t;
+    init(t);
+}
+
+void
+FSBlock::init(FSBlockType t)
+{
+    type = t;
     
-    // Allocate memory if this block is not empty
-    if (type != FSBlockType::EMPTY_BLOCK) data.init(bsize(), 0);
+    if (type == FSBlockType::UNKNOWN_BLOCK) return;
+        
+    // Allocate memory
+    data.init(type == FSBlockType::EMPTY_BLOCK ? 0 : bsize(), 0);
     
     // Initialize
     switch (type) {
 
         case FSBlockType::BOOT_BLOCK:
             
-            if (nr == 0 && ref.dos != FSVolumeType::NODOS) {
+            if (nr == 0 && device.dos != FSVolumeType::NODOS) {
                 data[0] = 'D';
                 data[1] = 'O';
                 data[2] = 'S';
-                data[3] = (u8)ref.dos;
+                data[3] = (u8)device.dos;
             }
             break;
             
@@ -97,6 +103,7 @@ FSBlock::make(FileSystem &ref, Block nr, FSBlockType type)
         case FSBlockType::FILELIST_BLOCK:
         case FSBlockType::DATA_BLOCK_OFS:
         case FSBlockType::DATA_BLOCK_FFS:
+            
             return new FSBlock(ref, nr, type);
             
         default:
@@ -122,7 +129,7 @@ FSBlock::objectName() const
         case FSBlockType::DATA_BLOCK_FFS:    return "FSBlock (FFF)";
             
         default:
-            fatalError;
+            throw CoreError(Fault::FS_INVALID_BLOCK_TYPE);
     }
 }
 
@@ -1232,7 +1239,6 @@ FSBlock::setFirstDataBlockRef(Block ref)
     switch (type) {
 
         case FSBlockType::FILEHEADER_BLOCK:
-        case FSBlockType::FILELIST_BLOCK:
             
             set32(4, ref);
             break;
@@ -1528,55 +1534,29 @@ FSBlock::incNumDataBlockRefs()
     }
 }
 
-bool
+void
 FSBlock::addDataBlockRef(u32 first, u32 ref)
 {
+    assert(getNumDataBlockRefs() < getMaxDataBlockRefs());
+    
     switch (type) {
             
         case FSBlockType::FILEHEADER_BLOCK:
-        {
-            std::set<Block> visited;
             
-            // If this block has space for more references, add it here
-            if (getNumDataBlockRefs() < getMaxDataBlockRefs()) {
-                
-                if (getNumDataBlockRefs() == 0) setFirstDataBlockRef(first);
-                setDataBlockRef(getNumDataBlockRefs(), ref);
-                incNumDataBlockRefs();
-                return true;
-            }
+            setFirstDataBlockRef(first);
+            setDataBlockRef(getNumDataBlockRefs(), ref);
+            incNumDataBlockRefs();
+            break;
             
-            // Otherwise, add it to an extension block
-            FSBlock *item = getNextListBlock();
-            
-            while (item) {
-                
-                // Break the loop if we visit a block twice
-                if (visited.find(item->nr) != visited.end()) return false;
-                
-                if (item->addDataBlockRef(first, ref)) return true;
-                item = item->getNextListBlock();
-            }
-            
-            return false;
-        }
-
         case FSBlockType::FILELIST_BLOCK:
-        {
-            // The caller has to ensure that this block contains free slots
-            if (getNumDataBlockRefs() < getMaxDataBlockRefs()) {
-                
-                setFirstDataBlockRef(first);
-                setDataBlockRef(getNumDataBlockRefs(), ref);
-                incNumDataBlockRefs();
-                return true;
-            }
             
-            return false;
-        }
+            setDataBlockRef(getNumDataBlockRefs(), ref);
+            incNumDataBlockRefs();
+            break;
             
         default:
-            return false;
+            
+            break;
     }
 }
 

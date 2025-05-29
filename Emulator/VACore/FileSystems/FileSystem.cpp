@@ -196,12 +196,14 @@ FileSystem::_dump(Category category, std::ostream& os) const
         
         for (isize i = 0; i < numBlocks(); i++)  {
             
-            if (blocks[i]->type == FSBlockType::EMPTY_BLOCK) continue;
-            
-            msg("\nBlock %ld (%d):", i, blocks[i]->nr);
-            msg(" %s\n", FSBlockTypeEnum::key(blocks[i]->type));
-            
-            blocks[i]->dump();
+            if (!isEmpty(Block(i))) {
+                
+                auto nr = blocks[i]->nr;
+                auto type = FSBlockTypeEnum::key(blocks[i]->type);
+                
+                msg("\nBlock %ld (%d): %s", i, nr, type);
+                blocks[i]->dump();
+            }
         }
     }
 }
@@ -458,18 +460,6 @@ FileSystem::currentDirBlock() const
     assert(cdb->type == FSBlockType::ROOT_BLOCK || cdb->type == FSBlockType::USERDIR_BLOCK);
     
     return cdb;
-
-    /*
-    if (cdb) {
-        if (cdb->type == FSBlockType::ROOT_BLOCK || cdb->type == FSBlockType::USERDIR_BLOCK) {
-            return cdb;
-        }
-    }
-    
-    // The block reference is invalid. Switch back to the root directory
-    cd = rootBlock;
-    return blockPtr(cd);
-    */
 }
 
 FSBlock *
@@ -724,12 +714,13 @@ FileSystem::check(bool strict) const
     // Analyze the allocation table
     for (isize i = 0; i < numBlocks(); i++) {
 
-        FSBlock *block = blocks[i];
-        if (block->type == FSBlockType::EMPTY_BLOCK && !isFree(Block(i))) {
+        if (isEmpty(Block(i)) && !isFree(Block(i))) {
+            
             result.bitmapErrors++;
             debug(FS_DEBUG, "Empty block %ld is marked as allocated\n", i);
         }
-        if (block->type != FSBlockType::EMPTY_BLOCK && isFree(Block(i))) {
+        if (!isEmpty(Block(i)) && isFree(Block(i))) {
+            
             result.bitmapErrors++;
             debug(FS_DEBUG, "Non-empty block %ld is marked as free\n", i);
         }
@@ -883,7 +874,7 @@ FileSystem::predictBlockType(Block nr, const u8 *buffer) const
 }
 
 void
-FileSystem::analyzeBlockUsage(u8 *buffer, isize len)
+FileSystem::analyzeBlockUsage(u8 *buffer, isize len) const
 {
     // Setup priorities
     i8 pri[12];
@@ -894,8 +885,8 @@ FileSystem::analyzeBlockUsage(u8 *buffer, isize len)
     pri[isize(FSBlockType::BITMAP_BLOCK)]       = 7;
     pri[isize(FSBlockType::BITMAP_EXT_BLOCK)]   = 6;
     pri[isize(FSBlockType::USERDIR_BLOCK)]      = 5;
-    pri[isize(FSBlockType::FILEHEADER_BLOCK)]   = 4;
-    pri[isize(FSBlockType::FILELIST_BLOCK)]     = 3;
+    pri[isize(FSBlockType::FILEHEADER_BLOCK)]   = 3;
+    pri[isize(FSBlockType::FILELIST_BLOCK)]     = 2;
     pri[isize(FSBlockType::DATA_BLOCK_OFS)]     = 2;
     pri[isize(FSBlockType::DATA_BLOCK_FFS)]     = 2;
     
@@ -903,11 +894,12 @@ FileSystem::analyzeBlockUsage(u8 *buffer, isize len)
     for (isize i = 0; i < len; i++) buffer[i] = 0;
  
     // Analyze all blocks
-    for (isize i = 0, max = numBlocks(); i < max; i++) {
+    for (isize i = 1, max = numBlocks(); i < max; i++) {
 
         auto val = u8(blocks[i]->type);
         auto pos = i * (len - 1) / (max - 1);
         if (pri[buffer[pos]] < pri[val]) buffer[pos] = val;
+        if (pri[buffer[pos]] == pri[val] && pos > 0 && buffer[pos-1] != val) buffer[pos] = val;
     }
     
     // Fill gaps
@@ -920,64 +912,67 @@ FileSystem::analyzeBlockUsage(u8 *buffer, isize len)
 }
 
 void
-FileSystem::analyzeBlockAllocation(u8 *buffer, isize len)
+FileSystem::analyzeBlockAllocation(u8 *buffer, isize len) const
 {
     // Setup priorities
-    i8 pri[5] = { 1, 2, 3, 4, 0 };
+    i8 pri[4] = { 0, 1, 2, 3 };
  
-    // Start with the value representing "uninitialized"
-    for (isize i = 0; i < len; i++) buffer[i] = 4;
+    // Start from scratch
+    for (isize i = 0; i < len; i++) buffer[i] = 255;
  
     // Analyze all blocks
     for (isize i = 0, max = numBlocks(); i < max; i++) {
         
         auto free = isFree(Block(i));
-        auto empty = blocks[i]->type == FSBlockType::EMPTY_BLOCK;
+        auto empty = isEmpty(Block(i));
+        
         u8 val = (!empty && !free) ? 1 : (empty && !free) ? 2 : (!empty && free) ? 3 : 0;
         auto pos = i * (len - 1) / (max - 1);
-        if (pri[buffer[pos]] < pri[val]) buffer[pos] = val;
+        
+        if (buffer[pos] == 255 || pri[buffer[pos]] < pri[val]) buffer[pos] = val;
     }
     
     // Fill gaps
     for (isize pos = 1; pos < len; pos++) {
         
-        if (buffer[pos] == 4) {
+        if (buffer[pos] == 255) {
             buffer[pos] = buffer[pos - 1];
         }
     }
 }
 
 void
-FileSystem::analyzeBlockConsistency(u8 *buffer, isize len)
+FileSystem::analyzeBlockConsistency(u8 *buffer, isize len) const
 {
     // Setup priorities
-    i8 pri[4] = { 1, 2, 3, 0 };
+    i8 pri[3] = { 0, 1, 2 };
  
-    // Start with the value representing "uninitialized"
-    for (isize i = 0; i < len; i++) buffer[i] = 4;
+    // Start from scratch
+    for (isize i = 0; i < len; i++) buffer[i] = 255;
  
     // Analyze all blocks
     for (isize i = 0, max = numBlocks(); i < max; i++) {
         
-        u8 val =
-        blocks[i]->corrupted ? 2 :
-        blocks[i]->type == FSBlockType::UNKNOWN_BLOCK ? 0 :
-        blocks[i]->type == FSBlockType::EMPTY_BLOCK ? 0 : 1;
+        auto corrupted = blocks[i]->corrupted;
+        auto empty = isEmpty(Block(i));
+        
+        u8 val = empty ? 0 : corrupted ? 2 : 1;
         auto pos = i * (len - 1) / (max - 1);
-        if (pri[buffer[pos]] < pri[val]) buffer[pos] = val;
+        
+        if (buffer[pos] == 255 || pri[buffer[pos]] < pri[val]) buffer[pos] = val;
     }
     
     // Fill gaps
     for (isize pos = 1; pos < len; pos++) {
         
-        if (buffer[pos] == 4) {
+        if (buffer[pos] == 255) {
             buffer[pos] = buffer[pos - 1];
         }
     }
 }
 
 isize
-FileSystem::nextBlockOfType(FSBlockType type, isize after)
+FileSystem::nextBlockOfType(FSBlockType type, isize after) const
 {
     assert(isBlockNumber(after));
 
@@ -993,7 +988,7 @@ FileSystem::nextBlockOfType(FSBlockType type, isize after)
 }
 
 isize
-FileSystem::nextCorruptedBlock(isize after)
+FileSystem::nextCorruptedBlock(isize after) const
 {
     assert(isBlockNumber(after));
     

@@ -34,7 +34,7 @@ MutableFileSystem::init(FileSystemDescriptor &layout, const fs::path &path)
     init((isize)layout.numBlocks);
     
     if (FS_DEBUG) { layout.dump(); }
-
+    
     // Copy layout parameters
     dos         = layout.dos;
     bsize       = layout.bsize;
@@ -42,7 +42,7 @@ MutableFileSystem::init(FileSystemDescriptor &layout, const fs::path &path)
     rootBlock   = layout.rootBlock;
     bmBlocks    = layout.bmBlocks;
     bmExtBlocks = layout.bmExtBlocks;
-
+    
     // Create all blocks
     format();
     
@@ -50,7 +50,7 @@ MutableFileSystem::init(FileSystemDescriptor &layout, const fs::path &path)
     cd = rootBlock;
     
     // Start allocating blocks at the middle of the disk
-    tba = rootBlock;
+    ap = rootBlock;
     
     // Do some consistency checking
     for (isize i = 0; i < numBlocks(); i++) assert(blocks[i] != nullptr);
@@ -66,7 +66,7 @@ MutableFileSystem::init(FileSystemDescriptor &layout, const fs::path &path)
         
         // Assign device name
         setName(FSName(path.filename().string()));
-
+        
         // Change to the root directory
         changeDir("/");
     }
@@ -77,7 +77,7 @@ MutableFileSystem::init(Diameter dia, Density den, FSVolumeType dos, const fs::p
 {
     // Get a device descriptor
     auto descriptor = FileSystemDescriptor(dia, den, dos);
-
+    
     // Create the device
     init(descriptor, path);
 }
@@ -94,15 +94,15 @@ MutableFileSystem::format(string name)
 {
     // Start from scratch
     init(isize(blocks.size()));
-
+    
     // Do some consistency checking
     assert(numBlocks() > 2);
     for (isize i = 0; i < numBlocks(); i++) assert(blocks[i] == nullptr);
-
+    
     // Create boot blocks
     blocks[0] = new FSBlock(*this, 0, FSBlockType::BOOT_BLOCK);
     blocks[1] = new FSBlock(*this, 1, FSBlockType::BOOT_BLOCK);
-
+    
     // Create the root block
     assert(rootBlock != 0);
     FSBlock *rb = new FSBlock(*this, rootBlock, FSBlockType::ROOT_BLOCK);
@@ -130,6 +130,7 @@ MutableFileSystem::format(string name)
     for (isize i = 0; i < numBlocks(); i++) {
         
         if (blocks[i] == nullptr) {
+            
             blocks[i] = new FSBlock(*this, Block(i), FSBlockType::EMPTY_BLOCK);
             markAsFree(Block(i));
         }
@@ -147,7 +148,7 @@ MutableFileSystem::setName(FSName name)
 {
     FSBlock *rb = rootBlockPtr(rootBlock);
     assert(rb != nullptr);
-
+    
     rb->setName(name);
     rb->updateChecksum();
 }
@@ -157,7 +158,7 @@ MutableFileSystem::requiredDataBlocks(isize fileSize) const
 {
     // Compute the capacity of a single data block
     isize numBytes = bsize - (isOFS() ? 24 : 0);
-
+    
     // Compute the required number of data blocks
     return (fileSize + numBytes - 1) / numBytes;
 }
@@ -170,10 +171,10 @@ MutableFileSystem::requiredFileListBlocks(isize fileSize) const
     
     // Compute the number of data block references in a single block
     isize numRefs = (bsize / 4) - 56;
-
+    
     // Small files do not require any file list block
     if (numBlocks <= numRefs) return 0;
-
+    
     // Compute the required number of additional file list blocks
     return (numBlocks - 1) / numRefs;
 }
@@ -187,7 +188,6 @@ MutableFileSystem::requiredBlocks(isize fileSize) const
     debug(FS_DEBUG, "Required file header blocks : %d\n",  1);
     debug(FS_DEBUG, "       Required data blocks : %ld\n", numDataBlocks);
     debug(FS_DEBUG, "  Required file list blocks : %ld\n", numFileListBlocks);
-    debug(FS_DEBUG, "                Free blocks : %ld\n", freeBlocks());
     
     return 1 + numDataBlocks + numFileListBlocks;
 }
@@ -195,7 +195,7 @@ MutableFileSystem::requiredBlocks(isize fileSize) const
 bool
 MutableFileSystem::allocatable(isize count) const
 {
-    Block i = tba;
+    Block i = ap;
     isize capacity = numBlocks();
     
     while (count > 0) {
@@ -203,33 +203,61 @@ MutableFileSystem::allocatable(isize count) const
         if (blocks[i]->type == FSBlockType::EMPTY_BLOCK) {
             if (--count == 0) break;
         }
-  
-        i = (i + 1) % capacity;
-        if (i == tba) return false;
-    }
         
+        i = (i + 1) % capacity;
+        if (i == ap) return false;
+    }
+    
     return true;
 }
 
 Block
-MutableFileSystem::allocateBlock()
+MutableFileSystem::allocate()
 {
-    Block i = tba;
+    Block i = ap;
     
-    do {
+    while (!isEmpty(i)) {
         
-        if (blocks[i]->type == FSBlockType::EMPTY_BLOCK) {
+        if ((i = (i + 1) % numBlocks()) == ap) {
             
-            tba = (i + 1) % numBlocks();
-            markAsAllocated(Block(i));
-            return (Block(i));
+            debug(FS_DEBUG, "No more free blocks\n");
+            throw CoreError(Fault::FS_OUT_OF_SPACE);
         }
-        i = (i + 1) % numBlocks();
-        
-    } while (i != tba);
+    }
+    
+    blockPtr(Block(i))->type = FSBlockType::UNKNOWN_BLOCK;
+    markAsAllocated(Block(i));
+    ap = (i + 1) % numBlocks();
+    return (Block(i));
+}
 
-    debug(FS_DEBUG, "No more free blocks\n");
-    return 0;
+void
+MutableFileSystem::allocate(isize count, std::vector<Block> &result)
+{
+    Block i = ap;
+    
+    // Try to find enough free blocks
+    while (count > 0) {
+        
+        if (isEmpty(i)) {
+            
+            blockPtr(Block(i))->type = FSBlockType::UNKNOWN_BLOCK;
+            result.push_back(Block(i));
+            count--;
+        }
+                
+        if ((i = (i + 1) % numBlocks()) == ap && count) {
+        
+            debug(FS_DEBUG, "No more free blocks\n");
+            throw CoreError(Fault::FS_OUT_OF_SPACE);
+        }
+    }
+    
+    // Success: Mark all blocks as allocated
+    for (const auto &it : result) markAsAllocated(it);
+
+    // Advance the allocation pointer
+    ap = i;
 }
 
 void
@@ -238,79 +266,63 @@ MutableFileSystem::deallocateBlock(Block nr)
     assert(isBlockNumber(nr));
     assert(blocks[nr]);
     
-    delete blocks[nr];
-    blocks[nr] = new FSBlock(*this, nr, FSBlockType::EMPTY_BLOCK);
+    blocks[nr]->init(FSBlockType::EMPTY_BLOCK);
     markAsFree(nr);
 }
 
-Block
-MutableFileSystem::addFileListBlock(Block head, Block prev)
+void
+MutableFileSystem::addFileListBlock(Block at, Block head, Block prev)
 {
     FSBlock *prevBlock = blockPtr(prev);
-    if (!prevBlock) return 0;
-    
-    Block nr = allocateBlock();
-    if (!nr) return 0;
-    
-    blocks[nr] = new FSBlock(*this, nr, FSBlockType::FILELIST_BLOCK);
-    blocks[nr]->setFileHeaderRef(head);
-    prevBlock->setNextListBlockRef(nr);
-    
-    return nr;
+
+    if (prevBlock) {
+        
+        blocks[at]->init(FSBlockType::FILELIST_BLOCK);
+        blocks[at]->setFileHeaderRef(head);
+        
+        prevBlock->setNextListBlockRef(at);
+    }
 }
 
-Block
-MutableFileSystem::addDataBlock(isize count, Block head, Block prev)
+void
+MutableFileSystem::addDataBlock(Block at, isize id, Block head, Block prev)
 {
     FSBlock *prevBlock = blockPtr(prev);
-    if (!prevBlock) return 0;
 
-    Block nr = allocateBlock();
-    if (!nr) return 0;
-
-    FSBlock *newBlock;
-    if (isOFS()) {
-        newBlock = new FSBlock(*this, nr, FSBlockType::DATA_BLOCK_OFS);
-    } else {
-        newBlock = new FSBlock(*this, nr, FSBlockType::DATA_BLOCK_FFS);
+    if (prevBlock) {
+     
+        blocks[at]->init(isOFS() ? FSBlockType::DATA_BLOCK_OFS : FSBlockType::DATA_BLOCK_FFS);
+        blocks[at]->setDataBlockNr((Block)id);
+        blocks[at]->setFileHeaderRef(head);
+    
+        prevBlock->setNextDataBlockRef(at);
     }
-    
-    blocks[nr] = newBlock;
-    newBlock->setDataBlockNr((Block)count);
-    newBlock->setFileHeaderRef(head);
-    prevBlock->setNextDataBlockRef(nr);
-    
-    return nr;
 }
 
 FSBlock *
 MutableFileSystem::newUserDirBlock(const string &name)
 {
-    FSBlock *block = nullptr;
-    
-    if (Block nr = allocateBlock()) {
+    if (Block nr = allocate()) {
 
-        block = new FSBlock(*this, nr, FSBlockType::USERDIR_BLOCK);
-        block->setName(FSName(name));
-        blocks[nr] = block;
+        blocks[nr]->init(FSBlockType::USERDIR_BLOCK);
+        blocks[nr]->setName(FSName(name));
+        return blockPtr(nr);
     }
-    
-    return block;
+ 
+    return nullptr;
 }
 
 FSBlock *
 MutableFileSystem::newFileHeaderBlock(const string &name)
 {
-    FSBlock *block = nullptr;
-    
-    if (Block nr = allocateBlock()) {
+    if (Block nr = allocate()) {
 
-        block = new FSBlock(*this, nr, FSBlockType::FILEHEADER_BLOCK);
-        block->setName(FSName(name));
-        blocks[nr] = block;
+        blocks[nr]->init(FSBlockType::FILEHEADER_BLOCK);
+        blocks[nr]->setName(FSName(name));
+        return blockPtr(nr);
     }
     
-    return block;
+    return nullptr;
 }
 
 void
@@ -364,16 +376,12 @@ MutableFileSystem::rectifyAllocationMap()
     for (isize i = 0, max = numBlocks(); i < max; i++) {
         
         auto free = isFree(Block(i));
-        auto empty = blocks[i]->type == FSBlockType::EMPTY_BLOCK;
-
-        printf("Checking %ld (empty = %d) (free = %d)\n", i, empty, free);
+        auto empty = isEmpty(Block(i));
 
         if (empty && !free) {
-            printf("Freeing...\n");
             markAsFree(Block(i));
         }
         if (!empty && free) {
-            printf("Allocating...\n");
             markAsAllocated(Block(i));
         }
     }
@@ -384,12 +392,15 @@ MutableFileSystem::createDir(const string &name)
 {
     FSBlock *cdb = currentDirBlock();
     FSBlock *block = newUserDirBlock(name);
-    if (block == nullptr) return nullptr;
+
+    if (block) {
+        
+        block->setParentDirRef(cdb->nr);
+        addHashRef(block->nr);
+        return block;
+    }
     
-    block->setParentDirRef(cdb->nr);
-    addHashRef(block->nr);
-    
-    return block;
+    throw CoreError(Fault::FS_OUT_OF_SPACE);
 }
 
 FSBlock *
@@ -397,28 +408,60 @@ MutableFileSystem::createFile(const string &name)
 {
     FSBlock *cdb = currentDirBlock();
     FSBlock *block = newFileHeaderBlock(name);
-    if (block == nullptr) return nullptr;
     
-    block->setParentDirRef(cdb->nr);
-    addHashRef(block->nr);
-
-    return block;
+    if (block) {
+        
+        block->setParentDirRef(cdb->nr);
+        addHashRef(block->nr);
+        return block;
+    }
+    
+    throw CoreError(Fault::FS_OUT_OF_SPACE);
 }
 
 FSBlock *
 MutableFileSystem::createFile(const string &name, const u8 *buf, isize size)
 {
     assert(buf);
-
-    if (FSBlock *block = createFile(name); block) {
         
-        assert(block->type == FSBlockType::FILEHEADER_BLOCK);
-        addData(*block, buf, size);
-        
-        return block;
-    }
+    // Compute the number of data block references held in a file header or list block
+    const usize numRefs = ((bsize / 4) - 56);
     
-    throw CoreError(Fault::FS_OUT_OF_SPACE);
+    // Create a file header block
+    FSBlock *fhb = createFile(name);
+ 
+    // Set file size
+    fhb->setFileSize(u32(size));
+
+    // Allocate blocks
+    std::vector<Block> listBlocks;
+    std::vector<Block> dataBlocks;
+    allocateFileBlocks(size, listBlocks, dataBlocks);
+    
+    for (usize i = 0; i < listBlocks.size(); i++) {
+
+        // Add a list block
+        addFileListBlock(listBlocks[i], fhb->nr, i == 0 ? fhb->nr : listBlocks[i-1]);
+    }
+ 
+    for (usize i = 0; i < dataBlocks.size(); i++) {
+        
+        // Add a data block
+        addDataBlock(dataBlocks[i], i + 1, fhb->nr, i == 0 ? fhb->nr : dataBlocks[i-1]);
+
+        // Determine the list block managing this data block
+        FSBlock *lb = blockPtr((i < numRefs) ? fhb->nr : listBlocks[i / numRefs - 1]);
+        
+        // Link the data block
+        lb->addDataBlockRef(dataBlocks[0], dataBlocks[i]);
+                
+        // Add data bytes
+        isize written = addData(dataBlocks[i], buf, size);
+        buf += written;
+        size -= written;
+    }
+
+    return fhb;
 }
 
 FSBlock *
@@ -455,76 +498,76 @@ MutableFileSystem::addHashRef(FSBlock *newBlock)
 }
 
 isize
+MutableFileSystem::addData(Block nr, const u8 *buffer, isize size)
+{
+    FSBlock *block = blockPtr(nr);
+    return block ? addData(*block, buffer, size) : 0;
+}
+
+isize
 MutableFileSystem::addData(FSBlock &block, const u8 *buffer, isize size)
 {
-    auto nr = block.nr;
+    isize count = 0;
     
     switch (block.type) {
             
-        case FSBlockType::FILEHEADER_BLOCK:
-        {
-            assert(block.getFileSize() == 0);
-
-            // Compute the required number of blocks
-            isize numDataBlocks = requiredDataBlocks(size);
-            isize numListBlocks = requiredFileListBlocks(size);
-            
-            debug(FS_DEBUG, "Required data blocks : %ld\n", numDataBlocks);
-            debug(FS_DEBUG, "Required list blocks : %ld\n", numListBlocks);
-            debug(FS_DEBUG, "         Free blocks : %ld\n", freeBlocks());
-
-            // Only proceed if enough free blocks are available
-            if (!allocatable(numDataBlocks + numListBlocks)) {
-
-                debug(FS_DEBUG, "Not enough free blocks\n");
-                throw CoreError(Fault::FS_OUT_OF_SPACE);
-            }
-            
-            for (Block ref = nr, i = 0; i < (Block)numListBlocks; i++) {
-
-                // Add a new file list block
-                ref = addFileListBlock(nr, ref);
-            }
-            
-            for (Block ref = nr, i = 1; i <= (Block)numDataBlocks; i++) {
-
-                // Add a new data block
-                ref = addDataBlock(i, nr, ref);
-
-                // Add references to the new data block
-                block.addDataBlockRef(ref, ref);
-                
-                // Add data
-                FSBlock *ptr = blockPtr(ref);
-                if (ptr) {
-                    isize written = addData(*ptr, buffer, size);
-                    block.setFileSize((u32)(block.getFileSize() + written));
-                    buffer += written;
-                    size -= written;
-                }
-            }
-
-            return block.getFileSize();
-        }
         case FSBlockType::DATA_BLOCK_OFS:
-        {
-            isize count = std::min(bsize - 24, size);
-
+            
+            count = std::min(bsize - 24, size);
             std::memcpy(block.data.ptr + 24, buffer, count);
             block.setDataBytesInBlock((u32)count);
-            
-            return count;
-        }
+            break;
+
         case FSBlockType::DATA_BLOCK_FFS:
-        {
-            isize count = std::min(bsize, size);
-            
+
+            count = std::min(bsize, size);
             std::memcpy(block.data.ptr, buffer, count);
-            
-            return count;
-        }
+            break;
+
         default:
-            return 0;
+            break;
+    }
+    
+    return count;
+}
+
+void
+MutableFileSystem::allocateFileBlocks(isize bytes, std::vector<Block> &listBlocks, std::vector<Block> &dataBlocks)
+{
+    isize numDataBlocks         = requiredDataBlocks(bytes);
+    isize numListBlocks         = requiredFileListBlocks(bytes);
+    isize refsPerBlock          = (bsize / 4) - 56;
+    isize refsInHeaderBlock     = std::min(numDataBlocks, refsPerBlock);
+    isize refsInListBlocks      = numDataBlocks - refsInHeaderBlock;
+    isize refsInLastListBlock   = refsInListBlocks % refsPerBlock;
+    
+    debug(FS_DEBUG, "                   Data bytes : %ld\n", bytes);
+    debug(FS_DEBUG, "         Required data blocks : %ld\n", numDataBlocks);
+    debug(FS_DEBUG, "         Required list blocks : %ld\n", numListBlocks);
+    debug(FS_DEBUG, "         References per block : %ld\n", refsPerBlock);
+    debug(FS_DEBUG, "   References in header block : %ld\n", refsInHeaderBlock);
+    debug(FS_DEBUG, "    References in list blocks : %ld\n", refsInListBlocks);
+    debug(FS_DEBUG, "References in last list block : %ld\n", refsInLastListBlock);
+
+    listBlocks.reserve(numListBlocks);
+    dataBlocks.reserve(numDataBlocks);
+
+    if (isOFS()) {
+
+        // Header block -> Data blocks -> List block -> Data blocks ... List block -> Data blocks
+        allocate(refsInHeaderBlock, dataBlocks);
+        for (isize i = 0; i < numListBlocks; i++) {
+            allocate(1, listBlocks);
+            allocate(i < numListBlocks - 1 ? refsPerBlock : refsInLastListBlock, dataBlocks);
+        }
+    }
+    
+    if (isFFS()) {
+        
+        // Header block -> Data blocks -> All list block -> All remaining data blocks
+        allocate(refsInHeaderBlock, dataBlocks);
+        allocate(numListBlocks, listBlocks);
+        allocate(refsInListBlocks, dataBlocks);
     }
 }
 
@@ -591,14 +634,6 @@ MutableFileSystem::importDirectory(const fs::path &path, bool recursive)
     
     // Verify the result
     if (FS_DEBUG) verify();
-    
-    // REMOVE ASAP (CORRUPT THE BITMAP BLOCKS FOR TESTING PURPOSES)
-    /*
-    for (isize i = 0; i < 1000; i++) {
-        auto r = Block(rand() % numBlocks());
-        (i % 2) ? markAsFree(r) : markAsAllocated(r);        
-    }
-    */
 }
 
 void

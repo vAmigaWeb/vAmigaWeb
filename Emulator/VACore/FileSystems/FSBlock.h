@@ -29,7 +29,7 @@ struct FSBlock : CoreObject {
     FSBlockType type = FSBlockType::UNKNOWN_BLOCK;
 
     // The sector number of this block
-    Block nr;
+    Block nr = 0;
     
     // Outcome of the latest integrity check (0 = OK, n = n-th corrupted block)
     isize corrupted = 0;
@@ -43,6 +43,7 @@ struct FSBlock : CoreObject {
     //
     
     FSBlock(FileSystem &ref, Block nr, FSBlockType t);
+    void init(FSBlockType t);
 
     static FSBlock *make(FileSystem &ref, Block nr, FSBlockType type) throws;
 
@@ -290,7 +291,7 @@ public:
 
     // Adds a data block reference to this block
     bool addDataBlockRef(Block ref);
-    bool addDataBlockRef(u32 first, u32 ref);
+    void addDataBlockRef(u32 first, u32 ref);
     
     // Gets or sets the number of data bytes stored in this block
     u32 getDataBytesInBlock() const;

@@ -148,6 +148,9 @@ public:
     // Returns the type of a certain block
     FSBlockType blockType(Block nr) const;
 
+    // Checks block properties
+    bool isEmpty(Block nr) const { return blockType(nr) == FSBlockType::EMPTY_BLOCK; }
+
     // Returns the usage type of a certain byte in a certain block
     FSItemType itemType(Block nr, isize pos) const;
     
@@ -301,25 +304,19 @@ protected:
 public:
 
     // Returns a block summary for creating the block usage image
-    void analyzeBlockUsage(u8 *buffer, isize len);
+    void analyzeBlockUsage(u8 *buffer, isize len) const;
 
     // Returns a usage summary for creating the block allocation image
-    void analyzeBlockAllocation(u8 *buffer, isize len);
+    void analyzeBlockAllocation(u8 *buffer, isize len) const;
 
     // Returns a block summary for creating the diagnose image
-    void analyzeBlockConsistency(u8 *buffer, isize len);
+    void analyzeBlockConsistency(u8 *buffer, isize len) const;
     
-    // Determines how the layout image should look like in a certain column
-    // [[deprecated]] FSBlockType getDisplayType(isize column);
-
-    // Determines how the diagnose image should look like in a certain column
-    // [[deprecated]] isize diagnoseImageSlice(isize column);
-
     // Searches the block list for a block of a specific type
-    isize nextBlockOfType(FSBlockType type, isize after);
+    isize nextBlockOfType(FSBlockType type, isize after) const;
 
     // Searches the block list for a corrupted block
-    isize nextCorruptedBlock(isize after);
+    isize nextCorruptedBlock(isize after) const;
 };
 
 }
