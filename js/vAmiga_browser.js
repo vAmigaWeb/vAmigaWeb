@@ -1,5 +1,5 @@
-const vAmigaWeb_version="4.1.1"; //minimum requirement for snapshot version to be compatible
-const compatible_snapshot_version_format=/^(4[.]1[.](0|1))$/g
+const vAmigaWeb_version="4.2.0"; //minimum requirement for snapshot version to be compatible
+const compatible_snapshot_version_format=/^(4[.]1[.]2)|(4[.]2[.]0)$/g
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 
@@ -1003,7 +1003,10 @@ function deleteAllFiles(path) {
         if (file === '.' || file === '..') continue;
         let fullPath = path + '/' + file;
         let stats = FS.stat(fullPath);
-        if (!stats.isDir) {
+        if (FS.isDir(stats.mode)) {
+            deleteAllFiles(fullPath); 
+            FS.rmdir(fullPath);
+        } else {
             FS.unlink(fullPath);
         }
     }

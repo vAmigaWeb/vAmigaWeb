@@ -446,7 +446,7 @@ button[id^="detail_run"] {
     color: var(--light);
 }
 
-#alert_wait {
+#alert_wait, #alert_import {
     z-index: 2000;
     top: 40%;
     left: 15%;
