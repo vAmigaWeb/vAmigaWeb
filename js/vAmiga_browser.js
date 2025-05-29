@@ -1003,7 +1003,10 @@ function deleteAllFiles(path) {
         if (file === '.' || file === '..') continue;
         let fullPath = path + '/' + file;
         let stats = FS.stat(fullPath);
-        if (!stats.isDir) {
+        if (FS.isDir(stats.mode)) {
+            deleteAllFiles(fullPath); 
+            FS.rmdir(fullPath);
+        } else {
             FS.unlink(fullPath);
         }
     }

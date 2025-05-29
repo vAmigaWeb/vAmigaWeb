@@ -963,7 +963,7 @@ function configure_file_dialog(reset=false)
 
                 });
 
-                var zip = new JSZip();
+                zip = new JSZip();
                 zip.loadAsync(file_slot_file).then(async function (zip) {
                     await mount_workspaces();
  
@@ -1063,7 +1063,7 @@ function configure_file_dialog(reset=false)
                     var list='<ul id="ui_file_list" class="list-group">';
                     var mountable_count=0;
                     zip.forEach(function (relativePath, zipfile){
-                        if(!relativePath.startsWith("__MACOSX") && !zipfile.dir)
+                        if(!zipfile.dir && !relativePath.startsWith("__MACOSX") && !relativePath.includes(".DS_Store"))
                         {
                             let mountable = true; //relativePath.toLowerCase().match(/[.](zip|adf|hdf|dms|exe|vAmiga)$/i) || true;
                             list+='<li '+
@@ -1107,6 +1107,7 @@ function configure_file_dialog(reset=false)
                                 if(!path.toLowerCase().match(/[.](zip|adf|hdf|dms|exe|vAmiga|st)$/i))
                                 {
                                     file_slot_file_name+=".disk";
+                                    file_slot_file_name=file_slot_file_name.substring(file_slot_file_name.lastIndexOf("/")+1)
                                 }
                                 file_slot_file=u8;
 
@@ -1196,6 +1197,7 @@ function configure_file_dialog(reset=false)
                 }
                 else
                 {
+                    file_slot_file_name=file_slot_file_name.substring(file_slot_file_name.lastIndexOf("/")+1)
                     file_slot_file_name+=".disk";
                     prompt_for_drive();
                 }
@@ -1218,7 +1220,7 @@ function sync_fs(populate) {
 
 
 
-async function prompt_for_drive()
+async function prompt_for_drive(folder=false)
 {
     let cancel=`<div id="prompt_drive_cancel" class="close" style="position:absolute;top:0.2em;right:0.4em;cursor:pointer" onclick="show_drive_select(false)">×</div>`;
     let_drive_select_stay_open=false;
@@ -1242,30 +1244,73 @@ async function prompt_for_drive()
         }
     }
 
-    if(file_slot_file_name.match(/[.](disk)$/i) && file_slot_file.length>1710000) //HD floppy disk 1.71MB
+    if(folder)
     {
-        //if(confirm(`trying to import ${Number(file_slot_file.length/(1024*1024)).toFixed(0)}MB file into Amiga hard drive. \n\n drive connect needs a system power off... \n\n do you whish me to proceed?`))
-        {
-            $('#alert_import').show();
-            await mount_import_folder();
-            deleteAllFiles(imported_hd_path); 
-            FS.writeFile(imported_hd_path+"/"+file_slot_file_name.replace(".disk",""), file_slot_file);
-            await sync_fs();
+        $('#alert_import').show();
+        await mount_import_folder();
+        deleteAllFiles(imported_hd_path); 
 
-            let json = wasm_export_disk(imported_hd_path, 4+ 1.2*(file_slot_file.length/(1024*1024)) , file_slot_file_name);
-            let hd_obj = JSON.parse(json);
-            let hd_buffer = new Uint8Array(Module.HEAPU8.buffer, hd_obj.address, hd_obj.size);
-            let filebuffer = hd_buffer.slice(0,hd_obj.size);
 
-            file_slot_file_name = file_slot_file_name.replace(".disk",".hdf");
-            file_slot_file = filebuffer;
-
-            console.log("imported "+file_slot_file_name.replace(".disk","")+" into "+imported_hd_path);
-            deleteAllFiles(imported_hd_path); 
-            await sync_fs();
-            $('#alert_import').hide(); 
+        function ensureDirectoryExists(path) {
+            const parts = path.split('/');
+            let current = '';
+            for (let i = 0; i < parts.length; i++) {
+                if (!parts[i]) continue;
+                current += '/' + parts[i];
+                try {
+                    if (!FS.analyzePath(current).exists) {
+                        FS.mkdir(current);
+                    }
+                } catch (e) {  }
+            }
         }
-        //else return;
+
+        let total_size = 0;
+        for (let [relativePath, file] of Object.entries(zip.files).filter(f=>!f[0].startsWith("__MACOSX") && !f[0].includes(".DS_Store"))) {
+            if(file.dir) continue;
+            let fileData = await file.async("uint8array");
+            if(fileData.length > 0)
+            {
+                let fs_path = imported_hd_path+"/"+ relativePath;
+                ensureDirectoryExists(fs_path.substring(0, fs_path.lastIndexOf('/')));
+                FS.writeFile(fs_path, fileData);
+                total_size += fileData.length;
+            }
+        }
+        file_slot_file_name = last_zip_archive_name.replace(".zip","").replace(".ZIP","");
+        let json = wasm_export_disk(imported_hd_path, 4+ 1.2*(total_size/(1024*1024)) , file_slot_file_name);
+        let hd_obj = JSON.parse(json);
+        let hd_buffer = new Uint8Array(Module.HEAPU8.buffer, hd_obj.address, hd_obj.size);
+        let filebuffer = hd_buffer.slice(0,hd_obj.size);
+
+        file_slot_file_name = file_slot_file_name+".hdf";
+        file_slot_file = filebuffer;
+
+        deleteAllFiles(imported_hd_path); 
+
+        await sync_fs();
+        $('#alert_import').hide(); 
+    }
+    else if(file_slot_file_name.match(/[.](disk)$/i) && file_slot_file.length>1710000) //HD floppy disk 1.71MB
+    {
+        $('#alert_import').show();
+        await mount_import_folder();
+        deleteAllFiles(imported_hd_path); 
+
+        FS.writeFile(imported_hd_path+"/"+file_slot_file_name.replace(".disk",""), file_slot_file);
+        await sync_fs();
+
+        let json = wasm_export_disk(imported_hd_path, 4+ 1.2*(file_slot_file.length/(1024*1024)) , file_slot_file_name);
+        let hd_obj = JSON.parse(json);
+        let hd_buffer = new Uint8Array(Module.HEAPU8.buffer, hd_obj.address, hd_obj.size);
+        let filebuffer = hd_buffer.slice(0,hd_obj.size);
+
+        file_slot_file_name = file_slot_file_name.replace(".disk",".hdf");
+        file_slot_file = filebuffer;
+
+        deleteAllFiles(imported_hd_path); 
+        await sync_fs();
+        $('#alert_import').hide(); 
     }
 
     if(file_slot_file_name.match(/[.](adf|dms|exe|st|disk)$/i))
@@ -3567,6 +3612,9 @@ $('.layer').change( function(event) {
     }
     $("#button_insert_file").click(()=>{
          prompt_for_drive();
+    });
+    $("#button_insert_folder").click(()=>{
+         prompt_for_drive(folder=true);
     });
     
     $('#modal_take_snapshot').on('hidden.bs.modal', function () {
