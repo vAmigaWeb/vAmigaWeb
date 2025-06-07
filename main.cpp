@@ -22,6 +22,7 @@
 #include "OtherFile.h"
 
 #include "MemUtils.h"
+#include "MediaFileTypes.h"
 
 #include <emscripten.h>
 
@@ -1023,6 +1024,52 @@ extern "C" void wasm_delete_disk()
     if(log_on) printf("disk memory deleted\n");
   }
 }
+
+
+
+extern "C" char* wasm_export_as_folder(const char *drive_name,  const char *path)
+{
+  HardDrive *hd=NULL;
+  if (strcmp(drive_name,"dh0") == 0)
+  {
+    hd = &wrapper->emu->hd0.getDrive();
+  }
+  else if (strcmp(drive_name,"dh1") == 0)
+  {
+    hd = &wrapper->emu->hd1.getDrive();
+  }
+  else if (strcmp(drive_name,"dh2") == 0)
+  {
+    hd = &wrapper->emu->hd2.getDrive();
+  }
+  else if (strcmp(drive_name,"dh3") == 0)
+  {
+    hd = &wrapper->emu->hd3.getDrive();
+  }
+
+  if (hd != NULL)
+  {
+    try
+    {
+      auto fs = new MutableFileSystem(*hd,0);
+      fs->exportDirectory(path, true);
+      auto hd_name = fs->getName();
+      delete fs;
+      sprintf(wasm_pull_user_snapshot_file_json_result, "%s",hd_name.c_str());
+      return wasm_pull_user_snapshot_file_json_result;
+    }
+    catch (const CoreError& e) {
+      printf("Error exporting hard drive to folder - %s\n",e.what());
+      EM_ASM(
+      {
+        alert(`Error exporting hard drive to folder - ${UTF8ToString($0)}`);
+      }, e.what());    
+    }
+  }
+  sprintf(wasm_pull_user_snapshot_file_json_result, "{\"error\":\"No hard drive found\"}");
+  return wasm_pull_user_snapshot_file_json_result;
+}
+
 extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10, const char *hd_name="vAmiga HDF")
 {
   wasm_delete_disk();

@@ -114,36 +114,20 @@ const load_script= (url) => {
 }
 
 imported_hd_path = '/imported_hd';
-async function mount_import_folder() {
+exported_hd_path = '/exported_hd';
+async function mount_folder(folder_path) {
     return new Promise((resolve, reject) => {
         try{
-            FS.mkdir(imported_hd_path) 
+            FS.mkdir(folder_path) 
         } catch(e) {console.log(e)}
         try{
-            FS.mount(IDBFS, {}, imported_hd_path);
+            FS.mount(IDBFS, {}, folder_path);
         } catch(e) {console.log(e)}
 
         FS.syncfs(true, () => {
         // Callback function when sync is complete
             resolve();
-        });
-    });
-}
-
-async function mount_workspaces() {
-    return new Promise((resolve, reject) => {
-        try{
-            FS.mkdir(workspace_path) 
-            FS.mkdir(imported_hd_path) 
-        } catch(e) {console.log(e)}
-        try{
-            FS.mount(IDBFS, {}, workspace_path);
-            FS.mount(IDBFS, {}, imported_hd_path);
-        } catch(e) {console.log(e)}
-
-        FS.syncfs(true, () => {
-        // Callback function when sync is complete
-            resolve();
+            console.log(`${folder_path} mounted`);
         });
     });
 }
@@ -965,7 +949,7 @@ function configure_file_dialog(reset=false)
 
                 zip = new JSZip();
                 zip.loadAsync(file_slot_file).then(async function (zip) {
-                    await mount_workspaces();
+                    await mount_folder(workspace_path);
  
                     let workspaces_found = Object.keys(zip.files).filter(f=>f.includes(".vamiga/config") && !f.startsWith("__MACOSX"));
                     if(workspaces_found.length>0)
@@ -1247,7 +1231,7 @@ async function prompt_for_drive(folder=false)
     if(folder)
     {
         $('#alert_import').show();
-        await mount_import_folder();
+        await mount_folder(imported_hd_path);
         deleteAllFiles(imported_hd_path); 
 
 
@@ -1294,7 +1278,7 @@ async function prompt_for_drive(folder=false)
     else if(file_slot_file_name.match(/[.](disk)$/i) && file_slot_file.length>1710000) //HD floppy disk 1.71MB
     {
         $('#alert_import').show();
-        await mount_import_folder();
+        await mount_folder(imported_hd_path);
         deleteAllFiles(imported_hd_path); 
 
         FS.writeFile(imported_hd_path+"/"+file_slot_file_name.replace(".disk",""), file_slot_file);
@@ -2002,6 +1986,7 @@ function InitWrappers() {
     wasm_has_disk = Module.cwrap('wasm_has_disk', 'number', ['string']);
     wasm_eject_disk = Module.cwrap('wasm_eject_disk', 'undefined', ['string']);
     wasm_export_disk = Module.cwrap('wasm_export_disk', 'string', ['string', 'number', 'string']);
+    wasm_export_as_folder = Module.cwrap('wasm_export_as_folder', 'string', ['string', 'string']);
     wasm_configure = Module.cwrap('wasm_configure', 'string', ['string', 'string']);
     wasm_configure_key = Module.cwrap('wasm_configure_key', 'string', ['string', 'string', 'string']);
     wasm_write_string_to_ser = Module.cwrap('wasm_write_string_to_ser', 'undefined', ['string']);
@@ -3686,10 +3671,13 @@ $('.layer').change( function(event) {
             if(wasm_has_disk("dh"+dfn))
             {
                 $("#button_export_hd"+dfn).show();
+                $("#button_export_hd"+dfn+"_folder").show();
+
             }
             else
             {
                 $("#button_export_hd"+dfn).hide();
+                $("#button_export_hd"+dfn+"_folder").hide();
             }
         }
     }
@@ -3720,8 +3708,19 @@ $('.layer').change( function(event) {
             a.click();
             window.URL.revokeObjectURL(url);
         });
-        $('#button_export_hd'+dn).click(function() 
+        $('#button_export_hd'+dn+"_folder").click(async function() 
         {
+            let drive = this.id.replace("_folder","");
+            let dn = drive.at(-1); 
+            let path = exported_hd_path+dn;
+            await mount_folder(path);
+            deleteAllFiles(path);
+            let name = wasm_export_as_folder("dh"+dn, path)
+            zip_and_download_folder(name+".zip",path)
+        });
+
+        $('#button_export_hd'+dn).click(function() 
+        {   
             let d64_json = wasm_export_disk("dh"+this.id.at(-1));
             let d64_obj = JSON.parse(d64_json);
             let d64_buffer = new Uint8Array(Module.HEAPU8.buffer, d64_obj.address, d64_obj.size);
@@ -3756,7 +3755,7 @@ $('.layer').change( function(event) {
         
         global_apptitle = app_name;
 
-        await mount_workspaces();
+        await mount_folder(workspace_path);
         try
         {
             deleteAllFiles(workspace_path+"/"+app_name);

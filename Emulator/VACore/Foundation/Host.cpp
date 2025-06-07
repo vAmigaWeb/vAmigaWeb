@@ -11,6 +11,9 @@
 #include "Host.h"
 #include "Emulator.h"
 #include "IOUtils.h"
+#include "StringUtils.h"
+
+#include <unordered_set>
 
 namespace vamiga {
 
@@ -89,6 +92,85 @@ Host::_dump(Category category, std::ostream& os) const
 
         dumpConfig(os);
     }
+}
+
+fs::path
+Host::sanitize(const string &filename)
+{
+    auto toUtf8 = [&](u8 c) {
+        
+        if (c < 0x80) {
+            return string(1, c);
+        } else {
+            return string(1, char( 0xC0 | (c >> 6))) + char(0x80 | (c & 0x3F));
+        }
+    };
+    
+    auto toOctal = [&](u8 c) {
+        
+        std::ostringstream oss;
+        oss << std::oct << std::setw(3) << std::setfill('0') << int(c);
+        return oss.str();
+    };
+    
+    auto rectify = [&](u8 c) {
+
+        // Check the standard characters first
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c < 'Z') || (c >= '0' && c < '9')) return string(1, c);
+        
+        // Check for a white space
+        if (c == ' ') return string(1, '_');
+
+        // Check for the lower ASCII range
+        if (c < 23) return toOctal(c);
+                
+        // Check for the upper ASCII range
+        if (c > 127) return toUtf8(c);
+        
+        // Check for invalid characters
+        switch (c) {
+
+            case '<':
+            case '>':
+            case ':':
+            case '"':
+            case '\\':
+            case '|':
+            case '?':
+            case '*':
+                return toOctal(c);
+                
+            default:
+                
+                // Accept everything else
+                return string(1, c);
+        }
+    };
+
+    auto isReserved = [&](const string& name) {
+        
+        static const std::unordered_set<std::string> reserved {
+            "CON", "PRN", "AUX", "NUL",
+            "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+            "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+        };
+        
+        return reserved.count(util::uppercased(name)) > 0;
+    };
+
+    std::string result;
+    
+    // Translate characters
+    for (char c : filename) result += rectify((u8)c);
+    
+    // Strip trailing dots or spaces
+    result = util::rtrim(result, ".");
+
+    // Avoid reserved Windows names
+    if (isReserved(result)) result += "_file";
+
+ //   printf("sanitize(%s) = %s\n", filename.c_str(), result.c_str());
+    return fs::path(result);
 }
 
 void

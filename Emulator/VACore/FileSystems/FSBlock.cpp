@@ -11,6 +11,7 @@
 #include "FSBlock.h"
 #include "MutableFileSystem.h"
 #include "MemUtils.h"
+#include "Host.h"
 
 namespace vamiga {
 
@@ -819,11 +820,20 @@ FSBlock::exportUserDirBlock(const fs::path &path)
 Fault
 FSBlock::exportFileHeaderBlock(const fs::path &path)
 {
-    auto filename = path / device.getPath(this);
+    // Get Amiga file name
+    auto filename = device.getPath(this);
     
-    std::ofstream file(filename.string(), std::ofstream::binary);
+    // Make the name compatible with the host computer
+    auto sanitized = Host::sanitize(filename);
+
+    // Create the full path
+    auto fullname = path / sanitized;
+   // printf("%s -> %s\n", filename.c_str(), fullname.string().c_str());
+    // Open file
+    std::ofstream file(fullname, std::ofstream::binary);
     if (!file.is_open()) return Fault::FS_CANNOT_CREATE_FILE;
     
+    // Write data
     writeData(file);
     return Fault::OK;
 }

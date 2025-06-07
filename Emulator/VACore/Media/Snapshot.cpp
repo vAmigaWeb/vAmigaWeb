@@ -101,7 +101,7 @@ Snapshot::finalizeRead()
     if (FORCE_SNAP_TOO_NEW) throw CoreError(Fault::SNAP_TOO_NEW);
     if (FORCE_SNAP_IS_BETA) throw CoreError(Fault::SNAP_IS_BETA);
 
-    if (isTooOld()) throw CoreError(Fault::SNAP_TOO_OLD);
+//    if (isTooOld()) throw CoreError(Fault::SNAP_TOO_OLD);
     if (isTooNew()) throw CoreError(Fault::SNAP_TOO_NEW);
     if (isBeta() && !betaRelease) throw CoreError(Fault::SNAP_IS_BETA);
 }

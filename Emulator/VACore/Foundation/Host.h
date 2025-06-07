@@ -100,11 +100,13 @@ public:
     //
 
 public:
+   // Sanitizes a file name
+    static fs::path sanitize(const string &filename);
 
     // Sets the search path used in makeAbsolute
     void setSearchPath(fs::path path);
 
-    // Sets the search path used in makeAbsolute
+    // Makes a path absolute
     fs::path makeAbsolute(fs::path path) const;
 
     // Returns a path to a temporary folder
