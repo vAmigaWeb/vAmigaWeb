@@ -84,7 +84,7 @@ OtherFile::finalizeRead()
     auto dir = volume.rootDir();
 
     // Add the executable
-    volume.createFile(dir, "file", data);
+    volume.createFile(dir, filename, data);
     
 //    FSBlock *file = volume.createFile(filename, data.ptr, data.size);
 //    if (!file) throw AppError(Fault::FS_OUT_OF_SPACE);
