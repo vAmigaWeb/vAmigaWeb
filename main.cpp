@@ -5,7 +5,7 @@
  */
 
 #include <stdio.h>
-#include "VAmigaConfig.h"
+#include "config.h"
 #include "VAmiga.h"
 #include "VAmigaTypes.h"
 #include "Emulator.h"
@@ -20,6 +20,7 @@
 #include "EADFFile.h"
 #include "STFile.h"
 #include "OtherFile.h"
+#include "MutableFileSystem.h"
 
 #include "MemUtils.h"
 #include "MediaFileTypes.h"
@@ -493,7 +494,7 @@ extern "C" int wasm_draw_one_frame(double now)
   if(behind>0)
   {
     emu->emu->computeFrame();
- 
+
     executed_frame_count++;
     total_executed_frame_count++;
     behind--;
@@ -1058,7 +1059,7 @@ extern "C" char* wasm_export_as_folder(const char *drive_name,  const char *path
       sprintf(wasm_pull_user_snapshot_file_json_result, "%s",hd_name.c_str());
       return wasm_pull_user_snapshot_file_json_result;
     }
-    catch (const CoreError& e) {
+    catch (const AppError& e) {
       printf("Error exporting hard drive to folder - %s\n",e.what());
       EM_ASM(
       {
@@ -1164,7 +1165,7 @@ extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10,
     delete drive;
   
     data=&(export_disk->data);
-  } catch (const CoreError& e) {
+  } catch (const AppError& e) {
     printf("Error importing into hard drive - %s\n",e.what());
     EM_ASM(
     {
@@ -1509,7 +1510,7 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
 
       return "";
     }
-  } catch (const CoreError& e) {
+  } catch (const AppError& e) {
     printf("Error loading %s - %s\n", filename, e.what());
     EM_ASM(
     {
@@ -1526,7 +1527,7 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
     try{    
       hdf = new HDFFile(blob, len);
     }
-    catch(CoreError &exception) {
+    catch(AppError &exception) {
       printf("Failed to create HDF image file %s\n", name);
       Fault ec=Fault(exception.data);
       printf("%s - %s\n", FaultEnum::key(ec), exception.what());
@@ -1559,7 +1560,7 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
           throw Fault(Fault::OUT_OF_MEMORY);
         }
     }
-    catch(CoreError &exception) {
+    catch(AppError &exception) {
       printf("Failed to init HDF image file %s\n", name);
       EM_ASM(
       {
@@ -1600,7 +1601,7 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
 */
       printf("run snapshot at %f Hz, isPAL=%d\n", target_fps, !ntsc);
     }
-    catch(CoreError &exception) {
+    catch(AppError &exception) {
       Fault ec=Fault(exception.data);
       printf("%s\n", FaultEnum::key(ec));
     }
@@ -1617,7 +1618,7 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
       printf("try to build RomFile\n");
       rom = new RomFile(blob, len);
     }
-    catch(CoreError &exception) {
+    catch(AppError &exception) {
       printf("Failed to read ROM image file %s\n", name);
       Fault ec=Fault(exception.data);
       printf("%s\n", FaultEnum::key(ec));
@@ -1646,7 +1647,7 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
       );
 */
     }  
-    catch(CoreError &exception) { 
+    catch(AppError &exception) { 
       printf("Failed to flash ROM image %s.\n", name);
       Fault ec=Fault(exception.data);
       printf("%s\n", FaultEnum::key(ec));
@@ -1673,7 +1674,7 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
         wrapper->emu->powerOn();
         wrapper->emu->run();
     }    
-    catch(CoreError &exception) { 
+    catch(AppError &exception) { 
       Fault ec=Fault(exception.data);
       printf("%s\n", FaultEnum::key(ec));
     } 
@@ -1692,7 +1693,7 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
       printf("try to build RomFile\n");
       rom = new RomFile(blob, len);
     }
-    catch(CoreError &exception) {
+    catch(AppError &exception) {
       printf("Failed to read ROM_EXT image file %s\n", name);
       Fault ec=Fault(exception.data);
       printf("%s\n", FaultEnum::key(ec));
@@ -1711,7 +1712,7 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
       printf("Loaded ROM_EXT image %s.\n", name);
       
     }  
-    catch(CoreError &exception) { 
+    catch(AppError &exception) { 
       printf("Failed to flash ROM_EXT image %s.\n", name);
       Fault ec=Fault(exception.data);
       printf("%s\n", FaultEnum::key(ec));
@@ -1749,7 +1750,7 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
   {
     return _wasm_loadFile(name, blob, len, drive_number);
   }
-  catch (const CoreError& e) {
+  catch (const AppError& e) {
     EM_ASM(
     {
       alert(`Error loading ${UTF8ToString($0)} - ${UTF8ToString($1)}`);
@@ -1811,20 +1812,20 @@ extern "C" void wasm_mouse(int port, int x, int y)
   else if(port==2)
     wrapper->emu->controlPort2.mouse->setDxDy(x,y);
   */
-  wrapper->emu->put(Cmd::MOUSE_MOVE_REL, CoordCommand(port-1, x, y));
+  wrapper->emu->put(Cmd::MOUSE_MOVE_REL, CoordCmd(port-1, x, y));
 }
 
 extern "C" void wasm_mouse_button(int port, int button_id, int pressed)
 { 
     if(button_id==1)
-      wrapper->emu->put(Cmd::MOUSE_BUTTON, GamePadCommand(port-1, (pressed==1?GamePadAction::PRESS_LEFT:GamePadAction::RELEASE_LEFT)));
+      wrapper->emu->put(Cmd::MOUSE_BUTTON, GamePadCmd(port-1, (pressed==1?GamePadAction::PRESS_LEFT:GamePadAction::RELEASE_LEFT)));
       //wrapper->emu->put(CMD_MOUSE_EVENT, GamePadCmd(port-1,(pressed==1?PRESS_LEFT:RELEASE_LEFT)));
     else if(button_id==2)
-    wrapper->emu->put(Cmd::MOUSE_BUTTON, GamePadCommand(port-1, (pressed==1?GamePadAction::PRESS_MIDDLE:GamePadAction::RELEASE_MIDDLE)));
+    wrapper->emu->put(Cmd::MOUSE_BUTTON, GamePadCmd(port-1, (pressed==1?GamePadAction::PRESS_MIDDLE:GamePadAction::RELEASE_MIDDLE)));
     //      wrapper->emu->put(CMD_MOUSE_EVENT, GamePadCmd(port-1,(pressed==1?PRESS_MIDDLE:RELEASE_MIDDLE)));
     else if(button_id==3)
     //      wrapper->emu->put(CMD_MOUSE_EVENT, GamePadCmd(port-1,(pressed==1?PRESS_RIGHT:RELEASE_RIGHT)));
-    wrapper->emu->put(Cmd::MOUSE_BUTTON, GamePadCommand(port-1, (pressed==1?GamePadAction::PRESS_RIGHT:GamePadAction::RELEASE_RIGHT)));
+    wrapper->emu->put(Cmd::MOUSE_BUTTON, GamePadCmd(port-1, (pressed==1?GamePadAction::PRESS_RIGHT:GamePadAction::RELEASE_RIGHT)));
 
 }
 
@@ -2062,7 +2063,7 @@ extern "C" const char* wasm_power_on(unsigned power_on)
         wrapper->emu->powerOff();wrapper->emu->emu->update();
     }
   }  
-  catch(CoreError &exception) {   
+  catch(AppError &exception) {   
     sprintf(config_result,"%s", exception.what());
   }
   return config_result; 
@@ -2132,7 +2133,7 @@ extern "C" const char* wasm_configure_key(char* option, char* key, char* _value)
          util::parseBool(std::string(key))); 
       
   }
-  catch(CoreError &exception) {
+  catch(AppError &exception) {
       printf("unknown key %s %s = %s\n", option, key, value.c_str());
 
 //    ErrorCode ec=exception.data;
@@ -2308,7 +2309,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
         if(was_running) wrapper->emu->run();
     }
   }
-  catch(CoreError &exception) {    
+  catch(AppError &exception) {    
 //    ErrorCode ec=exception.data;
 //    sprintf(config_result,"%s", ErrorCodeEnum::key(ec));
     printf("unknown key wasm_configure %s = %s\n", option, value.c_str());
@@ -2467,7 +2468,7 @@ extern "C" char* wasm_save_workspace(char* path)
     wrapper->emu->set(Opt::DMA_DEBUG_ENABLE,debug_enable);
     wrapper->emu->emu->update();
   }
-  catch (const CoreError& e) {
+  catch (const AppError& e) {
     printf("Error %s\n", e.what());
     EM_ASM(
     {
@@ -2515,7 +2516,7 @@ extern "C" void wasm_load_workspace(char* path)
     wrapper->emu->emu->update();
 
   }
-  catch (const CoreError& e) {
+  catch (const AppError& e) {
     printf("Error %s\n", e.what());
     EM_ASM(
     {

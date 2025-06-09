@@ -28,8 +28,8 @@ target_compile_options(vAmiga PRIVATE -Wfatal-errors)
 #target_compile_options(vAmiga PRIVATE -g) 
 
 
-add_subdirectory("Emulator" "vAmigaCore")
-target_link_libraries(vAmiga vAmigaCore)
+add_subdirectory("Core" "VACore")
+target_link_libraries(vAmiga VACore)
 
 #emscripten linker settings
 

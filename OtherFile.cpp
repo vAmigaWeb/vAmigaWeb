@@ -7,7 +7,7 @@
 // See https://www.gnu.org for license information
 // -----------------------------------------------------------------------------
 
-#include "VAmigaConfig.h"
+#include "config.h"
 #include "OtherFile.h"
 //#include "AmigaFile.h"
 #include "MutableFileSystem.h"
@@ -80,8 +80,14 @@ OtherFile::finalizeRead()
     volume.makeBootable(BootBlockId::AMIGADOS_13);
     
     // Add the file
-    FSBlock *file = volume.createFile(filename, data.ptr, data.size);
-    if (!file) throw CoreError(Fault::FS_OUT_OF_SPACE);
+        // Start at the root directory
+    auto dir = volume.rootDir();
+
+    // Add the executable
+    volume.createFile(dir, filename, data);
+    
+//    FSBlock *file = volume.createFile(filename, data.ptr, data.size);
+//    if (!file) throw AppError(Fault::FS_OUT_OF_SPACE);
     
     // Add a script directory
 //    volume.createDir("s");
@@ -95,7 +101,7 @@ OtherFile::finalizeRead()
     volume.updateChecksums();
     
     // Move to the to root directory
-    volume.changeDir("/");
+ //   volume.changeDir("/");
 
     // Print some debug information about the volume
     if (FS_DEBUG) {
