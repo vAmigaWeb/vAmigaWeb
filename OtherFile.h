@@ -38,7 +38,7 @@ public:
         filename = name;
         if(filename.ends_with(".disk"))
         {
-            filename[filename.length()-5]='\0'; //remove .disk meta extension
+            filename.erase(filename.length() - 5); //remove .disk meta extension
         }
         init(buf, len);
     }

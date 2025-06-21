@@ -84,18 +84,7 @@ OtherFile::finalizeRead()
     auto dir = volume.rootDir();
 
     // Add the executable
-    volume.createFile(dir, filename, data);
-    
-//    FSBlock *file = volume.createFile(filename, data.ptr, data.size);
-//    if (!file) throw AppError(Fault::FS_OUT_OF_SPACE);
-    
-    // Add a script directory
-//    volume.createDir("s");
-//    volume.changeDir("s");
-    
-    // Add a startup sequence
- //   file = volume.createFile("startup-sequence", "file");
- //   if (!file) throw VAError(ERROR_FS_OUT_OF_SPACE);
+    volume.createFile(dir, filename , data);
 
     // Finalize
     volume.updateChecksums();

@@ -344,8 +344,8 @@ Thread::suspend() const
 
     if (suspendCounter++ == 0) {
         
-        suspensionLock.lock();
-        lock.lock();
+     //   suspensionLock.lock();
+     //   lock.lock();
     }
 }
 
@@ -357,12 +357,12 @@ Thread::resume() const
 
     if (suspendCounter <= 0) {
         
-        fatal("resume() called with no call to suspend()\n");
+        //fatal("resume() called with no call to suspend()\n");
         
     } else if (--suspendCounter == 0) {
         
-        suspensionLock.unlock();
-        lock.unlock();
+       // suspensionLock.unlock();
+       // lock.unlock();
     }
 }
 
