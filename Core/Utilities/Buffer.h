@@ -12,6 +12,7 @@
 #include "BasicTypes.h"
 #include "Checksum.h"
 #include "Compression.h"
+#include "MemUtils.h"
 #include <functional>
 #include <ostream>
 
@@ -66,7 +67,15 @@ template <class T> struct Allocator {
     u64 fnv64() const { return ptr ? util::fnv64((u8 *)ptr, bytesize()) : 0; }
     u16 crc16() const { return ptr ? util::crc16((u8 *)ptr, bytesize()) : 0; }
     u32 crc32() const { return ptr ? util::crc32((u8 *)ptr, bytesize()) : 0; }
-    
+
+    // Pretty-printing the buffer contents
+    void dump(std::ostream &os, DumpOpt opt);
+    void dump(std::ostream &os, DumpOpt opt, const char *fmt);
+    void ascDump(std::ostream &os);
+    void hexDump(std::ostream &os);
+    void memDump(std::ostream &os);
+    void type(std::ostream &os, DumpOpt opt);
+
     // Compresses or uncompresses a buffer
     void gzip(isize offset = 0) { compress(util::gzip, offset); }
     void gunzip(isize offset = 0, isize sizeEstimate = 0) { uncompress(util::gunzip, offset, sizeEstimate); }

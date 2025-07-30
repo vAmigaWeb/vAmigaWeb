@@ -21,6 +21,9 @@ namespace vamiga::util {
 string createStr(const u8 *buf, isize maxLen);
 string createAscii(const u8 *buf, isize len, char fill = '.');
 
+// Creates a string by repeating a substring multiple times
+string repeat(const string &s, isize times);
+
 
 //
 // Converting
@@ -46,21 +49,29 @@ string makePrintable(const string& s);
 
 
 //
-// Stripping off characters
+// Stripping off characters and 
 //
 
 string ltrim(const string &s, const string &characters = " ");
 string rtrim(const string &s, const string &characters = " ");
 string trim(const string &s, const string &characters = " ");
 
+// Returns the common prefix of multiple strings
+string commonPrefix(const string &s1, const string &s2, bool caseSensitive = true);
+string commonPrefix(const std::vector<string> &vec, bool caseSensitive = true);
+
 
 //
 // Splitting and concatenating
 //
 
-std::vector<string> split(const string &s, char delimiter);
-std::vector<string> split(const std::vector<string> &sv, char delimiter);
-string concat(std::vector<string> &s, string delimiter);
+std::vector<string> split(const string &s, char delim);
+std::vector<string> split(const std::vector<string> &vec, char delim);
+
+std::pair<vector<string>, string> splitLast(const vector<string> &vec);
+
+string concat(const std::vector<string> &s,
+              const string &delim = " ", const string &ldelim = "", const string &rdelim = "");
 
 
 //

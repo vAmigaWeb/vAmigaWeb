@@ -107,7 +107,7 @@ ADFFile::init(const FloppyDiskDescriptor &descr)
 }
 
 void
-ADFFile::init(FloppyDisk &disk)
+ADFFile::init(const FloppyDisk &disk)
 {
     init(disk.getDiameter(), disk.getDensity());
     
@@ -118,14 +118,14 @@ ADFFile::init(FloppyDisk &disk)
 }
 
 void
-ADFFile::init(FloppyDrive &drive)
+ADFFile::init(const FloppyDrive &drive)
 {
     if (drive.disk == nullptr) throw AppError(Fault::DISK_MISSING);
     init(*drive.disk);
 }
 
 void
-ADFFile::init(MutableFileSystem &volume)
+ADFFile::init(const MutableFileSystem &volume)
 {
     switch (volume.numBlocks()) {
             
@@ -187,20 +187,20 @@ ADFFile::numSectors() const
     }
 }
 
-FSVolumeType
+FSFormat
 ADFFile::getDos() const
 {
     if (strncmp((const char *)data.ptr, "DOS", 3) || data[3] > 7) {
-        return FSVolumeType::NODOS;
+        return FSFormat::NODOS;
     }
 
-    return (FSVolumeType)data[3];
+    return (FSFormat)data[3];
 }
 
 void
-ADFFile::setDos(FSVolumeType dos)
+ADFFile::setDos(FSFormat dos)
 {
-    if (dos == FSVolumeType::NODOS) {
+    if (dos == FSFormat::NODOS) {
         std::memset(data.ptr, 0, 4);
     } else {
         std::memcpy(data.ptr, "DOS", 3);
@@ -220,10 +220,10 @@ ADFFile::getDensity() const
     return (data.size & ~1) == ADFSIZE_35_HD ? Density::HD : Density::DD;
 }
 
-FileSystemDescriptor
+FSDescriptor
 ADFFile::getFileSystemDescriptor() const
 {
-    FileSystemDescriptor result;
+    FSDescriptor result;
     
     // Determine the root block location
     Block root = data.size < ADFSIZE_35_HD ? 880 : 1760;
@@ -282,15 +282,15 @@ ADFFile::killVirus()
 }
 
 void
-ADFFile::formatDisk(FSVolumeType fs, BootBlockId id, string name)
+ADFFile::formatDisk(FSFormat fs, BootBlockId id, string name)
 {
-    assert_enum(FSVolumeType, fs);
+    assert_enum(FSFormat, fs);
 
     debug(ADF_DEBUG,
-          "Formatting disk (%ld, %s)\n", numBlocks(), FSVolumeTypeEnum::key(fs));
+          "Formatting disk (%ld, %s)\n", numBlocks(), FSFormatEnum::key(fs));
 
     // Only proceed if a file system is given
-    if (fs == FSVolumeType::NODOS) return;
+    if (fs == FSFormat::NODOS) return;
     
     // Get a device descriptor for this ADF
     auto descriptor = getFileSystemDescriptor();
@@ -438,12 +438,13 @@ ADFFile::dumpSector(Sector s) const
 }
 
 void
-ADFFile::decodeDisk(FloppyDisk &disk)
+ADFFile::decodeDisk(const FloppyDisk &disk)
 {
+    printf("ADFFile::decodeDisk\n");
     long tracks = numTracks();
-    
+
     debug(ADF_DEBUG, "Decoding Amiga disk with %ld tracks\n", tracks);
-    
+
     if (disk.getDiameter() != getDiameter()) {
         throw AppError(Fault::DISK_INVALID_DIAMETER);
     }
@@ -452,22 +453,23 @@ ADFFile::decodeDisk(FloppyDisk &disk)
     }
 
     // Make the MFM stream scannable beyond the track end
-    disk.repeatTracks();
+    // TODO: THINK ABOUT OF DECODING WITHOUT MODIFYING THE DISK
+    const_cast<FloppyDisk &>(disk).repeatTracks();
 
     // Decode all tracks
     for (Track t = 0; t < tracks; t++) decodeTrack(disk, t);
 }
 
 void
-ADFFile::decodeTrack(FloppyDisk &disk, Track t)
+ADFFile::decodeTrack(const FloppyDisk &disk, Track t)
 { 
     long sectors = numSectors();
 
     debug(ADF_DEBUG, "Decoding track %ld\n", t);
     
-    u8 *src = disk.data.track[t];
-    u8 *dst = data.ptr + t * sectors * 512;
-    
+    auto *src = disk.data.track[t];
+    auto *dst = data.ptr + t * sectors * 512;
+
     // Seek all sync marks
     std::vector<isize> sectorStart(sectors);
     isize nr = 0; isize index = 0;
@@ -501,7 +503,7 @@ ADFFile::decodeTrack(FloppyDisk &disk, Track t)
 }
 
 void
-ADFFile::decodeSector(u8 *dst, u8 *src)
+ADFFile::decodeSector(u8 *dst, const u8 *src)
 {
     assert(dst != nullptr);
     assert(src != nullptr);

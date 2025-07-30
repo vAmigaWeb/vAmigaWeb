@@ -43,6 +43,21 @@ MsgQueue::get(Message &msg)
     }
 }
 
+isize
+MsgQueue::get(isize count, Message *buffer)
+{
+    if (!enabled) return false;
+
+    {   SYNCHRONIZED
+
+        auto max = std::min(queue.count(), count);
+        for (isize i = 0; i < max; i++) {
+            buffer[i] = queue.read();
+        }
+        return max;
+    }
+}
+
 void
 MsgQueue::put(const Message &msg)
 {
@@ -61,9 +76,14 @@ MsgQueue::put(const Message &msg)
 
             // Otherwise, store it in the ring buffer
             if (!queue.isFull()) {
-                queue.write(msg);
+                auto *current = queue.currentAddr(); 
+                if (current->type == msg.type) {
+                    *current = msg; 
+                } else {
+                    queue.write(msg);
+                }
             } else {
-                warn("Message lost: %s [%llx]\n", MsgEnum::key(msg.type), msg.value);
+                    warn("Message lost: %s [%llx]\n", MsgEnum::key(msg.type), msg.value);
             }
         }
     }
@@ -109,6 +129,24 @@ void
 MsgQueue::put(Msg type, SnapshotMsg payload)
 {
     put( Message { .type = type, .snapshot = payload } );
+}
+
+string
+MsgQueue::getPayload(isize index)
+{
+    {   SYNCHRONIZED
+
+        return (isize)payload.size() > index ? payload[index] : string("");
+    }
+}
+
+void
+MsgQueue::setPayload(const std::vector<string> &payload)
+{
+    {   SYNCHRONIZED
+
+        this->payload = payload;
+    }
 }
 
 }

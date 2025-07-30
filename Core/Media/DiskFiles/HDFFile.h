@@ -11,8 +11,7 @@
 
 #include "DiskFile.h"
 #include "MediaFileTypes.h"
-// #include "MutableFileSystem.h"
-#include "FSDescriptors.h"
+#include "FSDescriptor.h"
 #include "DriveTypes.h"
 
 namespace vamiga {
@@ -39,7 +38,7 @@ public:
     static bool isOversized(isize size) { return size > MB(504); }
 
     bool isCompatiblePath(const fs::path &path) const override { return isCompatible(path); }
-    bool isCompatibleBuffer(const u8 *buf, isize len) override { return isCompatible(buf, len); }
+    bool isCompatibleBuffer(const u8 *buf, isize len) const override { return isCompatible(buf, len); }
 
     void finalizeRead() override;
     
@@ -89,7 +88,7 @@ public:
     std::vector<PartitionDescriptor> getPartitionDescriptors() const;
     DriverDescriptor getDriverDescriptor(isize driver = 0) const;
     std::vector<DriverDescriptor> getDriverDescriptors() const;
-    FileSystemDescriptor getFileSystemDescriptor(isize part = 0) const;
+    FSDescriptor getFileSystemDescriptor(isize part = 0) const;
 
 
     //
@@ -167,7 +166,7 @@ private:
     std::optional<string> rdbString(isize offset, isize len) const;
 
     // Extracts the DOS revision number from a certain block
-    FSVolumeType dos(isize nr) const;
+    FSFormat dos(isize nr) const;
 
     
     //

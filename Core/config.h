@@ -15,14 +15,14 @@
 
 // Version number
 static constexpr int VER_MAJOR      = 4;
-static constexpr int VER_MINOR      = 2;
-static constexpr int VER_SUBMINOR   = 1;
+static constexpr int VER_MINOR      = 3;
+static constexpr int VER_SUBMINOR   = 0;
 static constexpr int VER_BETA       = 0;
 
 // Snapshot version number
 static constexpr int SNP_MAJOR      = 4;
-static constexpr int SNP_MINOR      = 2;
-static constexpr int SNP_SUBMINOR   = 1;
+static constexpr int SNP_MINOR      = 3;
+static constexpr int SNP_SUBMINOR   = 0;
 static constexpr int SNP_BETA       = 0;
 
 
@@ -42,9 +42,8 @@ static constexpr int SNP_BETA       = 0;
 // Execution settings
 //
 
-static constexpr int DIAG_BOARD     = 0; // Plug in the diagnose board
-static constexpr int ALLOW_ALL_ROMS = 1; // Disable the magic bytes check
-
+static constexpr int        DIAG_BOARD       = 0;           // Plug in the diagnose board
+static constexpr int        ALLOW_ALL_ROMS   = 1;           // Disable the magic bytes check
 
 //
 // Debug settings
@@ -65,9 +64,15 @@ typedef int debugflag;
 #endif
 
 #ifdef __EMSCRIPTEN__
-static constexpr bool emscripten = 1;
+static constexpr bool wasmBuild = 1;
 #else
-static constexpr bool emscripten = 0;
+static constexpr bool wasmBuild = 0;
+#endif
+
+#ifdef VAMIGA_DOS
+static constexpr bool vAmigaDOS = 1;
+#else
+static constexpr bool vAmigaDOS = 0;
 #endif
 
 namespace vamiga {
@@ -200,6 +205,7 @@ extern debugflag KBD_DEBUG;
 extern debugflag KEY_DEBUG;
 
 // Misc
+extern debugflag RSH_DEBUG;
 extern debugflag REC_DEBUG;
 extern debugflag SCK_DEBUG;
 extern debugflag SRV_DEBUG;

@@ -10,6 +10,9 @@
 #pragma once
 
 #include "CoreObject.h"
+#include "FSTypes.h"
+#include <ostream>
+#include <regex>
 
 namespace vamiga {
 
@@ -21,28 +24,33 @@ struct FSString {
     // Maximum number of permitted characters
     isize limit = 0;
 
-    static char capital(char c);
+    static char capital(char c, FSFormat dos);
 
-    FSString(const string &cppString, isize limit);
-    FSString(const char *cString, isize limit);
-    FSString(const u8 *bcplString, isize limit);
+    FSString(const string &cppS, isize limit = 1024);
+    FSString(const char *c, isize limit = 1024);
+    FSString(const u8 *bcpl, isize limit = 1024);
 
-    const char *c_str() { return str.c_str(); }
-    string cpp_str() { return str; }
-    
+    const char *c_str() const { return str.c_str(); }
+    string cpp_str() const { return str; }
+
     bool operator== (const FSString &rhs) const;
     isize length() const { return (isize)str.length(); }
-    u32 hashValue() const;
-    
+    bool empty() const { return str.empty(); }
+    u32 hashValue(FSFormat dos) const;
+
     void write(u8 *p);
+
+    bool operator<(const FSString& other) const;
+    friend std::ostream &operator<<(std::ostream &os, const FSString &str);
 };
 
 struct FSName : FSString {
     
-    FSName(const string &cppString);
-    FSName(const char *cString);
-    FSName(const u8 *bcplString);
+    FSName(const string &cpp);
+    FSName(const char *c);
+    FSName(const u8 *bcpl);
     FSName(const fs::path &path);
+    FSName(const std::map<string,string> map, const string &cpp, const string fallback);
 
     fs::path path() const;
 };
@@ -51,6 +59,18 @@ struct FSComment : FSString {
     
     FSComment(const char *cString) : FSString(cString, 91) { }
     FSComment(const u8 *bcplString) : FSString(bcplString, 91) { }
+};
+
+struct FSPattern {
+
+    string glob;
+    std::regex regex;
+
+    FSPattern(const string str);
+
+    std::vector<FSPattern> splitted() const;
+    bool isAbsolute() const { return !glob.empty() && glob[0] == '/'; }
+    bool match(const FSString &name) const;
 };
 
 struct FSTime {

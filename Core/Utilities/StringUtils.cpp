@@ -33,6 +33,14 @@ string createAscii(const u8 *buf, isize len, char fill)
     return result;
 }
 
+string repeat(const string &s, isize times) {
+
+    string result;
+    result.reserve(s.size() * times);
+    for (isize i = 0; i < times; i++) result += s;
+    return result;
+}
+
 bool
 parseHex(const string &s, isize *result)
 {
@@ -101,6 +109,32 @@ trim(const string &s, const string &characters)
     return ltrim(rtrim(s, characters), characters);
 }
 
+string
+commonPrefix(const string &s1, const string &s2, bool caseSensitive)
+{
+    auto len = std::min(s1.length(), s2.length());
+
+    usize count = 0;
+    if (caseSensitive) {
+        for (; count < len && s1[count] == s2[count]; count++);
+    } else {
+        for (; count < len && std::toupper(s1[count]) == std::toupper(s2[count]); count++);
+    }
+
+    return s1.substr(0, count);
+}
+
+string
+commonPrefix(const std::vector<string> &vec, bool caseSensitive)
+{
+    if (vec.empty()) return "";
+
+    string result = vec[0];
+    for (usize i = 1; i < vec.size(); i++) result = commonPrefix(result, vec[i], caseSensitive);
+
+    return result;
+}
+
 std::vector<string>
 split(const string &s, char delimiter)
 {
@@ -133,19 +167,28 @@ split(const std::vector<string> &sv, char delimiter)
     return result;
 }
 
+std::pair<vector<string>, string>
+splitLast(const vector<string> &vec)
+{
+    if (vec.empty()) return { vec, "" };
+    std::vector<string> prefix(vec.begin(), vec.end() - 1);
+    return { prefix, vec.back() };
+}
+
 string
-concat(std::vector<string> &s, string delimiter)
+concat(const std::vector<string> &s, const string &delim, const string &ldelim, const string &rdelim)
 {
     string result;
-    
-    isize count = (isize)s.size();
-    for (isize i = 0; i < count; i++) {
-        
-        if (!result.empty()) result += delimiter;
-        result += s[i];
+    isize count = 0;
+
+    for (auto &it : s) {
+
+        if (it.empty()) continue;
+        if (count++) result += delim;
+        result += it;
     }
-    
-    return result;
+
+    return count > 1 ? ldelim + result + rdelim : result;
 }
 
 template <isize digits> string hexstr(isize number)

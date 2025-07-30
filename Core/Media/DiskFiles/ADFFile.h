@@ -49,15 +49,15 @@ public:
     ADFFile(const u8 *buf, isize len) throws { init(buf, len); }
     ADFFile(Diameter dia, Density den) throws { init(dia, den); }
     ADFFile(const FloppyDiskDescriptor &descr) throws { init(descr); }
-    ADFFile(class FloppyDisk &disk) throws { init(disk); }
-    ADFFile(class FloppyDrive &drive) throws { init(drive); }
-    ADFFile(MutableFileSystem &volume) throws { init(volume); }
+    ADFFile(const class FloppyDisk &disk) throws { init(disk); }
+    ADFFile(const class FloppyDrive &drive) throws { init(drive); }
+    ADFFile(const MutableFileSystem &volume) throws { init(volume); }
     
     void init(Diameter dia, Density den) throws;
     void init(const FloppyDiskDescriptor &descr) throws;
-    void init(FloppyDisk &disk) throws;
-    void init(FloppyDrive &drive) throws;
-    void init(MutableFileSystem &volume) throws;
+    void init(const FloppyDisk &disk) throws;
+    void init(const FloppyDrive &drive) throws;
+    void init(const MutableFileSystem &volume) throws;
 
     
     //
@@ -76,7 +76,7 @@ public:
 public:
     
     bool isCompatiblePath(const fs::path &path) const override { return isCompatible(path); }
-    bool isCompatibleBuffer(const u8 *buf, isize len) override { return isCompatible(buf, len); }
+    bool isCompatibleBuffer(const u8 *buf, isize len) const override { return isCompatible(buf, len); }
     FileType type() const override { return FileType::ADF; }
     void finalizeRead() override;
     
@@ -95,8 +95,8 @@ public:
     
 public:
     
-    FSVolumeType getDos() const override;
-    void setDos(FSVolumeType dos) override;
+    FSFormat getDos() const override;
+    void setDos(FSFormat dos) override;
     Diameter getDiameter() const override;
     Density getDensity() const override;
     BootBlockType bootBlockType() const override;
@@ -104,15 +104,15 @@ public:
     void killVirus() override;
 
     void encodeDisk(class FloppyDisk &disk) const throws override;
-    void decodeDisk(class FloppyDisk &disk) throws override;
+    void decodeDisk(const class FloppyDisk &disk) throws override;
 
 private:
     
     void encodeTrack(class FloppyDisk &disk, Track t) const throws;
     void encodeSector(class FloppyDisk &disk, Track t, Sector s) const throws;
 
-    void decodeTrack(class FloppyDisk &disk, Track t) throws;
-    void decodeSector(u8 *dst, u8 *src) throws;
+    void decodeTrack(const class FloppyDisk &disk, Track t) throws;
+    void decodeSector(u8 *dst, const u8 *src) throws;
 
     
     //
@@ -122,7 +122,7 @@ private:
 public:
     
     // Returns a file system descriptor for this volume
-    struct FileSystemDescriptor getFileSystemDescriptor() const;
+    struct FSDescriptor getFileSystemDescriptor() const;
 
     
     //
@@ -131,7 +131,7 @@ public:
 
 public:
     
-    void formatDisk(FSVolumeType fs, BootBlockId id, string name) throws;
+    void formatDisk(FSFormat fs, BootBlockId id, string name) throws;
 
     
     //

@@ -13,9 +13,25 @@
 
 namespace vamiga {
 
+struct FSBlock;
 typedef u32 Block;
+typedef std::function<bool(const FSBlock &)> FSBlockFilter;
+typedef std::function<string(const FSBlock &)> FSBlockFormatter;
+typedef std::function<bool(const FSBlock &, const FSBlock &)> FSBlockSorter;
 
-enum class FSVolumeType : long
+struct FSOpt
+{
+    bool recursive = false;
+    isize indent = 0;
+    FSBlockSorter sort;
+    FSBlockFilter filter;
+    FSBlockFormatter formatter;
+
+    bool accept(const FSBlock &b) const { return filter ? filter(b) : true; }
+    bool accept(const FSBlock *b) const { return b ? (filter ? filter(*b) : true) : false; }
+};
+
+enum class FSFormat : long
 {
     OFS      = 0,    // Original File System
     FFS      = 1,    // Fast File System
@@ -28,109 +44,123 @@ enum class FSVolumeType : long
     NODOS
 };
 
-struct FSVolumeTypeEnum : Reflection<FSVolumeTypeEnum, FSVolumeType>
+struct FSFormatEnum : Reflection<FSFormatEnum, FSFormat>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = long(FSVolumeType::NODOS);
+    static constexpr long maxVal = long(FSFormat::NODOS);
     
-    static const char *_key(FSVolumeType value)
+    static const char *_key(FSFormat value)
     {
         switch (value) {
                 
-            case FSVolumeType::OFS:       return "OFS";
-            case FSVolumeType::FFS:       return "FFS";
-            case FSVolumeType::OFS_INTL:  return "OFS_INTL";
-            case FSVolumeType::FFS_INTL:  return "FFS_INTL";
-            case FSVolumeType::OFS_DC:    return "OFS_DC";
-            case FSVolumeType::FFS_DC:    return "FFS_DC";
-            case FSVolumeType::OFS_LNFS:  return "OFS_LNFS";
-            case FSVolumeType::FFS_LNFS:  return "FFS_LNFS";
-            case FSVolumeType::NODOS:     return "NODOS";
+            case FSFormat::OFS:       return "OFS";
+            case FSFormat::FFS:       return "FFS";
+            case FSFormat::OFS_INTL:  return "OFS_INTL";
+            case FSFormat::FFS_INTL:  return "FFS_INTL";
+            case FSFormat::OFS_DC:    return "OFS_DC";
+            case FSFormat::FFS_DC:    return "FFS_DC";
+            case FSFormat::OFS_LNFS:  return "OFS_LNFS";
+            case FSFormat::FFS_LNFS:  return "FFS_LNFS";
+            case FSFormat::NODOS:     return "NODOS";
         }
         return "???";
     }
     
-    static const char *help(FSVolumeType value)
+    static const char *help(FSFormat value)
     {
         return "";
     }
     
-    static FSVolumeType fromDosType(u32 value)
+    static FSFormat fromDosType(u32 value)
     {
         switch (value) {
                 
-            case 0x444F5300:    return FSVolumeType::OFS;
-            case 0x444F5301:    return FSVolumeType::FFS;
-            case 0x444F5302:    return FSVolumeType::OFS_INTL;
-            case 0x444F5303:    return FSVolumeType::FFS_INTL;
-            case 0x444F5304:    return FSVolumeType::OFS_DC;
-            case 0x444F5305:    return FSVolumeType::FFS_DC;
-            case 0x444F5306:    return FSVolumeType::OFS_LNFS;
-            case 0x444F5307:    return FSVolumeType::FFS_LNFS;
-            default:            return FSVolumeType::NODOS;
+            case 0x444F5300:    return FSFormat::OFS;
+            case 0x444F5301:    return FSFormat::FFS;
+            case 0x444F5302:    return FSFormat::OFS_INTL;
+            case 0x444F5303:    return FSFormat::FFS_INTL;
+            case 0x444F5304:    return FSFormat::OFS_DC;
+            case 0x444F5305:    return FSFormat::FFS_DC;
+            case 0x444F5306:    return FSFormat::OFS_LNFS;
+            case 0x444F5307:    return FSFormat::FFS_LNFS;
+            default:            return FSFormat::NODOS;
         }
     }
 };
 
-inline bool isOFSVolumeType(FSVolumeType value)
+inline bool isOFSVolumeType(FSFormat value)
 {
     switch (value) {
             
-        case FSVolumeType::OFS:
-        case FSVolumeType::OFS_INTL:
-        case FSVolumeType::OFS_DC:
-        case FSVolumeType::OFS_LNFS:    return true;
-        default:                        return false;
+        case FSFormat::OFS:
+        case FSFormat::OFS_INTL:
+        case FSFormat::OFS_DC:
+        case FSFormat::OFS_LNFS:    return true;
+        default:                    return false;
     }
 }
 
-inline bool isFFSVolumeType(FSVolumeType value)
+inline bool isFFSVolumeType(FSFormat value)
 {
     switch (value) {
             
-        case FSVolumeType::FFS:
-        case FSVolumeType::FFS_INTL:
-        case FSVolumeType::FFS_DC:
-        case FSVolumeType::FFS_LNFS: return true;
-        default:                        return false;
+        case FSFormat::FFS:
+        case FSFormat::FFS_INTL:
+        case FSFormat::FFS_DC:
+        case FSFormat::FFS_LNFS:    return true;
+        default:                    return false;
+    }
+}
+
+inline bool isINTLVolumeType(FSFormat value)
+{
+    switch (value) {
+
+        case FSFormat::OFS_INTL:
+        case FSFormat::FFS_INTL:
+        case FSFormat::OFS_DC:
+        case FSFormat::FFS_DC:
+        case FSFormat::OFS_LNFS:
+        case FSFormat::FFS_LNFS:    return true;
+        default:                    return false;
     }
 }
 
 enum class FSBlockType : long
 {
-    UNKNOWN_BLOCK,
-    EMPTY_BLOCK,
-    BOOT_BLOCK,
-    ROOT_BLOCK,
-    BITMAP_BLOCK,
-    BITMAP_EXT_BLOCK,
-    USERDIR_BLOCK,
-    FILEHEADER_BLOCK,
-    FILELIST_BLOCK,
-    DATA_BLOCK_OFS,
-    DATA_BLOCK_FFS
+    UNKNOWN,
+    EMPTY,
+    BOOT,
+    ROOT,
+    BITMAP,
+    BITMAP_EXT,
+    USERDIR,
+    FILEHEADER,
+    FILELIST,
+    DATA_OFS,
+    DATA_FFS
 };
 
 struct FSBlockTypeEnum : Reflection<FSBlockTypeEnum, FSBlockType>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = long(FSBlockType::DATA_BLOCK_FFS);
+    static constexpr long maxVal = long(FSBlockType::DATA_FFS);
     
     static const char *_key(FSBlockType value)
     {
         switch (value) {
                 
-            case FSBlockType::UNKNOWN_BLOCK:     return "UNKNOWN_BLOCK";
-            case FSBlockType::EMPTY_BLOCK:       return "EMPTY_BLOCK";
-            case FSBlockType::BOOT_BLOCK:        return "BOOT_BLOCK";
-            case FSBlockType::ROOT_BLOCK:        return "ROOT_BLOCK";
-            case FSBlockType::BITMAP_BLOCK:      return "BITMAP_BLOCK";
-            case FSBlockType::BITMAP_EXT_BLOCK:  return "BITMAP_EXT_BLOCK";
-            case FSBlockType::USERDIR_BLOCK:     return "USERDIR_BLOCK";
-            case FSBlockType::FILEHEADER_BLOCK:  return "FILEHEADER_BLOCK";
-            case FSBlockType::FILELIST_BLOCK:    return "FILELIST_BLOCK";
-            case FSBlockType::DATA_BLOCK_OFS:    return "DATA_BLOCK_OFS";
-            case FSBlockType::DATA_BLOCK_FFS:    return "DATA_BLOCK_FFS";
+            case FSBlockType::UNKNOWN:     return "UNKNOWN";
+            case FSBlockType::EMPTY:       return "EMPTY";
+            case FSBlockType::BOOT:        return "BOOT";
+            case FSBlockType::ROOT:        return "ROOT";
+            case FSBlockType::BITMAP:      return "BITMAP";
+            case FSBlockType::BITMAP_EXT:  return "BITMAP_EXT";
+            case FSBlockType::USERDIR:     return "USERDIR";
+            case FSBlockType::FILEHEADER:  return "FILEHEADER";
+            case FSBlockType::FILELIST:    return "FILELIST";
+            case FSBlockType::DATA_OFS:    return "DATA_OFS";
+            case FSBlockType::DATA_FFS:    return "DATA_FFS";
         }
         return "???";
     }
@@ -235,6 +265,107 @@ struct FSItemTypeEnum : Reflection<FSItemTypeEnum, FSItemType>
         }
         return "???";
     }
+
+    static const char *help(FSItemType value)
+    {
+        switch (value) {
+
+            case FSItemType::UNKNOWN:               return "Unknown";
+            case FSItemType::UNUSED:                return "Unused";
+            case FSItemType::DOS_HEADER:            return "AmigaDOS header signature";
+            case FSItemType::DOS_VERSION:           return "AmigaDOS version number";
+            case FSItemType::BOOTCODE:              return "Boot code instruction";
+            case FSItemType::TYPE_ID:               return "Type identifier";
+            case FSItemType::SUBTYPE_ID:            return "Subtype identifier";
+            case FSItemType::SELF_REF:              return "Block reference to itself";
+            case FSItemType::CHECKSUM:              return "Checksum";
+            case FSItemType::HASHTABLE_SIZE:        return "Hashtable size";
+            case FSItemType::HASH_REF:              return "Hashtable entry";
+            case FSItemType::PROT_BITS:             return "Protection status bits";
+            case FSItemType::BCPL_STRING_LENGTH:    return "BCPL string Length";
+            case FSItemType::BCPL_DISK_NAME:        return "Disk name (BCPL character)";
+            case FSItemType::BCPL_DIR_NAME:         return "Directory name (BCPL character)";
+            case FSItemType::BCPL_FILE_NAME:        return "File name (BCPL character)";
+            case FSItemType::BCPL_COMMENT:          return "Comment (BCPL character)";
+            case FSItemType::CREATED_DAY:           return "Creation date (days)";
+            case FSItemType::CREATED_MIN:           return "Creation date (minutes)";
+            case FSItemType::CREATED_TICKS:         return "Creation date (ticks)";
+            case FSItemType::MODIFIED_DAY:          return "Modification date (day)";
+            case FSItemType::MODIFIED_MIN:          return "Modification date (minutes)";
+            case FSItemType::MODIFIED_TICKS:        return "Modification date (ticks)";
+            case FSItemType::NEXT_HASH_REF:         return "Reference to the next hash block";
+            case FSItemType::PARENT_DIR_REF:        return "Parent directory block reference";
+            case FSItemType::FILEHEADER_REF:        return "File header block reference";
+            case FSItemType::EXT_BLOCK_REF:         return "Next extension block reference";
+            case FSItemType::BITMAP_BLOCK_REF:      return "Bitmap block reference";
+            case FSItemType::BITMAP_EXT_BLOCK_REF:  return "Extension bitmap block reference";
+            case FSItemType::BITMAP_VALIDITY:       return "Bitmap validity bits";
+            case FSItemType::DATA_BLOCK_REF_COUNT:  return "Number of data block references";
+            case FSItemType::FILESIZE:              return "File size";
+            case FSItemType::DATA_BLOCK_NUMBER:     return "Position in the data block chain";
+            case FSItemType::DATA_BLOCK_REF:        return "Data block reference";
+            case FSItemType::FIRST_DATA_BLOCK_REF:  return "Reference to the first data block";
+            case FSItemType::NEXT_DATA_BLOCK_REF:   return "Reference to next data block";
+            case FSItemType::DATA_COUNT:            return "Number of stored data bytes";
+            case FSItemType::DATA:                  return "Data byte";
+            case FSItemType::BITMAP:                return "Block allocation table";
+        }
+        return "???";
+    }
+};
+
+
+enum class FSBlockError : long
+{
+    OK,
+    EXPECTED_VALUE,
+    EXPECTED_SMALLER_VALUE,
+    EXPECTED_NO_REF,
+    EXPECTED_REF,
+    EXPECTED_SELFREF,
+    EXPECTED_BITMAP_BLOCK,
+    EXPECTED_BITMAP_EXT_BLOCK,
+    EXPECTED_HASHABLE_BLOCK,
+    EXPECTED_USERDIR_OR_ROOT,
+    EXPECTED_DATA_BLOCK,
+    EXPECTED_FILE_HEADER_BLOCK,
+    EXPECTED_FILE_LIST_BLOCK,
+    EXPECTED_DATABLOCK_NR,
+    INVALID_HASHTABLE_SIZE
+};
+
+struct FSBlockErrorEnum : Reflection<FSBlockErrorEnum, FSBlockError>
+{
+    static constexpr long minVal = 0;
+    static constexpr long maxVal = long(FSBlockError::INVALID_HASHTABLE_SIZE);
+
+    static const char *_key(FSBlockError value)
+    {
+        switch (value) {
+
+            case FSBlockError::OK:                          return "OK";
+            case FSBlockError::EXPECTED_VALUE:              return "EXPECTED_VALUE";
+            case FSBlockError::EXPECTED_SMALLER_VALUE:      return "EXPECTED_SMALLER_VALUE";
+            case FSBlockError::EXPECTED_NO_REF:             return "EXPECTED_NO_REF";
+            case FSBlockError::EXPECTED_REF:                return "EXPECTED_REF";
+            case FSBlockError::EXPECTED_SELFREF:            return "EXPECTED_SELFREF";
+            case FSBlockError::EXPECTED_BITMAP_BLOCK:       return "EXPECTED_BITMAP_BLOCK";
+            case FSBlockError::EXPECTED_BITMAP_EXT_BLOCK:   return "EXPECTED_BITMAP_EXT_BLOCK";
+            case FSBlockError::EXPECTED_HASHABLE_BLOCK:     return "EXPECTED_HASHABLE_BLOCK";
+            case FSBlockError::EXPECTED_USERDIR_OR_ROOT:    return "EXPECTED_USERDIR_OR_ROOT";
+            case FSBlockError::EXPECTED_DATA_BLOCK:         return "EXPECTED_DATA_BLOCK";
+            case FSBlockError::EXPECTED_FILE_HEADER_BLOCK:  return "EXPECTED_FILE_HEADER_BLOCK";
+            case FSBlockError::EXPECTED_FILE_LIST_BLOCK:    return "EXPECTED_FILE_LIST_BLOCK";
+            case FSBlockError::EXPECTED_DATABLOCK_NR:       return "EXPECTED_DATABLOCK_NR";
+            case FSBlockError::INVALID_HASHTABLE_SIZE:      return "INVALID_HASHTABLE_SIZE";
+        }
+        return "???";
+    }
+
+    static const char *help(FSBlockType value)
+    {
+        return "";
+    }
 };
 
 
@@ -242,25 +373,56 @@ struct FSItemTypeEnum : Reflection<FSItemTypeEnum, FSItemType>
 // Structures
 //
 
-typedef struct
+struct FSTraits
 {
-    long bitmapErrors;
-    long corruptedBlocks;
-    long firstErrorBlock;
-    long lastErrorBlock;
-}
-FSErrorReport;
+    FSFormat dos = FSFormat::NODOS;
+
+    isize blocks = 0;
+    isize bytes = 0;
+    isize bsize = 512;
+
+    isize reserved = 2;
+
+    bool ofs() const { return isOFSVolumeType(dos); }
+    bool ffs() const { return isFFSVolumeType(dos); }
+    bool intl() const { return isINTLVolumeType(dos); }
+    bool adf() const;
+};
 
 typedef struct
 {
-    FSVolumeType dos;
-    bool ofs;
-    bool ffs;
-    
-    isize blocks;
-    isize bytes;
-    isize bsize;
+    // Block errors
+    std::vector<Block> blockErrors;
+
+    // Bitmap errors
+    std::vector<Block> usedButUnallocated;
+    std::vector<Block> unusedButAllocated;
+
+    std::unordered_map<Block,isize> bitmapErrors; // DEPRECATED
 }
-FSTraits;
+FSDiagnosis;
+
+typedef struct
+{
+    // Name and time stamps
+    string name;
+    string creationDate;
+    string modificationDate;
+
+    // Capacity information
+    isize numBlocks;
+    isize freeBlocks;
+    isize usedBlocks;
+    isize freeBytes;
+    isize usedBytes;
+    double fillLevel;
+}
+FSInfo;
+
+typedef struct
+{
+    isize blockReads;
+}
+FSStats;
 
 }

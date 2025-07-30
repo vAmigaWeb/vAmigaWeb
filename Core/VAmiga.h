@@ -10,6 +10,7 @@
 #pragma once
 
 #include "VAmigaTypes.h"
+#include "Error.h"
 
 namespace vamiga {
 
@@ -511,12 +512,12 @@ class MemoryAPI : public API {
     void loadRom(const fs::path &path);
     void loadExt(const fs::path &path);
 
-    /** @brief  Loads a ROM, provided by a RomFile
+    /** @brief  Loads a ROM provided by a RomFile
      */
     void loadRom(MediaFile &file);
     void loadExt(MediaFile &file);
 
-    /** @brief  Loads a ROM, provided by a memory buffer
+    /** @brief  Loads a ROM provided by a memory buffer
      */
     void loadRom(const u8 *buf, isize len);
     void loadExt(const u8 *buf, isize len);
@@ -678,7 +679,7 @@ class FloppyDriveAPI : public API {
      *  @param  name  Name of the disk
      *  @param  path Optional folder to import
      */
-    void insertBlankDisk(FSVolumeType fstype, BootBlockId id, string name, const std::filesystem::path &path = {});
+    void insertBlankDisk(FSFormat fstype, BootBlockId id, string name, const std::filesystem::path &path = {});
 
     /** @brief  Inserts a disk created from a media file.
      *  @param  file    A media file wrapper object.
@@ -782,7 +783,7 @@ public:
 
     /** @brief  Formats the hard drive
      */
-    void format(FSVolumeType fs, const string &name);
+    void format(FSFormat fs, const string &name);
     
     /** @brief  Attaches a hard drive provided by an URL to a media file.
      *  @param  path    Path to the media file.
@@ -981,6 +982,11 @@ class AudioPortAPI : public API {
      */
     const AudioPortConfig &getConfig() const;
 
+    /** @brief  Returns the component's current state.
+     */
+    const AudioPortInfo &getInfo() const;
+    const AudioPortInfo &getCachedInfo() const;
+
     /** @brief  Returns statistical information about the components.
      */
     const AudioPortStats &getStats() const;
@@ -1137,6 +1143,38 @@ public:
 
 
 //
+// Misc (MsgQueue)
+//
+
+class MsgQueueAPI : public API {
+
+    friend class VAmiga;
+    class MsgQueue *msgQueue = nullptr;
+
+public:
+
+    /** @brief  Locks the message queue
+     */
+    void lockMsgQueue();
+
+    /** @brief  Unlocks the message queue
+     */
+    void unlockMsgQueue();
+
+    /** @brief  Reads a message from the message queue
+     */
+    bool getMsg(Message &msg);
+
+    /** @brief  Used by the WASM builds to pass additional data
+     */
+    string getPayload(isize index);
+
+    /** @brief  Reads multiple messages from the message queue
+     */
+    // isize getMsg(isize count, Message *buffer);
+};
+
+//
 // Misc (Debugger)
 //
 
@@ -1155,6 +1193,7 @@ public:
     string memDump(Accessor acc, u32 addr, isize bytes, isize sz = 1) const;
      */
 };
+
 
 //
 // Misc (Defaults)
@@ -1400,21 +1439,18 @@ public:
     /// @name Querying the console
     /// @{
     ///
+
+    /** @brief  Returns the component's current state.
+     */
+    const RetroShellInfo &getInfo() const;
+    const RetroShellInfo &getCachedInfo() const;
+
     /** @brief  Returns a pointer to the text buffer.
      *  The text buffer contains the complete contents of the console. It
      *  will be expanded when new output is generated. When the buffer
      *  grows too large, old contents is cropped.
      */
     const char *text();
-
-    /** @brief  Returns the relative cursor position.
-     *  The returned value is relative to the end of the input line. A value
-     *  of 0 indicates that the cursor is at the rightmost position, that
-     *  is, one character after the last character of the input line. If the
-     *  cursor is at the front of the input line, the value matches the
-     *  length of the input line.
-     */
-    isize cursorRel();
 
     /// @}
     /// @name Typing characters and strings
@@ -1424,7 +1460,7 @@ public:
      *  @param  key     The pressed key
      *  @param  shift   Status of the shift key
      */
-    void press(RetroShellKey key, bool shift = false);
+    void press(RSKey key, bool shift = false);
 
     /** @brief  Informs RetroShell that a key has been typed.
      *  @param  c       The pressed key
@@ -1461,6 +1497,23 @@ public:
     void execScript(const std::ifstream &fs);
     void execScript(const string &contents);
     void execScript(const MediaFile &file);
+
+    /// @}
+    /// @name Misc
+    /// @{
+
+    /** @brief  Installs a file system in the file system navigator
+     */
+    void import(const FloppyDrive &dfn);
+    void import(const HardDrive &hdn, isize part);
+    void importDf(isize n);
+    void importHd(isize n, isize part);
+    void import(const fs::path &path, bool recursive = true, bool contents = false);
+
+
+    /** @brief  Exports the file system in the file system navigator
+     */
+    void exportBlocks(const std::filesystem::path &path);
 
     /// @}
 };
@@ -1577,24 +1630,29 @@ public:
     
     // Ports
     AudioPortAPI audioPort;
-    VideoPortAPI videoPort;
     ControlPortAPI controlPort1;
     ControlPortAPI controlPort2;
-    GuardsAPI copperBreakpoints;
-    DebuggerAPI debugger;
     SerialPortAPI serialPort;
-    
+    VideoPortAPI videoPort;
+
     // Peripherals
     FloppyDriveAPI df0, df1, df2, df3;
     HardDriveAPI hd0, hd1, hd2, hd3;
     KeyboardAPI keyboard;
     
     // Misc
+    GuardsAPI copperBreakpoints; // TODO: Move inside AgnusAPI
+    MsgQueueAPI msgQueue;
+    DebuggerAPI debugger; // TODO: No longer needed? It's not 'wired'
     RecorderAPI recorder;
     RemoteManagerAPI remoteManager;
     RetroShellAPI retroShell;
-    
-    
+
+    // Shortcuts
+    FloppyDriveAPI *df[4] = { &df0, &df1, &df2, &df3 };
+    HardDriveAPI *hd[4] = { &hd0, &hd1, &hd2, &hd3 };
+
+
     //
     // Static methods
     //
@@ -1626,7 +1684,7 @@ public:
     /** @brief  Returns statistical information about the components.
      */
     const EmulatorStats &getStats() const;
-    
+
     /// @}
     /// @name Querying the emulator state
     /// @{

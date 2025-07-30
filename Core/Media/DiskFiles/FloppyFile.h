@@ -35,8 +35,8 @@ public:
 public:
 
     // Gets or sets the file system for this disk
-    virtual FSVolumeType getDos() const = 0;
-    virtual void setDos(FSVolumeType dos) = 0;
+    virtual FSFormat getDos() const = 0;
+    virtual void setDos(FSFormat dos) = 0;
 
 
     //
@@ -73,7 +73,7 @@ public:
 public:
 
     virtual void encodeDisk(FloppyDisk &disk) const throws { fatalError; }
-    virtual void decodeDisk(FloppyDisk &disk) throws { fatalError; }
+    virtual void decodeDisk(const FloppyDisk &disk) throws { fatalError; }
 };
 
 }

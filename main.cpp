@@ -1053,7 +1053,7 @@ extern "C" char* wasm_export_as_folder(const char *drive_name,  const char *path
     try
     {
       auto fs = new MutableFileSystem(*hd,0);
-      fs->exportDirectory(path, true);
+      fs->exportFiles(path);
       auto hd_name = fs->getName();
       delete fs;
       sprintf(wasm_pull_user_snapshot_file_json_result, "%s",hd_name.c_str());
@@ -1159,7 +1159,7 @@ extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10,
     auto drive=new HardDrive(*wrapper->emu->amiga.amiga,-1);
 
     drive->init(MB(capacity_in_mb));
-    drive->format(FSVolumeType::FFS, hd_name);
+    drive->format(FSFormat::FFS, hd_name);
     drive->importFolder("/imported_hd");
     export_disk = new HDFFile(*drive);
     delete drive;
@@ -1199,28 +1199,38 @@ extern "C" void wasm_delete_user_snapshot()
 
 extern "C" char* wasm_take_user_snapshot()
 {
-  printf("wasm_pull_user_snapshot_file\n");
+  try{
+    printf("wasm_pull_user_snapshot_file\n");
 
-  wasm_delete_user_snapshot();
-  snapshot = wrapper->emu->amiga.takeSnapshot(); //wrapper->emu->userSnapshot(nr);
+    wasm_delete_user_snapshot();
+    snapshot = wrapper->emu->amiga.takeSnapshot(); //wrapper->emu->userSnapshot(nr);
 
-//  printf("got snapshot %u.%u.%u\n", snapshot->getHeader()->major,snapshot->getHeader()->minor,snapshot->getHeader()->subminor );
-  u8 *data = (u8*)(((Snapshot *)snapshot)->getHeader());
+  //  printf("got snapshot %u.%u.%u\n", snapshot->getHeader()->major,snapshot->getHeader()->minor,snapshot->getHeader()->subminor );
+    u8 *data = (u8*)(((Snapshot *)snapshot)->getHeader());
 
-  printf("data header bytes= %x, %x, %x\n", data[0],data[1],data[2]);
- 
+    printf("data header bytes= %x, %x, %x\n", data[0],data[1],data[2]);
+  
 
 
 
-  sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu, \"width\": %lu, \"height\":%lu }",
-  (unsigned long)data,//snapshot->getData(), 
-  snapshot->getSize(),
-  snapshot->previewImageSize().first,
-  snapshot->previewImageSize().second
-  );
-  printf("return => %s\n",wasm_pull_user_snapshot_file_json_result);
+    sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu, \"width\": %lu, \"height\":%lu }",
+    (unsigned long)data,//snapshot->getData(), 
+    snapshot->getSize(),
+    snapshot->previewImageSize().first,
+    snapshot->previewImageSize().second
+    );
+    printf("return => %s\n",wasm_pull_user_snapshot_file_json_result);
 
+    return wasm_pull_user_snapshot_file_json_result;
+  } catch (const AppError& e) {
+    printf("Error taking user snapshot - %s\n",e.what());
+    EM_ASM(
+    {
+      alert(`Error taking user snapshot - ${UTF8ToString($0)}`);
+    }, e.what());    
+  }
   return wasm_pull_user_snapshot_file_json_result;
+  
 }
 
 

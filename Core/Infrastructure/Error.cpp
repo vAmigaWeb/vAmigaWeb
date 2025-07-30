@@ -169,16 +169,6 @@ AppError::AppError(Fault code, const string &s)
             description = "No Extension Rom installed.";
             break;
 
-        case Fault::WT_BLOCKED:
-            description = "The storage file for the selected hard drive is";
-            description += " being used by another emulator instance. It cannot ";
-            description += " be shared among multiple emulator instances.";
-            break;
-
-        case Fault::WT:
-            description = "Write through: " + s;
-            break;
-
         case Fault::DISK_MISSING:
             description = "No disk in drive.";
             break;
@@ -329,15 +319,15 @@ AppError::AppError(Fault code, const string &s)
             break;
 
         case Fault::REG_READ_ONLY:
-            description = s + " is a read-only register";
+            description = s + " is a read-only register.";
             break;
 
         case Fault::REG_WRITE_ONLY:
-            description = s + " is a write-only register";
+            description = s + " is a write-only register.";
             break;
 
         case Fault::REG_UNUSED:
-            description = "Register " + s + " is unused";
+            description = "Register " + s + " is unused.";
             break;
 
         case Fault::ADDR_UNALIGNED:
@@ -368,12 +358,52 @@ AppError::AppError(Fault code, const string &s)
             description = "Corrupted hunk structure.";
             break;
 
-        case Fault::FS_UNSUPPORTED:
-            description = "Unsupported file system.";
+        case Fault::FS_UNINITIALIZED:
+            description = "No file system present.";
+            break;
+
+        case Fault::FS_INVALID_PATH:
+            description = "Invalid path: " + s;
+            break;
+
+        case Fault::FS_INVALID_REGEX:
+            description = "Invalid search pattern: " + s;
+            break;
+
+        case Fault::FS_NOT_A_DIRECTORY:
+            description = s.empty() ? "Not a directory." : s + " is not a directory.";
+            break;
+
+        case Fault::FS_NOT_A_FILE:
+            description = s.empty() ? "Not a file." : s + " is not a file.";
+            break;
+
+        case Fault::FS_NOT_A_FILE_OR_DIRECTORY:
+            description = s.empty() ? "Not a file or directory." : s + " is not a file or directory.";
+            break;
+
+        case Fault::FS_NOT_FOUND:
+            description = s.empty() ? "Not found." : s + " not found.";
+            break;
+
+        case Fault::FS_EXISTS:
+            description = s.empty() ? "Item already exists." : s + " already exists.";
+            break;
+
+        case Fault::FS_CANNOT_OPEN:
+            description = "Cannot open file" + (s.empty() ? "" : " " + s) + ".";
             break;
 
         case Fault::FS_UNFORMATTED:
             description = "Unformatted device.";
+            break;
+
+        case Fault::FS_UNSUPPORTED:
+            description = "Unsupported file system.";
+            break;
+
+        case Fault::FS_READ_ONLY:
+            description = "Read-only file system.";
             break;
 
         case Fault::FS_WRONG_BSIZE:

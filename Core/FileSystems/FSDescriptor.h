@@ -19,15 +19,15 @@
 namespace vamiga {
 
 /* To create a FileSystem, several layout parameters need to to be provided.
- * This is done by passing a FileSystemDescriptor which contains the necessary
+ * This is done by passing a FSDescriptor which contains the necessary
  * information.
  *
- * A FileSystemDescriptor can be obtained in several ways. If a descriptor for
+ * A FSDescriptor can be obtained in several ways. If a descriptor for
  * a floppy disk is needed, it can be created by specifiying the form factor
  * and density of the disk. In addition, a suitabe descriptors can be extracted
  * directly from an ADF or HDF.
  */
-struct FileSystemDescriptor {
+struct FSDescriptor {
 
     // Capacity of the file system in blocks
     isize numBlocks = 0;
@@ -39,7 +39,7 @@ struct FileSystemDescriptor {
     isize numReserved = 0;
 
     // File system type
-    FSVolumeType dos = FSVolumeType::NODOS;
+    FSFormat dos = FSFormat::NODOS;
 
     // Location of the root block
     Block rootBlock = 0;
@@ -49,16 +49,16 @@ struct FileSystemDescriptor {
     std::vector<Block> bmExtBlocks;
     
     // Initializing
-    FileSystemDescriptor() { };
-    FileSystemDescriptor(isize numBlocks, FSVolumeType dos);
-    FileSystemDescriptor(const GeometryDescriptor &geometry, FSVolumeType dos);
-    FileSystemDescriptor(const PartitionDescriptor &des);
-    FileSystemDescriptor(Diameter dia, Density den, FSVolumeType dos);
+    FSDescriptor() { };
+    FSDescriptor(isize numBlocks, FSFormat dos);
+    FSDescriptor(const GeometryDescriptor &geometry, FSFormat dos);
+    FSDescriptor(const PartitionDescriptor &des);
+    FSDescriptor(Diameter dia, Density den, FSFormat dos);
     
-    void init(isize numBlocks, FSVolumeType dos);
-    void init(const GeometryDescriptor &geometry, FSVolumeType dos);
+    void init(isize numBlocks, FSFormat dos);
+    void init(const GeometryDescriptor &geometry, FSFormat dos);
     void init(const PartitionDescriptor &des);
-    void init(Diameter type, Density density, FSVolumeType dos);
+    void init(Diameter type, Density density, FSFormat dos);
 
     // Computed values
     isize numBytes() const { return numBlocks * bsize; }

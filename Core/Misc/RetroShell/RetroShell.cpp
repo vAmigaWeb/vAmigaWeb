@@ -21,48 +21,68 @@ RetroShell::RetroShell(Amiga& ref) : SubComponent(ref)
     subComponents = std::vector<CoreComponent *> {
 
         &commander,
-        &debugger
+        &debugger,
+        &navigator
     };
 }
 
 void
 RetroShell::_initialize()
 {
-    enterCommander();
-}
-
-void
-RetroShell::switchConsole() {
-
-    inCommandShell() ? enterDebugger() : enterCommander();
-}
-
-void 
-RetroShell::enterDebugger()
-{
-    // Assign the new console
+    // Set a console
     current = &debugger;
 
-    // Enter tracking mode
-    emulator.trackOn(1);
-    msgQueue.put(Msg::RSH_DEBUGGER, true);
-    
-    // Print the welcome message if entered the first time
-    if (current->isEmpty()) { current->exec("welcome"); *this << current->getPrompt(); }
+    // Switch the console to let the welcome message appear
+    current->exec(vAmigaDOS ? "navigator" : "commander");
 }
 
 void
-RetroShell::enterCommander()
+RetroShell::cacheInfo(RetroShellInfo &result) const
 {
-    // Assign the new console
-    current = &commander;
+    {   SYNCHRONIZED
 
-    // Leave tracking mode
-    emulator.trackOff(1);
-    msgQueue.put(Msg::RSH_DEBUGGER, false);
-    
-    // Print the welcome message if entered the first time
-    if (current->isEmpty()) { current->exec("welcome"); *this << current->getPrompt(); }
+        result.console = current->objid;
+        result.cursorRel = current->cursorRel();
+    }
+}
+
+void
+RetroShell::enterConsole(isize nr)
+{
+    Console *newConsole = nullptr;
+
+    switch (nr) {
+
+        case 0: newConsole = &commander; break;
+        case 1: newConsole = &debugger; break;
+        case 2: newConsole = &navigator; break;
+
+        default:
+            fatalError;
+    }
+
+    // Assign the new console
+    current = newConsole;
+
+    // Enter Leave tracking mode
+    nr == 1 ? emulator.trackOn(1) : emulator.trackOff(1);
+
+    if (current->isEmpty()) {
+
+        // Print the welcome message if entered the first time
+        current->exec("welcome"); *this << current->getPrompt();
+
+    } else {
+
+        // Otherwise, print the summary message
+        current->summary();
+    }
+
+    // Update prompt
+    *this << '\r' << current->getPrompt();
+
+    // Inform the GUI about the change
+    msgQueue.put(Msg::RSH_SWITCH, nr);
 }
 
 void
@@ -217,6 +237,13 @@ RetroShell::operator<<(char value)
 }
 
 RetroShell &
+RetroShell::operator<<(const char *value)
+{
+    *current << value;
+    return *this;
+}
+
+RetroShell &
 RetroShell::operator<<(const string &value)
 {
     *current << value;
@@ -272,6 +299,13 @@ RetroShell::operator<<(std::stringstream &stream)
     return *this;
 }
 
+RetroShell&
+RetroShell::operator<<(const vspace &value)
+{
+    *current << value;
+    return *this;
+}
+
 const char *
 RetroShell::text()
 {
@@ -285,8 +319,26 @@ RetroShell::cursorRel()
 }
 
 void
-RetroShell::press(RetroShellKey key, bool shift)
+RetroShell::press(RSKey key, bool shift)
 {
+    if (shift) {
+
+        switch(key) {
+
+            case RSKey::TAB:
+
+                // asyncExec(".");
+                if (current->objid == 0) current->input = "debugger";
+                if (current->objid == 1) current->input = "navigator";
+                if (current->objid == 2) current->input = "commander";
+                current->pressReturn(false);
+                return;
+
+            default:
+                break;
+        }
+    }
+
     current->press(key, shift);
 }
 
@@ -307,6 +359,7 @@ RetroShell::setStream(std::ostream &os)
 {
     commander.setStream(os);
     debugger.setStream(os);
+    navigator.setStream(os);
 }
 
 void
