@@ -232,11 +232,11 @@ Headless::selfTestScript[] = {
     "amiga power on",
     "",
     "# Let DiagRom launch and press the right mouse button after a while",
-    "wait 15 seconds",
+    "wait 15",
     "mouse1 press right",
     ""
     "# Let DiagRom run for some more time",
-    "wait 10 seconds",
+    "wait 10",
     "",
     "# Enough testing. Terminate the application",
     "shutdown",
@@ -253,13 +253,16 @@ Headless::smokeTestScript[] = {
     "# the compiled application. It runs several shell commands to check if ",
     "# anything breaks.",
     "# ",
-    "# Dirk W. Hoffmann, 2024",
+    "# Dirk W. Hoffmann",
 
     "",
     "help",
-    "hel",          // Test auto-completion
-    "joshua",       // Test a hidden command
-    "try joshu",    // Catch an error with 'try'
+
+    // Test a hidden command
+    "joshua",
+
+    // Catch an error with 'try'
+    "try joshu",
 
 #ifndef _WIN32
     "",
@@ -269,6 +272,16 @@ Headless::smokeTestScript[] = {
     "regression setup A500_PLUS_1MB",
 #endif
 
+    // Test console switching
+    // ".",
+    // ".",
+    // ".",
+    // "..",
+    // "..",
+    // "..",
+
+    // Enter the commander console
+    "commander",
     "",
     "amiga",
     "amiga defaults",
@@ -561,14 +574,14 @@ Headless::smokeTestScript[] = {
     "hd0",
     "hd0 disconnect",
     "hd0 connect",
-    "hd0 geometry 320 2 32",
+    "hd0 geometry cylinders=320 heads=2 sectors=32",
     "hd0 set PAN 50",
     "hd0 set STEP_VOLUME 50",
 
     "hd1",
     "hd1 disconnect",
     "hd1 connect",
-    "hd1 geometry 320 2 32",
+    "hd1 geometry cylinders=320 heads=2 sectors=32",
     "hd1 set PAN 50",
     "hd1 set STEP_VOLUME 50",
 
@@ -589,7 +602,7 @@ Headless::smokeTestScript[] = {
     "server gdb set VERBOSE false",
 
     // Enter debugger
-    ".",
+    "debugger",
 
     "",
     "break",
@@ -703,6 +716,9 @@ Headless::smokeTestScript[] = {
     
     "? thread",
     "? server",
+
+    // Enter the avigator
+    "navigator",
 
     "shutdown",
 

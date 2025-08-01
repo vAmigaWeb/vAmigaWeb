@@ -46,39 +46,33 @@ EXEFile::finalizeRead()
     bool hd = data.size > 853000;
 
     // Create a new file system
-    MutableFileSystem volume(Diameter::INCH_35, hd ? Density::HD : Density::DD, FSVolumeType::OFS);
+    MutableFileSystem volume(Diameter::INCH_35, hd ? Density::HD : Density::DD, FSFormat::OFS);
     volume.setName(FSName("Disk"));
     
     // Make the volume bootable
     volume.makeBootable(BootBlockId::AMIGADOS_13);
 
     // Start at the root directory
-    auto dir = volume.rootDir();
+    if (auto *dir = &volume.root(); dir) {
 
-    // Add the executable
-    volume.createFile(dir, "file", data);
+        // Add the executable
+        volume.createFile(*dir, FSName("file"), data);
 
-    // Add a script directory
-    dir = volume.createDir(dir, "s");
+        // Add a script directory
+        dir = &volume.createDir(*dir, FSName("s"));
 
-    // Add a startup sequence
-    volume.createFile(dir, "startup-sequence", "file");
+        // Add a startup sequence
+        volume.createFile(*dir, "startup-sequence", "file");
+    }
 
     // Finalize
     volume.updateChecksums();
 
     // Print some debug information about the volume
-    if (FS_DEBUG) {
-        volume.dump(Category::State);
-        volume.printDirectory(true);
-    }
+    if (FS_DEBUG) volume.dump(Category::State);
     
     // Check file system integrity
-    FSErrorReport report = volume.check(true);
-    if (report.corruptedBlocks > 0) {
-        warn("Found %ld corrupted blocks\n", report.corruptedBlocks);
-        if (FS_DEBUG) volume.dump(Category::Blocks);
-    }
+    if (FS_DEBUG) volume.doctor.xray(true, std::cout, false);
 
     // Convert the volume into an ADF
     adf.init(volume);

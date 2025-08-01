@@ -20,21 +20,26 @@
 /* RetroShell is a text-based command shell capable of controlling the emulator.
  * The shell's functionality is split among multiple consoles:
  *
- * 1. Commmand console:
+ * 1. Commmander:
  *
  *    This console is the default console and offers various command for
  *    configuring the emulator and performing actions such as ejecting a disk.
  *
- * 2. Debug console:
+ * 2. Debugger:
  *
  *    This console offers multiple debug command similar to the ones found in
  *    debug monitor. E.g., it is possible to inspect the registers of various
  *    components or generating a memory dump.
+ *
+ * 3. Navigator:
+ *
+ *    This console allows to import disks and hard drives and analyze their
+ *    file system. 
  */
 
 namespace vamiga {
 
-class RetroShell final : public SubComponent {
+class RetroShell final : public SubComponent, public Inspectable<RetroShellInfo> {
 
     friend class RshServer;
 
@@ -50,11 +55,14 @@ class RetroShell final : public SubComponent {
 
     };
 
+    TextStorage s1, s2, s3;
+
 public:
 
     // Consoles
-    CommandConsole commander = CommandConsole(amiga, 0);
-    DebugConsole debugger = DebugConsole(amiga, 1);
+    CommanderConsole commander = CommanderConsole(amiga, 0, s1);
+    DebuggerConsole debugger = DebuggerConsole(amiga, 1, s1);
+    NavigatorConsole navigator = NavigatorConsole(amiga, 2, s1);
 
     // Indicates if one of the consoles has new contents
     bool isDirty = false;
@@ -65,11 +73,14 @@ private:
     std::vector<QueuedCmd> commands;
 
     // The currently active console
-    Console *current = &commander;
+    Console *current = nullptr;
+
+public:
 
     bool inCommandShell() { return current == &commander; }
     bool inDebugShell() { return current == &debugger; }
-
+    bool inNavigator() { return current == &navigator; }
+    
 
     //
     // Initializing
@@ -105,6 +116,15 @@ private:
 
 
     //
+    // Methods from Inspectable
+    //
+
+private:
+
+    void cacheInfo(RetroShellInfo &result) const override;
+
+
+    //
     // Methods from Configurable
     //
 
@@ -117,9 +137,12 @@ public:
     // Managing consoles
     //
 
-    void switchConsole();
-    void enterDebugger();
-    void enterCommander();
+public:
+
+    void enterConsole(isize nr);
+    void enterCommander() { enterConsole(0); }
+    void enterDebugger() { enterConsole(1); }
+    void enterNavigator() { enterConsole(2); }
 
 
     //
@@ -156,6 +179,7 @@ private:
 public:
     
     RetroShell &operator<<(char value);
+    RetroShell &operator<<(const char *value);
     RetroShell &operator<<(const string &value);
     RetroShell &operator<<(int value);
     RetroShell &operator<<(unsigned int value);
@@ -164,10 +188,11 @@ public:
     RetroShell &operator<<(long long value);
     RetroShell &operator<<(unsigned long long value);
     RetroShell &operator<<(std::stringstream &stream);
+    RetroShell &operator<<(const vspace &value);
 
     const char *text();
     isize cursorRel();
-    void press(RetroShellKey key, bool shift = false);
+    void press(RSKey key, bool shift = false);
     void press(char c);
     void press(const string &s);
     void setStream(std::ostream &os);

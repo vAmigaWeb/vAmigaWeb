@@ -160,10 +160,10 @@ EADFFile::finalizeRead()
     } catch (...) { }
 }
 
-FSVolumeType
+FSFormat
 EADFFile::getDos() const
 {
-    return adf ? adf.getDos() : FSVolumeType::NODOS;
+    return adf ? adf.getDos() : FSFormat::NODOS;
 }
 
 Diameter
@@ -239,7 +239,7 @@ EADFFile::encodeExtendedTrack(class FloppyDisk &disk, Track t) const
 }
 
 void
-EADFFile::decodeDisk(FloppyDisk &disk)
+EADFFile::decodeDisk(const FloppyDisk &disk)
 {
     assert(!data.empty());
     

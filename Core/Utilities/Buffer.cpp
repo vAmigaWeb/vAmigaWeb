@@ -33,19 +33,19 @@ Allocator<T>::alloc(isize elements)
 {
     assert(usize(elements) <= maxCapacity);
     assert((size == 0) == (ptr == nullptr));
-    
+
     if (size != elements) try {
-        
+
         dealloc();
-        
+
         if (elements) {
-            
+
             size = elements;
             ptr = new T[size];
         }
-        
+
     } catch (...) {
-        
+
         size = 0;
         ptr = nullptr;
     }
@@ -55,9 +55,9 @@ template <class T> void
 Allocator<T>::dealloc()
 {
     assert((size == 0) == (ptr == nullptr));
-    
+
     if (ptr) {
-        
+
         delete [] ptr;
         ptr = nullptr;
         size = 0;
@@ -68,9 +68,9 @@ template <class T> void
 Allocator<T>::init(isize elements, T value)
 {
     alloc(elements);
-    
+
     if (ptr) {
-        
+
         for (isize i = 0; i < size; i++) {
             ptr[i] = value;
         }
@@ -81,11 +81,11 @@ template <class T> void
 Allocator<T>::init(const T *buf, isize elements)
 {
     assert(buf);
-    
+
     alloc(elements);
-    
+
     if (ptr) {
-        
+
         for (isize i = 0; i < size; i++) {
             ptr[i] = buf[i];
         }
@@ -118,10 +118,10 @@ Allocator<T>::init(const fs::path &path)
 {
     // Open stream in binary mode
     std::ifstream stream(path, std::ifstream::binary);
-    
+
     // Return an empty buffer if the stream could not be opened
     if (!stream) { dealloc(); return; }
-    
+
     // Read file contents into a string stream
     std::ostringstream sstr(std::ios::binary);
     sstr << stream.rdbuf();
@@ -140,23 +140,23 @@ template <class T> void
 Allocator<T>::resize(isize elements)
 {
     assert((size == 0) == (ptr == nullptr));
-    
+
     if (size != elements) {
-        
+
         if (elements == 0) {
-            
+
             dealloc();
-            
+
         } else try {
-            
+
             auto newPtr = new T[elements];
             copy(newPtr, 0, std::min(size, elements));
             dealloc();
             ptr = (T *)newPtr;
             size = elements;
-            
+
         } catch (...) {
-            
+
             size = 0;
             ptr = nullptr;
         }
@@ -167,7 +167,7 @@ template <class T> void
 Allocator<T>::resize(isize elements, T pad)
 {
     auto gap = elements > size ? elements - size : 0;
-    
+
     resize(elements);
     clear(pad, elements - gap, gap);
 }
@@ -177,9 +177,9 @@ Allocator<T>::clear(T value, isize offset, isize len)
 {
     assert((size == 0) == (ptr == nullptr));
     assert(offset >= 0 && len >= 0 && offset + len <= size);
-    
+
     if (ptr) {
-        
+
         for (isize i = 0; i < len; i++) {
             ptr[i + offset] = value;
         }
@@ -192,9 +192,9 @@ Allocator<T>::copy(T *buf, isize offset, isize len) const
     assert(buf);
     assert((size == 0) == (ptr == nullptr));
     assert(offset >= 0 && len >= 0 && offset + len <= size);
-    
+
     if (ptr) {
-        
+
         for (isize i = 0; i < len; i++) {
             buf[i] = ptr[i + offset];
         }
@@ -214,16 +214,52 @@ Allocator<T>::patch(const char *seq, const char *subst)
 }
 
 template <class T> void
+Allocator<T>::dump(std::ostream &os, DumpOpt opt)
+{
+    util::dump(os, opt, ptr, size);
+}
+
+template <class T> void
+Allocator<T>::dump(std::ostream &os, DumpOpt opt, const char *fmt)
+{
+    util::dump(os, opt, ptr, size, fmt);
+}
+
+template <class T> void
+Allocator<T>::ascDump(std::ostream &os)
+{
+    dump(os, { .columns = 64, .offset = true, .ascii = true });
+}
+
+template <class T> void
+Allocator<T>::hexDump(std::ostream &os)
+{
+    dump(os, { .base = 16, .columns = 64, .nr = true });
+}
+
+template <class T> void
+Allocator<T>::memDump(std::ostream &os)
+{
+    dump(os, { .base = 16, .columns = 64, .offset = true, .ascii = true });
+}
+
+template <class T> void
+Allocator<T>::type(std::ostream &os, DumpOpt opt)
+{
+    dump(os, opt, "%a");
+}
+
+template <class T> void
 Allocator<T>::compress(std::function<void(u8 *, isize, vector<u8> &)> algo, isize offset)
 {
     std::vector<u8> compressed;
-    
+
     // Skip everything up to the offset position
     compressed.insert(compressed.end(), ptr, ptr + std::min(offset, size));
-    
+
     // Run the compressor
     if (size > offset) algo(ptr + offset, size - offset, compressed);
-    
+
     // Replace buffer contents with the compressed data
     init(compressed);
 }
@@ -232,13 +268,13 @@ template <class T> void
 Allocator<T>::uncompress(std::function<void(u8 *, isize, vector<u8> &, isize)> algo, isize offset, isize sizeEstimate)
 {
     std::vector<u8> uncompressed;
-    
+
     // Skip everything up to the offset position
     uncompressed.insert(uncompressed.end(), ptr, ptr + std::min(offset, size));
-    
+
     // Run the decompressor
     if (size > offset) algo(ptr + offset, size - offset, uncompressed, sizeEstimate);
-    
+
     // Replace buffer contents with the uncompressed data
     init(uncompressed);
 }
@@ -272,5 +308,11 @@ INSTANTIATE_ALLOCATOR(bool)
 
 template void Allocator<u8>::compress(std::function<void (u8 *, isize, std::vector<u8> &)>, isize);
 template void Allocator<u8>::uncompress(std::function<void (u8 *, isize, std::vector<u8> &, isize)>, isize, isize);
-
+template void Allocator<u8>::dump(std::ostream &os, DumpOpt opt);
+template void Allocator<u8>::dump(std::ostream &os, DumpOpt opt, const char *fmt);
+template void Allocator<u8>::ascDump(std::ostream &os);
+template void Allocator<u8>::hexDump(std::ostream &os);
+template void Allocator<u8>::memDump(std::ostream &os);
+// template void Allocator<u8>::txtDump(std::ostream &os);
+template void Allocator<u8>::type(std::ostream &os, DumpOpt opt);
 }

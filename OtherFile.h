@@ -54,7 +54,7 @@ public:
     FileType type() const override { return FileType::EXE; }
     u64 fnv64() const override { return adf.fnv64(); }
     bool isCompatiblePath(const std::filesystem::path &path) const override { return isCompatible(path); }
-    bool isCompatibleBuffer(const u8 *buf, isize len) override { return isCompatible(buf, len); }
+    bool isCompatibleBuffer(const u8 *buf, isize len) const override { return isCompatible(buf, len); }
     void finalizeRead() throws override;
     
     
@@ -71,8 +71,8 @@ public:
     // Methods from FloppyFile
     //
     
-    FSVolumeType getDos() const override { return adf.getDos(); }
-    void setDos(FSVolumeType dos) override { adf.setDos(dos); }
+    FSFormat getDos() const override { return adf.getDos(); }
+    void setDos(FSFormat dos) override { adf.setDos(dos); }
     Diameter getDiameter() const override { return adf.getDiameter(); }
     Density getDensity() const override { return adf.getDensity(); }
     BootBlockType bootBlockType() const override { return adf.bootBlockType(); }

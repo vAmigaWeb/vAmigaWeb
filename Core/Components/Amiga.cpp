@@ -94,21 +94,21 @@ Amiga::prefix(isize level, const char *component, isize line) const
 
         if (level >= 3) {
             
-            fprintf(stderr, " [%lld] (%3ld,%3ld)", agnus.pos.frame, agnus.pos.v, agnus.pos.h);
+            fprintf(stderr, "[%lld] (%3ld,%3ld) ", agnus.pos.frame, agnus.pos.v, agnus.pos.h);
         }
         if (level >= 4) {
             
-            fprintf(stderr, " %06X ", cpu.getPC0());
+            fprintf(stderr, "%06X ", cpu.getPC0());
             if (agnus.copper.servicing) {
-                fprintf(stderr, " [%06X]", agnus.copper.getCopPC0());
+                fprintf(stderr, "[%06X] ", agnus.copper.getCopPC0());
             }
-            fprintf(stderr, " %2X ", cpu.getIPL());
+            fprintf(stderr, "%2X ", cpu.getIPL());
         }
         if (level >= 5) {
             
             u16 dmacon = agnus.dmacon;
             bool dmaen = dmacon & DMAEN;
-            fprintf(stderr, " %c%c%c%c%c%c",
+            fprintf(stderr, "%c%c%c%c%c%c ",
                     (dmacon & BPLEN) ? (dmaen ? 'B' : 'B') : '-',
                     (dmacon & COPEN) ? (dmaen ? 'C' : 'c') : '-',
                     (dmacon & BLTEN) ? (dmaen ? 'B' : 'b') : '-',
@@ -116,7 +116,7 @@ Amiga::prefix(isize level, const char *component, isize line) const
                     (dmacon & DSKEN) ? (dmaen ? 'D' : 'd') : '-',
                     (dmacon & AUDEN) ? (dmaen ? 'A' : 'a') : '-');
             
-            fprintf(stderr, " %04X %04X", paula.intena, paula.intreq);
+            fprintf(stderr, "%04X %04X ", paula.intena, paula.intreq);
         }
         if (level >= 2) {
             
@@ -338,7 +338,7 @@ Amiga::loadWorkspace(const fs::path &path)
     }
 
     // Execute the setup script
-    retroShell.enterCommander();
+    retroShell.asyncExec("commander");
     retroShell.asyncExecScript(ss);
 }
 
@@ -411,7 +411,8 @@ Amiga::saveWorkspace(const fs::path &path)
         
     // Prepare the config script
     auto now = std::time(nullptr);
-    ss << "# Workspace setup (" << std::put_time(std::localtime(&now), "%c") << ")\n";
+    auto local = util::Time::local(now);
+    ss << "# Workspace setup (" << std::put_time(&local, "%c") << ")\n";
     ss << "# Generated with vAmiga " << Amiga::build() << "\n";
     ss << "\n";
 
@@ -746,9 +747,8 @@ Amiga::_dump(Category category, std::ostream &os) const
         (void)cpu.disassembleSR(sr);
 
         os << std::setfill('0');
-        os << "   DMACON  INTREQ / INTENA  STATUS REGISTER  IPL FCP" << std::endl;
+        os << "DMACON  INTREQ / INTENA  STATUS REGISTER  IPL FCP" << std::endl;
 
-        os << "   ";
         os << ((dmacon & BPLEN) ? (dmaen ? 'B' : 'b') : empty);
         os << ((dmacon & COPEN) ? (dmaen ? 'C' : 'c') : empty);
         os << ((dmacon & BLTEN) ? (dmaen ? 'B' : 'b') : empty);
@@ -787,14 +787,16 @@ Amiga::_dump(Category category, std::ostream &os) const
     }
     
     if (category == Category::Trace) {
-        
-        os << "\n";
+
+        std::stringstream ss;
+        string line;
+
         cpu.dumpLogBuffer(os, 8);
         os << "\n";
-        dump(Category::Current, os);
+        dump(Category::Current, ss);
+        while(std::getline(ss, line)) { os << "   " << line << '\n'; }
         os << "\n";
         cpu.disassembleRange(os, cpu.getPC0(), 8);
-        os << "\n";
     }
 }
 
@@ -977,7 +979,6 @@ Amiga::update(CmdQueue &queue)
                 break;
 
             default:
-                printf("Unhandled command: %s\n", CmdEnum::key(cmd.type));
                 fatal("Unhandled command: %s\n", CmdEnum::key(cmd.type));
         }
     }
@@ -1267,7 +1268,7 @@ Amiga::processCommand(const Command &cmd)
             if (cmd.value == 0) {
                 throw std::runtime_error("Source 0 is reserved for implementing config.warpMode.");
             }
-            emulator.warpOn(cmd.value);
+            emulator.warpOn(isize(cmd.value));
             break;
             
         case Cmd::WARP_OFF:
@@ -1275,7 +1276,7 @@ Amiga::processCommand(const Command &cmd)
             if (cmd.value == 0) {
                 throw std::runtime_error("Source 0 is reserved for implementing config.warpMode.");
             }
-            emulator.warpOff(cmd.value);
+            emulator.warpOff(isize(cmd.value));
             break;
 
         case Cmd::HALT:

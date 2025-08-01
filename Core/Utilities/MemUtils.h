@@ -13,6 +13,11 @@
 #include "Checksum.h"
 #include "Macros.h"
 #include <bit>
+#include <functional>
+#include <cstdint>
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
 
 namespace vamiga::util {
 
@@ -65,6 +70,17 @@ inline u64 bigEndian(u64 x)
 }
 
 //
+// Bit counting
+//
+
+#ifdef _MSC_VER
+inline isize popcount(u32 x) { return isize(__popcnt(u32(x))); }
+#else
+inline isize popcount(u32 x) { return isize(__builtin_popcount(u32(x))); }
+#endif
+
+
+//
 // Memory content
 //
 
@@ -88,10 +104,29 @@ void replace(char *p, isize size, const char *sequence, const char *substitute);
 // Extracts all readable ASCII characters from a buffer
 void readAscii(const u8 *buf, isize len, char *result, char fill = '.');
 
-// Prints a hex dump of a buffer to the console
+// Prints a hex dump of a buffer to the console (DEPRECATED)
 void hexdump(u8 *p, isize size, isize cols, isize pad);
 void hexdump(u8 *p, isize size, isize cols = 32);
 void hexdumpWords(u8 *p, isize size, isize cols = 32);
 void hexdumpLongwords(u8 *p, isize size, isize cols = 32);
 
+// Dumps memory data in customizable formats
+struct DumpOpt
+{
+    // const char *fmt;
+    isize base;
+    isize size;
+    isize prefix;
+    isize columns;
+    isize lines;
+    bool tail;
+    bool nr;
+    bool offset;
+    bool ascii;
+};
+void dump(std::ostream &os, const DumpOpt &opt, std::function<isize(isize,isize)>);
+void dump(std::ostream &os, const DumpOpt &opt, std::function<isize(isize,isize)>, const char *fmt);
+void dump(std::ostream &os, const DumpOpt &opt, u8 *buf, isize len);
+void dump(std::ostream &os, const DumpOpt &opt, u8 *buf, isize len, const char *fmt);
+ 
 }

@@ -33,6 +33,7 @@ enum class Msg : long
     WARP,
     TRACK,
     MUTE,
+    EASTER_EGG,
     POWER_LED_ON,
     POWER_LED_DIM,
     POWER_LED_OFF,
@@ -40,10 +41,11 @@ enum class Msg : long
     // Retro shell
     RSH_CLOSE,          ///< RetroShell has been closed
     RSH_UPDATE,         ///< RetroShell has generated new output
-    RSH_DEBUGGER,       ///< The RetroShell debugger has been opend or closed
+    RSH_SWITCH,         ///< RetroShell has switched to another console
     RSH_WAIT,           ///< Execution has peen postponed due to a wait command
     RSH_ERROR,          ///< Command execution has been aborted due to an error
-    
+    RSH_EXPORT,         ///< Data has been exported to the file system
+
     // Amiga
     VIDEO_FORMAT,
     
@@ -157,15 +159,17 @@ struct MsgEnum : Reflection<MsgEnum, Msg>
             case Msg::WARP:                  return "WARP";
             case Msg::TRACK:                 return "TRACK";
             case Msg::MUTE:                  return "MUTE";
+            case Msg::EASTER_EGG:            return "EASTER_EGG";
             case Msg::POWER_LED_ON:          return "POWER_LED_ON";
             case Msg::POWER_LED_DIM:         return "POWER_LED_DIM";
             case Msg::POWER_LED_OFF:         return "POWER_LED_OFF";
                 
             case Msg::RSH_CLOSE:             return "RSH_CLOSE";
             case Msg::RSH_UPDATE:            return "RSH_UPDATE";
-            case Msg::RSH_DEBUGGER:          return "RSH_DEBUGGER";
+            case Msg::RSH_SWITCH:            return "RSH_SWITCH";
             case Msg::RSH_WAIT:              return "RSH_WAIT";
             case Msg::RSH_ERROR:             return "RSH_ERROR";
+            case Msg::RSH_EXPORT:            return "RSH_EXPORT";
                 
             case Msg::VIDEO_FORMAT:          return "VIDEO_FORMAT";
                 

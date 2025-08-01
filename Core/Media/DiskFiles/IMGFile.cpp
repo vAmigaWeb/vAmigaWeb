@@ -204,7 +204,7 @@ IMGFile::encodeSector(FloppyDisk &disk, Track t, Sector s) const
 }
 
 void
-IMGFile::decodeDisk(FloppyDisk &disk)
+IMGFile::decodeDisk(const FloppyDisk &disk)
 {
     long tracks = numTracks();
     
@@ -216,22 +216,22 @@ IMGFile::decodeDisk(FloppyDisk &disk)
     if (disk.getDensity() != getDensity()) {
         throw AppError(Fault::DISK_INVALID_DENSITY);
     }
-    
+
     // Make the MFM stream scannable beyond the track end
-    disk.repeatTracks();
+    const_cast<FloppyDisk &>(disk).repeatTracks();
 
     // Decode all tracks
     for (Track t = 0; t < tracks; t++) decodeTrack(disk, t);
 }
 
 void
-IMGFile::decodeTrack(FloppyDisk &disk, Track t)
+IMGFile::decodeTrack(const FloppyDisk &disk, Track t)
 {
     assert(t < disk.numTracks());
 
     long numSectors = 9;
-    u8 *src = disk.data.track[t];
-    u8 *dst = data.ptr + t * numSectors * 512;
+    auto *src = disk.data.track[t];
+    auto *dst = data.ptr + t * numSectors * 512;
     
     debug(IMG_DEBUG, "Decoding DOS track %ld\n", t);
 
@@ -286,7 +286,7 @@ IMGFile::decodeTrack(FloppyDisk &disk, Track t)
 }
 
 void
-IMGFile::decodeSector(u8 *dst, u8 *src)
+IMGFile::decodeSector(u8 *dst, const u8 *src)
 {
     FloppyDisk::decodeMFM(dst, src, 512);
 }

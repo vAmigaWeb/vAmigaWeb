@@ -87,7 +87,7 @@ public:
     
     FileType type() const override { return FileType::EADF; }
     bool isCompatiblePath(const fs::path &path) const override { return isCompatible(path); }
-    bool isCompatibleBuffer(const u8 *buf, isize len) override { return isCompatible(buf, len); }
+    bool isCompatibleBuffer(const u8 *buf, isize len) const override { return isCompatible(buf, len); }
     void finalizeRead() throws override;
     
     
@@ -104,8 +104,8 @@ public:
     // Methods from FloppyFile
     //
     
-    FSVolumeType getDos() const override;
-    void setDos(FSVolumeType dos) override { };
+    FSFormat getDos() const override;
+    void setDos(FSFormat dos) override { };
     Diameter getDiameter() const override;
     Density getDensity() const override;
     
@@ -115,7 +115,7 @@ public:
     void readSector(u8 *dst, isize t, isize s) const override { }
     
     void encodeDisk(class FloppyDisk &disk) const throws override;
-    void decodeDisk(class FloppyDisk &disk) throws override;
+    void decodeDisk(const class FloppyDisk &disk) throws override;
     
 private:
     

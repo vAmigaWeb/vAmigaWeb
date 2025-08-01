@@ -19,7 +19,7 @@ class TextStorage {
 
     // Maximum number of stored lines
     static constexpr usize capacity = 512;
-    
+
     // The stored lines
     std::vector<string> storage;
 
@@ -37,6 +37,9 @@ public:
     
     // Returns the number of stored lines
     isize size() const { return (isize)storage.size(); }
+
+    // Returns the number of trailing blank lines
+    isize trailingEmptyLines() const;
 
     // Returns a single line
     string operator [] (isize i) const;

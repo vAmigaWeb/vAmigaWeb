@@ -60,7 +60,7 @@ public:
     //
 
     bool isCompatiblePath(const fs::path &path) const override { return isCompatible(path); }
-    bool isCompatibleBuffer(const u8 *buf, isize len) override { return isCompatible(buf, len); }
+    bool isCompatibleBuffer(const u8 *buf, isize len) const override { return isCompatible(buf, len); }
     FileType type() const override { return FileType::IMG; }
     
     
@@ -77,20 +77,20 @@ public:
     // Methods from FloppyFile
     //
 
-    FSVolumeType getDos() const override { return FSVolumeType::NODOS; }
-    void setDos(FSVolumeType dos) override { };
+    FSFormat getDos() const override { return FSFormat::NODOS; }
+    void setDos(FSFormat dos) override { };
     Diameter getDiameter() const override { return Diameter::INCH_35; }
     Density getDensity() const override { return Density::DD; }
     void encodeDisk(class FloppyDisk &disk) const throws override;
-    void decodeDisk(class FloppyDisk &disk) throws override;
+    void decodeDisk(const class FloppyDisk &disk) throws override;
 
 private:
     
     void encodeTrack(class FloppyDisk &disk, Track t) const throws;
     void encodeSector(class FloppyDisk &disk, Track t, Sector s) const throws;
 
-    void decodeTrack(class FloppyDisk &disk, Track t) throws;
-    void decodeSector(u8 *dst, u8 *src);
+    void decodeTrack(const class FloppyDisk &disk, Track t) throws;
+    void decodeSector(u8 *dst, const u8 *src);
 };
 
 }

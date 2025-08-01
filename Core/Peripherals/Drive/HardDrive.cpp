@@ -132,8 +132,8 @@ HardDrive::init(const MutableFileSystem &fs)
         
     // Update the partition table
     ptable[0].name = fs.getName().cpp_str();
-    ptable[0].dosType = 0x444F5300 | (u32)fs.getDos();
-    
+    ptable[0].dosType = 0x444F5300 | (u32)fs.getTraits().dos;
+
     // Copy over all blocks
     fs.exportVolume(data.ptr, geometry.numBytes());
 }
@@ -333,7 +333,7 @@ HardDrive::connect()
         
         debug(WT_DEBUG, "Creating default disk...\n");
         init(MB(10));
-        format(FSVolumeType::OFS, defaultName());
+        format(FSFormat::OFS, defaultName());
     }
 }
 
@@ -459,13 +459,11 @@ HardDrive::_dump(Category category, std::ostream &os) const
     }
     
     if (category == Category::Volumes) {
-        
-        os << "Type   Size            Used    Free    Full  Name" << std::endl;
-        
+
         for (isize i = 0; i < isize(ptable.size()); i++) {
             
             auto fs = MutableFileSystem(*this, i);
-            fs.dump(Category::State, os);
+            fs.dump(i == 0 ? Category::Info : Category::State, os);
         }
         
         for (isize i = 0; i < isize(ptable.size()); i++) {
@@ -550,22 +548,22 @@ HardDrive::defaultName(isize partition) const
 }
 
 void
-HardDrive::format(FSVolumeType fsType, string name)
+HardDrive::format(FSFormat fsType, string name)
 {
     if (HDR_DEBUG) {
 
         msg("Formatting hard drive\n");
-        msg("    File system : %s\n", FSVolumeTypeEnum::key(fsType));
+        msg("    File system : %s\n", FSFormatEnum::key(fsType));
         msg("           Name : %s\n", name.c_str());
     }
     
     // Only proceed if a disk is present
     if (!data.ptr) return;
 
-    if (fsType != FSVolumeType::NODOS) {
+    if (fsType != FSFormat::NODOS) {
         
         // Create a device descriptor matching this drive
-        auto layout = FileSystemDescriptor(geometry, fsType);
+        auto layout = FSDescriptor(geometry, fsType);
 
         // Create an empty file system
         auto fs = MutableFileSystem(layout);
@@ -759,13 +757,13 @@ HardDrive::importFolder(const fs::path &path) throws
         auto traits = getPartitionTraits(0);
                 
         // Create a device descriptor matching this drive
-        FileSystemDescriptor layout(geometry, traits.fsType);
+        FSDescriptor layout(geometry, traits.fsType);
         
         // Create a new file system
         auto fs = MutableFileSystem(layout);
         
-        // Import all files and name the partition
-        fs.importDirectory(path);
+        // Import all files
+        fs.import(fs.root(), path, true, true);
 
         // Name the file system
         fs.setName(traits.name);

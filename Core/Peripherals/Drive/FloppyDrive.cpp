@@ -823,7 +823,9 @@ FloppyDrive::readyToStepDown() const
 
 void
 FloppyDrive::step(isize dir)
-{    
+{
+    bool didStep = false;
+
     // Update the disk change signal
     if (hasDisk()) dskchange = true;
 
@@ -836,6 +838,7 @@ FloppyDrive::step(isize dir)
         if (head.cylinder > 0) {
 
             head.cylinder--;
+            didStep = true;
             recordCylinder(head.cylinder);
 
             // Determine when the step will be completed
@@ -856,6 +859,7 @@ FloppyDrive::step(isize dir)
         if (head.cylinder < 83) {
 
             head.cylinder++;
+            didStep = true;
             recordCylinder(head.cylinder);
 
             // Determine when the step will be completed
@@ -868,21 +872,24 @@ FloppyDrive::step(isize dir)
         debug(DSK_CHECKSUM, "Stepping up to cylinder %ld\n", head.cylinder);
     }
     
-    // Push drive head forward
-    if (ALIGN_HEAD) head.offset = 0;
-    
-    // Notify the GUI
-    if (pollsForDisk()) {
-        
-        msgQueue.put(Msg::DRIVE_POLL, DriveMsg {
-            i16(objid), i16(head.cylinder), config.pollVolume, config.pan
-        });
-        
-    } else {
+    if (didStep) {
 
-        msgQueue.put(Msg::DRIVE_STEP, DriveMsg {
-            i16(objid), i16(head.cylinder), config.stepVolume, config.pan
-        });
+        // Push drive head forward
+        if (ALIGN_HEAD) head.offset = 0;
+
+        // Notify the GUI
+        if (pollsForDisk()) {
+
+            msgQueue.put(Msg::DRIVE_POLL, DriveMsg {
+                i16(objid), i16(head.cylinder), config.pollVolume, config.pan
+            });
+
+        } else {
+
+            msgQueue.put(Msg::DRIVE_STEP, DriveMsg {
+                i16(objid), i16(head.cylinder), config.stepVolume, config.pan
+            });
+        }
     }
 }
 
@@ -1027,11 +1034,12 @@ FloppyDrive::catchFile(const fs::path &path)
     auto fs = MutableFileSystem(*this);
     
     // Seek file
-    auto file = fs.seekFile(path).ptr();
-    
+    auto file = fs.seekPtr(&fs.root(), path);
+    if (!file->isFile()) throw AppError(Fault::FS_NOT_A_FILE, path.string());
+
     // Extract file
     Buffer<u8> buffer;
-    file->writeData(buffer);
+    file->extractData(buffer);
     
     // Parse hunks
     auto descr = ProgramUnitDescriptor(buffer);
@@ -1068,11 +1076,11 @@ FloppyDrive::insertDisk(std::unique_ptr<FloppyDisk> disk, Cycle delay)
 }
 
 void
-FloppyDrive::insertNew(FSVolumeType fs, BootBlockId bb, string name, const fs::path &path)
+FloppyDrive::insertNew(FSFormat fs, BootBlockId bb, string name, const fs::path &path)
 {
     debug(DSK_DEBUG,
           "insertNew(%s, %s, %s, %s)\n",
-          FSVolumeTypeEnum::key(fs), BootBlockIdEnum::key(bb), name.c_str(), path.string().c_str());
+          FSFormatEnum::key(fs), BootBlockIdEnum::key(bb), name.c_str(), path.string().c_str());
     
     
     // Create a file system and import the directory
@@ -1082,7 +1090,7 @@ FloppyDrive::insertNew(FSVolumeType fs, BootBlockId bb, string name, const fs::p
     volume.makeBootable(bb);
     
     // Check file system consistency
-    volume.verify();
+    if (FS_DEBUG) volume.doctor.xray(true, std::cout, false);
 
     // Convert the file system into an ADF
     ADFFile adf(volume);
@@ -1135,7 +1143,7 @@ FloppyDrive::swapDisk(const fs::path &path)
         
     try {
 
-        insertNew(FSVolumeType::OFS, BootBlockId::AMIGADOS_13, path.filename().string(), path);
+        insertNew(FSFormat::OFS, BootBlockId::AMIGADOS_13, path.filename().string(), path);
 
     }  catch (AppError &err) {
         
@@ -1151,7 +1159,7 @@ FloppyDrive::swapDisk(const fs::path &path)
 }
 
 void
-FloppyDrive::insertMediaFile(class MediaFile &file, bool wp)
+FloppyDrive::insertMediaFile(const class MediaFile &file, bool wp)
 {
     try {
         
