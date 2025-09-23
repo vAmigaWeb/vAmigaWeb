@@ -70,6 +70,8 @@ public:
         CLONE(debt)
         CLONE(slowCycles)
 
+        // CLONE(instrStyle)
+        // CLONE(dataStyle)
         CLONE(clock)
         CLONE(reg.pc)
         CLONE(reg.pc0)
@@ -97,6 +99,7 @@ public:
         CLONE(queue.irc)
         CLONE(queue.ird)
 
+        CLONE(irqMode)
         CLONE(ipl)
         CLONE(fcl)
         CLONE(fcSource)
@@ -108,6 +111,12 @@ public:
         CLONE(flags)
 
         CLONE(config)
+
+        if (cpuModel != other.cpuModel) {
+
+            setModel((moira::Model)other.config.revision,
+                     (moira::Model)other.config.dasmRevision);
+        }
 
         return *this;
     }
@@ -158,6 +167,7 @@ private:
         << queue.irc
         << queue.ird
 
+        << irqMode
         << ipl
         << fcl
         << fcSource

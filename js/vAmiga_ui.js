@@ -542,6 +542,9 @@ function message_handler_queue_worker(msg, data, data2)
     {
         let cause = msg == "MSG_SNAPSHOT_RESTORED" ? "(snapshot)":"(workspace)";
 
+        //override loaded warp setting
+        wasm_set_warp( warp_switch.prop('checked') ? 0 /*auto*/:1/*never*/)
+
         let v=wasm_get_config_item("BLITTER.ACCURACY");
         $(`#button_OPT_BLITTER_ACCURACY`).text(`blitter accuracy=${v} ${cause}`);
         
