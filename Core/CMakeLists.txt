@@ -52,16 +52,20 @@ else()
   target_compile_options(VACore PUBLIC -Wno-nested-anon-types)
   target_compile_options(VACore PRIVATE -Wall -Werror)
   target_compile_options(VACore PRIVATE -Wno-unused-parameter -Wno-unused-but-set-variable)
-  target_compile_options(VACore PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions)
-  target_compile_options(VACore PRIVATE -Wfatal-errors)
+ # target_compile_options(VACore PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions)
+ target_compile_options(VACore PRIVATE -O3 -mnontrapping-fptoint -fexceptions)
+
+ target_compile_options(VACore PRIVATE -Wfatal-errors)
 
   if("${thread_type}" STREQUAL "worker")
 	  target_compile_options(VACore PRIVATE -sWASM_WORKERS)
   endif()
   
   #target_compile_options(VACore PRIVATE -g) 
-  set_target_properties(VACore PROPERTIES LINK_FLAGS "-O3 -mnontrapping-fptoint -fwasm-exceptions" )
-endif()
+  #set_target_properties(VACore PROPERTIES LINK_FLAGS "-O3 -mnontrapping-fptoint -fwasm-exceptions" )
+  set_target_properties(VACore PROPERTIES LINK_FLAGS "-O3 -mnontrapping-fptoint -fexceptions" )
+
+  endif()
 
 # Add include paths
 target_include_directories(VACore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
