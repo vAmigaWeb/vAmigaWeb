@@ -23,8 +23,7 @@ endif()
 
 target_compile_options(vAmiga PRIVATE -Wall -Werror -Wno-braced-scalar-init)
 target_compile_options(vAmiga PRIVATE -Wno-unused-parameter)
-#target_compile_options(vAmiga PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions)
-target_compile_options(vAmiga PRIVATE -O3 -mnontrapping-fptoint -fexceptions)
+target_compile_options(vAmiga PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions)
 target_compile_options(vAmiga PRIVATE -Wfatal-errors)
 #target_compile_options(vAmiga PRIVATE -g) 
 
@@ -35,8 +34,7 @@ target_link_libraries(vAmiga VACore)
 #emscripten linker settings
 
 #set(LF_OPTI  "-O3 -s NO_DISABLE_EXCEPTION_CATCHING")
-#set(LF_OPTI  "-O3 -mnontrapping-fptoint -fwasm-exceptions")
-set(LF_OPTI  "-O3 -mnontrapping-fptoint -fexceptions")
+set(LF_OPTI  "-O2 -mnontrapping-fptoint -fwasm-exceptions")
 
 set(LF_SHELL "--shell-file ../shell.html")
 
