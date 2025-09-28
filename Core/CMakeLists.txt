@@ -52,8 +52,7 @@ else()
   target_compile_options(VACore PUBLIC -Wno-nested-anon-types)
   target_compile_options(VACore PRIVATE -Wall -Werror)
   target_compile_options(VACore PRIVATE -Wno-unused-parameter -Wno-unused-but-set-variable)
- # target_compile_options(VACore PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions)
- target_compile_options(VACore PRIVATE -O3 -mnontrapping-fptoint -fexceptions)
+  target_compile_options(VACore PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions)
 
  target_compile_options(VACore PRIVATE -Wfatal-errors)
 
@@ -62,9 +61,8 @@ else()
   endif()
   
   #target_compile_options(VACore PRIVATE -g) 
-  #set_target_properties(VACore PROPERTIES LINK_FLAGS "-O3 -mnontrapping-fptoint -fwasm-exceptions" )
-  set_target_properties(VACore PROPERTIES LINK_FLAGS "-O3 -mnontrapping-fptoint -fexceptions" )
-
+  set_target_properties(VACore PROPERTIES LINK_FLAGS "-O3 -mnontrapping-fptoint -fwasm-exceptions" )
+  
   endif()
 
 # Add include paths
