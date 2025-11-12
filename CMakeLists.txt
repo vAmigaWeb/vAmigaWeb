@@ -30,6 +30,11 @@ target_compile_options(vAmiga PRIVATE -Wfatal-errors)
 
 add_subdirectory("Core" "VACore")
 target_link_libraries(vAmiga VACore)
+target_link_options(VACore PRIVATE
+    "-O2"
+    "-mnontrapping-fptoint"
+    "-fwasm-exceptions"
+)
 
 #emscripten linker settings
 
