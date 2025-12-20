@@ -87,6 +87,7 @@ body
 {
     user-select: none;
     -webkit-user-select: none;
+    touch-action: manipulation;
     overflow:hidden;
     overscroll-behavior: none; /* blocks swipe navigation */
     background-color: var(--lighterbg) !important;
@@ -253,6 +254,12 @@ color: #aaa !important;
 
     width: 100vw;
 }
+#button_show_menu {
+    position: fixed; 
+    top:6px; 
+    left:calc(env(safe-area-inset-left) / 2);
+    z-index:200;    
+}
 #navgrid {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -265,6 +272,7 @@ color: #aaa !important;
     grid-template-columns: repeat(auto-fit, minmax(36px, auto)); /* Responsive grid for left side */
     gap: 0px;
     justify-content: start;
+    margin-left: calc(env(safe-area-inset-left) / 2);
 }
 
 .left > *, .right > * {
@@ -283,6 +291,7 @@ color: #aaa !important;
     gap: 1px;
     justify-content: end;
     padding-right: 2px;
+    margin-right: calc(env(safe-area-inset-right) / 2);
 }
 
 @media (max-width: 600px) {
@@ -368,6 +377,8 @@ color: #aaa !important;
     outline: none;
     overflow-y: auto;
     opacity: 1.0;
+    padding-left: calc(env(safe-area-inset-left) * 2.25);
+    padding-right: calc(env(safe-area-inset-right) * 2.25);
 }
 
 
@@ -509,6 +520,7 @@ button[id^="detail_run"] {
 
 [key-state="pressed"] {
     box-shadow: inset 0 0 0.1em white, 0em 0em 3em white;
+    animation: popBounce 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
 }
 
 .darkkey {
@@ -820,3 +832,16 @@ input[type="range"]::-moz-range-thumb {
     padding-right: 10px;
 }
 
+
+@keyframes popBounce {
+  0%   { transform: scale(0.6); }
+  25%  { transform: scale(1.4); }
+  40%  { transform: scale(0.9); }
+  50%  { transform: scale(1.05); }
+  65%  { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+.pop {
+    animation: popBounce 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+}

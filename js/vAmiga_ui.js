@@ -102,6 +102,32 @@ async function load_all_sounds()
 load_all_sounds();
 df0_poll_sound=true;
 
+add_click=function(element, handler) {
+    window.app = window.app || {};
+    Object.defineProperty(window.app, element+"_click", {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: handler
+    });
+
+    let btn =document.getElementById(element)
+    let animating = false;
+    btn.addEventListener('animationend', () => {
+        btn.classList.remove('pop');
+        animating = false;
+    });
+    btn.addEventListener("pointerup",
+     function () {
+        if (!animating) {
+          animating = true;
+          // void btn.offsetWidth; 
+            btn.classList.add("pop");
+        };
+        handler();
+    }); 
+}
+
 const load_script= (url) => {
     return new Promise(resolve =>
     {
@@ -419,7 +445,7 @@ function message_handler_queue_worker(msg, data, data2)
                 if(call_param_navbar=='hidden')
                 {
                     setTimeout(function(){
-                        $("#button_show_menu").click();
+                        app.button_show_menu_click();
                     },500);
                 }
                 let url = await load_parameter_link();
@@ -1866,7 +1892,6 @@ function restore_manual_state(port)
 
 
 function InitWrappers() {
-    try{add_pencil_support_for_elements_which_need_it();} catch(e) {console.error(e)}
     wasm_loadfile = function (file_name, file_buffer, drv_number=0) {
         let file_slot_wasmbuf = Module._malloc(file_buffer.byteLength);
         Module.HEAPU8.set(file_buffer, file_slot_wasmbuf);
@@ -2270,7 +2295,7 @@ function InitWrappers() {
         {
             if(required_roms_loaded)
             {
-                $('#button_run').click();
+                app.button_run_click();
                 window.parent.postMessage({ msg: 'render_run_state', value: is_running()},"*");
             }
         }
@@ -2630,7 +2655,8 @@ function InitWrappers() {
     //--
 
     installKeyboard();
-    $("#button_keyboard").click(function(){
+    add_click("button_keyboard",function(){
+        $('#virtual_keyboard').collapse('toggle');
         setTimeout( scaleVMCanvas, 500);
         setTimeout( hide_all_tooltips, 1000);
     });
@@ -2652,6 +2678,10 @@ function InitWrappers() {
     $('#navbar').on('shown.bs.collapse', function () { 
     });
 
+    add_click("button_show_menu", function() {
+        $('#navbar').collapse('toggle');
+    });
+
     burger_time_out_handle=null
     burger_button=null;
     menu_button_fade_in = function () {
@@ -2671,19 +2701,16 @@ function InitWrappers() {
             {
                 burger_button.fadeTo( "slow", 0.0 );
             }
-        },5000);    
+        },4500);    
     };
 
     //make the menubutton not visible until a click or a touch
     menu_button_fade_in();
     burger_button.hover(function(){ menu_button_fade_in();});
 
-    window.addEventListener("click", function() {
+    window.addEventListener("pointerdown", function() {
         menu_button_fade_in();
     });
-    $("#canvas").on({ 'touchstart' : function() {
-        menu_button_fade_in();
-    }});
 
 //----
     auto_selecting_app_title_switch = $('#auto_selecting_app_title_switch');
@@ -3386,7 +3413,7 @@ if(document.fullscreenEnabled)
         );
     });
 
-    fullscreen_switch.click( ()=>{	
+    add_click("button_fullscreen", ()=>{	
         if(!document.fullscreenElement)
             document.documentElement.requestFullscreen({navigationUI: "hide"});
         else
@@ -3397,6 +3424,17 @@ else
 {
     fullscreen_switch.hide();
 }
+//------
+add_click("btn_activity_monitor", ()=>{
+    action('activity_monitor');
+});
+
+//------
+
+add_click("button_settings", function() {
+    $('#modal_settings').modal('show');
+});
+
 //------
 
 $('.layer').change( function(event) {
@@ -3478,16 +3516,16 @@ $('.layer').change( function(event) {
             return true;
         }
     );
-    document.getElementById('button_reset').onclick = function() {
+    add_click('button_reset', function() {
         $("#modal_reset").modal('show');
-    }
+    });
     document.getElementById('button_reset_confirmed').onclick = function() {
         setTimeout(release_modifiers, 0);
         wasm_reset();
 
         if(!is_running())
         {
-            $("#button_run").click();
+            app.button_run_click();
         }
         $("#modal_reset").modal('hide').blur();
     }
@@ -3495,7 +3533,7 @@ $('.layer').change( function(event) {
 
     running=false;
     emulator_currently_runs=false;
-    $("#button_run").click(function() {
+    add_click("button_run", function() {
         hide_all_tooltips();
         if(running)
         {        
@@ -3522,7 +3560,7 @@ $('.layer').change( function(event) {
         //document.getElementById('canvas').focus();
     });
     
-    $("#button_ff").click(()=> {
+    add_click("button_ff",()=> {
         action('toggle_warp'); 
         hide_all_tooltips();
     });
@@ -3580,7 +3618,7 @@ $('.layer').change( function(event) {
 
         if(!is_running())
         {
-            $("#button_run").click();
+            app.button_run_click();
         }
 
         if(reset_before_load == false)
@@ -3654,7 +3692,7 @@ $('.layer').change( function(event) {
         }
     });
 
-    document.getElementById('button_take_snapshot').onclick = function() 
+    add_click('button_take_snapshot', function() 
     {       
         wasm_halt();
         $("#modal_take_snapshot").modal('show');
@@ -3683,7 +3721,7 @@ $('.layer').change( function(event) {
                 $("#button_export_hd"+dfn+"_folder").hide();
             }
         }
-    }
+    });
     for(var dn=0; dn<4; dn++)
     {
         $('#button_export_df'+dn).click(function() 
@@ -3879,7 +3917,7 @@ $('.layer').change( function(event) {
             $('#button_speed_toggle').show();
  
         current_speed=100;
-        $('#button_speed_toggle').click();
+        app.button_speed_toggle_click();
         
         save_setting('frame_sync', new_speed);
     }
@@ -3890,7 +3928,7 @@ $('.layer').change( function(event) {
         $("#modal_settings").focus();
     });
     
-    $('#button_speed_toggle').click(function () 
+    add_click('button_speed_toggle',function () 
     {
         hide_all_tooltips();
         if(current_speed==100)
@@ -3905,7 +3943,7 @@ $('.layer').change( function(event) {
                 <path style='opacity:${current_speed == 100 ? 1:1}'  d="M8 2a.5.5 0 0 1 .5.5V4a.5.5 0 0 1-1 0V2.5A.5.5 0 0 1 8 2M3.732 3.732a.5.5 0 0 1 .707 0l.915.914a.5.5 0 1 1-.708.708l-.914-.915a.5.5 0 0 1 0-.707M2 8a.5.5 0 0 1 .5-.5h1.586a.5.5 0 0 1 0 1H2.5A.5.5 0 0 1 2 8m9.5 0a.5.5 0 0 1 .5-.5h1.5a.5.5 0 0 1 0 1H12a.5.5 0 0 1-.5-.5m.754-4.246a.39.39 0 0 0-.527-.02L7.547 7.31A.91.91 0 1 0 8.85 8.569l3.434-4.297a.39.39 0 0 0-.029-.518z"/>
                 <path style='opacity:${current_speed == 100 ? 1:1}' fill-rule="evenodd" d="M6.664 15.889A8 8 0 1 1 9.336.11a8 8 0 0 1-2.672 15.78zm-4.665-4.283A11.95 11.95 0 0 1 8 10c2.186 0 4.236.585 6.001 1.606a7 7 0 1 0-12.002 0"/>
             </svg>
-            <div style="font-size: x-small;position: absolute;top: -2px;width:44px;text-align:center;margin-left: -11px;">
+            <div style="font-size: x-small;position: absolute;top:-4px;width:44px;text-align:center;margin-left: -11px;">
             ${current_speed>4?'&nbsp;'+current_speed+'%': current_speed<0?'&frac12;vsync':current_speed==1?'vsync':current_speed+'vsync' }
             </div>
             <div id="host_fps" style="font-size: xx-small;position: absolute;top: 32px;width:44px;text-align:center;margin-left: -11px;">
@@ -3919,7 +3957,7 @@ $('.layer').change( function(event) {
 //        $("#modal_settings").focus();
     });
     set_speed(load_setting("frame_sync","100%"));
-    $('#button_speed_toggle').click();
+    app.button_speed_toggle_click();
 //--
     set_run_ahead = function (run_ahead) {
         $("#button_run_ahead").text("run ahead = "+run_ahead);
@@ -4194,6 +4232,13 @@ $('.layer').change( function(event) {
 
     setup_browser_interface();
 
+    add_click('port1', function() {
+     document.getElementById('port1').focus();
+    });
+    add_click('port2', function() {
+     document.getElementById('port2').focus();
+    });
+
     document.getElementById('port1').onchange = function() {
         port1 = document.getElementById('port1').value; 
         if(port1 == port2 || 
@@ -4293,7 +4338,7 @@ $('.layer').change( function(event) {
         handleFileInput();
     }, false);
 
-    document.getElementById('drop_zone').addEventListener("click", function(e) {
+    add_click('drop_zone', function(e) {
         if(last_zip_archive_name != null)
         {
             file_slot_file_name = last_zip_archive_name;
@@ -4302,9 +4347,9 @@ $('.layer').change( function(event) {
         }
         else
         {
-            document.getElementById('theFileInput').elements['theFileDialog'].click();
+            document.getElementById('filedialog').click();
         }
-    }, false);
+    });
 
     document.getElementById('drop_zone').addEventListener("dragover", function(e) {
         dragover_handler(e);
@@ -4459,8 +4504,7 @@ $('.layer').change( function(event) {
     if(bEnableCustomKeys)
     {
         create_new_custom_key = false;
-        $("#button_custom_key").click(
-            function(e) 
+        add_click("button_custom_key", function(e) 
             {  
                 create_new_custom_key = true;
                 $('#input_button_text').val('');
@@ -5591,17 +5635,6 @@ function add_pencil_support_to_childs(element) {
         if (child.nodeType === Node.ELEMENT_NODE)
           add_pencil_support(child);
     });  
-}
-function add_pencil_support_for_elements_which_need_it()
-{
-    let elements_which_need_pencil_support=
-        ["button_show_menu","button_run", "button_reset", "button_take_snapshot",
-        "button_snapshots", "button_keyboard", "button_custom_key", "drop_zone",
-        "button_fullscreen", "button_settings", "port1", "port2" ]
-    for(let element_id of elements_which_need_pencil_support)
-    {
-        add_pencil_support(document.getElementById(element_id));
-    }
 }
 
 function copy_to_clipboard(element) {
