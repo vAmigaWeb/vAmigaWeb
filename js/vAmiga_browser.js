@@ -28,7 +28,7 @@ function load_workspace(name){
 
     if(!is_running())
     {
-        $("#button_run").click();
+        app.button_run_click();
     }     
 }
 
@@ -180,8 +180,9 @@ function setup_browser_interface()
     });
 
     //button in navbar menu
-    document.getElementById('button_snapshots').onclick = async function() 
+    add_click('button_snapshots', async function() 
     {
+        $('#snapshotModal').modal('show');
         await load_browser(current_browser_datasource);
         if(snapshot_browser_first_click)
         {//if there are no taken snapshots -> select workspace_db
@@ -195,7 +196,7 @@ function setup_browser_interface()
 //                document.getElementById('sel_browser_workspace_db').click();   
             }
         }   
-    }
+    });
 }
 
 
@@ -553,7 +554,7 @@ var collectors = {
                 $('#snapshotModal').modal('hide');
                 if(!is_running())
                 {
-                    $("#button_run").click();
+                    app.button_run_click();
                 }            
             }
             else
@@ -584,7 +585,7 @@ var collectors = {
                         );
                         if(!is_running())
                         {
-                            $("#button_run").click();
+                            app.button_run_click();
                         }            
                     }
                 );

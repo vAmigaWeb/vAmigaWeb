@@ -202,7 +202,7 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
         {
             if(is_running())
             {
-                $('#button_run').click();   
+                app.button_run_click();   
             } 
         }
     
@@ -213,7 +213,7 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
         {
             if(!is_running())
             {
-                $('#button_run').click();   
+                app.button_run_click();   
             } 
         }
     }
@@ -221,7 +221,7 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
     {
         if(execute)
         {
-            $('#button_run').click();   
+            app.button_run_click();   
         }
     }
     else if(cmd == 'toggle_warp')
@@ -259,7 +259,7 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
     {
         if(execute)
         {
-            $('#button_speed_toggle').click();
+            app.button_speed_toggle_click();
         }
     }    
     else if(cmd.match(/^[0-9]+ms$/) != null)
@@ -273,21 +273,21 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
     {
         if(execute)
         {
-            $('#button_take_snapshot').click();
+            app.button_take_snapshot_click();
         }
     }
     else if(cmd == 'keyboard')
     {
         if(execute)
         {
-            $('#button_keyboard').click();
+            app.button_keyboard_click();
         }
     }
     else if(cmd == 'menubar')
     {
         if(execute)
         {
-            $("#button_show_menu").click();
+            app.button_show_menu_click();
         }
     }
     else if(cmd == 'clipboard_paste')
@@ -302,7 +302,7 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
     {
         if(execute)
         {
-            $('#button_fullscreen').click();
+            app.button_fullscreen_click();
         }
     }
     else if(cmd == 'restore_last_snapshot')
@@ -494,7 +494,7 @@ function execute_joystick_script(cmd_tokens)
             snapshot.data);
         if(!is_running())
         {
-            $("#button_run").click();
+            app.button_run_click();
         }  
         {
             wasm_run();
