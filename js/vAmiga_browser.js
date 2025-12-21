@@ -271,7 +271,7 @@ async function load_browser(datasource_name, command="feeds")
         var the_html=
         '<div class="col-xs-4 mr-2">'
         +`<div id="card_snap_${item.id}" class="card" style="width: ${scaled_width}rem;">`
-            +`<canvas id="canvas_snap_${item.id}" width="${canvas_width}" height="${canvas_height}" class="card-img-top rounded"></canvas>`;
+            +`<img id="img_snap_${item.id}" width="${canvas_width}" height="${canvas_height}" class="card-img-top rounded"/>`;
         if(collector.can_delete(app_title, item.id))
         {
             the_html += '<button id="delete_snap_'+item.id+'" type="button" style="position:absolute;top:0;right:0;padding:0;" class="btn btn-sm icon">'+x_icon+'</button>';
@@ -327,11 +327,11 @@ async function load_browser(datasource_name, command="feeds")
         $('#container_snapshots').append(the_grid);
         for(var z=0; z<app_snaps.length; z++)
         {
-            var canvas_id= "canvas_snap_"+app_snaps[z].id;
+            var img_id= "img_snap_"+app_snaps[z].id;
             var delete_id= "delete_snap_"+app_snaps[z].id;
             var export_id= "export_snap_"+app_snaps[z].id;
             var like_id= "like_snap_"+app_snaps[z].id;
-            var canvas = document.getElementById(canvas_id);
+            var img = document.getElementById(img_id);
             var delete_btn = document.getElementById(delete_id);
             var like_btn = document.getElementById(like_id);
             var export_btn = document.getElementById(export_id);
@@ -363,12 +363,12 @@ async function load_browser(datasource_name, command="feeds")
                 };
             }
 
-            canvas.onclick = function() {
-                let id = this.id.match(/canvas_snap_(.*)/)[1];
+            img.onclick = function() {
+                let id = this.id.match(/img_snap_(.*)/)[1];
                 collector.show_detail(app_title, id);
             };
             try {
-                collector.draw_item_into_canvas(app_title, canvas, app_snaps[z]);  
+                collector.draw_item_into_img(app_title, img, app_snaps[z]);  
             } catch(e) { console.error(e); }
               
         }
@@ -480,62 +480,71 @@ var collectors = {
                 get_data_collector('snapshots').set_busy(false);
             }
         },
-        draw_item_into_canvas: function (app_title, teaser_canvas, item){
+        draw_item_into_img: function (app_title, teaser_img, item){
             if(app_title == 'auto_save')
             {
                 var id = item.internal_id; 
-                this.copy_autosnapshot_to_canvas(auto_snaps[id], teaser_canvas);
+                this.copy_autosnapshot_to_img(auto_snaps[id], teaser_img);
+                return;
             }
-            else
-            {
-                var src_data = item.data;
-                var version = src_data[6] +'.'+src_data[7]+'.'+src_data[8];
-                if(src_data[9]>0)
-                {
-                    version += `_beta${src_data[9]}`;
-                }
-                width=src_data[13]*256+ src_data[12];
-                height=src_data[17]*256+ src_data[16];
-                if(width==0)
-                {//width is 0 if there is structure padding for 8 byte aligment instead of 4
-                    width=src_data[13+4]*256+ src_data[12+4];
-                    height=src_data[17+4]*256+ src_data[16+4];
-                }
-                if(version[0]>=3)
-                {
-                    width=src_data[13+4]*256+ src_data[12+4];
-                    height=src_data[17+4]*256+ src_data[16+4];
-                }
-                var ctx = teaser_canvas.getContext("2d");
-                teaser_canvas.width = width;
-                teaser_canvas.height = height;
-                if(ctx!=null)
-                {
-                    imgData=ctx.createImageData(width,height);
-                
-                    var data = imgData.data;
-                    let snapshot_data = new Uint8Array(src_data, 40/* offset .. this number was a guess... */, data.length);
 
-                    data.set(snapshot_data.subarray(0, data.length), 0);
-                    ctx.putImageData(imgData,0,0); 
-                
-                    if(!version.match(compatible_snapshot_version_format))
-                    {
-                        ctx.translate(50, 0); // translate to rectangle center 
-                        ctx.rotate((Math.PI / 180) * 27); // rotate
-                        ctx.font = '32px serif';
-                        ctx.fillStyle = '#DD0000';
-                        ctx.fillText('compatible core '+version+' ', 10, 45);
-                    }
-                    else if(version!=vAmigaWeb_version)
-                    {
-                        ctx.translate(0, 230); // translate to rectangle center 
-                        //ctx.rotate((Math.PI / 180) * 27); // rotate
-                        ctx.font = '20px serif';
-                        ctx.fillStyle = '#aa0';
-                        ctx.fillText('saved with V'+version+' maybe incompatible', 10, 45);
-                    }
+            var src_data = item.data;
+            var version = src_data[6] +'.'+src_data[7]+'.'+src_data[8];
+            if(src_data[9]>0)
+            {
+                version += `_beta${src_data[9]}`;
+            }
+            width=src_data[13]*256+ src_data[12];
+            height=src_data[17]*256+ src_data[16];
+            if(width==0)
+            {//width is 0 if there is structure padding for 8 byte aligment instead of 4
+                width=src_data[13+4]*256+ src_data[12+4];
+                height=src_data[17+4]*256+ src_data[16+4];
+            }
+            if(version[0]>=3)
+            {
+                width=src_data[13+4]*256+ src_data[12+4];
+                height=src_data[17+4]*256+ src_data[16+4];
+            }
+
+            // draw into an offscreen canvas and set the image src to a data URL
+            var canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            var ctx = canvas.getContext('2d');
+            if(ctx!=null)
+            {
+                var imgData = ctx.createImageData(width,height);
+                var data = imgData.data;
+                let snapshot_data = new Uint8Array(src_data, 40/* offset .. this number was a guess... */, data.length);
+                data.set(snapshot_data.subarray(0, data.length), 0);
+                ctx.putImageData(imgData,0,0);
+
+                if(!version.match(compatible_snapshot_version_format))
+                {
+                    ctx.translate(50, 0); // translate to rectangle center 
+                    ctx.rotate((Math.PI / 180) * 27); // rotate
+                    ctx.font = '32px serif';
+                    ctx.fillStyle = '#DD0000';
+                    ctx.fillText('compatible core '+version+' ', 10, 45);
                 }
+                else if(version!=vAmigaWeb_version)
+                {
+                    ctx.translate(0, 230); // translate to rectangle center 
+                    ctx.font = '20px serif';
+                    ctx.fillStyle = '#aa0';
+                    ctx.fillText('saved with V'+version+' maybe incompatible', 10, 45);
+                }
+            }
+
+            try {
+                teaser_img.src = canvas.toDataURL('image/png');
+            } catch(e) {
+                // fallback: create blob
+                canvas.toBlob(function(blob){
+                    var url = URL.createObjectURL(blob);
+                    teaser_img.src = url;
+                });
             }
             return; 
         },
@@ -625,29 +634,33 @@ var collectors = {
             return false;
         },
         //helper method...
-        copy_snapshot_to_canvas: function(snapshot_ptr, canvas, width, height){ 
-            var ctx = canvas.getContext("2d");
+        copy_snapshot_to_img: function(snapshot_ptr, img, width, height){ 
+            var canvas = document.createElement('canvas');
             canvas.width = width;
             canvas.height = height;
-            imgData=ctx.createImageData(width,height);
+            var ctx = canvas.getContext('2d');
+            var imgData = ctx.createImageData(width,height);
 
             var data = imgData.data;
 
             let snapshot_data = new Uint8Array(Module.HEAPU8.buffer, snapshot_ptr, data.length);
 
             data.set(snapshot_data.subarray(0, data.length), 0);
-            ctx.putImageData(imgData,0,0); 
+            ctx.putImageData(imgData,0,0);
+            try { img.src = canvas.toDataURL('image/png'); } catch(e) { canvas.toBlob(b=>{ img.src = URL.createObjectURL(b); }); }
         },
-        copy_autosnapshot_to_canvas: function(snapshot_data, canvas){ 
-            var ctx = canvas.getContext("2d");
+        copy_autosnapshot_to_img: function(snapshot_data, img){ 
+            var canvas = document.createElement('canvas');
             canvas.width = snapshot_data[13+4]*256+ snapshot_data[12+4];
             canvas.height = snapshot_data[17+4]*256+ snapshot_data[16+4];
-            imgData=ctx.createImageData(canvas.width,canvas.height);
+            var ctx = canvas.getContext('2d');
+            var imgData = ctx.createImageData(canvas.width,canvas.height);
 
             var data = imgData.data;
 
             data.set(snapshot_data.subarray(0, data.length), 0);
-            ctx.putImageData(imgData,0,0); 
+            ctx.putImageData(imgData,0,0);
+            try { img.src = canvas.toDataURL('image/png'); } catch(e) { canvas.toBlob(b=>{ img.src = URL.createObjectURL(b); }); }
         }
 
     },
@@ -778,20 +791,16 @@ var collectors = {
                 this.set_busy(false);
             }
         },
-        draw_item_into_canvas: function (app_title, teaser_canvas, item){
-            var ctx = teaser_canvas.getContext('2d');
-            var img = new Image;
-            img.onload = function(){
-                if(ctx!=null && img != null)
-                {
-                    ctx.drawImage(img,0,0); // Or at whatever offset you like
-                }
-            };
+        draw_item_into_img: function (app_title, teaser_img, item){
             if(item.screen_shot != null)
             {
-                img.src=item.screen_shot;
+                teaser_img.src = item.screen_shot;
             }
-            return; 
+            else
+            {
+                teaser_img.src = '';
+            }
+            return;
         },
         show_detail:function (app_title, id){
             var item = this.all_items[id];
