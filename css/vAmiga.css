@@ -517,10 +517,56 @@ button[id^="detail_run"] {
 [shift-keys="pressed"] .keycap {
     font-size:calc(var(--keycap_size) / 4.5);
 }
+@keyframes pressedAnimation {
+  0%   { transform: scale(1.0); }
+  40%  { transform: scale(0.8); }
+  50%  { transform: scale(1.2); }
+  65%  { transform: scale(1.35);}
+  100% { transform: scale(1.25); }
+}
+
+@keyframes releasedAnimation {
+  0%   { transform: scale(1.25); }
+  25%  { transform: scale(1.35); }
+  40%  { transform: scale(0.92); }
+  50%  { transform: scale(1.04); }
+  65%  { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+
+@keyframes pressedSpaceAnimation {
+  0%   { transform: scale(1.0); }
+  40%  { transform: scale(0.98); }
+  50%  { transform: scale(1.04); }
+  65%  { transform: scale(1.08);}
+  100% { transform: scale(1.06); }
+}
+
+@keyframes releasedSpaceAnimation {
+  0%   { transform: scale(1.06); }
+  25%  { transform: scale(1.04); }
+  40%  { transform: scale(0.97); }
+  50%  { transform: scale(1.01); }
+  65%  { transform: scale(0.99); }
+  100% { transform: scale(1); }
+}
 
 [key-state="pressed"] {
     box-shadow: inset 0 0 0.1em white, 0em 0em 3em white;
-    animation: popBounce 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+    animation: pressedAnimation 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+}
+
+[key-state=""] {
+    animation: releasedAnimation 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+}
+
+#button_Space[key-state="pressed"] {
+    box-shadow: inset 0 0 0.1em white, 0em 0em 3em white;
+    animation: pressedSpaceAnimation 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+}
+
+#button_Space[key-state=""] {
+    animation: releasedSpaceAnimation 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
 }
 
 .darkkey {
