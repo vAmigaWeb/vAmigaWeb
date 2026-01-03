@@ -188,9 +188,53 @@ u16 hstart_min_calib=0;
 u16 hstop_max_calib=0;
 bool calculate_viewport_dimensions(u32 *texture)
 {
+#ifdef DEBUG_ME
+  printf("pic data = \n");
+  //mark corners with a red pixel
+  texture[((HPIXELS*vstart_min_tracking) + hstart_min_tracking)*TPP]=0xFF0000FF; 
+  texture[((HPIXELS*(vstop_max_tracking-1)) + hstop_max_tracking-1)*TPP]=0xFF0000FF; 
+
+  for(int y=vstart_min_tracking;y<vstop_max_tracking;y++)
+  {
+    u32 pixel=0;
+    u32 lastpixel = 0;
+    int lastpixel_cnt=0;
+    printf("\nline:%u\n",y);
+    for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
+      if(x==hstart_min_tracking)
+      {
+        lastpixel= texture[(HPIXELS*y + x)*TPP];
+        lastpixel_cnt=1;
+        continue;
+      }
+      
+      pixel= texture[(HPIXELS*y + x)*TPP];
+      if(pixel==lastpixel)
+        lastpixel_cnt++;
+      else
+      {
+        if(lastpixel_cnt>1)
+        {
+//          texture[(HPIXELS*y + x)*TPP]=0xFFFF00FF; //mark repeated pixels in magenta
+          printf("%x(%u) ",pixel, lastpixel_cnt);
+        }
+        else 
+          printf("%x ",lastpixel);  
+        lastpixel= pixel;
+        lastpixel_cnt=1;
+      }
+    }
+    if(lastpixel_cnt>1)
+      printf("%x(%u) ",pixel, lastpixel_cnt);
+
+  }
+ printf("pic data end \n");
+ return false;
+#endif 
+
   if(reset_calibration)
   {
-      //printf("reset_calibration %d %d\n",vstop_max_tracking, vstart_min_tracking);
+//      printf("reset_calibration vstart%d vstop %d hstart%d hstop%d\n", vstart_min_tracking,vstop_max_tracking, hstart_min_tracking, hstop_max_tracking);
       //first call after new viewport size
       //set start values to the opposite max. borderpos (scan area)  
       vstart_min_calib = vstop_max_tracking; 
@@ -210,7 +254,7 @@ bool calculate_viewport_dimensions(u32 *texture)
 //      printf("\nvstart_line:%u\n",y);
     for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
       u32 pixel= texture[(HPIXELS*y + x)*TPP];
-//        printf("%u:%u ",x,pixel);
+//        printf("%u:%x ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
 //        printf("\nfirst_pos=%d, vstart_min=%d, vstart_min_track=%d\n",y, vstart_min, vstart_min_tracking);
@@ -223,19 +267,19 @@ bool calculate_viewport_dimensions(u32 *texture)
   //bottom border: get vstop_max from texture
   pixels_found=false;
   ref_pixel= texture[ (HPIXELS*vstop_max_tracking + hstart_min_tracking)*TPP];
-//    printf("refpixel:%u\n",ref_pixel);
-//    printf("hstart:%u,hstop:%u\n",hstart_min,hstop_max);
+    //printf("refpixel:%x\n",ref_pixel);
+    //printf("hstart:%u,hstop:%u\n",hstart_min,hstop_max);
   
   for(int y=vstop_max_tracking;y>vstop_max_calib && !pixels_found;y--)
   {
-//      printf("\nline:%u\n",y);
+      //printf("\nline:%u\n",y);
     for(int x=hstart_min_tracking;x<hstop_max_tracking;x++){
       u32 pixel= texture[(HPIXELS*y + x)*TPP];
-//        printf("%u:%u ",x,pixel);
+        //printf("%u:%x ",x,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
         y++; //this line has pixels, so put vstop_max to the next line
-//        printf("\ncalib: last_pos=%d, vstop_max=%d, vstop_max_tracking%d\n",y, vstop_max, vstop_max_tracking);
+       // printf("\ncalib: has pixels last_pos=%d, vstop_max=%d, vstop_max_tracking%d\n",y, vstop_max, vstop_max_tracking);
         vstop_max_calib= y>vstop_max_calib?y:vstop_max_calib;
         break;
       }
@@ -243,19 +287,20 @@ bool calculate_viewport_dimensions(u32 *texture)
   }
 
   //left border: get hstart_min from texture
+  //printf("left border: get hstart_min from texture\n");
   pixels_found=false;
   ref_pixel= texture[ (HPIXELS*vstart_min_tracking + hstart_min_tracking-1)*TPP];
-
+    //printf("refpixel:%x\n",ref_pixel);
   for(int x=hstart_min_tracking-1;x<hstart_min_calib;x++)
   {
-//      printf("\nrow:%u\n",x);
+      //printf("\nx:%u\n",x);
     for(int y=vstart_min_calib;y<vstop_max_calib && !pixels_found;y++)
     {
       u32 pixel= texture[(HPIXELS*y + x)*TPP];
-//        printf("%u:%u ",x,pixel);
+        //printf("%u:%x ",y,pixel);
       if(ref_pixel != pixel){
         pixels_found=true;
-//          printf("\nlast_xpos=%d, hstop_max=%d\n",x, hstop_max);
+          //printf("\nlast_xpos=%d, hstop_max=%d\n",x, hstop_max);
         hstart_min_calib=x<hstart_min_calib?x:hstart_min_calib;
         break;
       }
@@ -334,7 +379,7 @@ bool calculate_viewport_dimensions(u32 *texture)
   }
 //  printf("\nCALIBRATED: (%d,%d) (%d,%d) \n",hstart_min, vstart_min, hstop_max, vstop_max);
 
-  //printf("calib dimensions changed=%d\n",dimensions_changed);
+//  printf("calib dimensions changed=%d\n",dimensions_changed);
   return dimensions_changed;
 }
 
@@ -615,7 +660,7 @@ void theListener(const void * emu, Message msg){
     vstart_min= msg.viewport.vstrt;
     hstop_max=  msg.viewport.hstop;
     vstop_max=  msg.viewport.vstop;
-    if(log_on) printf("tracking MSG_VIEWPORT=%d, %d, %d, %d\n",hstart_min, vstart_min, hstop_max, vstop_max);
+    /*if(log_on)*/ printf("tracking MSG_VIEWPORT=%d, %d, %d, %d\n",hstart_min, vstart_min, hstop_max, vstop_max); 
 
     hstart_min *=2;
     hstop_max *=2;
@@ -626,7 +671,17 @@ void theListener(const void * emu, Message msg){
     if(vstart_min < (ntsc ? NTSC::VBLANK_CNT : PAL::VBLANK_CNT)) 
       vstart_min = (ntsc ? NTSC::VBLANK_CNT : PAL::VBLANK_CNT);
 
-    
+    if(ntsc)
+    {
+      if(vstop_max > NTSC::VPOS_MAX)
+        vstop_max = NTSC::VPOS_MAX;
+    }
+    else
+    {
+     if(vstop_max > PAL::VPOS_MAX) 
+        vstop_max = PAL::VPOS_MAX;
+    }
+
     if(log_on)
     {
 #ifdef wasm_worker          
