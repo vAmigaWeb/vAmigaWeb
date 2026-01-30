@@ -1,6 +1,6 @@
 const url_root_path= self.location.pathname.replace("/sw.js","");
 const core_version  = '4.3.1'; //has to be the same as the version in Emulator/config.h and vAmiga_browser.js
-const ui_version = '2026_01_03'+url_root_path.replace("/","_"); 
+const ui_version = '2026_01_10'+url_root_path.replace("/","_"); 
 const needs_shared_array_buffer=@needs_shared_array_buffer@; //true when vAmiga runs in separat worker thread
 const cache_name = `${core_version}@${ui_version}`;
 const settings_cache = 'settings';
@@ -115,10 +115,12 @@ self.addEventListener('fetch', function(event){
          )
         ||
         event.request.url.toLowerCase().endsWith('vamigaweb_player.js')
-	||
+        ||
         event.request.url.endsWith('run.html')
-	||
+	      ||
         event.request.url.endsWith('cache_me=false')
+        ||
+        event.request.url.startsWith('https://cloud.umami.is')
       )
       {
         console.log('sw: do not cache fetched resource: '+event.request.url);
