@@ -167,10 +167,14 @@ background-color: var(--green) !important;
 {
     font-size: 1.2rem !important;
     opacity: 0.7 !important;
-    padding-top: 0.05rem;
-    padding-bottom: 0.05rem;
     z-index: 20;
     user-select: none;
+    --tx: 0;
+    --ty: 0;
+    transform: translate3d(var(--tx), var(--ty), 0);
+    padding: var(--padding) max(0.5rem, var(--padding)) var(--padding) max(0.5rem, var(--padding));
+    --padding: 0.05rem;
+    --scale_factor: min(1, calc( calc((var(--padding) / 4rem)) * 0.2));
 }
 
 [data-theme="dark"] .custom-select {
@@ -558,12 +562,12 @@ button[id^="detail_run"] {
   100% { transform: scale(1); }
 }
 
-[key-state="pressed"] {
+.keycap_base[key-state="pressed"] {
     box-shadow: inset 0 0 0.1em white, 0em 0em 3em white;
     animation: pressedAnimation 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
 }
 
-[key-state=""] {
+.keycap_base[key-state=""] {
     animation: releasedAnimation 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
 }
 
@@ -902,4 +906,30 @@ input[type="range"]::-moz-range-thumb {
 [id^="img_snap_"] {
     width: auto;
     height: auto;
+}
+
+@keyframes action_buttons_press_anim {
+  0%   { transform: translate3d(var(--tx), var(--ty), 0) scale(1); }
+  40%  { transform: translate3d(var(--tx), var(--ty), 0) scale(0.93); }
+  50%  { transform: translate3d(var(--tx), var(--ty), 0) scale(1.03); }
+  65%  { transform: translate3d(var(--tx), var(--ty), 0) scale(1.07);}
+  100% { transform: translate3d(var(--tx), var(--ty), 0) scale(1.05);}
+}
+
+@keyframes action_buttons_release_anim {
+  0%   { transform: translate3d(var(--tx), var(--ty), 0) scale(1.05); }
+  25%  { transform: translate3d(var(--tx), var(--ty), 0) scale(1.08); }
+  40%  { transform: translate3d(var(--tx), var(--ty), 0) scale(0.98); }
+  50%  { transform: translate3d(var(--tx), var(--ty), 0) scale(1.02); }
+  65%  { transform: translate3d(var(--tx), var(--ty), 0) scale(0.99); }
+  100% { transform: translate3d(var(--tx), var(--ty), 0) scale(1); }
+}
+
+
+
+.custom_key[key-state="pressed"] {
+    animation: action_buttons_press_anim 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+}
+.custom_key[key-state=""] {
+    animation: action_buttons_release_anim 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
 }
