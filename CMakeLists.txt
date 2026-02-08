@@ -23,23 +23,19 @@ endif()
 
 target_compile_options(vAmiga PRIVATE -Wall -Werror -Wno-braced-scalar-init)
 target_compile_options(vAmiga PRIVATE -Wno-unused-parameter)
-target_compile_options(vAmiga PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions)
+target_compile_options(vAmiga PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions -sWASM_LEGACY_EXCEPTIONS=0 -flto)
 target_compile_options(vAmiga PRIVATE -Wfatal-errors)
 #target_compile_options(vAmiga PRIVATE -g) 
 
 
 add_subdirectory("Core" "VACore")
 target_link_libraries(vAmiga VACore)
-target_link_options(VACore PRIVATE
-    "-O2"
-    "-mnontrapping-fptoint"
-    "-fwasm-exceptions"
-)
+
 
 #emscripten linker settings
 
 #set(LF_OPTI  "-O3 -s NO_DISABLE_EXCEPTION_CATCHING")
-set(LF_OPTI  "-O2 -mnontrapping-fptoint -fwasm-exceptions")
+set(LF_OPTI  "-O3 -mnontrapping-fptoint -fwasm-exceptions -sWASM_LEGACY_EXCEPTIONS=0 -flto")
 
 set(LF_SHELL "--shell-file ../shell.html")
 
