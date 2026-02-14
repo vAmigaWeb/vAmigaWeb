@@ -381,9 +381,12 @@ async function load_parameter_link()
     {
         parameter_link_mount_in_df0=parameter_link.match(/[.](adf|hdf|dms|exe|st)$/i);
         //get_data_collector("csdb").run_link("call_parameter", 0,parameter_link);            
+        $('#alert_wait').show().find("span:first").text(`looking for '${parameter_link}'`);
         let response = await fetch(parameter_link);
         file_slot_file_name = decodeURIComponent(response.url.match(".*/(.*)$")[1]);
+        $('#alert_wait').find("span:first").text(`downloading '${file_slot_file_name}'`);
         file_slot_file = new Uint8Array( await response.arrayBuffer());
+        $('#alert_wait').hide().find("span:first").text("loading please wait ...");
 
         configure_file_dialog(reset=true);
     }
