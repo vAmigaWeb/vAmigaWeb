@@ -513,6 +513,11 @@ button[id^="detail_run"] {
     background-color: #5a6268;
 }
 
+[id^="button_Enter"]:hover, [id^="button_Enter"]:focus, [id^="button_Enter"]:active {
+   background-color: var(--gray);
+}
+
+
 .keycap {
     font-size:calc(var(--keycap_size) / 2.5);
 }
