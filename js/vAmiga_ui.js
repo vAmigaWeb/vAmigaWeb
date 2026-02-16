@@ -2662,7 +2662,7 @@ function InitWrappers() {
         }
     }
     //--
-    let keyboard_layout = load_setting('keyboard_layout', navigator.language.toLowerCase().includes('us'));
+    let keyboard_layout = load_setting('keyboard_layout', !navigator.language.toLowerCase().includes('us'));
     installKeyboard(keyboard_layout); 
     reset_keyboard();
     add_click("button_keyboard",function(){
