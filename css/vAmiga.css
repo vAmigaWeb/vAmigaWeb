@@ -5,6 +5,8 @@
   --lightgray: #d8d8d8;
 }
 :root {
+    --keyboard_bottom_margin: 0px;
+    --keycap_zoom: 1.0;
     --keycap_size: calc(calc(calc(100vw / var(--keycap_columns)) *4) * var(--keycap_zoom));
 }
 #keyboard_grid {
@@ -511,6 +513,11 @@ button[id^="detail_run"] {
     background-color: #5a6268;
 }
 
+[id^="button_Enter"]:hover, [id^="button_Enter"]:focus, [id^="button_Enter"]:active {
+   background-color: var(--gray);
+}
+
+
 .keycap {
     font-size:calc(var(--keycap_size) / 2.5);
 }
@@ -521,8 +528,13 @@ button[id^="detail_run"] {
 .g-4 { grid-column: auto / span 4 }
 .g-5 { grid-column: auto / span 5 }
 .g-6 { grid-column: auto / span 6 }
+.g-7 { grid-column: auto / span 7 }
 .g-8 { grid-column: auto / span 8 }
+.g-9 { grid-column: auto / span 9 }
+.g-10 { grid-column: auto / span 10 }
 .g-11 { grid-column: auto / span 11 }
+.g-15 { grid-column: auto / span 15 }
+
 .g-32 { grid-column: auto / span 32 }
 
 [shift-keys="pressed"] .keycap {
@@ -565,6 +577,7 @@ button[id^="detail_run"] {
 .keycap_base[key-state="pressed"] {
     box-shadow: inset 0 0 0.1em white, 0em 0em 3em white;
     animation: pressedAnimation 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+    z-index: 1000;
 }
 
 .keycap_base[key-state=""] {
@@ -579,6 +592,17 @@ button[id^="detail_run"] {
 #button_Space[key-state=""] {
     animation: releasedSpaceAnimation 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
 }
+
+[id^="button_Enter"][key-state="pressed"] {
+    box-shadow: none;
+    animation: pressedSpaceAnimation 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+    background-color: var(--blue) !important;
+}
+
+[id^="button_Enter"][key-state=""] {
+    animation: releasedSpaceAnimation 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+}
+
 
 .darkkey {
     background-color: rgb(78,87,95);
