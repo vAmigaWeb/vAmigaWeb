@@ -300,17 +300,30 @@ function reset_keyboard()
     shift_pressed_count=0;
 }
 
-function installKeyboard() {
+function installKeyboard(layout=true) {
     reset_keyboard();
 
-    keymap= [ 
-    [{g: 6, k:'Esc', c:'Escape',cls:'darkkey',s:3},{g:1},{g:5,k:'F1',c:'F1', cls:'darkkey',s:2}, {g:5,k:'F2',c:'F2',cls:'darkkey',s:2},{g:5,k:'F3',c:'F3',cls:'darkkey',s:2},{g:5,k:'F4',c:'F4',cls:'darkkey',s:2},{g:5,k:'F5',c:'F5',cls:'darkkey',s:2},{g:2},{g:5,k:'F6',c:'F6',cls:'darkkey',s:2},{g:5,k:'F7',c:'F7',cls:'darkkey',s:2},{g:5,k:'F8',c:'F8',cls:'darkkey',s:2},{g:5,k:'F9',c:'F9',cls:'darkkey',s:2},{g:5,k:'F10',c:'F10',cls:'darkkey',s:2},{g: 1},{g:6,k:'Del',c:'Delete',cls:'darkkey',s:3},{g:7},{g:6,k:'hide', c:'hide_keyboard',cls:'darkkey',s:3}],
+    let intl_layout = layout;//navigator.language != 'en-US';
+    keymap= 
+    intl_layout?
+    [ 
+    [{g: 6, k:'Esc', c:'Escape',cls:'darkkey',s:3},{g:1},{g:5,k:'F1',c:'F1', cls:'darkkey',s:2}, {g:5,k:'F2',c:'F2',cls:'darkkey',s:2},{g:5,k:'F3',c:'F3',cls:'darkkey',s:2},{g:5,k:'F4',c:'F4',cls:'darkkey',s:2},{g:5,k:'F5',c:'F5',cls:'darkkey',s:2},{g:2},{g:5,k:'F6',c:'F6',cls:'darkkey',s:2},{g:5,k:'F7',c:'F7',cls:'darkkey',s:2},{g:5,k:'F8',c:'F8',cls:'darkkey',s:2},{g:5,k:'F9',c:'F9',cls:'darkkey',s:2},{g:5,k:'F10',c:'F10',cls:'darkkey',s:2},{g: 1},{g:6,k:'Del',c:'Delete',cls:'darkkey',s:3},{g:3},{k:'globe', c:'lang',cls:'darkkey'},{g:6,k:'hide', c:'hide_keyboard',cls:'darkkey',s:3}],
     [{k:'`',c:'Grave'}, {k:'1', sk:'!',c:'Digit1'},{k:'2', sk:'@',c:'Digit2'},{k:'3', sk:'#',c:'Digit3'},{k:'4', sk:'$', c:'Digit4'},{k:'5',sk:'%',c:'Digit5'},{k:'6', sk:'^',c:'Digit6'},{k:'7',sk:'&',c:'Digit7'},{k:'8',sk:'*',c:'Digit8'},{k:'9', sk:'(',c:'Digit9'},{k:'0', sk:')',c:'Digit0'},{k:'-', sk:'_',c:'Minus'},{k:'=',sk:'+', c:'Equal'},{k:'\\',sk:'|', c:'Backslash'},{k:'\u{2190}',c:'Backspace',s:3,g:5}, {g:5,k:'Help',c:'Help',s:2},{g:1}, {k:'7',c:'Numpad7'},{k:'8',c:'Numpad8'},{k:'9',c:'Numpad9'} ], 
-    [{k:'\u{21e5}',c:'Tab',g:6,s:2}, {k:'Q'},{k:'W'},{k:'E'},{k:'R'},{k:'T'},{k:'Y'},{k:'U'},{k:'I'},{k:'O'},{k:'P'},{k:'[',sk:'{',c:'BracketLeft'},{k:']', sk:'}',c:'BracketRight'}, {k:'\u{21b5}',c:'Enter',g:8,s:2},{g:5}, {k:'4',c:'Numpad4'},{k:'5',c:'Numpad5'},{k:'6',c:'Numpad6'}], 
-    [{k:'CTRL',c:'ControlLeft',cls:'ControlLeft',s:2},{k:'CAPS</br>LOCK', c:'CapsLock',cls:'capslock',s:2},{k:'A'},{k:'S'},{k:'D'},{k:'F'},{k:'G'},{k:'H'},{k:'J'},{k:'K'},{k:'L'},{k:';', sk:':', c:'Semicolon'},{k:',', sk:'\"', c:'Quote'},{k:'#', sk:'^', c:'hashtag'},{g:11}, {k:'1',c:'Numpad1'},{k:'2',c:'Numpad2'},{k:'3',c:'Numpad3'}], 
+    [{k:'\u{21e5}',c:'Tab',g:6,s:2}, {k:'Q'},{k:'W'},{k:'E'},{k:'R'},{k:'T'},{k:'Y'},{k:'U'},{k:'I'},{k:'O'},{k:'P'},{k:'[',sk:'{',c:'BracketLeft'},{k:']', sk:'}',c:'BracketRight'},{k:'', c:'EnterExt', c_use:'Enter',mapto:['Enter','EnterExt2'],g:2, style:'width: calc(150%)'}, {k:'\u{21b5}',c:'Enter',g:4,s:2, style:'height:calc(130%)', mapto:['EnterExt','EnterExt2']},{g:7}, {k:'4',c:'Numpad4'},{k:'5',c:'Numpad5'},{k:'6',c:'Numpad6'}], 
+    [{k:'CTRL',c:'ControlLeft',cls:'ControlLeft',s:2},{k:'CAPS</br>LOCK', c:'CapsLock',cls:'capslock',s:2},{k:'A'},{k:'S'},{k:'D'},{k:'F'},{k:'G'},{k:'H'},{k:'J'},{k:'K'},{k:'L'},{k:';', sk:':', c:'Semicolon'},{k:',', sk:'\"', c:'Quote'},{k:'#', sk:'^', c:'hashtag'}, {k:'',c:'EnterExt2',g:4,s:2, mapto:['Enter','EnterExt']},{g:7},{k:'1',c:'Numpad1'},{k:'2',c:'Numpad2'},{k:'3',c:'Numpad3'}], 
     [{k:'\u{21e7}',c:'ShiftLeft',g:6,s:2},{k:'<', sk:'>', c:'laceBrace'},{k:'Z'},{k:'X'},{k:'C'},{k:'V'},{k:'B'},{k:'N'},{k:'M'},{k:',',sk:'<',c:'Comma'},{k:'.',sk:'>',c:'Period'},{k:'/',sk:'?', c:'Slash'},{k:'\u{21e7}',c:'ShiftRight',g:8,s:2},{k:'\u{2191}',c:'ArrowUp',s:2},{g:5},{k:'0',c:'Numpad0',g:8},{k:'.',c:'NumpadDecimal'}],
     [{},{k:'Alt', c:'AltLeft',s:2},{k:'A', c:'leftAmiga', cls:'amigakey',s:2},{k:' ', c:'Space',s:2, g:32},{k:'A', c:'rightAmiga', cls:'amigakey',s:2},{k:'Alt', c:'AltRight',s:2},{g:2}, {k:'\u{2190}',c:'ArrowLeft',s:2},{k:'\u{2193}', c:'ArrowDown',s:2},{k:'\u{2192}', c:'ArrowRight',s:2}, {g:1}, {k:'-',c:'NumpadSubtract'},{k:'Enter',c:'NumpadEnter',s:2,g:8}]
-    ];
+    ]
+    :
+    [ 
+    [{g: 6, k:'Esc', c:'Escape',cls:'darkkey',s:3},{g:1},{g:5,k:'F1',c:'F1', cls:'darkkey',s:2}, {g:5,k:'F2',c:'F2',cls:'darkkey',s:2},{g:5,k:'F3',c:'F3',cls:'darkkey',s:2},{g:5,k:'F4',c:'F4',cls:'darkkey',s:2},{g:5,k:'F5',c:'F5',cls:'darkkey',s:2},{g:2},{g:5,k:'F6',c:'F6',cls:'darkkey',s:2},{g:5,k:'F7',c:'F7',cls:'darkkey',s:2},{g:5,k:'F8',c:'F8',cls:'darkkey',s:2},{g:5,k:'F9',c:'F9',cls:'darkkey',s:2},{g:5,k:'F10',c:'F10',cls:'darkkey',s:2},{g: 1},{g:6,k:'Del',c:'Delete',cls:'darkkey',s:3},{g:3},{k:'globe', c:'lang',cls:'darkkey'},{g:6,k:'hide', c:'hide_keyboard',cls:'darkkey',s:3}],
+    [{k:'`',c:'Grave'}, {k:'1', sk:'!',c:'Digit1'},{k:'2', sk:'@',c:'Digit2'},{k:'3', sk:'#',c:'Digit3'},{k:'4', sk:'$', c:'Digit4'},{k:'5',sk:'%',c:'Digit5'},{k:'6', sk:'^',c:'Digit6'},{k:'7',sk:'&',c:'Digit7'},{k:'8',sk:'*',c:'Digit8'},{k:'9', sk:'(',c:'Digit9'},{k:'0', sk:')',c:'Digit0'},{k:'-', sk:'_',c:'Minus'},{k:'=',sk:'+', c:'Equal'},{k:'\\',sk:'|', c:'Backslash'},{k:'\u{2190}',c:'Backspace',s:3,g:5}, {g:5,k:'Help',c:'Help',s:2},{g:1}, {k:'7',c:'Numpad7'},{k:'8',c:'Numpad8'},{k:'9',c:'Numpad9'} ], 
+    [{k:'\u{21e5}',c:'Tab',g:6,s:2}, {k:'Q'},{k:'W'},{k:'E'},{k:'R'},{k:'T'},{k:'Y'},{k:'U'},{k:'I'},{k:'O'},{k:'P'},{k:'[',sk:'{',c:'BracketLeft'},{k:']', sk:'}',c:'BracketRight'},{k:'\u{21b5}',c:'Enter',mapto:['EnterExt'],style:'height:calc(118%)',g:5,s:2},{g:8}, {k:'4',c:'Numpad4'},{k:'5',c:'Numpad5'},{k:'6',c:'Numpad6'}], 
+    [{k:'CTRL',c:'ControlLeft',cls:'ControlLeft',s:2},{k:'CAPS</br>LOCK', c:'CapsLock',cls:'capslock',s:2},{k:'A'},{k:'S'},{k:'D'},{k:'F'},{k:'G'},{k:'H'},{k:'J'},{k:'K'},{k:'L'},{k:';', sk:':', c:'Semicolon'},{k:',', sk:'\"', c:'Quote'},{k:'', c:'EnterExt', c_use:'Enter',mapto:['Enter'],g:7},{g:8}, {k:'1',c:'Numpad1'},{k:'2',c:'Numpad2'},{k:'3',c:'Numpad3'}], 
+    [{k:'\u{21e7}',c:'ShiftLeft',g:10,s:2},{k:'Z'},{k:'X'},{k:'C'},{k:'V'},{k:'B'},{k:'N'},{k:'M'},{k:',',sk:'<',c:'Comma'},{k:'.',sk:'>',c:'Period'},{k:'/',sk:'?', c:'Slash'},{k:'\u{21e7}',c:'ShiftRight',g:8,s:2},{k:'\u{2191}',c:'ArrowUp',s:2},{g:5},{k:'0',c:'Numpad0',g:8},{k:'.',c:'NumpadDecimal'}],
+    [{},{k:'Alt', c:'AltLeft',s:2},{k:'A', c:'leftAmiga', cls:'amigakey',s:2},{k:' ', c:'Space',s:2, g:32},{k:'A', c:'rightAmiga', cls:'amigakey',s:2},{k:'Alt', c:'AltRight',s:2},{g:2}, {k:'\u{2190}',c:'ArrowLeft',s:2},{k:'\u{2193}', c:'ArrowDown',s:2},{k:'\u{2192}', c:'ArrowRight',s:2}, {g:1}, {k:'-',c:'NumpadSubtract'},{k:'Enter',c:'NumpadEnter',s:2,g:8}]
+    ]
+    ;
 
     let  renderKey  = (keydef,cellpos) => {
 
@@ -347,6 +360,14 @@ function installKeyboard() {
             {
                 label = `<svg xmlns="http://www.w3.org/2000/svg" width="2.0em" height="2.0em" fill="currentColor" class="bi bi-pause-btn" viewBox="0 0 16 16"><path d="M14 5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h12zM2 4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H2z"/><path d="M13 10.25a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm0-2a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm-5 0A.25.25 0 0 1 8.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 8 8.75v-.5zm2 0a.25.25 0 0 1 .25-.25h1.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-1.5a.25.25 0 0 1-.25-.25v-.5zm1 2a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm-5-2A.25.25 0 0 1 6.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 6 8.75v-.5zm-2 0A.25.25 0 0 1 4.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 4 8.75v-.5zm-2 0A.25.25 0 0 1 2.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 2 8.75v-.5zm11-2a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm-2 0a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm-2 0A.25.25 0 0 1 9.25 6h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 9 6.75v-.5zm-2 0A.25.25 0 0 1 7.25 6h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 7 6.75v-.5zm-2 0A.25.25 0 0 1 5.25 6h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 5 6.75v-.5zm-3 0A.25.25 0 0 1 2.25 6h1.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-1.5A.25.25 0 0 1 2 6.75v-.5zm0 4a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25v-.5zm2 0a.25.25 0 0 1 .25-.25h5.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-5.5a.25.25 0 0 1-.25-.25v-.5z"/></svg>`;
             }
+            else if(label == "globe")
+            {
+                label = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="1.15em" height="1.15em" fill="currentColor" class="bi bi-globe" viewBox="0 0 16 16">
+  <path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855A8 8 0 0 0 5.145 4H7.5zM4.09 4a9.3 9.3 0 0 1 .64-1.539 7 7 0 0 1 .597-.933A7.03 7.03 0 0 0 2.255 4zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a7 7 0 0 0-.656 2.5zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5zM8.5 5v2.5h2.99a12.5 12.5 0 0 0-.337-2.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5zM5.145 12q.208.58.468 1.068c.552 1.035 1.218 1.65 1.887 1.855V12zm.182 2.472a7 7 0 0 1-.597-.933A9.3 9.3 0 0 1 4.09 12H2.255a7 7 0 0 0 3.072 2.472M3.82 11a13.7 13.7 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5zm6.853 3.472A7 7 0 0 0 13.745 12H11.91a9.3 9.3 0 0 1-.64 1.539 7 7 0 0 1-.597.933M8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855q.26-.487.468-1.068zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.7 13.7 0 0 1-.312 2.5m2.802-3.5a7 7 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7 7 0 0 0-3.072-2.472c.218.284.418.598.597.933M10.855 4a8 8 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4z"/>
+</svg>`;
+            }
+
             let shift_label=null;
             if(typeof keydef.sk !== 'undefined')
             {
@@ -400,8 +421,6 @@ function installKeyboard() {
             columns = cellpos;
         }
     }
-    document.querySelector(':root').style.setProperty('--keyboard_bottom_margin', `0px`);
-    document.querySelector(':root').style.setProperty('--keycap_zoom', `1.0`);
     document.querySelector(':root').style.setProperty('--keycap_columns', columns);
 
     var the_keyBoard=`
@@ -517,6 +536,10 @@ draggable="false">
                     $('#virtual_keyboard').collapse('hide');
                     setTimeout( scaleVMCanvas, 500);
             }
+            else if(keydef.c == 'lang')
+            {
+                installKeyboard(!intl_layout);
+            }
             else if(keydef.c == 'CapsLock')
             {
                 let key_code = translateKey(keydef.c, keydef.k);
@@ -551,7 +574,7 @@ draggable="false">
             } 
             else
             {
-                var key_code = translateKey(keydef.c, keydef.k);
+                var key_code = translateKey(keydef.c_use ?keydef.c_use: keydef.c, keydef.k);
                 if(key_code !== undefined){
                     wasm_schedule_key(key_code[0], key_code[1], 1,0);
 
@@ -592,7 +615,15 @@ draggable="false">
                     }
                     else
                     {
-                    the_key_element.setAttribute('key-state', 'pressed');
+                        if(keydef.mapto)
+                        {
+                            for(let mapto of keydef.mapto)
+                            {
+                                document.getElementById(`button_${mapto}`).setAttribute('key-state', 'pressed');
+                            }                        
+                        }
+
+                        the_key_element.setAttribute('key-state', 'pressed');
                     }
                 }
             }
@@ -608,10 +639,18 @@ draggable="false">
             {}
             else
             {
-                let key_code = translateKey(keydef.c, keydef.k);
+                let key_code = translateKey(keydef.c_use ?keydef.c_use: keydef.c, keydef.k);
                 wasm_schedule_key(key_code[0], key_code[1], 0, 1);
                 release_modifiers();
                 the_key_element.setAttribute('key-state', '');
+                
+                if(keydef.mapto)
+                {
+                    for(let mapto of keydef.mapto)
+                    {
+                        document.getElementById(`button_${mapto}`).setAttribute('key-state', '');
+                    }                        
+                }
             }
         }
         the_key_element.addEventListener("focus", (event)=>{ event.preventDefault(); event.currentTarget.blur();})
