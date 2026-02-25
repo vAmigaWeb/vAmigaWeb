@@ -2548,54 +2548,28 @@ function InitWrappers() {
         for (var i=0; i < e.changedTouches.length; i++) {
             let touch = e.changedTouches[i];
         
-            if(mouse_touchpad_pattern=='mouse touchpad')
-            {
-                let mouse_touchpad_move_area= touch.clientX > window.innerWidth/10 &&
-                touch.clientX < window.innerWidth-window.innerWidth/10;
-                let mouse_touchpad_button_area=!mouse_touchpad_move_area;
+            let mouse_touchpad_move_area= left_handed ? 
+                    touch.clientX >= window.innerWidth/2:
+                    touch.clientX < window.innerWidth/2;
+            let mouse_touchpad_button_area=!mouse_touchpad_move_area;
 
-                if(mouse_touchpad_button_area)
+            if(mouse_touchpad_button_area)
+            {
+                let left_button = touch.clientY >= window.innerHeight/2;
+                if(left_button)
                 {
-                    let left_button = touch.clientX < window.innerWidth/10;
-                    if(left_button)
-                    {
-                        mouse_touchpad_left_button_touch=touch; 
-                        Module._wasm_mouse_button(mouse_touchpad_port,1, 1/* down */);                
-                    }
-                    else
-                    {
-                        mouse_touchpad_right_button_touch=touch; 
-                        Module._wasm_mouse_button(mouse_touchpad_port,3, 1/* down */);                
-                    }
+                    mouse_touchpad_left_button_touch=touch; 
+                    Module._wasm_mouse_button(mouse_touchpad_port,1, 1/* down */);                
                 }
                 else
                 {
-                    mouse_touchpad_move_touch=touch;
+                    mouse_touchpad_right_button_touch=touch; 
+                    Module._wasm_mouse_button(mouse_touchpad_port,3, 1/* down */);                
                 }
             }
-            else if(mouse_touchpad_pattern=='mouse touchpad2')
+            else
             {
-                let mouse_touchpad_move_area= touch.clientX < window.innerWidth/2;
-                let mouse_touchpad_button_area=!mouse_touchpad_move_area;
-
-                if(mouse_touchpad_button_area)
-                {
-                    let left_button = touch.clientY >= window.innerHeight/2;
-                    if(left_button)
-                    {
-                        mouse_touchpad_left_button_touch=touch; 
-                        Module._wasm_mouse_button(mouse_touchpad_port,1, 1/* down */);                
-                    }
-                    else
-                    {
-                        mouse_touchpad_right_button_touch=touch; 
-                        Module._wasm_mouse_button(mouse_touchpad_port,3, 1/* down */);                
-                    }
-                }
-                else
-                {
-                    mouse_touchpad_move_touch=touch;
-                }
+                mouse_touchpad_move_touch=touch;
             }
 
         }
@@ -2641,7 +2615,7 @@ function InitWrappers() {
     {
         if(call_param_touch==true)
         {
-            port1="mouse touchpad2";
+            port1="mouse touchpad";
             $('#port1').val(port1);
             mouse_touchpad_pattern=port1;
             mouse_touchpad_port=1;
@@ -4342,6 +4316,38 @@ $('.layer').change( function(event) {
         this.blur();
     }
 
+    // Handle touch_swap_move_button switch to update touch joystick option texts
+    touch_swap_move_button_switch = document.getElementById('touch_swap_move_button');
+    if(touch_swap_move_button_switch) {
+        const updateTouchLayoutOptions = () => {
+            const j_option1 = document.getElementById('touch_joystick1');
+            const j_option2 = document.getElementById('touch_joystick2');
+            const m_option1 = document.getElementById('touch_mouse1');
+            const m_option2 = document.getElementById('touch_mouse2');
+            
+            left_handed = touch_swap_move_button_switch.checked;
+
+            if(left_handed) {
+                j_option1.textContent = j_option2.textContent = 'touch joystick (fire|move)';
+                m_option1.textContent = m_option2.textContent = 'touch mouse (btn/btn|move)';
+
+            } else {
+                j_option2.textContent = j_option1.textContent = 'touch joystick (move|fire)';
+                m_option1.textContent = m_option2.textContent = 'touch mouse (move|btn/btn)';
+            }
+            save_setting('touch_swap_move_button', touch_swap_move_button_switch.checked);
+
+
+            document.getElementById('touch_swap_move_button_false').style.display=left_handed?"none":"inherit";
+            document.getElementById('touch_swap_move_button_true').style.display=left_handed?"inherit":"none";
+        };
+        
+        left_handed = load_setting('touch_swap_move_button', false);
+        touch_swap_move_button_switch.checked = left_handed;
+        updateTouchLayoutOptions();
+        
+        touch_swap_move_button_switch.addEventListener('change', updateTouchLayoutOptions);
+    }
 
     document.getElementById('theFileInput').addEventListener("submit", function(e) {
         e.preventDefault();
@@ -5494,7 +5500,7 @@ function setTheme() {
 
 
 
-
+    left_handed = true;
     function register_v_joystick()
     {
         if(v_joystick!=null)
@@ -5514,8 +5520,9 @@ function setTheme() {
             if(touches !== undefined)
                 touch= touches[0];
             else
-                touch = event;//mouse emulation    
-            return touch.pageX < window.innerWidth/2;  
+                touch = event;//mouse emulation
+            const is_left_half = touch.pageX < window.innerWidth / 2;
+            return left_handed ? !is_left_half : is_left_half;
         });
        
         // one on the right of the screen
@@ -5533,7 +5540,8 @@ function setTheme() {
                 touch= touches[0];
             else
                 touch = event;//mouse emulation    
-            return touch.pageX >= window.innerWidth/2;
+            const is_right_half = touch.pageX >= window.innerWidth / 2;
+            return left_handed ? !is_right_half : is_right_half;
         });
     }
 
