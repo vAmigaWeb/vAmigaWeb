@@ -218,20 +218,18 @@
       <select id="port1" class="custom-select" data-toggle="tooltip" data-placement="left" title="game port 1">
         <option value="none">none</option>
         <option value="keys">cursor key (move) space (fire)</option>
-        <option value="touch">touch joystick (move|fire)</option>
+        <option id="touch_joystick1" value="touch">touch joystick (move|fire)</option>
+        <option id="touch_mouse1" value="mouse touchpad">mouse touchpad (move|btn/btn)</option>
         <option value="mouse">mouse </option>
-        <option value="mouse touchpad">mouse touchpad (btn|move|btn)</option>
-        <option value="mouse touchpad2">mouse touchpad (move|btn/btn)</option>
       </select>
       </div>
       <div>
       <select id="port2" class="custom-select" data-toggle="tooltip" data-placement="left" title="game port 2">
         <option value="none">none</option>
         <option value="keys">cursor key (move) space (fire)</option>
-        <option value="touch">touch joystick (move|fire)</option>
+        <option id="touch_joystick2" value="touch">touch joystick (move|fire)</option>
+        <option id="touch_mouse2" value="mouse touchpad">mouse touchpad (move|btn/btn)</option>
         <option value="mouse">mouse</option>
-        <option value="mouse touchpad">mouse touchpad (btn|move|btn)</option>
-        <option value="mouse touchpad2">mouse touchpad (move|btn/btn)</option>
       </select>
       </div>
       </div>
@@ -705,6 +703,22 @@ game controller type settings
   <span>three fire buttons</span> when using the virtual touch joystick the right half of screen is divided in three vertical stacked touch areas. All external controller buttons are mapped alternating to button1, 2 and 3. When using keyboard joystick emulation button2 is mapped to key 'B' and button3 to key 'N'.
 </div>
 </div>
+<br>
+<br>
+touch joystick and mouse touchpad layout
+<div class="mt-2">
+  <div class="custom-control custom-switch mt-1">
+    <input type="checkbox" class="custom-control-input" id="touch_swap_move_button" />
+    <label class="custom-control-label" for="touch_swap_move_button" data-toggle="tooltip" data-placement="top" title="">swap move and buttons side</label>
+  </div>
+  <div id="touch_swap_move_button_false" class="ml-3 help_text" style="font-size: smaller">
+    <span>move | buttons</span> the left half of the screen detects movement input and the right half detects button presses 
+  </div>
+  <div id="touch_swap_move_button_true" class="ml-3 help_text" style="font-size: smaller">
+    <span>buttons | move</span> the left half of the screen detects button presses and the right half detects movement input<br>This layout can be more comfortable for left handed players 
+  </div>
+</div>
+<br>
 <br>
 virtual touch joystick settings
 <div class="mt-2" style="font-size: smaller">

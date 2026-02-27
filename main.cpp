@@ -1326,6 +1326,7 @@ extern "C" unsigned wasm_copy_into_sound_buffer()
 extern "C" void wasm_set_warp(unsigned on)
 {
   wrapper->emu->set(Opt::AMIGA_WARP_MODE,(i64) (on == 1 ?Warp::AUTO:Warp::NEVER)); 
+  wrapper->emu->emu->update();
 }
 
 
