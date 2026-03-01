@@ -667,7 +667,9 @@ draggable="false">
             }
         });
         the_key_element.addEventListener("lostpointercapture", (event)=>{
-                key_up_handler(event);
+            if(current_vbk_touch.startsWith("smart"))
+                return; //ignore it when the user swiped away from the key, in that case pointerup is not triggered but lostpointercapture is triggered 
+            key_up_handler(event);
         });
 
 
