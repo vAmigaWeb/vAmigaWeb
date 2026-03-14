@@ -656,7 +656,8 @@ draggable="false">
         the_key_element.addEventListener("pointerdown", (event)=>{
             if(current_vbk_touch.startsWith("smart"))
                 return;
-            the_key_element.setPointerCapture(event.pointerId);
+            try {the_key_element.setPointerCapture(event.pointerId);} catch(e){}
+            
             key_down_handler(event);
         });
         the_key_element.addEventListener("pointerup", (event)=>{
