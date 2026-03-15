@@ -2537,6 +2537,115 @@ function InitWrappers() {
         Module._wasm_mouse_button(mouse_port,e.which, 0/* up */);
     }
 
+    // === Pencil/Pen input handler ===
+    let pencil_pointer_id = null;
+    let pencil_long_press_timeout = null;
+    let pencil_last_x = 0;
+    let pencil_last_y = 0;
+    let pencil_start_x = 0;
+    let pencil_start_y = 0;
+    let pencil_port = null;
+    let pencil_left_button_pressed = false;
+    let pencil_mouse_button=1; // left button by default, can be switched to right button when touch is used together with pencil
+    let pencil_moved=false;
+    function emulate_mouse_pencil_down(e) {
+        pencil_last_x = e.clientX;
+        pencil_last_y = e.clientY;
+        pencil_start_x = e.clientX;
+        pencil_start_y = e.clientY;
+        pencil_moved=false;    
+        pencil_mouse_button = e.clientY >= window.innerHeight/2 ? 1 /* left button */ : 3 /* right button */;
+
+
+        // Start a long-press timer for button hold (~1 second)
+        pencil_long_press_timeout = setTimeout(() => {
+            console.log("long click down="+pencil_mouse_button);
+
+            // Long press detected: activate left mouse button hold
+            Module._wasm_mouse_button(pencil_port, pencil_mouse_button, 1/* down */);
+            pencil_left_button_pressed = true;
+        }, 200);
+    }
+
+    function emulate_mouse_pencil_move(e) {
+        if (e.pointerType === "pen" && e.buttons === 0 
+            || e.pointerType==="mouse" && e.buttons === 0)
+            return; // Ignore move events when no buttons are pressed (hovering)
+
+
+        // Calculate movement
+        let movementX = e.clientX - pencil_last_x;
+        let movementY = e.clientY - pencil_last_y;
+        
+        // Send mouse movement
+        Module._wasm_mouse(pencil_port, movementX, movementY);
+  
+        
+
+        let dX = e.clientX - pencil_start_x;
+        let dY = e.clientY - pencil_start_y;
+  
+        if(Math.sqrt(dX*dX + dY*dY) > 20)
+        {
+            // If long-press timer is still active, clear it (movement cancels long-press)
+            if (pencil_long_press_timeout !== null && !pencil_left_button_pressed) {
+                clearTimeout(pencil_long_press_timeout);
+                pencil_long_press_timeout = null;
+            }
+            pencil_moved=true;
+        }
+        
+        pencil_last_x = e.clientX;
+        pencil_last_y = e.clientY;
+    }
+
+    function emulate_mouse_pencil_up(e) {  
+        // Clear long-press timer if still running
+        if (pencil_long_press_timeout !== null) {
+            clearTimeout(pencil_long_press_timeout);
+            pencil_long_press_timeout = null;
+        }
+        
+        if (pencil_left_button_pressed) {
+            // Release long-press button
+            Module._wasm_mouse_button(pencil_port, pencil_mouse_button, 0/* up */);
+            pencil_left_button_pressed = false;
+        }
+        else if(!pencil_moved)
+        {
+            // Short tap: send single click
+            Module._wasm_mouse_button(pencil_port, pencil_mouse_button, 1/* down */);
+            setTimeout(() => {
+                Module._wasm_mouse_button(pencil_port, pencil_mouse_button, 0/* up */);
+            }, 120);
+        } 
+    }
+
+    // Register pencil event listeners if pointer events are supported
+    function handlePointerDown(e) {
+        if (pencil_port === null) return;
+        emulate_mouse_pencil_down(e);
+    }
+    function handlePointerMove(e) {
+        if (pencil_port === null) return;
+        emulate_mouse_pencil_move(e);
+    }
+    function handlePointerUp(e) {
+        if (pencil_port === null) return;
+        emulate_mouse_pencil_up(e);
+    }
+    function updatePencilListeners() {
+        if (pencil_port !== null) {
+            document.addEventListener('pointerdown', handlePointerDown, false);
+            document.addEventListener('pointermove', handlePointerMove, false);
+            document.addEventListener('pointerup', handlePointerUp, false);
+        } else {
+            document.removeEventListener('pointerdown', handlePointerDown, false);
+            document.removeEventListener('pointermove', handlePointerMove, false);
+            document.removeEventListener('pointerup', handlePointerUp, false);
+        }
+    }
+
     //--
     mouse_touchpad_port=1;
     mouse_touchpad_move_touch=null;
@@ -4226,7 +4335,9 @@ $('.layer').change( function(event) {
     document.getElementById('port1').onchange = function() {
         port1 = document.getElementById('port1').value; 
         if(port1 == port2 || 
-           port1.indexOf("touch")>=0 && port2.indexOf("touch")>=0)
+           port1.indexOf("touch")>=0 && port2.indexOf("touch")>=0 ||
+           port1 == 'pencil' && (port2 == 'pencil' || port2.indexOf("touch")>=0) ||
+           port2 == 'pencil' && port1.indexOf("touch")>=0)
         {
             port2 = 'none';
             document.getElementById('port2').value = 'none';
@@ -4267,12 +4378,24 @@ $('.layer').change( function(event) {
             document.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
             document.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
         }
+        if(port1 == 'pencil')
+        {
+            pencil_port = 1;
+            updatePencilListeners();
+        }
+        else if(port2 != 'pencil')
+        {
+            pencil_port = null;
+            updatePencilListeners();
+        }
         this.blur();
     }
     document.getElementById('port2').onchange = function() {
         port2 = document.getElementById('port2').value;
         if(port1 == port2 || 
-           port1.indexOf("touch")>=0 && port2.indexOf("touch")>=0)
+           port1.indexOf("touch")>=0 && port2.indexOf("touch")>=0 ||
+           port2 == 'pencil' && (port1 == 'pencil' || port1.indexOf("touch")>=0) ||
+           port1 == 'pencil' && port2.indexOf("touch")>=0)
         {
             port1 = 'none';
             document.getElementById('port1').value = 'none';
@@ -4312,6 +4435,16 @@ $('.layer').change( function(event) {
             document.removeEventListener('touchstart',emulate_mouse_touchpad_start, false);
             document.removeEventListener('touchmove',emulate_mouse_touchpad_move, false);
             document.removeEventListener('touchend',emulate_mouse_touchpad_end, false);
+        }
+        if(port2 == 'pencil')
+        {
+            pencil_port = 2;
+            updatePencilListeners();
+        }
+        else if(port1 != 'pencil')
+        {
+            pencil_port = null;
+            updatePencilListeners();
         }
         this.blur();
     }
