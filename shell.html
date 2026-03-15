@@ -5,6 +5,20 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <meta name="description" content="cycle exact Amiga emulator in html5 / javascript. This Amiga emulator is compatible to the progressive-web-app (PWA) standard.">
     <title>vAmigaWeb Amiga emulator iPad iPhone</title>
+<script>
+  try {
+    function supportsExnref() {
+      const wasmBytes = new Uint8Array([
+         0x00,0x61,0x73,0x6d,0x01,0x00,0x00,0x00,0x01,0x05,0x01,0x60,0x01,0x69,0x00
+      ]);
+      return WebAssembly.validate(wasmBytes);
+    }
+    if(!supportsExnref()) {
+      console.error("browser does not support exnref WebAssembly feature");
+      window.location.href = "https://vAmigaWeb.github.io/legacy/"+window.location.hash;
+    }
+  } catch (e) {}
+</script>  
   
   <link rel="icon" href="img/favicon.ico">
   <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
