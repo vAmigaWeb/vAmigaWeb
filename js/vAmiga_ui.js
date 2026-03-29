@@ -4473,6 +4473,12 @@ $('.layer').change( function(event) {
 
             document.getElementById('touch_swap_move_button_false').style.display=left_handed?"none":"inherit";
             document.getElementById('touch_swap_move_button_true').style.display=left_handed?"inherit":"none";
+            
+            if(v_joystick != null)
+            {
+                unregister_v_joystick()
+                register_v_joystick();
+            }
         };
         
         left_handed = load_setting('touch_swap_move_button', false);
