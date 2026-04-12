@@ -2282,12 +2282,20 @@ function InitWrappers() {
             if(audioContext.state=="running")
                 remove_unlock_user_action();
         } catch(e){ console.error(e);}
+
+        try { 
+            set_wake_lock(use_wake_lock);
+        } catch(e){ console.error(e);}
     }
     touch_unlock_WebAudio=async function() {
         try { 
             await connect_audio_processor(); 
             if(audioContext.state=="running")
                 remove_unlock_user_action();
+        } catch(e){ console.error(e);}
+
+        try { 
+            set_wake_lock(use_wake_lock);
         } catch(e){ console.error(e);}
     }    
 
@@ -3460,32 +3468,35 @@ requestWakeLock = async () => {
 }
 
 set_wake_lock = (use_wake_lock)=>{
-    let is_supported=false;
-    if ('wakeLock' in navigator) {
-        is_supported = true;
-    } else {
+    if (! ('wakeLock' in navigator)) {
         wake_lock_switch.prop('disabled', true);
         $("#wake_lock_status").text("(wake lock is not supported on this browser, your system will decide when it turns your device off)");
+        return;
     }
-    if(is_supported && use_wake_lock)
-    {
-        requestWakeLock();
-    }
-    else if(wakeLock != null)
+    
+    //already in the desired state
+    if(use_wake_lock && wakeLock && !wakeLock.released)
+        return;
+    
+    //release older wakelock 
+    if(wakeLock && wakeLock.released)
     {
         let current_wakelock=wakeLock;
         wakeLock = null;
         current_wakelock.release();
     }
+    if(use_wake_lock)
+    {
+        requestWakeLock();
+    }
 }
 
 wake_lock_switch = $('#wake_lock_switch');
-let use_wake_lock=load_setting('wake_lock', false);
-set_wake_lock(use_wake_lock);
+use_wake_lock=load_setting('wake_lock', false);
 wake_lock_switch.change( function() {
-    let use_wake_lock  = this.checked;
+    use_wake_lock  = this.checked;
     set_wake_lock(use_wake_lock);
-    save_setting('wake_lock', this.checked);
+    save_setting('wake_lock', use_wake_lock);
 });
 //---
 fullscreen_switch = $('#button_fullscreen');
