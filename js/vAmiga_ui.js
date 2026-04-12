@@ -379,7 +379,7 @@ async function load_parameter_link()
     var parameter_link = get_parameter_link();
     if(parameter_link != null)
     {
-        parameter_link_mount_in_df0=parameter_link.match(/[.](adf|hdf|dms|exe|st)$/i);
+        parameter_link_mount_in_df0=parameter_link.match(/[.](adf|adz|hdf|hdz|dms|exe|st)$/i);
         //get_data_collector("csdb").run_link("call_parameter", 0,parameter_link);            
         $('#alert_wait').show().find("span:first").text(`looking for '${parameter_link}'`);
         let response = await fetch(parameter_link);
@@ -1120,7 +1120,7 @@ function configure_file_dialog(reset=false)
                                 }
                             }).then(function (u8) {
                                 file_slot_file_name=path;
-                                if(!path.toLowerCase().match(/[.](zip|adf|hdf|dms|exe|vAmiga|st)$/i))
+                                if(!path.toLowerCase().match(/[.](zip|adf|adz|hdf|hdz|dms|exe|vAmiga|st)$/i))
                                 {
                                     file_slot_file_name+=".disk";
                                     file_slot_file_name=file_slot_file_name.substring(file_slot_file_name.lastIndexOf("/")+1)
@@ -1191,7 +1191,7 @@ function configure_file_dialog(reset=false)
                 $("#button_insert_file").html("mount file"+return_icon);
                 $("#button_insert_file").attr("disabled", true);
             }
-            else if(file_slot_file_name.match(/[.](adf|hdf|dms|exe|vAmiga|st|disk)$/i))
+            else if(file_slot_file_name.match(/[.](adf|adz|hdf|hdz|dms|exe|vAmiga|st|disk)$/i))
             {
                 if(df_mount_list.includes(file_slot_file_name) || hd_mount_list.includes(file_slot_file_name))
                 {
