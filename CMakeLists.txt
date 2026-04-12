@@ -26,6 +26,7 @@ target_compile_options(vAmiga PRIVATE
 	-Wno-unused-parameter
 	-O3 -mnontrapping-fptoint -fwasm-exceptions -sWASM_LEGACY_EXCEPTIONS=0 -flto
 	-Wfatal-errors	
+	-sUSE_ZLIB=1
 	#-g
 )
 
@@ -80,6 +81,7 @@ else()
 		-sGL_ASSERTIONS=0
 		#filesystem support
 		-lidbfs.js
+		-sUSE_ZLIB=1
 		#host memory settings
 		-sINITIAL_MEMORY=320MB
 		-sTOTAL_STACK=32MB

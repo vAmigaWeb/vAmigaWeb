@@ -55,6 +55,7 @@ else()
   target_compile_options(VACore PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions -sWASM_LEGACY_EXCEPTIONS=0 -flto)
 
  target_compile_options(VACore PRIVATE -Wfatal-errors)
+ target_compile_options(VACore PRIVATE -sUSE_ZLIB=1)
 
   if("${thread_type}" STREQUAL "worker")
 	  target_compile_options(VACore PRIVATE -sWASM_WORKERS)
@@ -85,11 +86,11 @@ find_package(Threads REQUIRED)
 target_link_libraries(VACore xdms Threads::Threads)
 
 # Link zlib if available
-if(ZLIB_FOUND)
-  target_link_libraries(VACore ZLIB::ZLIB)
+#if(ZLIB_FOUND)
+#  target_link_libraries(VACore ZLIB::ZLIB)
 # target_link_libraries(VAHeadless ZLIB::ZLIB)
   target_compile_definitions(VACore PUBLIC USE_ZLIB=1)  # Optional define for conditional compilation
-endif()
+#endif()
 
 target_link_libraries(VACore lz4)
 #target_link_libraries(VAHeadless lz4)

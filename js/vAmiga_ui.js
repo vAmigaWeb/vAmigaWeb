@@ -379,7 +379,7 @@ async function load_parameter_link()
     var parameter_link = get_parameter_link();
     if(parameter_link != null)
     {
-        parameter_link_mount_in_df0=parameter_link.match(/[.](adf|hdf|dms|exe|st)$/i);
+        parameter_link_mount_in_df0=parameter_link.match(/[.](adf|adz|hdf|hdz|dms|exe|st)$/i);
         //get_data_collector("csdb").run_link("call_parameter", 0,parameter_link);            
         $('#alert_wait').show().find("span:first").text(`looking for '${parameter_link}'`);
         let response = await fetch(parameter_link);
@@ -1120,7 +1120,7 @@ function configure_file_dialog(reset=false)
                                 }
                             }).then(function (u8) {
                                 file_slot_file_name=path;
-                                if(!path.toLowerCase().match(/[.](zip|adf|hdf|dms|exe|vAmiga|st)$/i))
+                                if(!path.toLowerCase().match(/[.](zip|adf|adz|hdf|hdz|dms|exe|vAmiga|st)$/i))
                                 {
                                     file_slot_file_name+=".disk";
                                     file_slot_file_name=file_slot_file_name.substring(file_slot_file_name.lastIndexOf("/")+1)
@@ -1191,7 +1191,7 @@ function configure_file_dialog(reset=false)
                 $("#button_insert_file").html("mount file"+return_icon);
                 $("#button_insert_file").attr("disabled", true);
             }
-            else if(file_slot_file_name.match(/[.](adf|hdf|dms|exe|vAmiga|st|disk)$/i))
+            else if(file_slot_file_name.match(/[.](adf|adz|hdf|hdz|dms|exe|vAmiga|st|disk)$/i))
             {
                 if(df_mount_list.includes(file_slot_file_name) || hd_mount_list.includes(file_slot_file_name))
                 {
@@ -2282,12 +2282,20 @@ function InitWrappers() {
             if(audioContext.state=="running")
                 remove_unlock_user_action();
         } catch(e){ console.error(e);}
+
+        try { 
+            set_wake_lock(use_wake_lock);
+        } catch(e){ console.error(e);}
     }
     touch_unlock_WebAudio=async function() {
         try { 
             await connect_audio_processor(); 
             if(audioContext.state=="running")
                 remove_unlock_user_action();
+        } catch(e){ console.error(e);}
+
+        try { 
+            set_wake_lock(use_wake_lock);
         } catch(e){ console.error(e);}
     }    
 
@@ -3460,32 +3468,35 @@ requestWakeLock = async () => {
 }
 
 set_wake_lock = (use_wake_lock)=>{
-    let is_supported=false;
-    if ('wakeLock' in navigator) {
-        is_supported = true;
-    } else {
+    if (! ('wakeLock' in navigator)) {
         wake_lock_switch.prop('disabled', true);
         $("#wake_lock_status").text("(wake lock is not supported on this browser, your system will decide when it turns your device off)");
+        return;
     }
-    if(is_supported && use_wake_lock)
-    {
-        requestWakeLock();
-    }
-    else if(wakeLock != null)
+    
+    //already in the desired state
+    if(use_wake_lock && wakeLock && !wakeLock.released)
+        return;
+    
+    //release older wakelock 
+    if(wakeLock && wakeLock.released)
     {
         let current_wakelock=wakeLock;
         wakeLock = null;
         current_wakelock.release();
     }
+    if(use_wake_lock)
+    {
+        requestWakeLock();
+    }
 }
 
 wake_lock_switch = $('#wake_lock_switch');
-let use_wake_lock=load_setting('wake_lock', false);
-set_wake_lock(use_wake_lock);
+use_wake_lock=load_setting('wake_lock', false);
 wake_lock_switch.change( function() {
-    let use_wake_lock  = this.checked;
+    use_wake_lock  = this.checked;
     set_wake_lock(use_wake_lock);
-    save_setting('wake_lock', this.checked);
+    save_setting('wake_lock', use_wake_lock);
 });
 //---
 fullscreen_switch = $('#button_fullscreen');

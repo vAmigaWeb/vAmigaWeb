@@ -13,9 +13,11 @@
 #include "AmigaTypes.h"
 #include "RomFile.h"
 #include "ADFFile.h"
+#include "ADZFile.h"
 #include "DMSFile.h"
 #include "EXEFile.h"
 #include "HDFFile.h"
+#include "HDZFile.h"
 #include "Snapshot.h"
 #include "EADFFile.h"
 #include "STFile.h"
@@ -1493,6 +1495,12 @@ std::unique_ptr<FloppyDisk> load_disk(const char* filename, u8 *blob, long len)
     return std::make_unique<FloppyDisk>(adf);
   }
 
+  if (ADZFile::isCompatible(filename)) {
+    printf("%s - Loading ADZ file\n", filename);
+    ADZFile adz{blob, len};
+    return std::make_unique<FloppyDisk>(adz);
+  }
+
   if (EXEFile::isCompatible(filename)) {
     printf("%s - Loading EXE file\n", filename);
     EXEFile exe{blob, len};
@@ -1583,6 +1591,70 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
       alert(`Error loading ${UTF8ToString($0)} - ${UTF8ToString($1)}`);
     }, filename, e.what());    
   }
+
+  if (HDZFile::isCompatible(filename)) 
+  {
+    printf("is hdz\n");
+
+    HDZFile *hdz;
+
+    try{    
+      hdz = new HDZFile(blob, len);
+    }
+    catch(AppError &exception) {
+      printf("Failed to create HDZ image file %s\n", name);
+      Fault ec=Fault(exception.data);
+      printf("%s - %s\n", FaultEnum::key(ec), exception.what());
+      EM_ASM(
+      {
+        alert(`${UTF8ToString($0)} - ${UTF8ToString($1)}`);
+      }, FaultEnum::key(ec), exception.what());
+      return FaultEnum::key(ec); 
+    }    
+
+    auto hard_drive = wrapper->emu->hd0.drive;
+    if(drive_number==1)
+    {
+      hard_drive = wrapper->emu->hd1.drive;
+    }
+    else if(drive_number==2)
+    {
+      hard_drive = wrapper->emu->hd2.drive;
+    }
+    else if(drive_number==3)
+    {
+      hard_drive = wrapper->emu->hd3.drive;
+    }
+
+    try
+    {
+        hard_drive->init(*hdz);
+        if(!hard_drive->getInfo().hasDisk)
+        {
+          throw Fault(Fault::OUT_OF_MEMORY);
+        }
+    }
+    catch(AppError &exception) {
+      printf("Failed to init HDZ image file %s\n", name);
+      EM_ASM(
+      {
+        alert(`${UTF8ToString($0)}`);
+      }, exception.what());
+      delete hdz;
+      return exception.what();
+    }
+ 
+    delete hdz;
+
+    wrapper->emu->powerOff(); wrapper->emu->emu->update();
+    wrapper->emu->set(Opt::HDC_CONNECT, true, {drive_number});
+    wrapper->emu->emu->update();
+    wrapper->emu->powerOn(); //does set emu in paused mode
+    wrapper->emu->run(); //needed otherwise core will stay muted if it was paused
+    wrapper->emu->emu->update();
+    return "";
+  }
+  //end HDZ
 
   if (HDFFile::isCompatible(filename)) 
   {
