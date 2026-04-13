@@ -3479,12 +3479,13 @@ set_wake_lock = (use_wake_lock)=>{
         return;
     
     //release older wakelock 
-    if(wakeLock && wakeLock.released)
+    if(wakeLock && !wakeLock.released)
     {
         let current_wakelock=wakeLock;
-        wakeLock = null;
         current_wakelock.release();
     }
+    wakeLock = null;
+
     if(use_wake_lock)
     {
         requestWakeLock();
