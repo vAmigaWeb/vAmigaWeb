@@ -365,7 +365,8 @@ HardDrive::isCompatible() const
 bool
 HardDrive::isBootable()
 {
-    try {
+    return true;
+/*    try {
         
         if (FileSystem(*this).exists("s/startup-sequence")) {
 
@@ -380,6 +381,7 @@ HardDrive::isBootable()
     
     debug(HDR_DEBUG, "Unbootable drive\n");
     return false;
+*/
 }
 
 void
