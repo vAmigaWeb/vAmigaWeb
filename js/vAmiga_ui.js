@@ -3795,7 +3795,52 @@ $('.layer').change( function(event) {
                 $("#drop_zone").html(`file slot`);
             });
         }
+        try
+        {
+            show_browser_storage_info();
+        } catch(e){
+            console.error(e);
+        }        
     });
+
+    show_browser_storage_info = async function() {
+        async function isStoragePersisted() {
+            return await navigator.storage && navigator.storage.persisted &&
+            navigator.storage.persisted();
+        }
+        if(navigator.storage && navigator.storage.persist && !await navigator.storage.persisted())
+            await navigator.storage.persist();
+
+        let quota_display = "";
+        if (navigator.storage && navigator.storage.estimate) {
+            const estimation = await navigator.storage.estimate();
+            quota_display = `
+            app storage:<br>
+            <div class="vbk_choice_text" style="display:flex;gap:20px;margin-left:10px;margin-top:5px">
+            <span>total ${Math.round(estimation.quota/1024/1024)}MB</span>
+            <span>used ${Math.round(estimation.usage/1024/1024)}MB</span> 
+            <span>free ${Math.round((estimation.quota - estimation.usage)/1024/1024)}MB</span>
+            </div>            
+            ` ;
+        }
+
+  
+
+        $("#storage_info").html(
+            `
+            ${quota_display}
+
+            <div style="margin-left: 13px;margin-top:4px">persistent storage 
+            ${await isStoragePersisted() ? 
+                "enabled. data won't be cleared automatically." : 
+                "disabled. data may be cleared automatically if storage is low."
+            }
+            </div>     
+            `
+        );
+
+    }
+
 
     add_click('button_take_snapshot', function() 
     {       
@@ -4282,6 +4327,7 @@ $('.layer').change( function(event) {
                     document.getElementById('activate_version').disabled=
                     (select.options[select.selectedIndex].value == current_version);
                 }
+                show_browser_storage_info();
             }
             document.getElementById('activate_version').onclick = function() {
                 let cache_name = document.getElementById('version_selector').value; 

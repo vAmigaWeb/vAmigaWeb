@@ -500,6 +500,14 @@ button[id^="detail_run"] {
     color: var(--light);
 }
 
+#vbk_scroll_area {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-top:var(--keycap_size);
+    margin-top:calc( var(--keycap_size) * -1);
+}
 
 .keycap_shift {
     font-size:calc(var(--keycap_size) / 4.5);

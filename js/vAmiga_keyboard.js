@@ -642,12 +642,23 @@ draggable="false">
                 wasm_schedule_key(key_code[0], key_code[1], 0, 1);
                 release_modifiers();
                 the_key_element.setAttribute('key-state', '');
-                
+                the_key_element.addEventListener("animationend", (anim_event) => {
+                    if(anim_event.animationName.startsWith('released')) {
+                        the_key_element.removeAttribute('key-state');
+                    }
+                });
+
                 if(keydef.mapto)
                 {
                     for(let mapto of keydef.mapto)
                     {
-                        document.getElementById(`button_${mapto}`).setAttribute('key-state', '');
+                        const button_element = document.getElementById(`button_${mapto}`);
+                        button_element.setAttribute('key-state', '');
+                        button_element.addEventListener("animationend", (anim_event) => {
+                            if(anim_event.animationName.startsWith('released')) {
+                                button_element.removeAttribute('key-state');
+                            }
+                        });
                     }                        
                 }
             }
