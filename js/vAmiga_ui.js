@@ -3817,7 +3817,7 @@ $('.layer').change( function(event) {
             quota_display = `
             app storage:<br>
             <div class="vbk_choice_text" style="display:flex;gap:20px;margin-left:10px;margin-top:5px">
-            <span>total ${Math.round(estimation.quota/1024/1024)}MB</span>
+            <span>quota ${Math.round(estimation.quota/1024/1024)}MB</span>
             <span>used ${Math.round(estimation.usage/1024/1024)}MB</span> 
             <span>free ${Math.round((estimation.quota - estimation.usage)/1024/1024)}MB</span>
             </div>            
