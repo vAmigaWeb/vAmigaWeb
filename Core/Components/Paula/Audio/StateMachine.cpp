@@ -78,7 +78,7 @@ StateMachine<nr>::disableDMA()
             move_001_000();
             break;
             
-        case 0b010:
+/*        case 0b010:
             
             move_010_000();
             break;
@@ -87,7 +87,7 @@ StateMachine<nr>::disableDMA()
             
             move_011_000();
             break;
-
+*/
         case 0b101:
 
             move_101_000();
