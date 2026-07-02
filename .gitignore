@@ -43,3 +43,5 @@ vAmiga.wasm
 
 sw.js
 .vscode/settings.json
+
+node_modules/
