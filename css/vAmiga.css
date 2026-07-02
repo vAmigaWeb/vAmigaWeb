@@ -966,3 +966,6 @@ input[type="range"]::-moz-range-thumb {
 .custom_key[key-state=""] {
     animation: action_buttons_release_anim 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
 }
+
+.cm-editor .cm-content ::selection { background: rgba(100,160,220,0.4); }
+[data-theme="dark"] .cm-editor .cm-content ::selection { background: #3a7bd5; }

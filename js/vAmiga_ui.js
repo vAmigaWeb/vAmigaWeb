@@ -1413,7 +1413,7 @@ joystick_keyup_map[3].KeyN='RELEASE_FIRE3';
 
 function is_any_text_input_active()
 {
-    if(typeof editor !== 'undefined' && editor.hasFocus())
+    if(typeof editor !== 'undefined' && editor.hasFocus)
         return true;
 
     var active = false;
@@ -1854,7 +1854,7 @@ function emit_joystick_cmd(command)
 
 }
 
-const PORT_ACCESSOR = {
+var PORT_ACCESSOR = {
     MANUAL: 'MANUAL',
     BOT: 'BOT'
 }
@@ -4727,25 +4727,28 @@ $('.layer').change( function(event) {
             }
         );
 
+        _cm6_current_lang = 'action_sequence';
         reconfig_editor = function(new_lang){
             if(typeof editor !== 'undefined' )
             {
-                editor.setOption("lineNumbers", new_lang == 'javascript');
-                if(new_lang=='javascript')
-                {
-                    editor.setOption("gutters", ["CodeMirror-lint-markers"]);
-                    editor.setOption("lint", { esversion: 10});
-                    $('#check_autocomplete').show();
-                    $('#check_livecomplete').prop('checked', true);                 
-                    editor.setOption('placeholder', "add example code with the menu button 'add'->'javascript'");
-                }
-                else
-                {
-                    editor.setOption("gutters", false);
-                    editor.setOption("lint", false);
-                    $('#check_autocomplete').hide();
-                    editor.setOption('placeholder', "type a single key like 'B' for bomb ... or compose a sequence of actions separated by '=>'");
-                }
+                const isJs = new_lang === 'javascript';
+                editor.dispatch({
+                    effects: [
+                        _cm6_c_lineNumbers.reconfigure(isJs ? CM6.lineNumbers() : []),
+                        _cm6_c_lint.reconfigure(isJs ? [_cm6_jshintLinter, CM6.lintGutter()] : []),
+                        _cm6_c_placeholder.reconfigure(isJs
+                            ? CM6.placeholder("add example code with the menu button 'add'->'javascript'")
+                            : CM6.placeholder("type a single key like 'B' for bomb ... or compose a sequence of actions separated by '=>'")),
+                        _cm6_c_autocomplete.reconfigure(
+                            isJs
+                                ? CM6.autocompletion({ activateOnTyping: false })
+                                : CM6.autocompletion({ override: [_cm6_actionSeqSepCompletion, _cm6_actionSeqCompletion], activateOnTyping: false })
+                        )
+                    ]
+                });
+                _cm6_current_lang = new_lang;
+                $('#check_autocomplete').show();
+                $('#check_livecomplete').prop('checked', true);
             }
         }
         set_complete_label = function(){
@@ -4793,7 +4796,14 @@ $('.layer').change( function(event) {
         });
 
         $('#modal_custom_key').on('show.bs.modal', function () {
-            bind_custom_key();    
+            bind_custom_key();
+        });
+        // Prevent modal from closing when Escape is pressed while the CM6 editor has focus.
+        // hide.bs.modal is cancelable via preventDefault() and fires before the modal actually hides.
+        $('#modal_custom_key').on('hide.bs.modal', function(e) {
+            if (typeof editor !== 'undefined' && editor.hasFocus) {
+                e.preventDefault();
+            }
         });
 
         bind_custom_key = async function () {
@@ -5146,113 +5156,333 @@ release_key('ControlLeft');`;
         };
 
         turn_on_full_editor = ()=>{
-            require.config(
-                {
-                    packages: [{
-                        name: "codemirror",
-                        location: "js/cm",
-                        main: "lib/codemirror"
-                    }]
-                });
-                require(["codemirror", "codemirror/mode/javascript/javascript",
-                            "codemirror/addon/hint/show-hint", "codemirror/addon/hint/javascript-hint",
-                            "codemirror/addon/edit/closebrackets","codemirror/addon/edit/matchbrackets", 
-                            "codemirror/addon/selection/active-line", "codemirror/addon/display/placeholder",
-                            "codemirror/addon/lint/lint", "codemirror/addon/lint/javascript-lint",
-      //                      "codemirror/lib/jshint", not working with require.js
-                            ], function(CodeMirror) 
-                {
-                    editor = CodeMirror.fromTextArea(document.getElementById("input_action_script"), {
-                        lineNumbers: true,
-                        styleActiveLine: true,
-                        mode:  {name: "javascript", globalVars: true},
-                        lineWrapping: true,
-                        autoCloseBrackets: true,
-                        matchBrackets: true,
-                        tabSize: 2,
-                        gutters: ["CodeMirror-lint-markers"],
-                        lint: { esversion: 10},
-                        extraKeys: {"Ctrl-Space": "autocomplete"}
-                    });
+            const textarea = document.getElementById("input_action_script");
 
-                    let check_livecomplete=$('#check_livecomplete'); 
-                    editor.on("keydown",function( cm, event ) {
-                        if(event.key === "Escape")
-                        {//prevent that ESC closes the complete modal when in editor
-                            event.stopPropagation();
-                            return false;
+            // CM6 Compartments for dynamic reconfiguration
+            _cm6_c_lineNumbers  = new CM6.Compartment();
+            _cm6_c_lint         = new CM6.Compartment();
+            _cm6_c_placeholder  = new CM6.Compartment();
+            _cm6_c_theme        = new CM6.Compartment();
+            _cm6_c_autocomplete = new CM6.Compartment();
+
+            // jshint-based linter for CM6
+            _cm6_jshintLinter = CM6.linter((view) => {
+                const code = view.state.doc.toString();
+                if (typeof JSHINT === 'undefined') return [];
+                const wrapped = `(async function(){\n${code}\n})();`;
+                JSHINT(wrapped, { esversion: 10, undef: false, asi: true, expr: true, strict: false });
+                const errors = JSHINT.errors || [];
+                const diagnostics = [];
+                const docLines = view.state.doc.lines;
+                for (const err of errors) {
+                    if (!err) continue;
+                    if (err.line <= 1 || err.line > docLines + 1) continue;
+                    const lineNo = Math.min(Math.max((err.line || 1) - 1, 1), docLines);
+                    const line   = view.state.doc.line(lineNo);
+                    const from   = Math.min(line.from + Math.max(0, (err.character || 1) - 1), view.state.doc.length);
+                    const to     = Math.min(Math.max(from + 1, line.from), line.to);
+                    diagnostics.push({
+                        from, to,
+                        severity: (err.code && err.code[0] === 'W') ? 'warning' : 'error',
+                        message:  err.reason
+                    });
+                }
+                return diagnostics;
+            });
+
+            // Custom completion source: alle window-Globals (wasm_* boosted) + property access
+            const globalCompletionSource = (context) => {
+                // Property access: console.l  /  window.document.body.s
+                const dotMatch = context.matchBefore(/[\w$]+(\.[\w$]+)*\.\w*/);
+                if (dotMatch) {
+                    const lastDot  = dotMatch.text.lastIndexOf('.');
+                    const objPath  = dotMatch.text.slice(0, lastDot);
+                    try {
+                        let obj = window;
+                        for (const part of objPath.split('.')) {
+                            obj = obj[part];
+                            if (obj == null) return null;
                         }
-                        if (!cm.state.completionActive &&
-                            event.key !== undefined &&
-                            event.key.length == 1  &&
-                            event.metaKey == false && event.ctrlKey == false &&
-                            event.key != ';' && event.key != ' ' && event.key != '(' 
-                            && event.key != ')' && 
-                            event.key != '{' && event.key != '}'
-                            ) 
-                        {
-                            if(check_livecomplete.is(":visible") && 
-                               check_livecomplete.prop('checked'))
-                            {
-                                cm.showHint({completeSingle: false});
+                        const options = [];
+                        const seen    = new Set();
+                        let   proto   = obj;
+                        while (proto !== null && proto !== Object.prototype) {
+                            for (const key of Object.getOwnPropertyNames(proto)) {
+                                if (seen.has(key)) continue;
+                                seen.add(key);
+                                const type = typeof obj[key] === 'function' ? 'function' : 'variable';
+                                options.push({ label: key, type });
+                            }
+                            proto = Object.getPrototypeOf(proto);
+                        }
+                        return { from: dotMatch.from + lastDot + 1, options, validFor: /^[\w$]*$/ };
+                    } catch(e) {}
+                    return null;
+                }
+                // Top-level identifier: wasm_  /  cons  /  vAmiga
+                const word = context.matchBefore(/[\w$]*/);
+                if (!word || (word.from === word.to && !context.explicit)) return null;
+                const options = [];
+                const seen = new Set();
+                for (const key of Object.getOwnPropertyNames(window)) {
+                    try {
+                        if (key.length < 2 || seen.has(key)) continue;
+                        seen.add(key);
+                        const val = window[key];
+                        const type = typeof val === 'function' ? 'function' :
+                                     (val && typeof val === 'object') ? 'namespace' : 'variable';
+                        options.push({
+                            label: key,
+                            type,
+                            boost: (key.startsWith('wasm_') || key.startsWith('vAmiga')) ? 5 : 0
+                        });
+                    } catch(e) {}
+                }
+                return { from: word.from, options, validFor: /^[\w$]*$/ };
+            };
+
+            // Suggests => separator right after a complete action-sequence command
+            _cm6_actionSeqSepCompletion = (context) => {
+                const word = context.matchBefore(/[^\s=>]+/);
+                if (!word) return null;
+                const w = word.text;
+                const keyNames = typeof key_translation_map !== 'undefined'
+                    ? Object.keys(key_translation_map) : [];
+                const keywords = [
+                    'pause', 'run', 'toggle_run', 'toggle_warp',
+                    'warp_always', 'warp_never', 'warp_auto', 'toggle_speed',
+                    'take_snapshot', 'keyboard', 'menubar', 'clipboard_paste',
+                    'fullscreen', 'restore_last_snapshot', 'swap_joystick',
+                    'await_action_button_released', 'activity_monitor',
+                    'toggle_action_buttons', '}'
+                ];
+                const isComplete =
+                    keywords.includes(w)              ||
+                    /^loop\d+\{$/.test(w)             ||
+                    /^\d+ms$/.test(w)                 ||
+                    (w.startsWith('press')   && keyNames.includes(w.slice(5)))  ||
+                    (w.startsWith('release') && keyNames.includes(w.slice(7))) ||
+                    /^j[12](fire|up|down|left|right)[01]$/.test(w);
+                if (!isComplete) return null;
+                return {
+                    from: word.to,
+                    options: [{ label: '=>', type: 'keyword', detail: 'next action', apply: '=>' }],
+                    validFor: /^$/
+                };
+            };
+
+            // Action Sequence Script autocomplete source
+            _cm6_actionSeqCompletion = (context) => {
+                // Separator suggestion: triggered when user types '='
+                const eqMatch = context.matchBefore(/=+/);
+                if (eqMatch && eqMatch.from < eqMatch.to) {
+                    return {
+                        from: eqMatch.from,
+                        options: [{ label: '=>', type: 'keyword', detail: 'next action', apply: '=>' }],
+                        validFor: /^=+>?$/
+                    };
+                }
+
+                const word = context.matchBefore(/[^\s=>]*/);
+                if (!word || (word.from === word.to && !context.explicit)) return null;
+
+                const keyNames = typeof key_translation_map !== 'undefined'
+                    ? Object.keys(key_translation_map) : [];
+
+                const keywords = [
+                    'pause', 'run', 'toggle_run', 'toggle_warp',
+                    'warp_always', 'warp_never', 'warp_auto', 'toggle_speed',
+                    'take_snapshot', 'keyboard', 'menubar', 'clipboard_paste',
+                    'fullscreen', 'restore_last_snapshot', 'swap_joystick',
+                    'await_action_button_released', 'activity_monitor',
+                    'toggle_action_buttons', '}'
+                ];
+
+                // Word is already a complete command → only _cm6_actionSeqSepCompletion shows =>
+                const w = word.text;
+                const isComplete =
+                    keywords.includes(w) || /^loop\d+\{$/.test(w) || /^\d+ms$/.test(w) ||
+                    (w.startsWith('press')   && keyNames.includes(w.slice(5)))  ||
+                    (w.startsWith('release') && keyNames.includes(w.slice(7))) ||
+                    /^j[12](fire|up|down|left|right)[01]$/.test(w);
+                if (isComplete) return null;
+
+                const options = [];
+                for (const kw of keywords) options.push({ label: kw, type: 'keyword' });
+
+                options.push({ label: 'loop5{', type: 'function', detail: 'repeat N times' });
+                options.push({ label: '500ms',  type: 'variable', detail: 'wait N ms'     });
+                options.push({ label: "''",     type: 'string',   detail: 'type text',
+                    apply: (view, _c, from, to) => {
+                        view.dispatch({
+                            changes: { from, to, insert: "''" },
+                            selection: { anchor: from + 1 }
+                        });
+                    }
+                });
+
+                for (const key of keyNames) {
+                    options.push({ label: 'press'   + key, type: 'variable', detail: 'press key'   });
+                    options.push({ label: 'release' + key, type: 'variable', detail: 'release key' });
+                }
+
+                for (const port of [1, 2])
+                    for (const dir of ['fire', 'up', 'down', 'left', 'right'])
+                        for (const state of [0, 1]) {
+                            const lbl = `j${port}${dir}${state}`;
+                            options.push({ label: lbl, type: 'variable',
+                                           detail: `port${port} ${dir} ${state ? 'press' : 'release'}` });
+                        }
+
+                return { from: word.from, options, validFor: /^[^\s=>]*$/ };
+            };
+
+            // vc64dark syntax token highlight style
+            const vc64darkHighlight = CM6.HighlightStyle.define([
+                { tag: CM6.tags.keyword,                   color: "#659dd4" },
+                { tag: CM6.tags.operator,                  color: "#d4d4d4" },
+                { tag: [CM6.tags.variableName,
+                         CM6.tags.local(CM6.tags.variableName)], color: "#72c3b0" },
+                { tag: CM6.tags.definition(CM6.tags.variableName), color: "#ddd9ac" },
+                { tag: CM6.tags.typeName,                  color: "#f07178" },
+                { tag: CM6.tags.className,                 color: "#FFCB6B" },
+                { tag: CM6.tags.atom,                      color: "#F78C6C" },
+                { tag: CM6.tags.number,                    color: "#c19177" },
+                { tag: CM6.tags.string,                    color: "#c5947a" },
+                { tag: CM6.tags.comment,                   color: "#759458", fontStyle: "italic" },
+                { tag: CM6.tags.propertyName,              color: "#a9dbfc" },
+                { tag: CM6.tags.tagName,                   color: "#FF5370" },
+                { tag: CM6.tags.meta,                      color: "#FFCB6B" },
+                { tag: CM6.tags.attributeName,             color: "#C792EA" },
+                { tag: CM6.tags.invalid,                   color: "#fff", backgroundColor: "#FF5370" }
+            ]);
+
+            // vc64dark structural theme
+            const vc64darkTheme = CM6.EditorView.theme({
+                "&": {
+                    backgroundColor: "var(--darkbg)",
+                    color:           "var(--lightgray)"
+                },
+                ".cm-content": { caretColor: "#FFCC00" },
+                "&.cm-focused .cm-cursor": { borderLeftColor: "#FFCC00" },
+                ".cm-gutters": {
+                    backgroundColor: "var(--darkbg)",
+                    color:           "#546E7A",
+                    border:          "none"
+                },
+                ".cm-gutterElement": { color: "#546E7A" },
+                "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": {
+                    backgroundColor: "rgba(128, 203, 196, 0.2)"
+                },
+                ".cm-activeLine":       { backgroundColor: "var(--dark)" },
+                ".cm-activeLineGutter": { backgroundColor: "var(--dark)" },
+                ".cm-matchingBracket":  { textDecoration: "underline", color: "var(--warning) !important" }
+            }, { dark: true });
+
+            const startState = CM6.EditorState.create({
+                doc: textarea.value,
+                extensions: [
+                    _cm6_c_lineNumbers.of(CM6.lineNumbers()),
+                    CM6.highlightActiveLine(),
+                    CM6.indentOnInput(),
+                    CM6.syntaxHighlighting(CM6.defaultHighlightStyle, { fallback: true }),
+                    CM6.bracketMatching(),
+                    CM6.closeBrackets(),
+                    _cm6_c_autocomplete.of(CM6.autocompletion({ activateOnTyping: false })),
+                    ...(()=>{ const jsSupport = CM6.javascript(); return [jsSupport, jsSupport.language.data.of({ autocomplete: globalCompletionSource })]; })(),
+                    _cm6_c_lint.of([_cm6_jshintLinter, CM6.lintGutter()]),
+                    CM6.keymap.of([
+                        ...CM6.closeBracketsKeymap,
+                        ...CM6.defaultKeymap,
+                        ...CM6.historyKeymap,
+                        ...CM6.completionKeymap,
+                        { key: "Tab", run: CM6.indentWithTab },
+                        { key: "Ctrl-Space", run: CM6.startCompletion }
+                    ]),
+                    CM6.history(),
+                    _cm6_c_placeholder.of(CM6.placeholder("add example code with the menu button 'add'->'javascript'")),
+                    _cm6_c_theme.of([]),
+                    CM6.EditorView.lineWrapping,
+                    CM6.EditorView.updateListener.of((update) => {
+                        if (update.docChanged) {
+                            textarea.value = update.view.state.doc.toString();
+                            if (update.transactions.some(tr => tr.isUserEvent("input.type") || (tr.isUserEvent("input.complete") && _cm6_current_lang !== 'javascript'))) {
+                                const check_livecomplete = $('#check_livecomplete');
+                                if (check_livecomplete.is(":visible") && check_livecomplete.prop('checked')) {
+                                    const pos      = update.state.selection.main.head;
+                                    const lastChar = update.state.doc.sliceString(pos - 1, pos);
+                                    if (/[\w$.]/.test(lastChar)) {
+                                        requestAnimationFrame(() => CM6.startCompletion(update.view));
+                                    }
+                                }
+                            }
+                            validate_action_script();
+                        }
+                        if (update.selectionSet && !update.docChanged
+                                && _cm6_current_lang !== 'javascript') {
+                            const view = update.view;
+                            setTimeout(() => CM6.startCompletion(view), 10);
+                        }
+                    }),
+                    CM6.EditorView.domEventHandlers({
+                        keydown(event) {
+                            if (event.key === "Escape") {
+                                event.stopPropagation();
                             }
                         }
-                    });
-                    editor.on("change", (cm) => {
-                        cm.save();
-                        validate_action_script();
-                    });
+                    })
+                ]
+            });
 
-                    if( (call_param_dark == null || call_param_dark)
-                       && load_setting('dark_switch', true))
-                    {
-                        editor.setOption("theme", "vc64dark");
-                    }
-                    reconfig_editor($("#button_script_language").text());
-                    $(".CodeMirror").css("width","100%").css("min-height","60px");
-                    editor.setSize("100%", 'auto');
+            // Insert editor right after the textarea
+            const editorWrapper = document.createElement('div');
+            textarea.insertAdjacentElement('afterend', editorWrapper);
 
-                    $("#button_script_add, #button_script_language").each(function(){
-                        $(this).prop('disabled', false).
-                        removeClass( "btn-secondary" ).
-                        addClass("btn-primary");
-                    });
-                });
+            editor = new CM6.EditorView({
+                state: startState,
+                parent: editorWrapper
+            });
+            textarea.style.display = 'none';
+
+            // Compatibility shims to keep existing CM5-style API calls working
+            editor.save = () => { textarea.value = editor.state.doc.toString(); };
+            editor.toTextArea = () => {
+                editor.destroy();
+                editorWrapper.remove();
+                textarea.style.display = '';
+                editor = undefined;
+            };
+            editor.getDoc = () => ({
+                setValue: (val) => editor.dispatch({
+                    changes: { from: 0, to: editor.state.doc.length, insert: val }
+                }),
+                getCursor:    () => editor.state.selection.main.head,
+                replaceRange: (text, pos) => editor.dispatch({
+                    changes: { from: pos, insert: text }
+                })
+            });
+
+            if ((call_param_dark == null || call_param_dark) && load_setting('dark_switch', true)) {
+                editor.dispatch({ effects: _cm6_c_theme.reconfigure([vc64darkTheme,
+                    CM6.syntaxHighlighting(vc64darkHighlight)]) });
+            }
+            reconfig_editor($("#button_script_language").text());
+            editor.dom.style.width    = "100%";
+            editor.dom.style.minHeight = "60px";
+
+            $("#button_script_add, #button_script_language").each(function(){
+                $(this).prop('disabled', false)
+                       .removeClass("btn-secondary")
+                       .addClass("btn-primary");
+            });
         }
 
 
 
-        $('#modal_custom_key').on('shown.bs.modal', async function () 
+        //CM6 (jshint + codemirror6 bundle) is loaded statically in shell.html header
+        $('#modal_custom_key').on('shown.bs.modal', function () 
         {
-            if(typeof jshint_loaded != 'undefined')
-            {
-                turn_on_full_editor();
-            }
-            else
-            {   
-                $("#button_script_add, #button_script_language").each(function(){
-                    $(this).prop('disabled', true).
-                    removeClass( "btn-primary" ).
-                    addClass("btn-secondary");
-                });
-                function load_css(url) {
-                    var link = document.createElement("link");
-                    link.type = "text/css";
-                    link.rel = "stylesheet";
-                    link.href = url;
-                    document.getElementsByTagName("head")[0].appendChild(link);
-                }
-                load_css("css/cm/codemirror.css");
-                load_css("css/cm/lint.css");
-                load_css("css/cm/show-hint.css");
-                load_css("css/cm/theme/vc64dark.css");
-
-                //lazy load full editor now
-                await load_script("js/cm/lib/jshint.js");
-                jshint_loaded=true;  
-                await load_script("js/cm/lib/require.js");
-                turn_on_full_editor();
-            }
+            turn_on_full_editor();
         });
 
 
@@ -5271,7 +5501,6 @@ release_key('ControlLeft');`;
 
         });
 
-
         $('#input_button_text').keyup( function () {
             validate_custom_key(); 
             let empty=document.getElementById('input_button_text').value =='';
@@ -5283,7 +5512,7 @@ release_key('ControlLeft');`;
 
 
         $('#button_reset_position').click(function(e) 
-        {
+        { 
             var btn_def = custom_keys.find(el=> ('ck'+el.id) == haptic_touch_selected.id);
             if(btn_def != null)
             {

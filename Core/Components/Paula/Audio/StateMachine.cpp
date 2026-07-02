@@ -319,17 +319,6 @@ StateMachine<nr>::move_010_011() {
     penlo();
 }
 
-template <isize nr> void
-StateMachine<nr>::move_010_000() {
-
-    trace(AUD_DEBUG, "move_010_000\n");
-
-    constexpr EventSlot slot = (EventSlot)(SLOT_CH0 + nr);
-    agnus.cancel<slot>();
-
-    intreq2 = false;
-    state = 0b000;
-}
 
 template <isize nr> void
 StateMachine<nr>::move_011_000() {
