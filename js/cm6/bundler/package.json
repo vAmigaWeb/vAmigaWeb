@@ -1,0 +1,20 @@
+{
+  "name": "cm6-bundle",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "esbuild entry.js --bundle --format=iife --global-name=CM6 --outfile=../codemirror6.bundle.js --minify --target=es2020"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.18.6",
+    "@codemirror/commands": "^6.8.1",
+    "@codemirror/lang-javascript": "^6.2.3",
+    "@codemirror/language": "^6.10.8",
+    "@codemirror/lint": "^6.8.5",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.36.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.5"
+  }
+}
