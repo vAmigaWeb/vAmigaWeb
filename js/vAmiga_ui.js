@@ -5141,6 +5141,7 @@ press_key('1');
 release_key('1');
 release_key('ControlLeft');`;
                         set_script_language('javascript');
+                        reconfig_editor('javascript');
                     }
                     else
                     {
@@ -5423,13 +5424,6 @@ release_key('ControlLeft');`;
                             const view = update.view;
                             setTimeout(() => CM6.startCompletion(view), 10);
                         }
-                    }),
-                    CM6.EditorView.domEventHandlers({
-                        keydown(event) {
-                            if (event.key === "Escape") {
-                                event.stopPropagation();
-                            }
-                        }
                     })
                 ]
             });
@@ -5443,6 +5437,16 @@ release_key('ControlLeft');`;
                 parent: editorWrapper
             });
             textarea.style.display = 'none';
+
+            // Keep focus/cursor in the editor when Escape is pressed.
+            // Bubble-phase listener on editor.dom: CM6 handles Escape first (e.g. closes
+            // the autocomplete popup), then we stop the event before it reaches the
+            // Bootstrap modal, whose keydown handler would otherwise steal focus.
+            editor.dom.addEventListener('keydown', (event) => {
+                if (event.key === "Escape") {
+                    event.stopPropagation();
+                }
+            });
 
             // Compatibility shims to keep existing CM5-style API calls working
             editor.save = () => { textarea.value = editor.state.doc.toString(); };
