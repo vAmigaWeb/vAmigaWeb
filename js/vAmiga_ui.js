@@ -5396,7 +5396,7 @@ release_key('ControlLeft');`;
                         ...CM6.defaultKeymap,
                         ...CM6.historyKeymap,
                         ...CM6.completionKeymap,
-                        { key: "Tab", run: CM6.indentWithTab },
+                        CM6.indentWithTab,
                         { key: "Ctrl-Space", run: CM6.startCompletion }
                     ]),
                     CM6.history(),
