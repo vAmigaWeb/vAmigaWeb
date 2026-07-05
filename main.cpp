@@ -965,6 +965,17 @@ extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_d
 }
 
 
+extern "C" int wasm_peek(u32 addr)
+{
+  if(wrapper == NULL) return 0;
+  return wrapper->emu->mem.mem->spypeek8<Accessor::CPU>(addr);
+}
+
+extern "C" void wasm_poke(u32 addr, u8 value)
+{
+  if(wrapper == NULL) return;
+  wrapper->emu->mem.mem->poke8<Accessor::CPU>(addr, value);
+}
 
 
 
