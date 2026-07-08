@@ -526,6 +526,14 @@ function message_handler_queue_worker(msg, data, data2)
         document.body.setAttribute('warpstate', is_warping);
         window.parent.postMessage({ msg: 'render_run_state', value: is_running(), is_warping:  is_warping },"*");
     }
+     else if(msg == "MSG_RSH_UPDATE" || msg == "MSG_RSH_SWITCH")
+    {
+        if(typeof update_retro_shell === 'function') update_retro_shell();
+    }
+    else if(msg == "MSG_RSH_CLOSE")
+    {
+        $('#modal_retro_shell').modal('hide');
+    }
     else if(msg == "MSG_VIDEO_FORMAT")
     {
         $('#ntsc_pixel_ratio_switch').prop('checked', data==1);  
@@ -2044,6 +2052,11 @@ function InitWrappers() {
     wasm_save_workspace = Module.cwrap('wasm_save_workspace', 'string', ['string']);
     wasm_load_workspace = Module.cwrap('wasm_load_workspace', 'undefined', ['string']);
     wasm_retro_shell = Module.cwrap('wasm_retro_shell', 'undefined', ['string']);
+    wasm_retro_shell_get_text = Module.cwrap('wasm_retro_shell_get_text', 'string');
+    wasm_retro_shell_get_cursor = Module.cwrap('wasm_retro_shell_get_cursor', 'number');
+    wasm_retro_shell_get_console = Module.cwrap('wasm_retro_shell_get_console', 'number');
+    wasm_retro_shell_press_key = Module.cwrap('wasm_retro_shell_press_key', 'undefined', ['number']);
+    wasm_retro_shell_press_special = Module.cwrap('wasm_retro_shell_press_special', 'undefined', ['number','number']);
 
     const volumeSlider = document.getElementById('volume-slider');
     set_volume = (new_volume)=>{
@@ -3180,6 +3193,27 @@ activity_monitor_switch.change( function() {
         set_pixel_art(this.checked);
     });
 
+//------ RetroShell enabled (shows/hides the top-bar icon)
+    retro_shell_enabled_switch = $('#retro_shell_enabled_switch');
+    set_retro_shell_enabled = function(value){
+        if(value)
+        {
+            $('#button_retro_shell').show();
+            $('#retro_shell_enabled_help').text('The RetroShell icon is now shown in the menu bar. Open RetroShell to debug, browse files, tweak settings, and more.');
+        }
+        else
+        {
+            $('#button_retro_shell').hide();
+            $('#retro_shell_enabled_help').text('The RetroShell icon is hidden from the menu bar.');
+        }
+        retro_shell_enabled_switch.prop('checked', value);
+    }
+    set_retro_shell_enabled(load_setting('retro_shell_enabled', false));
+    retro_shell_enabled_switch.change( function() {
+        save_setting('retro_shell_enabled', this.checked);
+        set_retro_shell_enabled(this.checked);
+    });
+
 //------
 function bind_config(key, default_value){
     let config_switch = $('#'+key);
@@ -3538,6 +3572,205 @@ add_click("btn_activity_monitor", ()=>{
 
 add_click("button_settings", function() {
     $('#modal_settings').modal('show');
+});
+
+//------ RetroShell console (modeled after vAmigaNet, touch-enabled)
+
+const RSKEY = {UP:0,DOWN:1,LEFT:2,RIGHT:3,PAGE_UP:4,PAGE_DOWN:5,DEL:6,CUT:7,BACKSPACE:8,HOME:9,END:10,TAB:11,RETURN:12,CR:13};
+const RSH_SENTINEL = ' ';
+let retro_shell_bound = false;
+
+let retro_shell_base_text = '';
+let retro_shell_cursor_pos = 0;
+
+function retro_shell_render()
+{
+    let pre = document.getElementById('retro_shell_textarea');
+    if(pre == null) return;
+    let text = retro_shell_base_text;
+    let i = retro_shell_cursor_pos;
+    // rebuild via DOM so text is safely escaped and the cursor is its own span
+    // (a real underscore cursor that blinks via CSS without hiding the glyph)
+    pre.textContent = '';
+    if(i >= 0 && i < text.length && text[i] !== '\n')
+    {
+        pre.appendChild(document.createTextNode(text.slice(0, i)));
+        let cur = document.createElement('span');
+        cur.className = 'rsh-cursor';
+        cur.textContent = text[i];
+        pre.appendChild(cur);
+        pre.appendChild(document.createTextNode(text.slice(i + 1)));
+    }
+    else
+    {
+        pre.textContent = text;
+    }
+    pre.scrollTop = pre.scrollHeight;
+}
+
+update_retro_shell = function()
+{
+    if(typeof wasm_retro_shell_get_text === 'undefined')
+        return;
+    let rel = wasm_retro_shell_get_cursor();
+    retro_shell_base_text = wasm_retro_shell_get_text();
+    // text() appends a trailing space after the input line, so the cursor cell
+    // is at length + rel - 1 (matches the core's cursor, not one cell further)
+    let pos = retro_shell_base_text.length + rel - 1;
+    if(pos < 0) pos = 0;
+    retro_shell_cursor_pos = pos;
+    // colorize by active console: 0 = commander, 1 = debugger, 2 = navigator
+    let pre = document.getElementById('retro_shell_textarea');
+    if(pre != null && typeof wasm_retro_shell_get_console === 'function')
+    {
+        let mode = ['commander','debugger','navigator'][wasm_retro_shell_get_console()] || 'commander';
+        pre.setAttribute('data-rsh-mode', mode);
+    }
+    retro_shell_render();
+}
+
+function retro_shell_focus_input()
+{
+    let cap = document.getElementById('retro_shell_capture');
+    if(cap == null) return;
+    cap.value = RSH_SENTINEL;
+    cap.focus();
+    try { cap.setSelectionRange(RSH_SENTINEL.length, RSH_SENTINEL.length); } catch(e){}
+}
+
+function retro_shell_beforeinput(e)
+{
+    e.preventDefault();
+    switch(e.inputType)
+    {
+        case 'insertText':
+        case 'insertFromPaste':
+            if(e.data) for(const ch of e.data) wasm_retro_shell_press_key(ch.charCodeAt(0));
+            break;
+        case 'insertLineBreak':
+        case 'insertParagraph':
+            wasm_retro_shell_press_special(RSKEY.RETURN, 0);
+            break;
+        case 'deleteContentBackward':
+        case 'deleteWordBackward':
+        case 'deleteSoftLineBackward':
+            wasm_retro_shell_press_special(RSKEY.BACKSPACE, 0);
+            break;
+        case 'deleteContentForward':
+            wasm_retro_shell_press_special(RSKEY.DEL, 0);
+            break;
+    }
+    update_retro_shell();
+}
+
+function retro_shell_keydown(e)
+{
+    // characters, Enter and Backspace are handled via the beforeinput event
+    // so that soft keyboards on iOS/Android work; here we only handle keys
+    // that do not emit input events.
+    if(e.ctrlKey)
+    {
+        if(e.key == 'k') wasm_retro_shell_press_special(RSKEY.CUT, 0);
+        else if(e.key == 'a') wasm_retro_shell_press_special(RSKEY.HOME, 0);
+        else if(e.key == 'e') wasm_retro_shell_press_special(RSKEY.END, 0);
+        else return;
+        e.preventDefault();
+        update_retro_shell();
+        return;
+    }
+    switch(e.key)
+    {
+        case 'ArrowUp':    wasm_retro_shell_press_special(RSKEY.UP, 0); break;
+        case 'ArrowDown':  wasm_retro_shell_press_special(RSKEY.DOWN, 0); break;
+        case 'ArrowLeft':  wasm_retro_shell_press_special(RSKEY.LEFT, 0); break;
+        case 'ArrowRight': wasm_retro_shell_press_special(RSKEY.RIGHT, 0); break;
+        case 'Home':       wasm_retro_shell_press_special(RSKEY.HOME, 0); break;
+        case 'End':        wasm_retro_shell_press_special(RSKEY.END, 0); break;
+        case 'PageUp':     wasm_retro_shell_press_special(RSKEY.PAGE_UP, 0); break;
+        case 'PageDown':   wasm_retro_shell_press_special(RSKEY.PAGE_DOWN, 0); break;
+        case 'Delete':     wasm_retro_shell_press_special(RSKEY.DEL, 0); break;
+        case 'Tab':        wasm_retro_shell_press_special(RSKEY.TAB, e.shiftKey ? 1 : 0); break;
+        // physical keyboards report these reliably; preventDefault below stops
+        // the follow-up beforeinput event, so there is no double input. Soft
+        // keyboards report key === 'Unidentified' here and fall through to the
+        // beforeinput handler instead.
+        case 'Enter':      wasm_retro_shell_press_special(RSKEY.RETURN, e.shiftKey ? 1 : 0); break;
+        case 'Backspace':  wasm_retro_shell_press_special(RSKEY.BACKSPACE, 0); break;
+        default: return; // let beforeinput handle typed characters
+    }
+    e.preventDefault();
+    update_retro_shell();
+}
+
+function retro_shell_button_action(a)
+{
+    switch(a)
+    {
+        case 'up':        wasm_retro_shell_press_special(RSKEY.UP, 0); break;
+        case 'down':      wasm_retro_shell_press_special(RSKEY.DOWN, 0); break;
+        case 'left':      wasm_retro_shell_press_special(RSKEY.LEFT, 0); break;
+        case 'right':     wasm_retro_shell_press_special(RSKEY.RIGHT, 0); break;
+        case 'home':      wasm_retro_shell_press_special(RSKEY.HOME, 0); break;
+        case 'end':       wasm_retro_shell_press_special(RSKEY.END, 0); break;
+        case 'tab':       wasm_retro_shell_press_special(RSKEY.TAB, 0); break;
+        case 'backspace': wasm_retro_shell_press_special(RSKEY.BACKSPACE, 0); break;
+        case 'clear':
+            // discard the current input line, then run the 'clear' command
+            wasm_retro_shell_press_special(RSKEY.CR, 0);
+            for(const ch of 'clear') wasm_retro_shell_press_key(ch.charCodeAt(0));
+            wasm_retro_shell_press_special(RSKEY.RETURN, 0);
+            break;
+        case 'return':    wasm_retro_shell_press_special(RSKEY.RETURN, 0); break;
+    }
+    update_retro_shell();
+    retro_shell_focus_input();
+}
+
+function retro_shell_bind()
+{
+    if(retro_shell_bound) return;
+    let cap = document.getElementById('retro_shell_capture');
+    let disp = document.getElementById('retro_shell_textarea');
+    if(cap == null || disp == null) return;
+    cap.addEventListener('beforeinput', retro_shell_beforeinput);
+    cap.addEventListener('keydown', retro_shell_keydown);
+    // restore the sentinel char so backspace keeps firing on empty input
+    cap.addEventListener('input', function() {
+        if(cap.value !== RSH_SENTINEL) {
+            cap.value = RSH_SENTINEL;
+            try { cap.setSelectionRange(RSH_SENTINEL.length, RSH_SENTINEL.length); } catch(e){}
+        }
+    });
+    // tapping the output summons the soft keyboard by focusing the capture field
+    disp.addEventListener('click', retro_shell_focus_input);
+    document.querySelectorAll('#retro_shell_buttons [data-rsh]').forEach(function(btn) {
+        // press/release animation (same as the on-screen action buttons)
+        btn.addEventListener('pointerdown', function(e) {
+            e.preventDefault(); // keep focus on the capture field
+            btn.setAttribute('key-state', 'pressed');
+        });
+        let release = function() { btn.setAttribute('key-state', ''); };
+        btn.addEventListener('pointerup', release);
+        btn.addEventListener('pointerleave', release);
+        btn.addEventListener('pointercancel', release);
+        btn.addEventListener('click', function() { retro_shell_button_action(btn.getAttribute('data-rsh')); });
+    });
+    retro_shell_bound = true;
+}
+
+add_click("button_retro_shell", function() {
+    $('#modal_retro_shell').modal('toggle');
+});
+
+$('#modal_retro_shell').on('shown.bs.modal', function() {
+    document.body.classList.add('retro-shell-open');
+    retro_shell_bind();
+    retro_shell_focus_input();
+    update_retro_shell();
+});
+
+$('#modal_retro_shell').on('hidden.bs.modal', function() {
+    document.body.classList.remove('retro-shell-open');
 });
 
 //------
@@ -4254,12 +4487,12 @@ $('.layer').change( function(event) {
 
                 let upgrade_info = `    
                 currently active version (old):<br>
-                <div style="display:flex">
-                <span class="ml-2 px-1 py-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${current_ui}</i></span>
+                <div class="setting_text" style="display:flex">
+                <span class="ml-2 px-1 py-1">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 py-1">ui <i>${current_ui}</i></span>
                 </div><br>
                 <span id="new_version_installed_or_not">${new_version_installed_or_not}</span>:<br> 
-                <div style="display:flex">
-                <span class="ml-2 px-1 py-1 outlined">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${sw_version.ui}</i></span> ${activate_or_install}
+                <div class="setting_text" style="display:flex">
+                <span class="ml-2 px-1 py-1">core <i>${sw_version.core}</i></span> <span class="ml-2 px-1 py-1">ui <i>${sw_version.ui}</i></span> ${activate_or_install}
                 </div>
                 <div id="install_warning" class="my-1">Did you know that upgrading the core may break your saved snapshots?<br/>
                 In that case you can still select and activate an older compatible installation to run it ...
@@ -4280,8 +4513,8 @@ $('.layer').change( function(event) {
             {
                 $("#version_display").html(`
                 currently active version (newest):<br>
-                <div style="display:flex">
-                <span class="ml-2 px-1 py-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 py-1 outlined">ui <i>${current_ui}</i></span>
+                <div class="setting_text" style="display:flex">
+                <span class="ml-2 px-1 py-1">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 py-1">ui <i>${current_ui}</i></span>
                 <button type="button" id="activate_or_install" class="btn btn-success btn-sm px-1 py-1">
                 install</button>
                 </div>
@@ -4369,7 +4602,7 @@ $('.layer').change( function(event) {
             await get_current_ui_version();
             $("#version_display").html(`
             currently active version:<br>
-            <span class="ml-2 px-1 outlined">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1 outlined">ui <i>${current_ui}</i></span>
+            <div class="setting_text"><span class="ml-2 px-1">core <i>${wasm_get_core_version()}</i></span> <span class="ml-2 px-1">ui <i>${current_ui}</i></span></div>
             <br><br>
             waiting for service worker...`
             );

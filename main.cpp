@@ -965,6 +965,17 @@ extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_d
 }
 
 
+extern "C" int wasm_peek(u32 addr)
+{
+  if(wrapper == NULL) return 0;
+  return wrapper->emu->mem.mem->spypeek8<Accessor::CPU>(addr);
+}
+
+extern "C" void wasm_poke(u32 addr, u8 value)
+{
+  if(wrapper == NULL) return;
+  wrapper->emu->mem.mem->poke8<Accessor::CPU>(addr, value);
+}
 
 
 
@@ -2672,4 +2683,35 @@ extern "C" void wasm_retro_shell(char* cmd)
   }
   else
     wrapper->emu->retroShell.execScript(cmd);  
+}
+
+// Interactive RetroShell console bindings (modeled after vAmigaNet)
+extern "C" const char* wasm_retro_shell_get_text()
+{
+  return wrapper->emu->retroShell.text();
+}
+
+extern "C" int wasm_retro_shell_get_cursor()
+{
+  return (int)wrapper->emu->retroShell.getInfo().cursorRel;
+}
+
+// Returns the active console: 0 = Commander, 1 = Debugger, 2 = Navigator
+extern "C" int wasm_retro_shell_get_console()
+{
+  return (int)wrapper->emu->retroShell.getInfo().console;
+}
+
+extern "C" void wasm_retro_shell_press_key(int c)
+{
+  wrapper->emu->retroShell.press((char)c);
+  // Process the command queue right away so RetroShell also reacts while the
+  // emulator is paused (RSH_EXECUTE would otherwise only run in the run loop).
+  wrapper->emu->emu->update();
+}
+
+extern "C" void wasm_retro_shell_press_special(int key, int shift)
+{
+  wrapper->emu->retroShell.press((RSKey)key, shift != 0);
+  wrapper->emu->emu->update();
 }

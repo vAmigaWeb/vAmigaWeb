@@ -222,6 +222,12 @@
         height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M160-160v-320h160v320H160Zm240 0v-640h160v640H400Zm240 0v-440h160v440H640Z"/></svg>
       </button>
 
+      <button id="button_retro_shell" class="btn btn-sm icon" type="button" style="display:none">
+        <svg width="1.6em" height="auto" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" data-toggle="tooltip" data-placement="top" title="RetroShell console">
+          <path d="M6 9a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 6 9zM3.854 4.146a.5.5 0 1 0-.708.708L4.793 6.5 3.146 8.146a.5.5 0 1 0 .708.708l2-2a.5.5 0 0 0 0-.708l-2-2z"/>
+          <path d="M2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm12 1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h12z"/>
+        </svg>
+      </button>
       <button id="button_settings" class="btn btn-sm icon" type="button">
         <svg class="bi bi-gear-fill" width="1.6em" height="auto" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" data-toggle="tooltip" data-placement="top" title="settings">
           <path fill-rule="evenodd" d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 0 0-5.86 2.929 2.929 0 0 0 0 5.858z"/>
@@ -495,8 +501,13 @@
                 <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="0.5">
               </div>
     
+            <div class="custom-control custom-switch mt-3">
+              <input type="checkbox" class="custom-control-input" id="retro_shell_enabled_switch" />
+              <label class="custom-control-label" for="retro_shell_enabled_switch">show RetroShell icon in menu bar</label>
+            </div>
+            <div id="retro_shell_enabled_help" class="help_text" style="font-size: small"></div>
 
-            <div class="custom-control custom-switch mt-1">
+            <div class="custom-control custom-switch mt-3">
               <input type="checkbox" class="custom-control-input" id="activity_monitor_switch" />
               <label class="custom-control-label" for="activity_monitor_switch">activity monitor</label>
             </div>
@@ -999,6 +1010,156 @@ touch screen settings for virtual keyboard
     </div>
     <!--take snapshot modal-->
 
+
+    <style>
+      /* light mode: solid dark-gray font (scrim lives on .modal-content) */
+      #retro_shell_textarea {
+        position: relative;
+        color: #333;
+        background: transparent;
+      }
+      /* dark mode: light font with a soft outline */
+      [data-theme="dark"] #retro_shell_textarea {
+        color: #e0e0e0;
+        background: transparent;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.9);
+      }
+      /* cursor shape changes per console mode (color follows currentColor) */
+      /* commander (default): blinking underscore */
+      #retro_shell_textarea .rsh-cursor {
+        border-bottom: 0.14em solid currentColor;
+        animation: rsh-blink-underscore 1.06s infinite;
+      }
+      @keyframes rsh-blink-underscore {
+        0%, 49%   { border-bottom-color: currentColor; }
+        50%, 100% { border-bottom-color: transparent; }
+      }
+      /* debugger: blinking block (inverts the glyph) */
+      #retro_shell_textarea[data-rsh-mode="debugger"] .rsh-cursor {
+        border-bottom: none;
+        animation: rsh-blink-block 1.06s infinite;
+      }
+      @keyframes rsh-blink-block {
+        0%, 49%   { background-color: var(--rsh-color); color: #000; }
+        50%, 100% { background-color: transparent; }
+      }
+      /* navigator: blinking vertical bar */
+      #retro_shell_textarea[data-rsh-mode="navigator"] .rsh-cursor {
+        border-bottom: none;
+        border-left: 0.12em solid currentColor;
+        margin-left: -0.12em;
+        animation: rsh-blink-bar 1.06s infinite;
+      }
+      @keyframes rsh-blink-bar {
+        0%, 49%   { border-left-color: currentColor; }
+        50%, 100% { border-left-color: transparent; }
+      }
+      /* classic terminal colors per active console (cursor follows via currentColor) */
+      /* light mode: darker shades for readability on the light scrim */
+      #retro_shell_textarea[data-rsh-mode="commander"] { --rsh-color: #1a7f1a; color: var(--rsh-color); }
+      #retro_shell_textarea[data-rsh-mode="debugger"]  { --rsh-color: #a85f00; color: var(--rsh-color); }
+      #retro_shell_textarea[data-rsh-mode="navigator"] { --rsh-color: #0a7a7a; color: var(--rsh-color); }
+      /* dark mode: bright retro shades */
+      [data-theme="dark"] #retro_shell_textarea[data-rsh-mode="commander"] { --rsh-color: #33cc33; color: var(--rsh-color); }
+      [data-theme="dark"] #retro_shell_textarea[data-rsh-mode="debugger"]  { --rsh-color: #ffb000; color: var(--rsh-color); }
+      [data-theme="dark"] #retro_shell_textarea[data-rsh-mode="navigator"] { --rsh-color: #33cccc; color: var(--rsh-color); }
+      /* fullscreen, chrome-less, transparent overlay (no window look) */
+      /* sit directly above the emulator canvas, below all other dialogs/modals */
+      #modal_retro_shell { z-index: 30 !important; }
+      #modal_retro_shell .modal-dialog {
+        max-width: 100%; width: 100%; height: 100%; margin: 0;
+      }
+      /* the scrim fills the entire viewport so no canvas shows through at the edges */
+      #modal_retro_shell .modal-content {
+        width: 100vw; height: 100vh; min-height: 100vh;
+        background: rgba(255,255,255,0.30) !important; border: 0;
+        border-radius: 0; box-shadow: none;
+      }
+      [data-theme="dark"] #modal_retro_shell .modal-content {
+        background: rgba(0,0,0,0.35) !important;
+      }
+      #modal_retro_shell .modal-header,
+      #modal_retro_shell .modal-footer {
+        border: 0; background: transparent !important;
+      }
+      #modal_retro_shell .modal-body {
+        flex: 1 1 auto; min-height: 0; display: flex; overflow: hidden;
+      }
+      /* vertical button column anchored top-right so the iPad soft keyboard
+         (bottom) cannot cover it and it does not overlap the console text */
+      #modal_retro_shell #retro_shell_buttons {
+        position: absolute; top: 3.25rem; right: 8px; z-index: 5;
+        flex-direction: column; align-items: flex-end;
+        padding: 0; margin: 0; width: auto;
+      }
+      /* arrow keys arranged as an inverted-T like on a physical keyboard */
+      #retro_shell_dpad {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-areas:
+          ".    up    ."
+          "left down right";
+        gap: 6px;
+        justify-items: stretch;
+      }
+      #retro_shell_dpad .btn { margin: 0; }
+      /* paired buttons side by side (Home+End, Clear+Delete) */
+      #retro_shell_buttons .rsh-btn-row { display: flex; gap: 6px; }
+      #retro_shell_buttons .rsh-btn-row .btn { flex: 1; margin: 0; }
+      /* same press/release animation as the on-screen action buttons */
+      #retro_shell_buttons .btn { --tx: 0; --ty: 0; }
+      #retro_shell_buttons .btn[key-state="pressed"] {
+        animation: action_buttons_press_anim 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+      }
+      #retro_shell_buttons .btn[key-state=""] {
+        animation: action_buttons_release_anim 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+      }
+      /* keep the top navbar (and its burger button) above the RetroShell overlay,
+         but still below all other dialogs/modals */
+      body.retro-shell-open #navbar { z-index: 40; }
+      body.retro-shell-open #button_show_menu { z-index: 41; }
+    </style>
+    <!-- retro shell modal--->
+    <div class="modal fade" id="modal_retro_shell" tabindex="-1" role="dialog" aria-labelledby="retro_shell_ModalLabel" aria-hidden="true" data-keyboard="false" data-backdrop="false">
+      <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+          <div class="modal-header pb-2">
+            <h5 class="modal-title" id="retro_shell_ModalLabel">RetroShell</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body pt-0" style="position:relative">
+            <pre id="retro_shell_textarea"
+              style="margin:0;flex:1 1 auto;font-family:monospace;font-size:0.9rem;line-height:1.2;width:100%;height:100%;border:none;outline:none;padding:8px;white-space:pre;overflow:auto;font-variant-ligatures:none;"></pre>
+            <textarea id="retro_shell_capture" tabindex="-1" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="none" inputmode="text"
+              style="position:absolute;bottom:8px;left:8px;width:1px;height:1px;opacity:0;padding:0;border:0;margin:0;resize:none;"></textarea>
+          </div>
+          <div class="modal-footer flex-wrap justify-content-start" id="retro_shell_buttons" style="gap:6px">
+            <div id="retro_shell_dpad">
+              <button type="button" class="btn btn-sm btn-secondary" data-rsh="up" title="history back" style="grid-area:up">&#9650;</button>
+              <button type="button" class="btn btn-sm btn-secondary" data-rsh="left" title="cursor left" style="grid-area:left">&#9664;</button>
+              <button type="button" class="btn btn-sm btn-secondary" data-rsh="down" title="history forward" style="grid-area:down">&#9660;</button>
+              <button type="button" class="btn btn-sm btn-secondary" data-rsh="right" title="cursor right" style="grid-area:right">&#9654;</button>
+            </div>
+            <div class="rsh-btn-row">
+              <button type="button" class="btn btn-sm btn-secondary" style="font-size:large"
+               data-rsh="home" title="line start (Home)">&#8676;</button>
+              <button type="button" class="btn btn-sm btn-secondary" style="font-size:large" data-rsh="end" title="line end (End)">&#8677;</button>
+            </div>
+            <div class="rsh-btn-row">
+              <button type="button" class="btn btn-sm btn-secondary" data-rsh="clear" title="clear console">clear</button>
+              <button type="button" class="btn btn-sm btn-secondary" data-rsh="backspace" title="delete">&#9003;</button>
+            </div>
+            <div class="rsh-btn-row">
+              <button type="button" class="btn btn-sm btn-secondary" data-rsh="tab" title="tab / autocomplete">tab</button>
+              <button type="button" class="btn btn-sm btn-primary" data-rsh="return" title="return">&#9166;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- end of retro shell modal-->
 
     <!-- custom key modal--->
     <div class="modal fade" id="modal_custom_key" tabindex="-1" role="dialog" aria-labelledby="custom_key_ModalLabel" aria-hidden="true" data-keyboard="false">
