@@ -3696,7 +3696,17 @@ function retro_shell_keydown(e)
         // beforeinput handler instead.
         case 'Enter':      wasm_retro_shell_press_special(RSKEY.RETURN, e.shiftKey ? 1 : 0); break;
         case 'Backspace':  wasm_retro_shell_press_special(RSKEY.BACKSPACE, 0); break;
-        default: return; // let beforeinput handle typed characters
+        default:
+            // physical keyboards deliver printable characters reliably here as a
+            // single-character e.key; handle them directly and preventDefault
+            // below so the follow-up beforeinput does not double-insert. Soft
+            // keyboards report key === 'Unidentified' (length > 1) and fall
+            // through to the beforeinput handler instead.
+            if(e.key && e.key.length === 1 && !e.metaKey && !e.altKey) {
+                wasm_retro_shell_press_key(e.key.charCodeAt(0));
+                break;
+            }
+            return; // let beforeinput handle it (soft keyboards, IME, ...)
     }
     e.preventDefault();
     update_retro_shell();
