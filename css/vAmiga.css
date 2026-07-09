@@ -969,3 +969,126 @@ input[type="range"]::-moz-range-thumb {
 
 .cm-editor .cm-content ::selection { background: rgba(100,160,220,0.4); }
 [data-theme="dark"] .cm-editor .cm-content ::selection { background: #3a7bd5; }
+
+
+/* ===================== RetroShell overlay ===================== */
+/* light mode: solid dark-gray font (scrim lives on .modal-content) */
+#retro_shell_textarea {
+  position: relative;
+  color: #333;
+  background: transparent;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+/* dark mode: light font with a soft outline */
+[data-theme="dark"] #retro_shell_textarea {
+  color: #e0e0e0;
+  background: transparent;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.9);
+}
+/* cursor shape changes per console mode (color follows currentColor) */
+/* commander (default): blinking underscore */
+#retro_shell_textarea .rsh-cursor {
+  border-bottom: 0.14em solid currentColor;
+  animation: rsh-blink-underscore 1.06s infinite;
+}
+@keyframes rsh-blink-underscore {
+  0%, 49%   { border-bottom-color: currentColor; }
+  50%, 100% { border-bottom-color: transparent; }
+}
+/* debugger: blinking block (inverts the glyph) */
+#retro_shell_textarea[data-rsh-mode="debugger"] .rsh-cursor {
+  border-bottom: none;
+  animation: rsh-blink-block 1.06s infinite;
+}
+@keyframes rsh-blink-block {
+  0%, 49%   { background-color: var(--rsh-color); color: #000; }
+  50%, 100% { background-color: transparent; }
+}
+/* navigator: blinking vertical bar */
+#retro_shell_textarea[data-rsh-mode="navigator"] .rsh-cursor {
+  border-bottom: none;
+  border-left: 0.12em solid currentColor;
+  margin-left: -0.12em;
+  animation: rsh-blink-bar 1.06s infinite;
+}
+@keyframes rsh-blink-bar {
+  0%, 49%   { border-left-color: currentColor; }
+  50%, 100% { border-left-color: transparent; }
+}
+/* classic terminal colors per active console (cursor follows via currentColor) */
+/* light mode: darker shades for readability on the light scrim */
+#retro_shell_textarea[data-rsh-mode="commander"] { --rsh-color: #1a7f1a; color: var(--rsh-color); }
+#retro_shell_textarea[data-rsh-mode="debugger"]  { --rsh-color: #a85f00; color: var(--rsh-color); }
+#retro_shell_textarea[data-rsh-mode="navigator"] { --rsh-color: #0a7a7a; color: var(--rsh-color); }
+/* dark mode: bright retro shades */
+[data-theme="dark"] #retro_shell_textarea[data-rsh-mode="commander"] { --rsh-color: #33cc33; color: var(--rsh-color); }
+[data-theme="dark"] #retro_shell_textarea[data-rsh-mode="debugger"]  { --rsh-color: #ffb000; color: var(--rsh-color); }
+[data-theme="dark"] #retro_shell_textarea[data-rsh-mode="navigator"] { --rsh-color: #33cccc; color: var(--rsh-color); }
+/* fullscreen, chrome-less, transparent overlay (no window look) */
+/* sit directly above the emulator canvas, but BELOW the on-screen action
+   buttons (.custom_key, z-index 20) so they stay clickable, and below all
+   other real dialogs/modals */
+/* lock the overlay so iOS/iPadOS does not rubber-band the whole UI when
+   there is little (or no) text to scroll */
+#modal_retro_shell {
+  z-index: 15 !important;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+}
+#modal_retro_shell .modal-dialog {
+  max-width: 100%; width: 100%; height: 100%; margin: 0;
+  overflow: hidden;
+}
+/* the scrim fills the visible viewport so no canvas shows through at the
+   edges; use 100% (not 100vh) so the iPad browser chrome cannot create a
+   tiny overflow that becomes scrollable/bouncy */
+#modal_retro_shell .modal-content {
+  width: 100%; height: 100%; overflow: hidden;
+  background: rgba(255,255,255,0.30) !important; border: 0;
+  border-radius: 0; box-shadow: none;
+}
+[data-theme="dark"] #modal_retro_shell .modal-content {
+  background: rgba(0,0,0,0.35) !important;
+}
+#modal_retro_shell .modal-header,
+#modal_retro_shell .modal-footer {
+  border: 0; background: transparent !important;
+}
+#modal_retro_shell .modal-body {
+  flex: 1 1 auto; min-height: 0; display: flex; overflow: hidden;
+}
+/* vertical button column anchored top-right so the iPad soft keyboard
+   (bottom) cannot cover it and it does not overlap the console text */
+#modal_retro_shell #retro_shell_buttons {
+  position: absolute; top: 3.25rem; right: 8px; z-index: 5;
+  flex-direction: column; align-items: flex-end;
+  padding: 0; margin: 0; width: auto;
+}
+/* arrow keys arranged as an inverted-T like on a physical keyboard */
+#retro_shell_dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-areas:
+    ".    up    ."
+    "left down right";
+  gap: 6px;
+  justify-items: stretch;
+}
+#retro_shell_dpad .btn { margin: 0; }
+/* paired buttons side by side (Home+End, Clear+Delete) */
+#retro_shell_buttons .rsh-btn-row { display: flex; gap: 6px; }
+#retro_shell_buttons .rsh-btn-row .btn { flex: 1; margin: 0; }
+/* same press/release animation as the on-screen action buttons */
+#retro_shell_buttons .btn { --tx: 0; --ty: 0; }
+#retro_shell_buttons .btn[key-state="pressed"] {
+  animation: action_buttons_press_anim 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+}
+#retro_shell_buttons .btn[key-state=""] {
+  animation: action_buttons_release_anim 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+}
+/* keep the top navbar (and its burger button) above the RetroShell overlay,
+   but still below all other dialogs/modals */
+body.retro-shell-open #navbar { z-index: 40; }
+body.retro-shell-open #button_show_menu { z-index: 41; }
