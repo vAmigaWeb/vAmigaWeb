@@ -1026,11 +1026,13 @@ input[type="range"]::-moz-range-thumb {
 [data-theme="dark"] #retro_shell_textarea[data-rsh-mode="debugger"]  { --rsh-color: #ffb000; color: var(--rsh-color); }
 [data-theme="dark"] #retro_shell_textarea[data-rsh-mode="navigator"] { --rsh-color: #33cccc; color: var(--rsh-color); }
 /* fullscreen, chrome-less, transparent overlay (no window look) */
-/* sit directly above the emulator canvas, below all other dialogs/modals */
+/* sit directly above the emulator canvas, but BELOW the on-screen action
+   buttons (.custom_key, z-index 20) so they stay clickable, and below all
+   other real dialogs/modals */
 /* lock the overlay so iOS/iPadOS does not rubber-band the whole UI when
    there is little (or no) text to scroll */
 #modal_retro_shell {
-  z-index: 30 !important;
+  z-index: 15 !important;
   overflow: hidden !important;
   overscroll-behavior: none;
   -webkit-overflow-scrolling: auto;

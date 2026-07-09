@@ -3784,6 +3784,10 @@ add_click("button_retro_shell", function() {
 
 $('#modal_retro_shell').on('shown.bs.modal', function() {
     document.body.classList.add('retro-shell-open');
+    // this overlay is chrome-less and meant to coexist with the top navbar, so
+    // disable Bootstrap's focus trap; otherwise it steals focus back from the
+    // navbar's native <select> port pickers and their dropdown never opens
+    $(document).off('focusin.bs.modal');
     let m = document.getElementById('modal_retro_shell');
     if(m) m.addEventListener('touchmove', retro_shell_touchmove, {passive:false});
     retro_shell_bind();
