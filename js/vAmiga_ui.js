@@ -3758,12 +3758,24 @@ function retro_shell_bind()
     retro_shell_bound = true;
 }
 
+// prevent the iOS/iPadOS page rubber-band from dragging the whole overlay up
+// and down; allow native scrolling only inside the console output and only
+// when it actually overflows
+function retro_shell_touchmove(e)
+{
+    let pre = document.getElementById('retro_shell_textarea');
+    if(pre && pre.contains(e.target) && pre.scrollHeight > pre.clientHeight) return;
+    e.preventDefault();
+}
+
 add_click("button_retro_shell", function() {
     $('#modal_retro_shell').modal('toggle');
 });
 
 $('#modal_retro_shell').on('shown.bs.modal', function() {
     document.body.classList.add('retro-shell-open');
+    let m = document.getElementById('modal_retro_shell');
+    if(m) m.addEventListener('touchmove', retro_shell_touchmove, {passive:false});
     retro_shell_bind();
     retro_shell_focus_input();
     update_retro_shell();
@@ -3771,6 +3783,8 @@ $('#modal_retro_shell').on('shown.bs.modal', function() {
 
 $('#modal_retro_shell').on('hidden.bs.modal', function() {
     document.body.classList.remove('retro-shell-open');
+    let m = document.getElementById('modal_retro_shell');
+    if(m) m.removeEventListener('touchmove', retro_shell_touchmove, {passive:false});
 });
 
 //------
