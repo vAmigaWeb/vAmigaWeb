@@ -119,6 +119,13 @@ Agnus::doBitplaneDmaRead()
     
     u16 result = mem.peek16 <Accessor::AGNUS> (bplpt[bitplane]);
 
+    if (bplGuessEnabled) {
+        u32 a = bplpt[bitplane];
+        if (a < bplGuessMinLive[bitplane]) bplGuessMinLive[bitplane] = a;
+        if (a > bplGuessMaxLive[bitplane]) bplGuessMaxLive[bitplane] = a;
+        bplGuessLineWords[bitplane]++;
+    }
+
     busOwner[pos.h] = owner;
     busAddr[pos.h] = bplpt[bitplane];
     busData[pos.h] = result;

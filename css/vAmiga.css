@@ -1092,3 +1092,202 @@ input[type="range"]::-moz-range-thumb {
    but still below all other dialogs/modals */
 body.retro-shell-open #navbar { z-index: 40; }
 body.retro-shell-open #button_show_menu { z-index: 41; }
+
+/* live memory view, docked to the right edge next to the amiga canvas */
+#memview_panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0; /* height follows top offset (set from navbar visibility) */
+  z-index: 16; /* directly above the RetroShell overlay (z-index 15) */
+  display: none;
+  flex-direction: row;
+  background-color: var(--lightbg, #2a2a2a);
+  border-left: 1px solid rgba(255,255,255,0.15);
+  box-shadow: -6px 0 16px rgba(0,0,0,0.4);
+  overflow: hidden;
+}
+#memview_overview_col {
+  display: flex;
+  flex-direction: column;
+  width: 190px;
+  border-right: 1px solid rgba(255,255,255,0.15);
+  background-color: rgba(0,0,0,0.2);
+}
+#memview_detail_col {
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  min-width: 0;
+}
+.memview_subtitle {
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: #ddd;
+  background-color: rgba(0,0,0,0.25);
+  user-select: none;
+}
+[data-theme="dark"] .memview_subtitle {
+  background-color: rgba(0,0,0,0.75);
+}
+.memview_overview_title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+#memview_step {
+  font-size: 0.72rem;
+  font-weight: normal;
+  color: #cfc39a;
+  background: rgba(223,148,42,0.15);
+  border: 1px solid rgba(223,148,42,0.5);
+  border-radius: 3px;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+#memview_step:hover { background: rgba(223,148,42,0.35); color: #fff; }
+#memview_step:active { background: rgba(223,148,42,0.5); }
+#memview_overview_blocks {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.memview_ov_block {
+  display: flex;
+  flex-direction: column;
+  min-height: 42px;
+  border-bottom: 2px solid rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+.memview_ov_block:last-child { border-bottom: none; }
+.memview_ov_label {
+  padding: 1px 6px;
+  font-size: 0.72rem;
+  color: #cfc39a;
+  background-color: rgba(0,0,0,0.35);
+  user-select: none;
+  white-space: nowrap;
+}
+.memview_ov_block canvas {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  cursor: crosshair;
+  image-rendering: pixelated;
+  background: #000;
+  display: block;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+#memview_header {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  color: #ddd;
+  background-color: rgba(0,0,0,0.25);
+  user-select: none;
+}
+[data-theme="dark"] #memview_header {
+  background-color: rgba(0,0,0,0.75);
+}
+#memview_header .memview_title { font-weight: bold; margin-right: auto; }
+#memview_header .memview_live_label { margin: 0; display: flex; align-items: center; gap: 0.25em; }
+#memview_header .memview_addr { font-family: monospace; }
+#memview_start {
+  width: 6.5em;
+  font-family: monospace;
+  background: #111;
+  color: #df942a;
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+#memview_close {
+  background: transparent;
+  border: none;
+  color: #ccc;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+#memview_close:hover { color: #fff; }
+#memview_canvas {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  cursor: grab;
+  image-rendering: pixelated;
+  background: #371d20;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+#memview_canvas::selection { background: transparent; }
+/* while dragging inside the memory view, suppress any text/canvas selection
+   globally (some engines invert canvas colors when it gets selected) */
+body.memview-dragging,
+body.memview-dragging * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+body.memview-dragging {
+  -webkit-touch-callout: none !important;
+}
+/* "possible bitplane areas" section in the overview column */
+.memview_bpl_title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  border-top: 1px solid rgba(255,255,255,0.12);
+}
+.memview_bpl_title .memview_live_label {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: 0.72rem;
+  font-weight: normal;
+  color: #cfc39a;
+  cursor: pointer;
+}
+.memview_bpl_title .memview_live_label input { margin: 0; cursor: pointer; }
+#memview_bpl_list {
+  flex: 0 1 auto;
+  max-height: 38%;
+  overflow-y: auto;
+  padding: 2px 0;
+  background: #1f1f1f;
+  border-top: 1px solid rgba(0,0,0,0.4);
+}
+.memview_bpl_item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.memview_bpl_item:hover { background: rgba(223,148,42,0.22); }
+.memview_bpl_pl { font-weight: bold; color: #df942a; }
+.memview_bpl_addr { font-family: monospace; color: #f0e6c5; }
+.memview_bpl_meta { margin-left: auto; color: #b8b8b8; }
+.memview_bpl_empty {
+  padding: 6px 8px;
+  font-size: 0.7rem;
+  color: #888;
+  font-style: italic;
+}
+#memview_canvas:active { cursor: grabbing; }

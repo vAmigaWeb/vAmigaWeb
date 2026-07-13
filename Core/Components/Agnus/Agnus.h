@@ -136,6 +136,17 @@ public:
     // The bitplane modulo registers for even bitplanes
     i16 bpl2mod = 0;
 
+    // Bitplane guesser: records the bitplane DMA address range per frame
+    bool bplGuessEnabled = false;
+    u32 bplGuessMinLive[6] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u };  // running min (current frame)
+    u32 bplGuessMaxLive[6] = { 0, 0, 0, 0, 0, 0 };              // running max (current frame)
+    u32 bplGuessMin[6] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u };      // committed (last finished frame)
+    u32 bplGuessMax[6] = { 0, 0, 0, 0, 0, 0 };
+    i16 bplGuessMod[6] = { 0, 0, 0, 0, 0, 0 };                  // committed modulo per plane
+    u16 bplGuessLineWords[6] = { 0, 0, 0, 0, 0, 0 };            // fetches in current line
+    u16 bplGuessWordsLive[6] = { 0, 0, 0, 0, 0, 0 };            // max words per line (current frame)
+    u16 bplGuessWords[6] = { 0, 0, 0, 0, 0, 0 };               // committed words per line
+
     // The sprite DMA pointers
     u32 sprpt[8] = { };
 
