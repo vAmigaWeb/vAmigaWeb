@@ -82,10 +82,10 @@ Defaults::Defaults()
     setFallback(Opt::DMA_DEBUG_CHANNEL6,         false);
     setFallback(Opt::DMA_DEBUG_CHANNEL7,         true);
     setFallback(Opt::DMA_DEBUG_COLOR0,           0xFFFF0000);
-    setFallback(Opt::DMA_DEBUG_COLOR1,           0xFFCC0000);
+    setFallback(Opt::DMA_DEBUG_COLOR1,           0x2196F3FF);
     setFallback(Opt::DMA_DEBUG_COLOR2,           0x00FF0000);
     setFallback(Opt::DMA_DEBUG_COLOR3,           0xFF00FF00);
-    setFallback(Opt::DMA_DEBUG_COLOR4,           0x0088FF00);
+    setFallback(Opt::DMA_DEBUG_COLOR4,           0xFF8C00FF);
     setFallback(Opt::DMA_DEBUG_COLOR5,           0x00FFFF00);
     setFallback(Opt::DMA_DEBUG_COLOR6,           0xFFFFFF00);
     setFallback(Opt::DMA_DEBUG_COLOR7,           0xFF000000);

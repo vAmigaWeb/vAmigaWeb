@@ -15,6 +15,8 @@
 #include "MemUtils.h"
 #include "Buffer.h"
 
+#include <vector>
+
 namespace vamiga {
 
 using util::Allocator;
@@ -213,7 +215,19 @@ public:
 
     // The last value on the data bus
     u16 dataBus;
-    
+
+    /* Write-owner tracking (debug aid for the live memory view).
+     * When enabled, every write into Chip Ram records which agent performed it
+     * (0 = none, 1 = CPU, 2 = Blitter). This lets the UI color-code the memory
+     * view by who last modified each location. The buffer is only allocated
+     * while tracking is on, so there is no overhead otherwise.
+     */
+    static constexpr u8 WRITE_OWNER_NONE    = 0;
+    static constexpr u8 WRITE_OWNER_CPU     = 1;
+    static constexpr u8 WRITE_OWNER_BLITTER = 2;
+    bool writeOwnerEnabled = false;
+    std::vector<u8> writeOwner;
+
 
     //
     // Methods
@@ -496,6 +510,26 @@ public:
     template <Accessor acc, MemSrc src> void poke16(u32 addr, u16 value);
     template <Accessor acc> void poke8(u32 addr, u8 value);
     template <Accessor acc> void poke16(u32 addr, u16 value);
+
+
+    //
+    // Tracking write owners (debug aid for the live memory view)
+    //
+
+public:
+
+    // Enables/disables tracking; allocates or releases the shadow buffer
+    void setWriteOwnerTracking(bool on);
+
+    // Clears all recorded owners (keeps tracking enabled)
+    void resetWriteOwner();
+
+    // Records the writer of a Chip Ram range (no-op while tracking is off)
+    void markWriteOwner(u32 addr, u8 tag, u32 bytes);
+
+    // Returns the recorded writer tag for a Chip Ram address (0 if none/off)
+    u8 getWriteOwner(u32 addr) const;
+
     
 
     //

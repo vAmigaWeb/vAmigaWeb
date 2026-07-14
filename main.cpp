@@ -983,6 +983,18 @@ extern "C" void wasm_set_bitplane_guess(int on)
   wrapper->emu->agnus.agnus->bplGuessEnabled = (on != 0);
 }
 
+extern "C" void wasm_set_write_tracking(int on)
+{
+  if(wrapper == NULL) return;
+  wrapper->emu->mem.mem->setWriteOwnerTracking(on != 0);
+}
+
+extern "C" int wasm_get_write_owner(u32 addr)
+{
+  if(wrapper == NULL) return 0;
+  return wrapper->emu->mem.mem->getWriteOwner(addr);
+}
+
 char wasm_bitplane_areas_result[512];
 extern "C" const char* wasm_get_bitplane_areas()
 {

@@ -40,6 +40,18 @@ var memview_row_stride = MEMVIEW_BYTES_PER_ROW;   // bytes advanced per displaye
 var memdump_col1 = 0xffdf942a;
 var memdump_col2 = 0xff371d20;
 
+// writer-highlight mode: tint each word by who last wrote it (chip ram only).
+// requires the core's write-owner tracking (wasm_set_write_tracking). the tag
+// values match Memory::WRITE_OWNER_* (1 = cpu, 2 = blitter).
+var memview_show_writers = true;
+const MEMVIEW_WRITE_CPU = 1;
+const MEMVIEW_WRITE_BLITTER = 2;
+// writer mode colors: set bit vs. cleared bit background
+var memdump_cpu_col1 = 0xffcccccc; // cpu = light gray
+var memdump_cpu_col2 = 0xff1a1a1a; // cpu = very dark gray
+var memdump_blt_col1 = 0xff2196f3; // blitter = blue
+var memdump_blt_col2 = 0xff0d1f35; // blitter = very dark blue, 10% lighter
+
 var live_memory_dump_enabled = false;
 var memview_open = false;
 
@@ -282,6 +294,8 @@ function memview_open_panel() {
     memview_update_top();
     // start recording bitplane DMA accesses so the guesser has fresh data
     if (typeof wasm_set_bitplane_guess === "function") wasm_set_bitplane_guess(1);
+    // write-owner tracking is always on so writes are color-coded by author
+    if (typeof wasm_set_write_tracking === "function") wasm_set_write_tracking(1);
     memview_bpl_last_raw = null;
     memview_refresh_bitplanes(true);
     if (typeof scaleVMCanvas === "function") scaleVMCanvas();
@@ -295,6 +309,7 @@ function memview_close_panel() {
     memview_open = false;
     // stop recording to avoid the small per-fetch overhead when not needed
     if (typeof wasm_set_bitplane_guess === "function") wasm_set_bitplane_guess(0);
+    if (typeof wasm_set_write_tracking === "function") wasm_set_write_tracking(0);
     if (typeof scaleVMCanvas === "function") scaleVMCanvas();
     if (typeof save_setting === "function") save_setting("memview_open", false);
 }
@@ -413,11 +428,20 @@ function memdump() {
 
 function memdump_do(start0, col1, col2) {
     let start = start0 < 0 ? 0 : start0;
+    let writers = memview_show_writers && typeof wasm_get_write_owner === "function";
     for (let y = 0; y < MEMVIEW_VPIXELS; y++) {
         let addr = start + y * memview_row_stride;
         for (let w = 0; w < memview_words_per_row; w++) {
-            let value = wasm_peek16(addr + w * 2);
-            memdump_plotword(w * 16, y, value, col1, col2);
+            let a = addr + w * 2;
+            let value = wasm_peek16(a);
+            let c1 = col1, c2 = col2;
+            if (writers) {
+                let owner = wasm_get_write_owner(a);
+                if (owner === MEMVIEW_WRITE_CPU) { c1 = memdump_cpu_col1; c2 = memdump_cpu_col2; }
+                else if (owner === MEMVIEW_WRITE_BLITTER) { c1 = memdump_blt_col1; c2 = memdump_blt_col2; }
+                else { c2 = 0xff000000; } // unwritten: black background
+            }
+            memdump_plotword(w * 16, y, value, c1, c2);
         }
     }
     memview_image_data.data.set(memview_buffer);

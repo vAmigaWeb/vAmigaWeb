@@ -209,6 +209,7 @@ void
 Agnus::doBlitterDmaWrite(u32 addr, u16 value)
 {
     mem.poke16 <Accessor::AGNUS> (addr, value);
+    mem.markWriteOwner(addr, Memory::WRITE_OWNER_BLITTER, 2);
 
     assert(busOwner[pos.h] == BusOwner::BLITTER); // Bus is already allocated
     busAddr[pos.h] = addr;

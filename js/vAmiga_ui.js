@@ -2034,6 +2034,8 @@ function InitWrappers() {
     wasm_peek16 = Module.cwrap('wasm_peek16', 'number', ['number']);
     wasm_set_bitplane_guess = Module.cwrap('wasm_set_bitplane_guess', 'undefined', ['number']);
     wasm_get_bitplane_areas = Module.cwrap('wasm_get_bitplane_areas', 'string');
+    wasm_set_write_tracking = Module.cwrap('wasm_set_write_tracking', 'undefined', ['number']);
+    wasm_get_write_owner = Module.cwrap('wasm_get_write_owner', 'number', ['number']);
     wasm_poke = Module.cwrap('wasm_poke', 'undefined', ['number', 'number']);
     wasm_has_disk = Module.cwrap('wasm_has_disk', 'number', ['string']);
     wasm_eject_disk = Module.cwrap('wasm_eject_disk', 'undefined', ['string']);
@@ -6419,10 +6421,10 @@ function add_monitor(id, label, splitted=false)
 
     color=[];
     color.copper={start: '51,51,0', end:'255,255,0'}
-    color.blitter={start: `50,${parseInt('cc',16)*0.2},0`, end:`${parseInt('ff',16)},${parseInt('cc',16)},0`}
+    color.blitter={start: `7,30,49`, end:`33,150,243`}
     color.disk={start: `0,51,0`, end:`0,255,0`}
     color.audio={start: '50,0,50', end:'255,0,255'}
-    color.sprite={start: `0,${parseInt('88',16)*0.2},51`, end:`0,${parseInt('88',16)},255`}
+    color.sprite={start: `51,28,0`, end:`255,140,0`}
     color.bitplane={start: '0,50,50', end:'0,255,255'}
     color.CPU={start: '50,50,50', end:'255,255,255'}
 
