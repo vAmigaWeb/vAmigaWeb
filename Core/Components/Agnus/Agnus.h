@@ -146,6 +146,8 @@ public:
     u16 bplGuessLineWords[6] = { 0, 0, 0, 0, 0, 0 };            // fetches in current line
     u16 bplGuessWordsLive[6] = { 0, 0, 0, 0, 0, 0 };            // max words per line (current frame)
     u16 bplGuessWords[6] = { 0, 0, 0, 0, 0, 0 };               // committed words per line
+    u16 bplGuessLinesLive[6] = { 0, 0, 0, 0, 0, 0 };           // scanlines with dma (current frame)
+    u16 bplGuessLines[6] = { 0, 0, 0, 0, 0, 0 };               // committed scanline count
 
     // The sprite DMA pointers
     u32 sprpt[8] = { };

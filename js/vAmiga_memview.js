@@ -77,12 +77,15 @@ var memview_drag_region = null;
 var memview_regions = [];
 var memview_regions_signature = "";
 
-// bitplane area list state (auto-refreshed while "live" is on)
-var memview_bpl_live = true;         // live update toggle (default on)
+// bitplane area list state (auto-refreshed while the panel is open)
 var memview_bpl_hover = false;       // paused while the mouse is over the list
 var memview_bpl_counter = 0;         // frame throttle counter
 var memview_bpl_last_raw = null;     // last rendered payload (skip if unchanged)
+var memview_bpl_autoselect = true;   // follow mode: keep detail view locked to bpl1
+var memview_bpl_sel_sig = null;      // signature of the currently followed bpl1
+var memview_bpl_recent = [];         // recent bpl1 signatures (page-flip detection)
 const MEMVIEW_BPL_THROTTLE = 15;     // update every n live frames
+const MEMVIEW_BPL_RECENT_MAX = 6;    // how many recent signatures to remember
 
 // width reserved by the docked panel (used by scaleVMCanvas in vAmiga_canvas.js)
 function memview_reserved_width() {
@@ -178,13 +181,18 @@ function memview_init() {
         stepBtn.addEventListener("click", function() { memview_step_frame(); });
     }
 
-    // bitplane areas: live toggle + pause-on-hover so clicks don't jump away
-    let bplLiveCb = document.getElementById("memview_bpl_live");
-    if (bplLiveCb) {
-        memview_bpl_live = bplLiveCb.checked;
-        bplLiveCb.addEventListener("change", function() {
-            memview_bpl_live = this.checked;
-            if (memview_bpl_live) memview_refresh_bitplanes(true);
+    // auto-select (follow mode): keep the detail view locked to the top-of-list
+    // bitplane while enabled; toggling it on re-locks onto the current bpl1
+    let bplAutoCb = document.getElementById("memview_bpl_autoselect");
+    if (bplAutoCb) {
+        memview_bpl_autoselect = bplAutoCb.checked;
+        bplAutoCb.addEventListener("change", function() {
+            memview_bpl_autoselect = this.checked;
+            if (memview_bpl_autoselect) {
+                memview_bpl_sel_sig = null;      // force a re-select on next refresh
+                memview_bpl_recent.length = 0;   // forget the page-flip history
+                memview_refresh_bitplanes(true);
+            }
         });
     }
     let bplList = document.getElementById("memview_bpl_list");
@@ -280,6 +288,9 @@ function memview_reset_geometry() {
 }
 
 function memview_toggle() {
+    // dismiss the button's bootstrap tooltip so it doesn't linger and cover the
+    // panel/canvas after the click
+    if (typeof $ !== "undefined") $("#button_memview").tooltip("hide");
     if (memview_open) memview_close_panel();
     else memview_open_panel();
 }
@@ -348,9 +359,9 @@ function memview_step_frame() {
     if (typeof update_activity_monitors === "function") update_activity_monitors();
 }
 
-// throttled per-frame driver: refreshes the bitplane list while "live" is on
+// throttled per-frame driver: refreshes the bitplane list while the panel is open
 function memview_bpl_tick() {
-    if (!memview_open || !memview_bpl_live) return;
+    if (!memview_open) return;
     if ((++memview_bpl_counter % MEMVIEW_BPL_THROTTLE) !== 0) return;
     memview_refresh_bitplanes(false);
 }
@@ -377,8 +388,12 @@ function memview_refresh_bitplanes(force) {
         empty.className = "memview_bpl_empty";
         empty.textContent = "no bitplane dma detected \u2013 run a graphical program";
         list.appendChild(empty);
+        memview_bpl_sel_sig = null;
+        memview_bpl_recent.length = 0;
         return;
     }
+
+    let firstSel = null;   // first listed (valid) entry -> tracked by follow mode
 
     for (let i = 0; i < entries.length; i++) {
         let parts = entries[i].split(",");
@@ -387,15 +402,28 @@ function memview_refresh_bitplanes(force) {
         let end = parseInt(parts[2], 10);
         let mod = parseInt(parts[3], 10);
         let words = parseInt(parts[4], 10);
+        let lines = parseInt(parts[5], 10);
         if (isNaN(start) || isNaN(end)) continue;
         if (isNaN(words) || words < 1) words = MEMVIEW_WORDS_PER_ROW;
         if (isNaN(mod)) mod = 0;
         let widthPx = words * 16;                 // one bit per pixel
         let stride = words * 2 + mod;             // memory bytes per scanline
-        // height = number of scanlines that fit into the recorded dma range
-        let heightPx = stride > 0
-            ? Math.max(1, Math.round((end - start - words * 2) / stride) + 1)
-            : 1;
+        // height = number of scanlines the core actually did bitplane dma on.
+        // this is layout-independent and works even when the copper reloads
+        // bplpt every line. fall back to the address-range estimate if the
+        // core does not report a line count (older build).
+        let heightPx;
+        if (!isNaN(lines) && lines > 0) {
+            heightPx = lines;
+        } else {
+            heightPx = stride > 0
+                ? Math.max(1, Math.round((end - start - words * 2) / stride) + 1)
+                : 1;
+        }
+        // skip implausible one-scanline detections (e.g. 320x1): these come from
+        // transition frames (bpl dma just (dis)enabled) and never represent a
+        // real, viewable bitplane image
+        if (heightPx < 2) continue;
 
         let item = document.createElement("div");
         item.className = "memview_bpl_item";
@@ -405,18 +433,65 @@ function memview_refresh_bitplanes(force) {
             "<span class='memview_bpl_pl'>bpl" + (plane + 1) + "</span>" +
             "<span class='memview_bpl_addr'>$" + ("000000" + start.toString(16)).slice(-6) + "</span>" +
             "<span class='memview_bpl_meta'>" + widthPx + "\u00d7" + heightPx + "</span>";
-        (function(addr, w, m) {
+        let addrEl = item.querySelector(".memview_bpl_addr");
+        (function(addr, w, m, ael) {
             item.addEventListener("click", function() {
-                // width = words per line, stride = line bytes + modulo (skips
-                // the modulo gap / interleaved planes) -> clean bitplane image
-                memview_set_geometry(w, w * 2 + m);
-                memview_set_start(addr);
-                memdump();
-                mempreview();
+                memview_select_bpl(addr, w, m, ael);
             });
-        })(start, words, mod);
+        })(start, words, mod, addrEl);
         list.appendChild(item);
+
+        if (!firstSel) firstSel = { start: start, words: words, mod: mod, addrEl: addrEl };
     }
+
+    // auto-select (follow mode): keep the detail view locked to the top-of-list
+    // bitplane and re-jump whenever its address/geometry changes. suppressed
+    // while the user is dragging (detail-view or overview scroll) so an active
+    // manual inspection is never yanked away.
+    if (memview_bpl_autoselect && firstSel && !memview_pressed && !mempreview_pressed) {
+        let sig = firstSel.start + "," + firstSel.words + "," + firstSel.mod;
+        if (sig !== memview_bpl_sel_sig) {
+            // double-buffer guard: if bpl1's base address keeps returning to a
+            // value we saw a few frames ago, the program is page-flipping between
+            // a small set of buffers (A,B,A,B…). stay locked on the current view
+            // instead of jumping every frame. a genuinely new address (e.g. a
+            // smooth scroll or a real screen change) is never in the history, so
+            // it still follows normally.
+            if (memview_bpl_recent.indexOf(sig) === -1) {
+                memview_bpl_sel_sig = sig;
+                memview_select_bpl(firstSel.start, firstSel.words, firstSel.mod, firstSel.addrEl);
+            }
+        }
+        // record the observed signature (ring buffer) so page-flips age out
+        memview_bpl_recent.push(sig);
+        if (memview_bpl_recent.length > MEMVIEW_BPL_RECENT_MAX) memview_bpl_recent.shift();
+    }
+}
+
+// jumps the detail view to a detected bitplane and plays the "pop" highlight on
+// both the clicked list address and the detail start-address input, so it is
+// visible what just got selected (used by manual clicks and auto-select).
+// width = words per line, stride = line bytes + modulo (skips the modulo gap /
+// interleaved planes) -> clean bitplane image
+function memview_select_bpl(addr, words, mod, addrEl) {
+    memview_set_geometry(words, words * 2 + mod);
+    memview_set_start(addr);
+    memdump();
+    mempreview();
+    if (addrEl) memview_flash(addrEl);
+    memview_flash(document.getElementById("memview_start"));
+}
+
+// retriggerable pop+highlight animation (see .memview_flash in vAmiga.css)
+function memview_flash(el) {
+    if (!el) return;
+    el.classList.remove("memview_flash");
+    void el.offsetWidth;               // force reflow so the animation restarts
+    el.classList.add("memview_flash");
+    el.addEventListener("animationend", function handler() {
+        el.classList.remove("memview_flash");
+        el.removeEventListener("animationend", handler);
+    });
 }
 
 // called from the emulator frame loop and on manual updates
