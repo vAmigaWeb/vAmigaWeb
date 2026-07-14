@@ -3229,7 +3229,11 @@ activity_monitor_switch.change( function() {
         if(value)
         {
             $('#button_memview').show();
-            $('#memview_enabled_help').text('The live memory view icon is now shown in the menu bar.');
+            $('#memview_enabled_help').text('The live memory view icon is now shown in the menu bar. While enabled, some extra computations run in the background (memory write tracking), which may slightly reduce performance.');
+            // enable write-owner tracking as soon as the feature is on (not only
+            // when the panel opens), so blitter/cpu writes that happen before the
+            // user opens the panel are already attributed and show color-coded
+            if(typeof wasm_set_write_tracking === 'function') wasm_set_write_tracking(1);
         }
         else
         {
@@ -3239,6 +3243,8 @@ activity_monitor_switch.change( function() {
             if(typeof memview_open !== 'undefined' && memview_open &&
                typeof memview_close_panel === 'function')
                 memview_close_panel();
+            // stop tracking to drop the per-write overhead when the feature is off
+            if(typeof wasm_set_write_tracking === 'function') wasm_set_write_tracking(0);
         }
         memview_enabled_switch.prop('checked', value);
     }

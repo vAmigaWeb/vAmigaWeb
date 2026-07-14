@@ -523,6 +523,10 @@ Memory::allocChip(i32 bytes, bool update)
 {
     config.chipSize = bytes;
     alloc(chipAllocator, bytes, chipMask, update);
+
+    // keep the write-owner shadow buffer in sync with the Chip Ram size so
+    // getWriteOwner()'s bounds check stays valid after a size change
+    if (writeOwnerEnabled) resetWriteOwner();
 }
 
 void
@@ -560,9 +564,13 @@ u8
 Memory::getWriteOwner(u32 addr) const
 {
     if (!writeOwnerEnabled || writeOwner.empty()) return WRITE_OWNER_NONE;
-    // only chip ram is tracked; other regions report "none"
-    if ((addr & chipMask) >= writeOwner.size()) return WRITE_OWNER_NONE;
-    return writeOwner[addr & chipMask];
+    // only physical Chip Ram is tracked. masking with chipMask would alias
+    // Fast/Slow Ram addresses onto Chip Ram indices (e.g. 0x200000 & chipMask
+    // -> 0), so a Fast Ram cell would wrongly inherit a Chip Ram writer. reject
+    // anything outside the tracked Chip Ram window first (the buffer is sized
+    // to config.chipSize, so this is both the chip-window and bounds check).
+    if (addr >= writeOwner.size()) return WRITE_OWNER_NONE;
+    return writeOwner[addr];
 }
 
 void

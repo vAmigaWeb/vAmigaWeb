@@ -305,8 +305,9 @@ function memview_open_panel() {
     memview_update_top();
     // start recording bitplane DMA accesses so the guesser has fresh data
     if (typeof wasm_set_bitplane_guess === "function") wasm_set_bitplane_guess(1);
-    // write-owner tracking is always on so writes are color-coded by author
-    if (typeof wasm_set_write_tracking === "function") wasm_set_write_tracking(1);
+    // note: write-owner tracking is enabled at feature-enable time (not here),
+    // so writes that happened *before* opening the panel are already attributed
+    // and show up color-coded instead of as unwritten/default cells
     memview_bpl_last_raw = null;
     memview_refresh_bitplanes(true);
     if (typeof scaleVMCanvas === "function") scaleVMCanvas();
@@ -318,9 +319,10 @@ function memview_close_panel() {
     let panel = document.getElementById("memview_panel");
     if (panel) panel.style.display = "none";
     memview_open = false;
-    // stop recording to avoid the small per-fetch overhead when not needed
+    // stop recording bitplane guesses to avoid the small per-fetch overhead.
+    // write-owner tracking stays on while the feature is enabled so history is
+    // preserved for the next time the panel is opened.
     if (typeof wasm_set_bitplane_guess === "function") wasm_set_bitplane_guess(0);
-    if (typeof wasm_set_write_tracking === "function") wasm_set_write_tracking(0);
     if (typeof scaleVMCanvas === "function") scaleVMCanvas();
     if (typeof save_setting === "function") save_setting("memview_open", false);
 }
@@ -504,6 +506,24 @@ function memdump() {
 function memdump_do(start0, col1, col2) {
     let start = start0 < 0 ? 0 : start0;
     let writers = memview_show_writers && typeof wasm_get_write_owner === "function";
+    // fast/slow ram can only be written by the cpu (the blitter/chipset cannot
+    // reach it), so there is nothing to track there: any such address is cpu.
+    // collect their ranges once and color them cpu-gray directly.
+    let cpuRanges = [];
+    if (writers) {
+        for (let i = 0; i < memview_regions.length; i++) {
+            let r = memview_regions[i];
+            if (r.name === "fast" || r.name === "slow") {
+                cpuRanges.push([r.base, r.base + r.size]);
+            }
+        }
+    }
+    let isCpuOnly = function(a) {
+        for (let i = 0; i < cpuRanges.length; i++) {
+            if (a >= cpuRanges[i][0] && a < cpuRanges[i][1]) return true;
+        }
+        return false;
+    };
     for (let y = 0; y < MEMVIEW_VPIXELS; y++) {
         let addr = start + y * memview_row_stride;
         for (let w = 0; w < memview_words_per_row; w++) {
@@ -514,7 +534,8 @@ function memdump_do(start0, col1, col2) {
                 let owner = wasm_get_write_owner(a);
                 if (owner === MEMVIEW_WRITE_CPU) { c1 = memdump_cpu_col1; c2 = memdump_cpu_col2; }
                 else if (owner === MEMVIEW_WRITE_BLITTER) { c1 = memdump_blt_col1; c2 = memdump_blt_col2; }
-                else { c2 = 0xff000000; } // unwritten: black background
+                else if (isCpuOnly(a)) { c1 = memdump_cpu_col1; c2 = memdump_cpu_col2; } // fast/slow: cpu only
+                else { c2 = 0xff000000; } // chip, unwritten: black background
             }
             memdump_plotword(w * 16, y, value, c1, c2);
         }
