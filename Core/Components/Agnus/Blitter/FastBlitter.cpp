@@ -149,6 +149,7 @@ void Blitter::doFastCopyBlit()
             // Write D
             if (useD) {
                 mem.poke16 <Accessor::AGNUS> (dpt, dhold);
+                mem.markWriteOwner(dpt, Memory::WRITE_OWNER_BLITTER, 2);
 
                 if (BLT_CHECKSUM) {
                     check1 = util::fnvIt32(check1, dhold);
@@ -285,6 +286,7 @@ Blitter::doFastLineBlit()
         if (writeEnable) {
 
             mem.poke16 <Accessor::AGNUS> (bltdpt, dhold);
+            mem.markWriteOwner(bltdpt, Memory::WRITE_OWNER_BLITTER, 2);
             
             if (BLT_CHECKSUM) {
                 check1 = util::fnvIt32(check1, dhold);

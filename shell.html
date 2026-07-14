@@ -59,6 +59,7 @@
   <script src="js/vAmiga_canvas.js"></script>
   <script src="js/vAmiga_canvas_gl_fast.js"></script>
   <script src="js/vAmiga_ui.js"></script>
+  <script src="js/vAmiga_memview.js"></script>
   <script src="js/vAmiga_storage.js"></script>
   <script src="js/vAmiga_keyboard.js"></script>
   <script src="js/vAmiga_action_script.js"></script>
@@ -116,6 +117,30 @@
     </div>    
     <div id="div_canvas" class="emscripten_border" style="width:100vw;height:100vh">
       <canvas class="emscripten" width="724" height="568" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    </div>
+    <!-- live memory view (docked right) -->
+    <div id="memview_panel" style="display:none">
+      <div id="memview_overview_col">
+        <div class="memview_subtitle memview_overview_title">
+          overview
+          <button type="button" id="memview_step" title="pause emulation and render exactly one frame">single step</button>
+        </div>
+        <div id="memview_overview_blocks"></div>
+        <div class="memview_subtitle memview_bpl_title">
+          found bitplanes
+          <label class="memview_live_label" title="auto-update the detected bitplane areas every frame"><input type="checkbox" id="memview_bpl_live" checked> live</label>
+        </div>
+        <div id="memview_bpl_list"></div>
+      </div>
+      <div id="memview_detail_col">
+        <div id="memview_header">
+          <span class="memview_title">memory</span>
+          <label class="memview_live_label"><input type="checkbox" id="memview_live" checked> live</label>
+          <span class="memview_addr">$<input type="text" id="memview_start" value="000000" spellcheck="false"></span>
+          <button type="button" id="memview_close" onclick="memview_close_panel()" title="close">&times;</button>
+        </div>
+        <canvas id="memview_canvas" oncontextmenu="event.preventDefault()"></canvas>
+      </div>
     </div>
     <div id="div_drive_select" ontouchstart="event.stopPropagation()"></div>
     <!-- virtual keyboard-->
@@ -222,6 +247,12 @@
         height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M160-160v-320h160v320H160Zm240 0v-640h160v640H400Zm240 0v-440h160v440H640Z"/></svg>
       </button>
 
+      <button id="button_memview" class="btn btn-sm icon" type="button" onclick="memview_toggle()" data-toggle="tooltip" data-placement="top" title="live memory view" style="display:none">
+        <svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M11 5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6zM5 4a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H5z"/>
+          <path d="M5 0a.5.5 0 0 1 .5.5V2h1V.5a.5.5 0 0 1 1 0V2h1V.5a.5.5 0 0 1 1 0V2h1V.5a.5.5 0 0 1 1 0V2A2.5 2.5 0 0 1 14 4.5h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14A2.5 2.5 0 0 1 11.5 14v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14A2.5 2.5 0 0 1 2 11.5H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2A2.5 2.5 0 0 1 4.5 2V.5A.5.5 0 0 1 5 0zm-.5 3A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13h7a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 11.5 3h-7z"/>
+        </svg>
+      </button>
       <button id="button_retro_shell" class="btn btn-sm icon" type="button" style="display:none">
         <svg width="1.6em" height="auto" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" data-toggle="tooltip" data-placement="top" title="RetroShell console">
           <path d="M6 9a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 6 9zM3.854 4.146a.5.5 0 1 0-.708.708L4.793 6.5 3.146 8.146a.5.5 0 1 0 .708.708l2-2a.5.5 0 0 0 0-.708l-2-2z"/>
@@ -506,6 +537,12 @@
               <label class="custom-control-label" for="retro_shell_enabled_switch">show RetroShell icon in menu bar</label>
             </div>
             <div id="retro_shell_enabled_help" class="help_text" style="font-size: small"></div>
+
+            <div class="custom-control custom-switch mt-3">
+              <input type="checkbox" class="custom-control-input" id="memview_enabled_switch" />
+              <label class="custom-control-label" for="memview_enabled_switch">show live memory view icon in menu bar</label>
+            </div>
+            <div id="memview_enabled_help" class="help_text" style="font-size: small"></div>
 
             <div class="custom-control custom-switch mt-3">
               <input type="checkbox" class="custom-control-input" id="activity_monitor_switch" />
@@ -902,6 +939,7 @@ touch screen settings for virtual keyboard
               <br><br>
               other members of the vAmiga family:
               <br><a href="https://dirkwhoffmann.github.io/vAmiga/" style="font-size:medium">take me to vAmiga for Mac<svg class="ml-1" style="width:1em;height:1em"><use xlink:href="img/sprites.svg#link"/></svg></a>              
+              <br><a href="https://coppenheimer.heckmeck.de" style="font-size:medium">take me to Coppenheimer<svg class="ml-1" style="width:1em;height:1em"><use xlink:href="img/sprites.svg#link"/></svg></a>
               <br><a href="https://www.neoartcr.com/vamiga/" style="font-size:medium">take me to vAmiga Online<svg class="ml-1" style="width:1em;height:1em"><use xlink:href="img/sprites.svg#link"/></svg></a>
               <br><br>
               my 8-Bit brother:

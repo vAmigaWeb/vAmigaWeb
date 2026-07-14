@@ -119,6 +119,13 @@ Agnus::doBitplaneDmaRead()
     
     u16 result = mem.peek16 <Accessor::AGNUS> (bplpt[bitplane]);
 
+    if (bplGuessEnabled) {
+        u32 a = bplpt[bitplane];
+        if (a < bplGuessMinLive[bitplane]) bplGuessMinLive[bitplane] = a;
+        if (a > bplGuessMaxLive[bitplane]) bplGuessMaxLive[bitplane] = a;
+        bplGuessLineWords[bitplane]++;
+    }
+
     busOwner[pos.h] = owner;
     busAddr[pos.h] = bplpt[bitplane];
     busData[pos.h] = result;
@@ -202,6 +209,7 @@ void
 Agnus::doBlitterDmaWrite(u32 addr, u16 value)
 {
     mem.poke16 <Accessor::AGNUS> (addr, value);
+    mem.markWriteOwner(addr, Memory::WRITE_OWNER_BLITTER, 2);
 
     assert(busOwner[pos.h] == BusOwner::BLITTER); // Bus is already allocated
     busAddr[pos.h] = addr;

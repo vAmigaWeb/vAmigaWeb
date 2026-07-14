@@ -718,6 +718,14 @@ Agnus::eolHandler()
     // Clear other variables
     for (isize i = 0; i < 8; i++) lastCtlWrite[i] = 0xFF;
 
+    // Track the widest bitplane line of the frame (words fetched per line)
+    if (bplGuessEnabled) {
+        for (int i = 0; i < 6; i++) {
+            if (bplGuessLineWords[i] > bplGuessWordsLive[i]) bplGuessWordsLive[i] = bplGuessLineWords[i];
+            bplGuessLineWords[i] = 0;
+        }
+    }
+
     // Schedule the first BPL and DAS events
     scheduleFirstBplEvent();
     scheduleFirstDasEvent();
@@ -745,6 +753,19 @@ Agnus::eofHandler()
     controlPort1.joystick.eofHandler();
     controlPort2.joystick.eofHandler();
     mem.eofHandler();
+
+    // Commit the bitplane guesser range and reset it for the next frame
+    if (bplGuessEnabled) {
+        for (int i = 0; i < 6; i++) {
+            bplGuessMin[i] = bplGuessMinLive[i];
+            bplGuessMax[i] = bplGuessMaxLive[i];
+            bplGuessMod[i] = (i & 1) ? bpl2mod : bpl1mod;
+            bplGuessWords[i] = bplGuessWordsLive[i];
+            bplGuessMinLive[i] = ~0u;
+            bplGuessMaxLive[i] = 0;
+            bplGuessWordsLive[i] = 0;
+        }
+    }
 
     // Update statistics
     updateStats();

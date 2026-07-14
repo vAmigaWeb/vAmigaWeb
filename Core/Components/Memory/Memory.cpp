@@ -526,6 +526,46 @@ Memory::allocChip(i32 bytes, bool update)
 }
 
 void
+Memory::setWriteOwnerTracking(bool on)
+{
+    writeOwnerEnabled = on;
+    if (on) {
+        resetWriteOwner();
+    } else {
+        writeOwner.clear();
+        writeOwner.shrink_to_fit();
+    }
+}
+
+void
+Memory::resetWriteOwner()
+{
+    if (!writeOwnerEnabled) return;
+    isize n = config.chipSize > 0 ? config.chipSize : 0;
+    writeOwner.assign((size_t)n, WRITE_OWNER_NONE);
+}
+
+void
+Memory::markWriteOwner(u32 addr, u8 tag, u32 bytes)
+{
+    if (!writeOwnerEnabled || writeOwner.empty()) return;
+    size_t n = writeOwner.size();
+    for (u32 i = 0; i < bytes; i++) {
+        size_t idx = (addr + i) & chipMask;
+        if (idx < n) writeOwner[idx] = tag;   // guard against size mismatch
+    }
+}
+
+u8
+Memory::getWriteOwner(u32 addr) const
+{
+    if (!writeOwnerEnabled || writeOwner.empty()) return WRITE_OWNER_NONE;
+    // only chip ram is tracked; other regions report "none"
+    if ((addr & chipMask) >= writeOwner.size()) return WRITE_OWNER_NONE;
+    return writeOwner[addr & chipMask];
+}
+
+void
 Memory::allocSlow(i32 bytes, bool update)
 {
     config.slowSize = bytes;
@@ -1650,6 +1690,7 @@ Memory::poke8 <Accessor::CPU, MemSrc::CHIP> (u32 addr, u8 value)
     agnus.busData[agnus.pos.h] = dataBus;
 
     WRITE_CHIP_8(addr, value);
+    markWriteOwner(addr, WRITE_OWNER_CPU, 1);
 }
 
 template <> void
@@ -1672,6 +1713,7 @@ Memory::poke16 <Accessor::CPU, MemSrc::CHIP> (u32 addr, u16 value)
     agnus.busData[agnus.pos.h] = dataBus;
 
     WRITE_CHIP_16(addr, value);
+    markWriteOwner(addr, WRITE_OWNER_CPU, 2);
 }
 
 template <> void

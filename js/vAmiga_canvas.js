@@ -77,25 +77,35 @@ function scaleVMCanvas() {
     src_ratio*=1.03; //make it a bit wider
     
     var inv_src_ratio = src_height/src_width;
-    var wratio = window.innerWidth / window.innerHeight;
+
+    //reserve space for the docked live memory view (if open)
+    var reserved = (typeof memview_reserved_width === 'function') ? memview_reserved_width() : 0;
+    var avail_width  = window.innerWidth - reserved;
+    var avail_height = window.innerHeight;
+    var wratio = avail_width / avail_height;
+
+    //shrink the horizontal centering box (left:0 .. right:reserved) so the
+    //canvas (margin:auto) centers within the available left area instead of
+    //the full viewport and is not covered by the memory view panel
+    $("#canvas").css("right", reserved + 'px');
 
     var topPos=0;
     if(wratio < src_ratio)
     {
-        var reducedHeight=TPP*window.innerWidth*inv_src_ratio;
+        var reducedHeight=TPP*avail_width*inv_src_ratio;
         //all lower than 1.25
-        $("#canvas").css("width", "100%")
+        $("#canvas").css("width", avail_width+'px')
         .css("height", Math.round(reducedHeight)+'px');
         
         if($("#virtual_keyboard").is(":hidden"))
         {   //center vertical, if virtual keyboard and navbar not present
-            topPos=Math.round((window.innerHeight-reducedHeight)/2);
+            topPos=Math.round((avail_height-reducedHeight)/2);
         }
         else
         {//virtual keyboard is present
             var keyb_height= $("#virtual_keyboard").innerHeight();          
             //positioning directly stacked onto keyboard          
-            topPos=Math.round(window.innerHeight-reducedHeight-keyb_height);
+            topPos=Math.round(avail_height-reducedHeight-keyb_height);
         }
         if(topPos<0)
         {
@@ -105,14 +115,17 @@ function scaleVMCanvas() {
     else
     {
         //all greater than 1.25
+        var target_width;
         if(use_wide_screen)
         {
-            $("#canvas").css("width", "100%"); 
+            target_width = avail_width;
         }
         else
         {
-             $("#canvas").css("width", Math.round((window.innerHeight*src_ratio)) +'px');
+            target_width = Math.round(avail_height*src_ratio);
+            if(target_width > avail_width) target_width = avail_width;
         }
+        $("#canvas").css("width", target_width +'px');
         $("#canvas").css("height", "100%"); 
     }
 

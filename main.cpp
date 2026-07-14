@@ -971,6 +971,53 @@ extern "C" int wasm_peek(u32 addr)
   return wrapper->emu->mem.mem->spypeek8<Accessor::CPU>(addr);
 }
 
+extern "C" u16 wasm_peek16(u32 addr)
+{
+  if(wrapper == NULL) return 0;
+  return wrapper->emu->mem.mem->spypeek16<Accessor::CPU>(addr);
+}
+
+extern "C" void wasm_set_bitplane_guess(int on)
+{
+  if(wrapper == NULL) return;
+  wrapper->emu->agnus.agnus->bplGuessEnabled = (on != 0);
+}
+
+extern "C" void wasm_set_write_tracking(int on)
+{
+  if(wrapper == NULL) return;
+  wrapper->emu->mem.mem->setWriteOwnerTracking(on != 0);
+}
+
+extern "C" int wasm_get_write_owner(u32 addr)
+{
+  if(wrapper == NULL) return 0;
+  return wrapper->emu->mem.mem->getWriteOwner(addr);
+}
+
+char wasm_bitplane_areas_result[512];
+extern "C" const char* wasm_get_bitplane_areas()
+{
+  wasm_bitplane_areas_result[0] = 0;
+  if(wrapper == NULL) return wasm_bitplane_areas_result;
+  auto *ag = wrapper->emu->agnus.agnus;
+  std::string s;
+  char b[80];
+  for(int i=0; i<6; i++)
+  {
+    if(ag->bplGuessMax[i] >= ag->bplGuessMin[i] && ag->bplGuessMin[i] != ~0u)
+    {
+      snprintf(b, sizeof b, "%d,%u,%u,%d,%u;",
+               i, ag->bplGuessMin[i], ag->bplGuessMax[i] + 2, (int)ag->bplGuessMod[i],
+               (unsigned)ag->bplGuessWords[i]);
+      s += b;
+    }
+  }
+  strncpy(wasm_bitplane_areas_result, s.c_str(), sizeof(wasm_bitplane_areas_result)-1);
+  wasm_bitplane_areas_result[sizeof(wasm_bitplane_areas_result)-1] = 0;
+  return wasm_bitplane_areas_result;
+}
+
 extern "C" void wasm_poke(u32 addr, u8 value)
 {
   if(wrapper == NULL) return;
