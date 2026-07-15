@@ -3260,6 +3260,10 @@ activity_monitor_switch.change( function() {
         save_setting('memview_enabled', this.checked);
         set_memview_enabled(this.checked);
     });
+    // bind via pointerup (like the other toolbar icons) instead of an inline
+    // onclick, so it fires reliably on iOS landscape where the synthetic click
+    // event can get swallowed by touch/gesture handling of overlaying elements
+    add_click("button_memview", memview_toggle);
 
 //------
 function bind_config(key, default_value){
