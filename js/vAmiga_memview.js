@@ -52,6 +52,16 @@ var memdump_cpu_col2 = 0xff1a1a1a; // cpu = very dark gray
 var memdump_blt_col1 = 0xff2196f3; // blitter = blue
 var memdump_blt_col2 = 0xff0d1f35; // blitter = very dark blue, 10% lighter
 
+// heatmap fade: a fresh write flashes in its author's color (blitter = blue,
+// cpu = gray) and then fades back to the default amber palette over this many
+// milliseconds (wall-clock, so it fades even while the emulation is paused)
+const MEMVIEW_HEAT_FADE_MS = 5000;
+// per-address decay state: addr -> { v: last seen value, ts: last-write time }.
+// only holds addresses currently on screen; rebuilt when the window changes
+var memview_heat = new Map();
+var memview_heat_start = null;
+var memview_heat_stride = null;
+
 var live_memory_dump_enabled = false;
 var memview_open = false;
 
@@ -305,9 +315,12 @@ function memview_open_panel() {
     memview_update_top();
     // start recording bitplane DMA accesses so the guesser has fresh data
     if (typeof wasm_set_bitplane_guess === "function") wasm_set_bitplane_guess(1);
-    // note: write-owner tracking is enabled at feature-enable time (not here),
-    // so writes that happened *before* opening the panel are already attributed
-    // and show up color-coded instead of as unwritten/default cells
+    // start write-owner tracking (blitter vs cpu on chip ram) only while the
+    // panel is open; the heatmap fade decides the coloring from here on
+    if (typeof wasm_set_write_tracking === "function") wasm_set_write_tracking(1);
+    memview_heat.clear();
+    memview_heat_start = null;
+    memview_heat_stride = null;
     memview_bpl_last_raw = null;
     memview_refresh_bitplanes(true);
     if (typeof scaleVMCanvas === "function") scaleVMCanvas();
@@ -319,10 +332,10 @@ function memview_close_panel() {
     let panel = document.getElementById("memview_panel");
     if (panel) panel.style.display = "none";
     memview_open = false;
-    // stop recording bitplane guesses to avoid the small per-fetch overhead.
-    // write-owner tracking stays on while the feature is enabled so history is
-    // preserved for the next time the panel is opened.
+    // stop recording to avoid the small per-write/per-fetch overhead when the
+    // panel is closed
     if (typeof wasm_set_bitplane_guess === "function") wasm_set_bitplane_guess(0);
+    if (typeof wasm_set_write_tracking === "function") wasm_set_write_tracking(0);
     if (typeof scaleVMCanvas === "function") scaleVMCanvas();
     if (typeof save_setting === "function") save_setting("memview_open", false);
 }
@@ -503,12 +516,22 @@ function memdump() {
     memdump_do(memdump_start, memdump_col1, memdump_col2);
 }
 
+// per-channel linear interpolation between two 0xAARRGGBB colors (t in [0,1])
+function memview_lerp_color(c0, c1, t) {
+    let a0 = (c0 >>> 24) & 255, r0 = (c0 >>> 16) & 255, g0 = (c0 >>> 8) & 255, b0 = c0 & 255;
+    let a1 = (c1 >>> 24) & 255, r1 = (c1 >>> 16) & 255, g1 = (c1 >>> 8) & 255, b1 = c1 & 255;
+    let a = (a0 + (a1 - a0) * t + 0.5) | 0;
+    let r = (r0 + (r1 - r0) * t + 0.5) | 0;
+    let g = (g0 + (g1 - g0) * t + 0.5) | 0;
+    let b = (b0 + (b1 - b0) * t + 0.5) | 0;
+    return ((a << 24) | (r << 16) | (g << 8) | b) >>> 0;
+}
+
 function memdump_do(start0, col1, col2) {
     let start = start0 < 0 ? 0 : start0;
     let writers = memview_show_writers && typeof wasm_get_write_owner === "function";
     // fast/slow ram can only be written by the cpu (the blitter/chipset cannot
-    // reach it), so there is nothing to track there: any such address is cpu.
-    // collect their ranges once and color them cpu-gray directly.
+    // reach it), so any such address is cpu; collect their ranges once.
     let cpuRanges = [];
     if (writers) {
         for (let i = 0; i < memview_regions.length; i++) {
@@ -524,6 +547,14 @@ function memdump_do(start0, col1, col2) {
         }
         return false;
     };
+    // heatmap decay: reset the state whenever the visible window changes so it
+    // only ever holds addresses that are currently on screen
+    let now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    if (writers && (start !== memview_heat_start || memview_row_stride !== memview_heat_stride)) {
+        memview_heat_start = start;
+        memview_heat_stride = memview_row_stride;
+        memview_heat.clear();
+    }
     for (let y = 0; y < MEMVIEW_VPIXELS; y++) {
         let addr = start + y * memview_row_stride;
         for (let w = 0; w < memview_words_per_row; w++) {
@@ -531,11 +562,33 @@ function memdump_do(start0, col1, col2) {
             let value = wasm_peek16(a);
             let c1 = col1, c2 = col2;
             if (writers) {
-                let owner = wasm_get_write_owner(a);
-                if (owner === MEMVIEW_WRITE_CPU) { c1 = memdump_cpu_col1; c2 = memdump_cpu_col2; }
-                else if (owner === MEMVIEW_WRITE_BLITTER) { c1 = memdump_blt_col1; c2 = memdump_blt_col2; }
-                else if (isCpuOnly(a)) { c1 = memdump_cpu_col1; c2 = memdump_cpu_col2; } // fast/slow: cpu only
-                else { c2 = 0xff000000; } // chip, unwritten: black background
+                // who last wrote this cell (only the blitter/chip can be blue;
+                // fast/slow and everything else is attributed to the cpu)
+                let ownerTag;
+                if (isCpuOnly(a)) ownerTag = MEMVIEW_WRITE_CPU;
+                else ownerTag = (wasm_get_write_owner(a) === MEMVIEW_WRITE_BLITTER)
+                    ? MEMVIEW_WRITE_BLITTER : MEMVIEW_WRITE_CPU;
+
+                // detect a fresh write by watching the value change. the first
+                // time we see an address we record it silently (no flash on
+                // open/scroll); a later change starts the fade at full heat.
+                let rec = memview_heat.get(a);
+                if (rec === undefined) {
+                    rec = { v: value, ts: -Infinity };
+                    memview_heat.set(a, rec);
+                } else if (value !== rec.v) {
+                    rec.v = value;
+                    rec.ts = now;
+                }
+                let heat = 1 - (now - rec.ts) / MEMVIEW_HEAT_FADE_MS;
+                if (heat > 0) {
+                    if (heat > 1) heat = 1;
+                    let base1 = (ownerTag === MEMVIEW_WRITE_BLITTER) ? memdump_blt_col1 : memdump_cpu_col1;
+                    let base2 = (ownerTag === MEMVIEW_WRITE_BLITTER) ? memdump_blt_col2 : memdump_cpu_col2;
+                    c1 = memview_lerp_color(col1, base1, heat);
+                    c2 = memview_lerp_color(col2, base2, heat);
+                }
+                // heat <= 0 -> stays at the default amber palette (col1/col2)
             }
             memdump_plotword(w * 16, y, value, c1, c2);
         }
