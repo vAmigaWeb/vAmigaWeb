@@ -123,12 +123,17 @@
       <div id="memview_overview_col">
         <div class="memview_subtitle memview_overview_title">
           overview
-          <button type="button" id="memview_step" title="pause emulation and render exactly one frame">single step</button>
+          <button type="button" id="memview_step" title="single step: pause emulation and render exactly one frame">
+            <svg class="bi bi-step-over" width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <path fill="currentColor" d="M12 14a2 2 0 0 1 2 2a2 2 0 0 1-2 2a2 2 0 0 1-2-2a2 2 0 0 1 2-2m11.46-5.14l-1.59 6.89L15 14.16l3.8-2.38A7.97 7.97 0 0 0 12 8c-3.95 0-7.23 2.86-7.88 6.63l-1.97-.35C2.96 9.58 7.06 6 12 6c3.58 0 6.73 1.89 8.5 4.72z"/>
+            </svg>
+            single step
+          </button>
         </div>
         <div id="memview_overview_blocks"></div>
         <div class="memview_subtitle memview_bpl_title">
-          found bitplanes
-          <label class="memview_live_label" title="auto-update the detected bitplane areas every frame"><input type="checkbox" id="memview_bpl_live" checked> live</label>
+          bitplanes
+          <label class="memview_live_label" title="follow mode: keep the detail view locked to bitplane 1 and jump along whenever it changes"><input type="checkbox" id="memview_bpl_autoselect" checked> auto-select</label>
         </div>
         <div id="memview_bpl_list"></div>
       </div>
@@ -247,7 +252,7 @@
         height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M160-160v-320h160v320H160Zm240 0v-640h160v640H400Zm240 0v-440h160v440H640Z"/></svg>
       </button>
 
-      <button id="button_memview" class="btn btn-sm icon" type="button" onclick="memview_toggle()" data-toggle="tooltip" data-placement="top" title="live memory view" style="display:none">
+      <button id="button_memview" class="btn btn-sm icon" type="button" data-toggle="tooltip" data-placement="top" title="live memory view" style="display:none">
         <svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" fill="currentColor" viewBox="0 0 16 16">
           <path d="M11 5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6zM5 4a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H5z"/>
           <path d="M5 0a.5.5 0 0 1 .5.5V2h1V.5a.5.5 0 0 1 1 0V2h1V.5a.5.5 0 0 1 1 0V2h1V.5a.5.5 0 0 1 1 0V2A2.5 2.5 0 0 1 14 4.5h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14A2.5 2.5 0 0 1 11.5 14v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14A2.5 2.5 0 0 1 2 11.5H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2A2.5 2.5 0 0 1 4.5 2V.5A.5.5 0 0 1 5 0zm-.5 3A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13h7a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 11.5 3h-7z"/>

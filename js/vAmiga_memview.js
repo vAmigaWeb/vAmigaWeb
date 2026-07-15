@@ -52,6 +52,16 @@ var memdump_cpu_col2 = 0xff1a1a1a; // cpu = very dark gray
 var memdump_blt_col1 = 0xff2196f3; // blitter = blue
 var memdump_blt_col2 = 0xff0d1f35; // blitter = very dark blue, 10% lighter
 
+// heatmap fade: a fresh write flashes in its author's color (blitter = blue,
+// cpu = gray) and then fades back to the default amber palette over this many
+// milliseconds (wall-clock, so it fades even while the emulation is paused)
+const MEMVIEW_HEAT_FADE_MS = 5000;
+// per-address decay state: addr -> { v: last seen value, ts: last-write time }.
+// only holds addresses currently on screen; rebuilt when the window changes
+var memview_heat = new Map();
+var memview_heat_start = null;
+var memview_heat_stride = null;
+
 var live_memory_dump_enabled = false;
 var memview_open = false;
 
@@ -77,12 +87,15 @@ var memview_drag_region = null;
 var memview_regions = [];
 var memview_regions_signature = "";
 
-// bitplane area list state (auto-refreshed while "live" is on)
-var memview_bpl_live = true;         // live update toggle (default on)
+// bitplane area list state (auto-refreshed while the panel is open)
 var memview_bpl_hover = false;       // paused while the mouse is over the list
 var memview_bpl_counter = 0;         // frame throttle counter
 var memview_bpl_last_raw = null;     // last rendered payload (skip if unchanged)
+var memview_bpl_autoselect = true;   // follow mode: keep detail view locked to bpl1
+var memview_bpl_sel_sig = null;      // signature of the currently followed bpl1
+var memview_bpl_recent = [];         // recent bpl1 signatures (page-flip detection)
 const MEMVIEW_BPL_THROTTLE = 15;     // update every n live frames
+const MEMVIEW_BPL_RECENT_MAX = 6;    // how many recent signatures to remember
 
 // width reserved by the docked panel (used by scaleVMCanvas in vAmiga_canvas.js)
 function memview_reserved_width() {
@@ -178,13 +191,18 @@ function memview_init() {
         stepBtn.addEventListener("click", function() { memview_step_frame(); });
     }
 
-    // bitplane areas: live toggle + pause-on-hover so clicks don't jump away
-    let bplLiveCb = document.getElementById("memview_bpl_live");
-    if (bplLiveCb) {
-        memview_bpl_live = bplLiveCb.checked;
-        bplLiveCb.addEventListener("change", function() {
-            memview_bpl_live = this.checked;
-            if (memview_bpl_live) memview_refresh_bitplanes(true);
+    // auto-select (follow mode): keep the detail view locked to the top-of-list
+    // bitplane while enabled; toggling it on re-locks onto the current bpl1
+    let bplAutoCb = document.getElementById("memview_bpl_autoselect");
+    if (bplAutoCb) {
+        memview_bpl_autoselect = bplAutoCb.checked;
+        bplAutoCb.addEventListener("change", function() {
+            memview_bpl_autoselect = this.checked;
+            if (memview_bpl_autoselect) {
+                memview_bpl_sel_sig = null;      // force a re-select on next refresh
+                memview_bpl_recent.length = 0;   // forget the page-flip history
+                memview_refresh_bitplanes(true);
+            }
         });
     }
     let bplList = document.getElementById("memview_bpl_list");
@@ -280,6 +298,9 @@ function memview_reset_geometry() {
 }
 
 function memview_toggle() {
+    // dismiss the button's bootstrap tooltip so it doesn't linger and cover the
+    // panel/canvas after the click
+    if (typeof $ !== "undefined") $("#button_memview").tooltip("hide");
     if (memview_open) memview_close_panel();
     else memview_open_panel();
 }
@@ -294,8 +315,12 @@ function memview_open_panel() {
     memview_update_top();
     // start recording bitplane DMA accesses so the guesser has fresh data
     if (typeof wasm_set_bitplane_guess === "function") wasm_set_bitplane_guess(1);
-    // write-owner tracking is always on so writes are color-coded by author
+    // start write-owner tracking (blitter vs cpu on chip ram) only while the
+    // panel is open; the heatmap fade decides the coloring from here on
     if (typeof wasm_set_write_tracking === "function") wasm_set_write_tracking(1);
+    memview_heat.clear();
+    memview_heat_start = null;
+    memview_heat_stride = null;
     memview_bpl_last_raw = null;
     memview_refresh_bitplanes(true);
     if (typeof scaleVMCanvas === "function") scaleVMCanvas();
@@ -307,7 +332,8 @@ function memview_close_panel() {
     let panel = document.getElementById("memview_panel");
     if (panel) panel.style.display = "none";
     memview_open = false;
-    // stop recording to avoid the small per-fetch overhead when not needed
+    // stop recording to avoid the small per-write/per-fetch overhead when the
+    // panel is closed
     if (typeof wasm_set_bitplane_guess === "function") wasm_set_bitplane_guess(0);
     if (typeof wasm_set_write_tracking === "function") wasm_set_write_tracking(0);
     if (typeof scaleVMCanvas === "function") scaleVMCanvas();
@@ -348,9 +374,9 @@ function memview_step_frame() {
     if (typeof update_activity_monitors === "function") update_activity_monitors();
 }
 
-// throttled per-frame driver: refreshes the bitplane list while "live" is on
+// throttled per-frame driver: refreshes the bitplane list while the panel is open
 function memview_bpl_tick() {
-    if (!memview_open || !memview_bpl_live) return;
+    if (!memview_open) return;
     if ((++memview_bpl_counter % MEMVIEW_BPL_THROTTLE) !== 0) return;
     memview_refresh_bitplanes(false);
 }
@@ -377,8 +403,12 @@ function memview_refresh_bitplanes(force) {
         empty.className = "memview_bpl_empty";
         empty.textContent = "no bitplane dma detected \u2013 run a graphical program";
         list.appendChild(empty);
+        memview_bpl_sel_sig = null;
+        memview_bpl_recent.length = 0;
         return;
     }
+
+    let firstSel = null;   // first listed (valid) entry -> tracked by follow mode
 
     for (let i = 0; i < entries.length; i++) {
         let parts = entries[i].split(",");
@@ -387,15 +417,28 @@ function memview_refresh_bitplanes(force) {
         let end = parseInt(parts[2], 10);
         let mod = parseInt(parts[3], 10);
         let words = parseInt(parts[4], 10);
+        let lines = parseInt(parts[5], 10);
         if (isNaN(start) || isNaN(end)) continue;
         if (isNaN(words) || words < 1) words = MEMVIEW_WORDS_PER_ROW;
         if (isNaN(mod)) mod = 0;
         let widthPx = words * 16;                 // one bit per pixel
         let stride = words * 2 + mod;             // memory bytes per scanline
-        // height = number of scanlines that fit into the recorded dma range
-        let heightPx = stride > 0
-            ? Math.max(1, Math.round((end - start - words * 2) / stride) + 1)
-            : 1;
+        // height = number of scanlines the core actually did bitplane dma on.
+        // this is layout-independent and works even when the copper reloads
+        // bplpt every line. fall back to the address-range estimate if the
+        // core does not report a line count (older build).
+        let heightPx;
+        if (!isNaN(lines) && lines > 0) {
+            heightPx = lines;
+        } else {
+            heightPx = stride > 0
+                ? Math.max(1, Math.round((end - start - words * 2) / stride) + 1)
+                : 1;
+        }
+        // skip implausible one-scanline detections (e.g. 320x1): these come from
+        // transition frames (bpl dma just (dis)enabled) and never represent a
+        // real, viewable bitplane image
+        if (heightPx < 2) continue;
 
         let item = document.createElement("div");
         item.className = "memview_bpl_item";
@@ -405,18 +448,65 @@ function memview_refresh_bitplanes(force) {
             "<span class='memview_bpl_pl'>bpl" + (plane + 1) + "</span>" +
             "<span class='memview_bpl_addr'>$" + ("000000" + start.toString(16)).slice(-6) + "</span>" +
             "<span class='memview_bpl_meta'>" + widthPx + "\u00d7" + heightPx + "</span>";
-        (function(addr, w, m) {
+        let addrEl = item.querySelector(".memview_bpl_addr");
+        (function(addr, w, m, ael) {
             item.addEventListener("click", function() {
-                // width = words per line, stride = line bytes + modulo (skips
-                // the modulo gap / interleaved planes) -> clean bitplane image
-                memview_set_geometry(w, w * 2 + m);
-                memview_set_start(addr);
-                memdump();
-                mempreview();
+                memview_select_bpl(addr, w, m, ael);
             });
-        })(start, words, mod);
+        })(start, words, mod, addrEl);
         list.appendChild(item);
+
+        if (!firstSel) firstSel = { start: start, words: words, mod: mod, addrEl: addrEl };
     }
+
+    // auto-select (follow mode): keep the detail view locked to the top-of-list
+    // bitplane and re-jump whenever its address/geometry changes. suppressed
+    // while the user is dragging (detail-view or overview scroll) so an active
+    // manual inspection is never yanked away.
+    if (memview_bpl_autoselect && firstSel && !memview_pressed && !mempreview_pressed) {
+        let sig = firstSel.start + "," + firstSel.words + "," + firstSel.mod;
+        if (sig !== memview_bpl_sel_sig) {
+            // double-buffer guard: if bpl1's base address keeps returning to a
+            // value we saw a few frames ago, the program is page-flipping between
+            // a small set of buffers (A,B,A,B…). stay locked on the current view
+            // instead of jumping every frame. a genuinely new address (e.g. a
+            // smooth scroll or a real screen change) is never in the history, so
+            // it still follows normally.
+            if (memview_bpl_recent.indexOf(sig) === -1) {
+                memview_bpl_sel_sig = sig;
+                memview_select_bpl(firstSel.start, firstSel.words, firstSel.mod, firstSel.addrEl);
+            }
+        }
+        // record the observed signature (ring buffer) so page-flips age out
+        memview_bpl_recent.push(sig);
+        if (memview_bpl_recent.length > MEMVIEW_BPL_RECENT_MAX) memview_bpl_recent.shift();
+    }
+}
+
+// jumps the detail view to a detected bitplane and plays the "pop" highlight on
+// both the clicked list address and the detail start-address input, so it is
+// visible what just got selected (used by manual clicks and auto-select).
+// width = words per line, stride = line bytes + modulo (skips the modulo gap /
+// interleaved planes) -> clean bitplane image
+function memview_select_bpl(addr, words, mod, addrEl) {
+    memview_set_geometry(words, words * 2 + mod);
+    memview_set_start(addr);
+    memdump();
+    mempreview();
+    if (addrEl) memview_flash(addrEl);
+    memview_flash(document.getElementById("memview_start"));
+}
+
+// retriggerable pop+highlight animation (see .memview_flash in vAmiga.css)
+function memview_flash(el) {
+    if (!el) return;
+    el.classList.remove("memview_flash");
+    void el.offsetWidth;               // force reflow so the animation restarts
+    el.classList.add("memview_flash");
+    el.addEventListener("animationend", function handler() {
+        el.classList.remove("memview_flash");
+        el.removeEventListener("animationend", handler);
+    });
 }
 
 // called from the emulator frame loop and on manual updates
@@ -426,9 +516,45 @@ function memdump() {
     memdump_do(memdump_start, memdump_col1, memdump_col2);
 }
 
+// per-channel linear interpolation between two 0xAARRGGBB colors (t in [0,1])
+function memview_lerp_color(c0, c1, t) {
+    let a0 = (c0 >>> 24) & 255, r0 = (c0 >>> 16) & 255, g0 = (c0 >>> 8) & 255, b0 = c0 & 255;
+    let a1 = (c1 >>> 24) & 255, r1 = (c1 >>> 16) & 255, g1 = (c1 >>> 8) & 255, b1 = c1 & 255;
+    let a = (a0 + (a1 - a0) * t + 0.5) | 0;
+    let r = (r0 + (r1 - r0) * t + 0.5) | 0;
+    let g = (g0 + (g1 - g0) * t + 0.5) | 0;
+    let b = (b0 + (b1 - b0) * t + 0.5) | 0;
+    return ((a << 24) | (r << 16) | (g << 8) | b) >>> 0;
+}
+
 function memdump_do(start0, col1, col2) {
     let start = start0 < 0 ? 0 : start0;
     let writers = memview_show_writers && typeof wasm_get_write_owner === "function";
+    // fast/slow ram can only be written by the cpu (the blitter/chipset cannot
+    // reach it), so any such address is cpu; collect their ranges once.
+    let cpuRanges = [];
+    if (writers) {
+        for (let i = 0; i < memview_regions.length; i++) {
+            let r = memview_regions[i];
+            if (r.name === "fast" || r.name === "slow") {
+                cpuRanges.push([r.base, r.base + r.size]);
+            }
+        }
+    }
+    let isCpuOnly = function(a) {
+        for (let i = 0; i < cpuRanges.length; i++) {
+            if (a >= cpuRanges[i][0] && a < cpuRanges[i][1]) return true;
+        }
+        return false;
+    };
+    // heatmap decay: reset the state whenever the visible window changes so it
+    // only ever holds addresses that are currently on screen
+    let now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    if (writers && (start !== memview_heat_start || memview_row_stride !== memview_heat_stride)) {
+        memview_heat_start = start;
+        memview_heat_stride = memview_row_stride;
+        memview_heat.clear();
+    }
     for (let y = 0; y < MEMVIEW_VPIXELS; y++) {
         let addr = start + y * memview_row_stride;
         for (let w = 0; w < memview_words_per_row; w++) {
@@ -436,10 +562,33 @@ function memdump_do(start0, col1, col2) {
             let value = wasm_peek16(a);
             let c1 = col1, c2 = col2;
             if (writers) {
-                let owner = wasm_get_write_owner(a);
-                if (owner === MEMVIEW_WRITE_CPU) { c1 = memdump_cpu_col1; c2 = memdump_cpu_col2; }
-                else if (owner === MEMVIEW_WRITE_BLITTER) { c1 = memdump_blt_col1; c2 = memdump_blt_col2; }
-                else { c2 = 0xff000000; } // unwritten: black background
+                // who last wrote this cell (only the blitter/chip can be blue;
+                // fast/slow and everything else is attributed to the cpu)
+                let ownerTag;
+                if (isCpuOnly(a)) ownerTag = MEMVIEW_WRITE_CPU;
+                else ownerTag = (wasm_get_write_owner(a) === MEMVIEW_WRITE_BLITTER)
+                    ? MEMVIEW_WRITE_BLITTER : MEMVIEW_WRITE_CPU;
+
+                // detect a fresh write by watching the value change. the first
+                // time we see an address we record it silently (no flash on
+                // open/scroll); a later change starts the fade at full heat.
+                let rec = memview_heat.get(a);
+                if (rec === undefined) {
+                    rec = { v: value, ts: -Infinity };
+                    memview_heat.set(a, rec);
+                } else if (value !== rec.v) {
+                    rec.v = value;
+                    rec.ts = now;
+                }
+                let heat = 1 - (now - rec.ts) / MEMVIEW_HEAT_FADE_MS;
+                if (heat > 0) {
+                    if (heat > 1) heat = 1;
+                    let base1 = (ownerTag === MEMVIEW_WRITE_BLITTER) ? memdump_blt_col1 : memdump_cpu_col1;
+                    let base2 = (ownerTag === MEMVIEW_WRITE_BLITTER) ? memdump_blt_col2 : memdump_cpu_col2;
+                    c1 = memview_lerp_color(col1, base1, heat);
+                    c2 = memview_lerp_color(col2, base2, heat);
+                }
+                // heat <= 0 -> stays at the default amber palette (col1/col2)
             }
             memdump_plotword(w * 16, y, value, c1, c2);
         }

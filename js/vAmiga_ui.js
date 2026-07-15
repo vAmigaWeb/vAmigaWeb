@@ -3208,7 +3208,7 @@ activity_monitor_switch.change( function() {
         if(value)
         {
             $('#button_retro_shell').show();
-            $('#retro_shell_enabled_help').text('The RetroShell icon is now shown in the menu bar. Open RetroShell to debug, browse files, tweak settings, and more.');
+            $('#retro_shell_enabled_help').text('The RetroShell icon is shown in the menu bar. Open RetroShell to debug, browse files, tweak settings, and more.');
         }
         else
         {
@@ -3229,7 +3229,7 @@ activity_monitor_switch.change( function() {
         if(value)
         {
             $('#button_memview').show();
-            $('#memview_enabled_help').text('The live memory view icon is now shown in the menu bar.');
+            $('#memview_enabled_help').text('The live memory view icon is shown in the menu bar.');
         }
         else
         {
@@ -3254,6 +3254,10 @@ activity_monitor_switch.change( function() {
         save_setting('memview_enabled', this.checked);
         set_memview_enabled(this.checked);
     });
+    // bind via pointerup (like the other toolbar icons) instead of an inline
+    // onclick, so it fires reliably on iOS landscape where the synthetic click
+    // event can get swallowed by touch/gesture handling of overlaying elements
+    add_click("button_memview", memview_toggle);
 
 //------
 function bind_config(key, default_value){

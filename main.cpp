@@ -1007,9 +1007,9 @@ extern "C" const char* wasm_get_bitplane_areas()
   {
     if(ag->bplGuessMax[i] >= ag->bplGuessMin[i] && ag->bplGuessMin[i] != ~0u)
     {
-      snprintf(b, sizeof b, "%d,%u,%u,%d,%u;",
+      snprintf(b, sizeof b, "%d,%u,%u,%d,%u,%u;",
                i, ag->bplGuessMin[i], ag->bplGuessMax[i] + 2, (int)ag->bplGuessMod[i],
-               (unsigned)ag->bplGuessWords[i]);
+               (unsigned)ag->bplGuessWords[i], (unsigned)ag->bplGuessLines[i]);
       s += b;
     }
   }

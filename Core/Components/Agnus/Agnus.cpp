@@ -718,10 +718,13 @@ Agnus::eolHandler()
     // Clear other variables
     for (isize i = 0; i < 8; i++) lastCtlWrite[i] = 0xFF;
 
-    // Track the widest bitplane line of the frame (words fetched per line)
+    // Track the widest bitplane line of the frame (words fetched per line) and
+    // count how many scanlines actually did bitplane dma (layout-independent
+    // height, works even when the copper reloads bplpt every line)
     if (bplGuessEnabled) {
         for (int i = 0; i < 6; i++) {
             if (bplGuessLineWords[i] > bplGuessWordsLive[i]) bplGuessWordsLive[i] = bplGuessLineWords[i];
+            if (bplGuessLineWords[i] > 0) bplGuessLinesLive[i]++;
             bplGuessLineWords[i] = 0;
         }
     }
@@ -761,9 +764,11 @@ Agnus::eofHandler()
             bplGuessMax[i] = bplGuessMaxLive[i];
             bplGuessMod[i] = (i & 1) ? bpl2mod : bpl1mod;
             bplGuessWords[i] = bplGuessWordsLive[i];
+            bplGuessLines[i] = bplGuessLinesLive[i];
             bplGuessMinLive[i] = ~0u;
             bplGuessMaxLive[i] = 0;
             bplGuessWordsLive[i] = 0;
+            bplGuessLinesLive[i] = 0;
         }
     }
 
