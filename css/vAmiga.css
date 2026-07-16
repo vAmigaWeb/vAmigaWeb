@@ -1252,7 +1252,7 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
   color: #cfc39a;
   background: rgba(223,148,42,0.15);
   border: 1px solid rgba(223,148,42,0.5);
-  border-radius: 0.85em;   /* capsule: wider than tall = larger tap target */
+  border-radius: 3px;   /* boxy, matching the single-step/slomo buttons */
   cursor: pointer;
   padding: 0;
   line-height: 1;
