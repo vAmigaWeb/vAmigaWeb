@@ -148,7 +148,7 @@
           <button type="button" id="memview_info" title="what am I looking at?" aria-label="info">i</button>
           <label class="memview_live_label"><input type="checkbox" id="memview_live" checked> live</label>
           <span class="memview_addr">$<input type="text" id="memview_start" value="000000" spellcheck="false"></span>
-          <button type="button" id="memview_close" onclick="memview_close_panel()" title="close">&times;</button>
+          <button type="button" id="memview_close" title="close">&times;</button>
         </div>
         <div id="memview_info_pop" style="display:none">
           <div class="memview_info_head">
@@ -158,8 +158,12 @@
           <div class="memview_info_body">
             <p>The detail view renders raw memory as pixels: <b>every bit is one pixel</b>. Each row is one bitplane scanline, so graphics in chip RAM show up as recognizable images. Drag or scroll to move through memory; type an address in the <span class="mono">$</span> field to jump, or pick a detected bitplane from the list on the left to jump straight to it.</p>
 
+            <h6>Bitplane detection</h6>
+            <p>The panel <b>continuously tries to work out which memory areas are currently used as bitplanes</b> by watching the Amiga's DMA and measuring the line-to-line stride. The detected areas are listed on the left, largest first.</p>
+            <p>With <b>auto-select</b> enabled, the detail view <b>automatically follows bitplane&nbsp;1</b>: whenever the guessed bpl1 area changes (for example on a screen or buffer flip), the view jumps along with it so you keep seeing the active image. Turn it off to stay parked at a fixed address.</p>
+
             <h6>Colors (write tracking)</h6>
-            <p>Freshly written memory briefly lights up in the color of whoever wrote it, then fades back to the amber <b>cold</b> palette over ~5&nbsp;seconds (even while paused). This shows <b>which areas are being written right now, and by whom</b>:</p>
+            <p>Freshly written memory briefly lights up in the color of whoever wrote it, then fades back to the amber <b>cold</b> palette. This shows <b>which areas are being written right now, and by whom</b>:</p>
             <table class="memview_color_table">
               <tr><th></th><th>set bit (1)</th><th>cleared bit (0)</th></tr>
               <tr>
@@ -193,6 +197,8 @@
               <input type="range" id="memview_slomo_interval" min="50" max="2000" step="50" value="500">
               <span>one step / <b id="memview_slomo_interval_val">500</b>&nbsp;ms</span>
             </div>
+
+            <button type="button" id="memview_info_close_bottom" class="memview_info_close_btn">Close</button>
           </div>
         </div>
         <canvas id="memview_canvas" oncontextmenu="event.preventDefault()"></canvas>
@@ -1425,6 +1431,7 @@ touch screen settings for virtual keyboard
         {
           if(
             el.id == 'virtual_keyboard'||
+            el.id == 'memview_panel'||
             (
               el.classList !== undefined && 
               (

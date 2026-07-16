@@ -195,14 +195,16 @@ function memview_init() {
     // single-step mode (pressing slomo again re-enters slow-mo)
     let stepBtn = document.getElementById("memview_step");
     if (stepBtn) {
-        stepBtn.addEventListener("click", function() { memview_step_button(); });
+        // bind via pointerup (not click) so it fires reliably for touch and
+        // apple pencil on ios, where the synthetic click can get swallowed
+        stepBtn.addEventListener("pointerup", function() { memview_step_button(); });
     }
 
     // "slomo" button: toggle slow-motion single stepping (one frame every 500ms);
     // press again to resume normal running speed
     let slomoBtn = document.getElementById("memview_slomo");
     if (slomoBtn) {
-        slomoBtn.addEventListener("click", function() { memview_slomo_toggle(); });
+        slomoBtn.addEventListener("pointerup", function() { memview_slomo_toggle(); });
     }
 
     // hop on press, just like the navbar icons: add the "pop" class on pointerup
@@ -226,8 +228,9 @@ function memview_init() {
     let infoBtn = document.getElementById("memview_info");
     let infoPop = document.getElementById("memview_info_pop");
     let infoClose = document.getElementById("memview_info_close");
+    addPop(infoBtn);   // hop on press, same as the slomo/step buttons
     if (infoBtn && infoPop) {
-        infoBtn.addEventListener("click", function(e) {
+        infoBtn.addEventListener("pointerup", function(e) {
             e.stopPropagation();
             let showing = (infoPop.style.display === "none");
             if (showing) {
@@ -254,7 +257,17 @@ function memview_init() {
         });
     }
     if (infoClose && infoPop) {
-        infoClose.addEventListener("click", function() { infoPop.style.display = "none"; });
+        infoClose.addEventListener("pointerup", function() { infoPop.style.display = "none"; });
+    }
+    let infoCloseBottom = document.getElementById("memview_info_close_bottom");
+    if (infoCloseBottom && infoPop) {
+        infoCloseBottom.addEventListener("pointerup", function() { infoPop.style.display = "none"; });
+    }
+    // panel close ("x") button in the memory header: bind via pointerup too
+    // (the inline onclick was removed from the html for the same ios reason)
+    let panelClose = document.getElementById("memview_close");
+    if (panelClose) {
+        panelClose.addEventListener("pointerup", function() { memview_close_panel(); });
     }
     // start interacting with the memory canvas -> get the overlay out of the way
     if (infoPop) {

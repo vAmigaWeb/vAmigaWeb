@@ -2651,17 +2651,27 @@ function InitWrappers() {
         } 
     }
 
+    // gestures that land on the docked memory view panel (its sliders, buttons
+    // and scrollable info body) must not drive the emulated amiga mouse/pencil
+    let event_in_memview = function(e) {
+        let t = e && e.target;
+        return t && t.closest && t.closest('#memview_panel') !== null;
+    };
+
     // Register pencil event listeners if pointer events are supported
     function handlePointerDown(e) {
         if (pencil_port === null) return;
+        if (event_in_memview(e)) return;
         emulate_mouse_pencil_down(e);
     }
     function handlePointerMove(e) {
         if (pencil_port === null) return;
+        if (event_in_memview(e)) return;
         emulate_mouse_pencil_move(e);
     }
     function handlePointerUp(e) {
         if (pencil_port === null) return;
+        if (event_in_memview(e)) return;
         emulate_mouse_pencil_up(e);
     }
     function updatePencilListeners() {
@@ -2684,6 +2694,7 @@ function InitWrappers() {
 
     function emulate_mouse_touchpad_start(e)
     {
+        if (event_in_memview(e)) return;
         for (var i=0; i < e.changedTouches.length; i++) {
             let touch = e.changedTouches[i];
         

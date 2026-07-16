@@ -1176,7 +1176,7 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
   70%  { transform: scale(1.12); }
   100% { transform: scale(1); }
 }
-#memview_step.pop, #memview_slomo.pop {
+#memview_step.pop, #memview_slomo.pop, #memview_info.pop {
   animation: memview_pop 0.28s ease-out forwards;
 }
 #memview_overview_blocks {
@@ -1230,22 +1230,29 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
 }
 #memview_header .memview_title { font-weight: bold; }
 #memview_header .memview_live_label { margin: 0 0 0 auto; display: flex; align-items: center; gap: 0.25em; }
+/* now that the panel allows native touch scrolling (whitelisted in
+   is_inside_scrollable), the browser may treat a tiny finger/pencil movement on
+   a header button as the start of a scroll and fire pointercancel instead of
+   pointerup, swallowing the press. touch-action:none keeps a tap on these
+   controls a tap (they never need to scroll). */
+#memview_header button,
+#memview_panel .memview_title_actions button { touch-action: none; }
 /* round "i" info button next to the memory title */
 #memview_info {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.35em;
-  height: 1.35em;
+  width: 1.9em;
+  height: 1.7em;
   flex: 0 0 auto;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: bold;
   font-style: italic;
   font-family: Georgia, "Times New Roman", serif;
   color: #cfc39a;
   background: rgba(223,148,42,0.15);
   border: 1px solid rgba(223,148,42,0.5);
-  border-radius: 50%;
+  border-radius: 0.85em;   /* capsule: wider than tall = larger tap target */
   cursor: pointer;
   padding: 0;
   line-height: 1;
@@ -1315,9 +1322,39 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
 .memview_info_body {
   padding: 8px 12px 12px;
   overflow-y: auto;
+  /* min-height:0 lets this flex child shrink below its content size so it
+     actually becomes a scroll container (needed on iPhone/iPad); the
+     -webkit rule enables momentum scrolling on iOS. touch-action:pan-y is
+     required because body has touch-action:manipulation, which otherwise
+     stops iOS from treating a finger drag here as a vertical scroll (the
+     trackpad scrolls via wheel events, which ignore touch-action). */
+  flex: 1 1 auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   font-size: 0.76rem;
   line-height: 1.45;
 }
+/* full-width close button at the bottom of the info panel */
+.memview_info_close_btn {
+  display: block;
+  width: 100%;
+  margin-top: 0.9em;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  color: #222;
+  background: rgba(0,0,0,0.12);
+  border: 1px solid rgba(0,0,0,0.25);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.memview_info_close_btn:hover { background: rgba(0,0,0,0.2); }
+[data-theme="dark"] .memview_info_close_btn {
+  color: #ddd;
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.2);
+}
+[data-theme="dark"] .memview_info_close_btn:hover { background: rgba(255,255,255,0.18); }
 .memview_info_body p { margin: 0 0 0.7em; }
 .memview_info_body h6 {
   margin: 0.9em 0 0.35em;
@@ -1390,6 +1427,11 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
   cursor: pointer;
   overflow: hidden;
   height: var(--s);
+  /* the scroll container (.memview_info_body) is touch-action:pan-y, which
+     otherwise makes iOS reserve a horizontal finger/pencil drag on the thumb
+     for vertical scrolling so the slider never moves. none lets the range
+     input consume the drag itself. */
+  touch-action: none;
 }
 .memview_fade_ctl span { white-space: nowrap; color: #555; }
 [data-theme="dark"] .memview_fade_ctl span { color: #cfcfcf; }
