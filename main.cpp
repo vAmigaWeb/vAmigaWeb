@@ -2381,7 +2381,10 @@ extern "C" const char* wasm_configure_key(char* option, char* key, char* _value)
          Opt(util::parseEnum <OptEnum>(std::string(option))),
 //         util::parseEnum <DmaChannelEnum>(std::string(key)), 
          util::parseBool(std::string(key))); 
-      
+        // process the command queue right away so the DMA debugger reacts while
+        // the emulator is paused / in slomo (single step). otherwise the set()
+        // would only be applied by the run loop's update() on the next play.
+        wrapper->emu->emu->update();
   }
   catch(AppError &exception) {
       printf("unknown key %s %s = %s\n", option, key, value.c_str());
