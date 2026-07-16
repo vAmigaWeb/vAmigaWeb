@@ -980,7 +980,16 @@ extern "C" u16 wasm_peek16(u32 addr)
 extern "C" void wasm_set_bitplane_guess(int on)
 {
   if(wrapper == NULL) return;
-  wrapper->emu->agnus.agnus->bplGuessEnabled = (on != 0);
+  auto *ag = wrapper->emu->agnus.agnus;
+  if(on != 0)
+  {
+    // Prime the per-line first-pointer table with the invalid marker so lines
+    // without bitplane dma are ignored by the guesser from the very first frame
+    for(int l=0; l<Agnus::BPL_GUESS_MAX_LINES; l++)
+      for(int i=0; i<6; i++)
+        ag->bplGuessFirstLive[l][i] = ~0u;
+  }
+  ag->bplGuessEnabled = (on != 0);
 }
 
 extern "C" void wasm_set_write_tracking(int on)
@@ -995,24 +1004,69 @@ extern "C" int wasm_get_write_owner(u32 addr)
   return wrapper->emu->mem.mem->getWriteOwner(addr);
 }
 
-char wasm_bitplane_areas_result[512];
+char wasm_bitplane_areas_result[4096];
 extern "C" const char* wasm_get_bitplane_areas()
 {
+  // Derive the bitplane areas from the measured per-scanline start pointers
+  // (bplGuessFirst). For each plane we scan for runs of scanlines that advance
+  // by a constant delta; that delta is the real line stride (visible bytes +
+  // modulo), independent of the BPLxMOD registers. This stays correct even for
+  // demos that reload bplpt every line via the copper/cpu, where the modulo
+  // register is meaningless. The reported modulo is stride - 2*words.
   wasm_bitplane_areas_result[0] = 0;
   if(wrapper == NULL) return wasm_bitplane_areas_result;
   auto *ag = wrapper->emu->agnus.agnus;
+
+  constexpr int MAX_LINES = Agnus::BPL_GUESS_MAX_LINES;
+  constexpr int MAX_CHUNKS_PER_PLANE = 8;
+  constexpr u32 INVALID = ~0u;
+
   std::string s;
-  char b[80];
-  for(int i=0; i<6; i++)
+  char b[96];
+  for(int p=0; p<6; p++)
   {
-    if(ag->bplGuessMax[i] >= ag->bplGuessMin[i] && ag->bplGuessMin[i] != ~0u)
+    int words = (int)ag->bplGuessWords[p];
+    if(words <= 0) continue;
+
+    int y = 0, emitted = 0;
+    while(y < MAX_LINES-2 && emitted < MAX_CHUNKS_PER_PLANE)
     {
+      u32 v0 = ag->bplGuessFirst[y][p];
+      u32 v1 = ag->bplGuessFirst[y+1][p];
+      u32 v2 = ag->bplGuessFirst[y+2][p];
+      if(v0 == INVALID || v1 == INVALID || v2 == INVALID) { y++; continue; }
+
+      long delta  = (long)v1 - (long)v0;
+      long deltaN = (long)v2 - (long)v1;
+      if(delta == 0 || delta != deltaN) { y++; continue; }
+
+      // Extend the run while the constant delta holds
+      int h = 1;
+      while(y+h < MAX_LINES &&
+            ag->bplGuessFirst[y+h][p]   != INVALID &&
+            ag->bplGuessFirst[y+h-1][p] != INVALID &&
+            (long)ag->bplGuessFirst[y+h][p] - (long)ag->bplGuessFirst[y+h-1][p] == delta)
+      {
+        h++;
+      }
+
+      u32 start = v0;
+      long stride = delta;
+      if(stride < 0) { start = (u32)((long)start + delta * h); stride = -stride; }
+
+      int planeWords = words;
+      int mod = (int)stride - 2*planeWords;
+      if(mod < 0) { planeWords = (int)(stride / 2); mod = (int)stride - 2*planeWords; }
+
+      u32 end = start + (u32)stride * (u32)h;
       snprintf(b, sizeof b, "%d,%u,%u,%d,%u,%u;",
-               i, ag->bplGuessMin[i], ag->bplGuessMax[i] + 2, (int)ag->bplGuessMod[i],
-               (unsigned)ag->bplGuessWords[i], (unsigned)ag->bplGuessLines[i]);
+               p, start, end, mod, (unsigned)planeWords, (unsigned)h);
       s += b;
+      emitted++;
+      y += h;
     }
   }
+
   strncpy(wasm_bitplane_areas_result, s.c_str(), sizeof(wasm_bitplane_areas_result)-1);
   wasm_bitplane_areas_result[sizeof(wasm_bitplane_areas_result)-1] = 0;
   return wasm_bitplane_areas_result;
@@ -2327,7 +2381,10 @@ extern "C" const char* wasm_configure_key(char* option, char* key, char* _value)
          Opt(util::parseEnum <OptEnum>(std::string(option))),
 //         util::parseEnum <DmaChannelEnum>(std::string(key)), 
          util::parseBool(std::string(key))); 
-      
+        // process the command queue right away so the DMA debugger reacts while
+        // the emulator is paused / in slomo (single step). otherwise the set()
+        // would only be applied by the run loop's update() on the next play.
+        wrapper->emu->emu->update();
   }
   catch(AppError &exception) {
       printf("unknown key %s %s = %s\n", option, key, value.c_str());

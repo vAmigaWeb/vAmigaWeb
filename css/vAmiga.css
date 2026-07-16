@@ -1137,7 +1137,12 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
   justify-content: space-between;
   gap: 0.5em;
 }
-#memview_step {
+.memview_title_actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+#memview_step, #memview_slomo {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1150,9 +1155,30 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
   padding: 1px 6px;
   cursor: pointer;
 }
-#memview_step svg { display: block; }
-#memview_step:hover { background: rgba(223,148,42,0.35); color: #fff; }
-#memview_step:active { background: rgba(223,148,42,0.5); }
+#memview_step svg, #memview_slomo svg { display: block; }
+#memview_step:hover, #memview_slomo:hover { background: rgba(223,148,42,0.35); color: #fff; }
+#memview_step:active, #memview_slomo:active { background: rgba(223,148,42,0.5); }
+/* while slomo is running, pulse the button so it's obvious it is active */
+#memview_slomo.slomo_active {
+  color: #fff;
+  animation: memview_slomo_pulse 1s ease-in-out infinite;
+}
+@keyframes memview_slomo_pulse {
+  0%   { background: rgba(223,148,42,0.25); box-shadow: 0 0 0 0 rgba(223,148,42,0.5); }
+  50%  { background: rgba(223,148,42,0.75); box-shadow: 0 0 6px 2px rgba(223,148,42,0.7); }
+  100% { background: rgba(223,148,42,0.25); box-shadow: 0 0 0 0 rgba(223,148,42,0.5); }
+}
+/* subtle hop on press. id+class specificity (and source order) lets this
+   briefly win over the slomo pulse animation. */
+@keyframes memview_pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.97); }
+  70%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+#memview_step.pop, #memview_slomo.pop, #memview_info.pop {
+  animation: memview_pop 0.28s ease-out forwards;
+}
 #memview_overview_blocks {
   flex: 1 1 auto;
   min-height: 0;
@@ -1202,8 +1228,215 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
 [data-theme="dark"] #memview_header {
   background-color: rgba(0,0,0,0.75);
 }
-#memview_header .memview_title { font-weight: bold; margin-right: auto; }
-#memview_header .memview_live_label { margin: 0; display: flex; align-items: center; gap: 0.25em; }
+#memview_header .memview_title { font-weight: bold; }
+#memview_header .memview_live_label { margin: 0 0 0 auto; display: flex; align-items: center; gap: 0.25em; }
+/* now that the panel allows native touch scrolling (whitelisted in
+   is_inside_scrollable), the browser may treat a tiny finger/pencil movement on
+   a header button as the start of a scroll and fire pointercancel instead of
+   pointerup, swallowing the press. touch-action:none keeps a tap on these
+   controls a tap (they never need to scroll). */
+#memview_header button,
+#memview_panel .memview_title_actions button { touch-action: none; }
+/* round "i" info button next to the memory title */
+#memview_info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9em;
+  height: 1.7em;
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+  font-weight: bold;
+  font-style: italic;
+  font-family: Georgia, "Times New Roman", serif;
+  color: #cfc39a;
+  background: rgba(223,148,42,0.15);
+  border: 1px solid rgba(223,148,42,0.5);
+  border-radius: 0.85em;   /* capsule: wider than tall = larger tap target */
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+#memview_info:hover { background: rgba(223,148,42,0.35); color: #fff; }
+#memview_info:active { background: rgba(223,148,42,0.5); }
+/* explanation overlay, covers the detail canvas */
+#memview_detail_col { position: relative; }
+#memview_info_pop {
+  position: absolute;
+  top: 34px;
+  left: 6px;
+  right: 6px;
+  max-height: calc(100% - 44px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background: #d5d5d5;
+  color: #222;
+  border: 1px solid rgba(0,0,0,0.35);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+[data-theme="dark"] #memview_info_pop {
+  background: #333;
+  color: #ddd;
+  border-color: rgba(255,255,255,0.2);
+}
+/* when there is room, float the overlay to the left of the whole docked panel
+   (over the amiga canvas) so the detail view stays visible while dragging the
+   sliders. uses position:fixed so it escapes the panel's overflow:hidden clip;
+   right/top/max-height are set from the panel rect in js. */
+#memview_info_pop.to_left {
+  position: fixed;
+  left: auto;
+  width: 320px;
+}
+.memview_info_head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-weight: bold;
+  font-size: 0.82rem;
+  color: #222;
+  background: rgba(0,0,0,0.12);
+  border-bottom: 1px solid rgba(0,0,0,0.2);
+}
+[data-theme="dark"] .memview_info_head {
+  color: #eee;
+  background: rgba(0,0,0,0.35);
+  border-bottom-color: rgba(255,255,255,0.12);
+}
+#memview_info_close {
+  background: transparent;
+  border: none;
+  color: #555;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+#memview_info_close:hover { color: #000; }
+[data-theme="dark"] #memview_info_close { color: #ccc; }
+[data-theme="dark"] #memview_info_close:hover { color: #fff; }
+.memview_info_body {
+  padding: 8px 12px 12px;
+  overflow-y: auto;
+  /* min-height:0 lets this flex child shrink below its content size so it
+     actually becomes a scroll container (needed on iPhone/iPad); the
+     -webkit rule enables momentum scrolling on iOS. touch-action:pan-y is
+     required because body has touch-action:manipulation, which otherwise
+     stops iOS from treating a finger drag here as a vertical scroll (the
+     trackpad scrolls via wheel events, which ignore touch-action). */
+  flex: 1 1 auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+/* full-width close button at the bottom of the info panel */
+.memview_info_close_btn {
+  display: block;
+  width: 100%;
+  margin-top: 0.9em;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  color: #222;
+  background: rgba(0,0,0,0.12);
+  border: 1px solid rgba(0,0,0,0.25);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.memview_info_close_btn:hover { background: rgba(0,0,0,0.2); }
+[data-theme="dark"] .memview_info_close_btn {
+  color: #ddd;
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.2);
+}
+[data-theme="dark"] .memview_info_close_btn:hover { background: rgba(255,255,255,0.18); }
+.memview_info_body p { margin: 0 0 0.7em; }
+.memview_info_body h6 {
+  margin: 0.9em 0 0.35em;
+  font-size: 0.78rem;
+  font-weight: bold;
+  color: #111;
+}
+[data-theme="dark"] .memview_info_body h6 { color: #fff; }
+.memview_info_note { color: #666; font-style: italic; }
+[data-theme="dark"] .memview_info_note { color: #999; }
+.memview_info_body .mono { font-family: monospace; color: #111; }
+[data-theme="dark"] .memview_info_body .mono { color: #eee; }
+.memview_legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4em 1.1em;
+  font-size: 0.75rem;
+}
+.memview_sw {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.25);
+  vertical-align: -0.15em;
+  margin-right: 0.15em;
+}
+.memview_color_table {
+  border-collapse: collapse;
+  margin: 0.2em 0 0.3em;
+  font-size: 0.75rem;
+}
+.memview_color_table th {
+  font-weight: normal;
+  color: #666;
+  text-align: center;
+  padding: 1px 10px;
+}
+[data-theme="dark"] .memview_color_table th { color: #aaa; }
+.memview_color_table th:first-child { text-align: left; }
+.memview_color_table td {
+  padding: 2px 10px;
+  text-align: center;
+  vertical-align: middle;
+}
+.memview_color_table td:first-child { text-align: left; }
+.memview_color_table td .memview_sw { margin: 0; }
+.memview_fade_ctl {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: 0.75rem;
+}
+/* style the memview sliders exactly like the settings modal volume slider so
+   they render correctly on safari (the global ::-webkit-slider-thumb rule uses
+   var(--s), which is only defined here). */
+.memview_fade_ctl input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  --c: #007bff;          /* active color (same blue as the volume slider) */
+  --l: 6px;              /* line thickness */
+  --s: 18px;             /* thumb size */
+  --_c: color-mix(in srgb, var(--c), #000 var(--p,0%));
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background:
+    linear-gradient(-90deg,#ababab 60%,#0000 0) 100%/5% calc(var(--l) - 1px) repeat-x;
+  cursor: pointer;
+  overflow: hidden;
+  height: var(--s);
+  /* the scroll container (.memview_info_body) is touch-action:pan-y, which
+     otherwise makes iOS reserve a horizontal finger/pencil drag on the thumb
+     for vertical scrolling so the slider never moves. none lets the range
+     input consume the drag itself. */
+  touch-action: none;
+}
+.memview_fade_ctl span { white-space: nowrap; color: #555; }
+[data-theme="dark"] .memview_fade_ctl span { color: #cfcfcf; }
+.memview_fade_ctl b { color: #111; }
+[data-theme="dark"] .memview_fade_ctl b { color: #fff; }
 #memview_header .memview_addr { font-family: monospace; }
 #memview_start {
   width: 6.5em;

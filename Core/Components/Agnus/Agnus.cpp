@@ -726,6 +726,8 @@ Agnus::eolHandler()
             if (bplGuessLineWords[i] > bplGuessWordsLive[i]) bplGuessWordsLive[i] = bplGuessLineWords[i];
             if (bplGuessLineWords[i] > 0) bplGuessLinesLive[i]++;
             bplGuessLineWords[i] = 0;
+            // Arm the per-line first-fetch recorder for the new scanline
+            bplGuessHadFirst[i] = false;
         }
     }
 
@@ -769,6 +771,14 @@ Agnus::eofHandler()
             bplGuessMaxLive[i] = 0;
             bplGuessWordsLive[i] = 0;
             bplGuessLinesLive[i] = 0;
+        }
+        // Commit the per-line first-pointer table and reset it for the next
+        // frame (invalid marker ~0u = no bitplane dma on that line)
+        for (int l = 0; l < BPL_GUESS_MAX_LINES; l++) {
+            for (int i = 0; i < 6; i++) {
+                bplGuessFirst[l][i] = bplGuessFirstLive[l][i];
+                bplGuessFirstLive[l][i] = ~0u;
+            }
         }
     }
 

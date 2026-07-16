@@ -54,9 +54,13 @@ var memdump_blt_col2 = 0xff0d1f35; // blitter = very dark blue, 10% lighter
 
 // heatmap fade: a fresh write flashes in its author's color (blitter = blue,
 // cpu = gray) and then fades back to the default amber palette over this many
-// milliseconds (wall-clock, so it fades even while the emulation is paused)
-const MEMVIEW_HEAT_FADE_MS = 5000;
-// per-address decay state: addr -> { v: last seen value, ts: last-write time }.
+// *rendered emulation frames*. tying the fade to frames (instead of wall-clock
+// time) means it freezes while the emulation is paused and only advances when
+// frames are actually produced (running, single step or slomo).
+var MEMVIEW_HEAT_FADE_FRAMES = 250;     // ~5s at 50fps (PAL); user-adjustable
+// counter of rendered emulation frames while the panel is open (drives the fade)
+var memview_frame_seq = 0;
+// per-address decay state: addr -> { v: last seen value, f: last-write frame seq }.
 // only holds addresses currently on screen; rebuilt when the window changes
 var memview_heat = new Map();
 var memview_heat_start = null;
@@ -96,6 +100,7 @@ var memview_bpl_sel_sig = null;      // signature of the currently followed bpl1
 var memview_bpl_recent = [];         // recent bpl1 signatures (page-flip detection)
 const MEMVIEW_BPL_THROTTLE = 15;     // update every n live frames
 const MEMVIEW_BPL_RECENT_MAX = 6;    // how many recent signatures to remember
+const MEMVIEW_BPL_MIN_HEIGHT = 3;    // drop guessed areas shorter than this (fragments)
 
 // width reserved by the docked panel (used by scaleVMCanvas in vAmiga_canvas.js)
 function memview_reserved_width() {
@@ -185,10 +190,127 @@ function memview_init() {
         });
     }
 
-    // "step" button: pause emulation and advance exactly one frame per click
+    // "step" button: pause emulation and advance exactly one frame per click.
+    // if slomo is running, this cancels it and stays in manual
+    // single-step mode (pressing slomo again re-enters slow-mo)
     let stepBtn = document.getElementById("memview_step");
     if (stepBtn) {
-        stepBtn.addEventListener("click", function() { memview_step_frame(); });
+        // bind via pointerup (not click) so it fires reliably for touch and
+        // apple pencil on ios, where the synthetic click can get swallowed
+        stepBtn.addEventListener("pointerup", function() { memview_step_button(); });
+    }
+
+    // "slomo" button: toggle slow-motion single stepping (one frame every 500ms);
+    // press again to resume normal running speed
+    let slomoBtn = document.getElementById("memview_slomo");
+    if (slomoBtn) {
+        slomoBtn.addEventListener("pointerup", function() { memview_slomo_toggle(); });
+    }
+
+    // hop on press, just like the navbar icons: add the "pop" class on pointerup
+    // and drop it when the popBounce animation finishes (restart via reflow so
+    // rapid presses re-trigger)
+    let addPop = function(btn) {
+        if (!btn) return;
+        btn.addEventListener("animationend", function(e) {
+            if (e.animationName === "memview_pop") btn.classList.remove("pop");
+        });
+        btn.addEventListener("pointerup", function() {
+            btn.classList.remove("pop");
+            void btn.offsetWidth;   // force reflow so the animation restarts
+            btn.classList.add("pop");
+        });
+    };
+    addPop(stepBtn);
+    addPop(slomoBtn);
+
+    // info ("i") button: toggle the "what am I looking at?" explanation overlay
+    let infoBtn = document.getElementById("memview_info");
+    let infoPop = document.getElementById("memview_info_pop");
+    let infoClose = document.getElementById("memview_info_close");
+    addPop(infoBtn);   // hop on press, same as the slomo/step buttons
+    if (infoBtn && infoPop) {
+        infoBtn.addEventListener("pointerup", function(e) {
+            e.stopPropagation();
+            let showing = (infoPop.style.display === "none");
+            if (showing) {
+                // if there is enough room to the left of the docked panel, float
+                // the overlay there (over the amiga canvas, via position:fixed so
+                // it escapes the panel's overflow:hidden) so the detail view stays
+                // visible while dragging the sliders; otherwise cover the detail
+                // canvas as before. 320px overlay + 6px gap = ~330px.
+                let panel = document.getElementById("memview_panel");
+                let rect = panel ? panel.getBoundingClientRect() : null;
+                if (rect && rect.left >= 330) {
+                    infoPop.classList.add("to_left");
+                    infoPop.style.right = (window.innerWidth - rect.left + 6) + "px";
+                    infoPop.style.top = (rect.top + 6) + "px";
+                    infoPop.style.maxHeight = (rect.height - 12) + "px";
+                } else {
+                    infoPop.classList.remove("to_left");
+                    infoPop.style.right = "";
+                    infoPop.style.top = "";
+                    infoPop.style.maxHeight = "";
+                }
+            }
+            infoPop.style.display = showing ? "flex" : "none";
+        });
+    }
+    if (infoClose && infoPop) {
+        infoClose.addEventListener("pointerup", function() { infoPop.style.display = "none"; });
+    }
+    let infoCloseBottom = document.getElementById("memview_info_close_bottom");
+    if (infoCloseBottom && infoPop) {
+        infoCloseBottom.addEventListener("pointerup", function() { infoPop.style.display = "none"; });
+    }
+    // panel close ("x") button in the memory header: bind via pointerup too
+    // (the inline onclick was removed from the html for the same ios reason)
+    let panelClose = document.getElementById("memview_close");
+    if (panelClose) {
+        panelClose.addEventListener("pointerup", function() { memview_close_panel(); });
+    }
+    // start interacting with the memory canvas -> get the overlay out of the way
+    if (infoPop) {
+        canvas.addEventListener("pointerdown", function() { infoPop.style.display = "none"; });
+    }
+
+    // heatmap fade-length slider (in rendered frames); persisted across sessions
+    let fadeInput = document.getElementById("memview_fade_frames");
+    let fadeVal = document.getElementById("memview_fade_frames_val");
+    if (fadeInput) {
+        let saved = (typeof load_setting === "function")
+            ? parseInt(load_setting("memview_fade_frames", MEMVIEW_HEAT_FADE_FRAMES), 10)
+            : MEMVIEW_HEAT_FADE_FRAMES;
+        if (!isNaN(saved) && saved >= 10) MEMVIEW_HEAT_FADE_FRAMES = saved;
+        fadeInput.value = MEMVIEW_HEAT_FADE_FRAMES;
+        if (fadeVal) fadeVal.textContent = MEMVIEW_HEAT_FADE_FRAMES;
+        fadeInput.addEventListener("input", function() {
+            let v = parseInt(this.value, 10);
+            if (isNaN(v) || v < 10) v = 10;
+            MEMVIEW_HEAT_FADE_FRAMES = v;
+            if (fadeVal) fadeVal.textContent = v;
+            if (typeof save_setting === "function") save_setting("memview_fade_frames", v);
+        });
+    }
+
+    // slomo speed slider (step interval in ms); applies live and is persisted
+    let slomoInput = document.getElementById("memview_slomo_interval");
+    let slomoVal = document.getElementById("memview_slomo_interval_val");
+    if (slomoInput) {
+        let saved = (typeof load_setting === "function")
+            ? parseInt(load_setting("memview_slomo_interval", MEMVIEW_SLOMO_INTERVAL_MS), 10)
+            : MEMVIEW_SLOMO_INTERVAL_MS;
+        if (!isNaN(saved) && saved >= 50) MEMVIEW_SLOMO_INTERVAL_MS = saved;
+        slomoInput.value = MEMVIEW_SLOMO_INTERVAL_MS;
+        if (slomoVal) slomoVal.textContent = MEMVIEW_SLOMO_INTERVAL_MS;
+        slomoInput.addEventListener("input", function() {
+            let v = parseInt(this.value, 10);
+            if (isNaN(v) || v < 50) v = 50;
+            MEMVIEW_SLOMO_INTERVAL_MS = v;
+            if (slomoVal) slomoVal.textContent = v;
+            memview_slomo_restart_timer();   // apply immediately if slomo is running
+            if (typeof save_setting === "function") save_setting("memview_slomo_interval", v);
+        });
     }
 
     // auto-select (follow mode): keep the detail view locked to the top-of-list
@@ -332,6 +454,8 @@ function memview_close_panel() {
     let panel = document.getElementById("memview_panel");
     if (panel) panel.style.display = "none";
     memview_open = false;
+    // cancel a running slomo and return to normal speed
+    memview_slomo_stop(true);
     // stop recording to avoid the small per-write/per-fetch overhead when the
     // panel is closed
     if (typeof wasm_set_bitplane_guess === "function") wasm_set_bitplane_guess(0);
@@ -342,6 +466,13 @@ function memview_close_panel() {
 
 // backward-compatible alias for the former "guess" button (pre-rebuild html)
 function memview_guess_bitplanes() { memview_refresh_bitplanes(true); }
+
+// single-step button handler: if slomo is active, cancel it and
+// stay paused in manual single-step mode; then advance exactly one frame.
+function memview_step_button() {
+    if (memview_slomo_timer !== null) memview_slomo_stop(false); // stop slow-mo, no resume
+    memview_step_frame();
+}
 
 // advances the emulation by exactly one frame. the emulator is paused first
 // (so it stays frozen between clicks) and the freshly computed frame is
@@ -374,9 +505,63 @@ function memview_step_frame() {
     if (typeof update_activity_monitors === "function") update_activity_monitors();
 }
 
+// --- slomo: slow-motion single stepping -----------------------------------
+// executes one frame every MEMVIEW_SLOMO_INTERVAL_MS and keeps going until the
+// button is clicked again, which resumes normal running speed.
+var MEMVIEW_SLOMO_INTERVAL_MS = 500;     // one single-step every 500ms; user-adjustable
+var memview_slomo_timer = null;
+// whether the emulator was running when slomo started. if it was already
+// paused, stopping slomo must leave it paused (don't force a resume)
+var memview_slomo_was_running = false;
+
+function memview_slomo_step() {
+    memview_step_frame();   // pauses the run loop on the first call, then steps
+}
+
+function memview_slomo_toggle() {
+    // second press while active: stop and resume normal speed
+    if (memview_slomo_timer !== null) { memview_slomo_stop(true); return; }
+
+    let slomoBtn = document.getElementById("memview_slomo");
+    if (slomoBtn) slomoBtn.classList.add("slomo_active");
+
+    // remember the pre-slomo run state so we can restore it on stop
+    memview_slomo_was_running = (typeof is_running_safe === "function") ? is_running_safe() : false;
+
+    memview_slomo_step();   // immediate first step for responsiveness
+    memview_slomo_timer = setInterval(memview_slomo_step, MEMVIEW_SLOMO_INTERVAL_MS);
+}
+
+// apply a changed interval right away if slomo is currently running
+function memview_slomo_restart_timer() {
+    if (memview_slomo_timer === null) return;
+    clearInterval(memview_slomo_timer);
+    memview_slomo_timer = setInterval(memview_slomo_step, MEMVIEW_SLOMO_INTERVAL_MS);
+}
+
+function memview_slomo_stop(resume) {
+    if (memview_slomo_timer !== null) {
+        clearInterval(memview_slomo_timer);
+        memview_slomo_timer = null;
+    }
+    let slomoBtn = document.getElementById("memview_slomo");
+    if (slomoBtn) slomoBtn.classList.remove("slomo_active");
+    // return to normal running speed only if the emulator was running before
+    // slomo started (memview_step_frame paused the loop). if it was already
+    // paused, stay paused.
+    if (resume && memview_slomo_was_running && !is_running_safe() &&
+        typeof app !== "undefined" && typeof app.button_run_click === "function") {
+        app.button_run_click();
+    }
+}
+
 // throttled per-frame driver: refreshes the bitplane list while the panel is open
 function memview_bpl_tick() {
     if (!memview_open) return;
+    // one rendered emulation frame -> advance the heatmap fade clock. this is
+    // the single per-frame hook (called from render_frame for live, single step
+    // and slomo), so the fade only progresses when frames are actually produced.
+    memview_frame_seq++;
     if ((++memview_bpl_counter % MEMVIEW_BPL_THROTTLE) !== 0) return;
     memview_refresh_bitplanes(false);
 }
@@ -408,8 +593,10 @@ function memview_refresh_bitplanes(force) {
         return;
     }
 
-    let firstSel = null;   // first listed (valid) entry -> tracked by follow mode
+    let firstSel = null;   // dominant listed entry -> tracked by follow mode
 
+    // parse + validate, then drop fragments too short to be a real image
+    let parsed = [];
     for (let i = 0; i < entries.length; i++) {
         let parts = entries[i].split(",");
         let plane = parseInt(parts[0], 10);
@@ -435,19 +622,51 @@ function memview_refresh_bitplanes(force) {
                 ? Math.max(1, Math.round((end - start - words * 2) / stride) + 1)
                 : 1;
         }
-        // skip implausible one-scanline detections (e.g. 320x1): these come from
-        // transition frames (bpl dma just (dis)enabled) and never represent a
-        // real, viewable bitplane image
-        if (heightPx < 2) continue;
+        // drop transitional / fragment detections: only keep areas tall enough
+        // to be a real, viewable bitplane image
+        if (heightPx < MEMVIEW_BPL_MIN_HEIGHT) continue;
+        parsed.push({ plane: plane, start: start, mod: mod, words: words,
+                      widthPx: widthPx, heightPx: heightPx });
+    }
+
+    // keep the bpl1..bpl6 grouping, but put the tallest (dominant) area of each
+    // plane on top of its group -> easy to find, and follow mode locks onto the
+    // main image instead of a small segment
+    parsed.sort(function(a, b) {
+        if (a.plane !== b.plane) return a.plane - b.plane;
+        return b.heightPx - a.heightPx;
+    });
+
+    if (parsed.length === 0) {
+        let empty = document.createElement("div");
+        empty.className = "memview_bpl_empty";
+        empty.textContent = "no bitplane dma detected \u2013 run a graphical program";
+        list.appendChild(empty);
+        memview_bpl_sel_sig = null;
+        memview_bpl_recent.length = 0;
+        return;
+    }
+
+    // per-plane segment counts (to label "k/n" when a plane has several areas)
+    let planeCount = {};
+    for (let e of parsed) planeCount[e.plane] = (planeCount[e.plane] || 0) + 1;
+    let planeSeen = {};
+
+    for (let e of parsed) {
+        let plane = e.plane, start = e.start, mod = e.mod, words = e.words;
+        let widthPx = e.widthPx, heightPx = e.heightPx;
+        let n = planeCount[plane];
+        let k = (planeSeen[plane] = (planeSeen[plane] || 0) + 1);
+        let segLabel = n > 1 ? " (" + k + "/" + n + ")" : "";
 
         let item = document.createElement("div");
         item.className = "memview_bpl_item";
-        item.title = "jump to bitplane " + plane + " \u00b7 " +
+        item.title = "jump to bitplane " + plane + segLabel + " \u00b7 " +
             widthPx + "x" + heightPx + " px \u00b7 modulo " + mod;
         item.innerHTML =
             "<span class='memview_bpl_pl'>bpl" + (plane + 1) + "</span>" +
             "<span class='memview_bpl_addr'>$" + ("000000" + start.toString(16)).slice(-6) + "</span>" +
-            "<span class='memview_bpl_meta'>" + widthPx + "\u00d7" + heightPx + "</span>";
+            "<span class='memview_bpl_meta'>" + widthPx + "\u00d7" + heightPx + segLabel + "</span>";
         let addrEl = item.querySelector(".memview_bpl_addr");
         (function(addr, w, m, ael) {
             item.addEventListener("click", function() {
@@ -548,8 +767,9 @@ function memdump_do(start0, col1, col2) {
         return false;
     };
     // heatmap decay: reset the state whenever the visible window changes so it
-    // only ever holds addresses that are currently on screen
-    let now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    // only ever holds addresses that are currently on screen. the fade is driven
+    // by the rendered-frame counter, so it freezes while the emulation is paused
+    let seq = memview_frame_seq;
     if (writers && (start !== memview_heat_start || memview_row_stride !== memview_heat_stride)) {
         memview_heat_start = start;
         memview_heat_stride = memview_row_stride;
@@ -574,13 +794,13 @@ function memdump_do(start0, col1, col2) {
                 // open/scroll); a later change starts the fade at full heat.
                 let rec = memview_heat.get(a);
                 if (rec === undefined) {
-                    rec = { v: value, ts: -Infinity };
+                    rec = { v: value, f: -Infinity };
                     memview_heat.set(a, rec);
                 } else if (value !== rec.v) {
                     rec.v = value;
-                    rec.ts = now;
+                    rec.f = seq;
                 }
-                let heat = 1 - (now - rec.ts) / MEMVIEW_HEAT_FADE_MS;
+                let heat = 1 - (seq - rec.f) / MEMVIEW_HEAT_FADE_FRAMES;
                 if (heat > 0) {
                     if (heat > 1) heat = 1;
                     let base1 = (ownerTag === MEMVIEW_WRITE_BLITTER) ? memdump_blt_col1 : memdump_cpu_col1;

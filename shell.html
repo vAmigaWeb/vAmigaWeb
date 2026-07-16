@@ -119,16 +119,21 @@
       <canvas class="emscripten" width="724" height="568" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     </div>
     <!-- live memory view (docked right) -->
-    <div id="memview_panel" style="display:none">
+    <div id="memview_panel" style="display:none" ontouchstart="event.stopPropagation()">
       <div id="memview_overview_col">
         <div class="memview_subtitle memview_overview_title">
           overview
-          <button type="button" id="memview_step" title="single step: pause emulation and render exactly one frame">
-            <svg class="bi bi-step-over" width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-              <path fill="currentColor" d="M12 14a2 2 0 0 1 2 2a2 2 0 0 1-2 2a2 2 0 0 1-2-2a2 2 0 0 1 2-2m11.46-5.14l-1.59 6.89L15 14.16l3.8-2.38A7.97 7.97 0 0 0 12 8c-3.95 0-7.23 2.86-7.88 6.63l-1.97-.35C2.96 9.58 7.06 6 12 6c3.58 0 6.73 1.89 8.5 4.72z"/>
-            </svg>
-            single step
-          </button>
+          <span class="memview_title_actions">
+            <button type="button" id="memview_slomo" title="slomo: slow-motion single step (one frame every 500ms); click again to resume normal speed">
+              slomo
+            </button>
+            <button type="button" id="memview_step" title="single step: pause emulation and render exactly one frame">
+              <svg class="bi bi-step-over" width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path fill="currentColor" d="M12 14a2 2 0 0 1 2 2a2 2 0 0 1-2 2a2 2 0 0 1-2-2a2 2 0 0 1 2-2m11.46-5.14l-1.59 6.89L15 14.16l3.8-2.38A7.97 7.97 0 0 0 12 8c-3.95 0-7.23 2.86-7.88 6.63l-1.97-.35C2.96 9.58 7.06 6 12 6c3.58 0 6.73 1.89 8.5 4.72z"/>
+              </svg>
+    
+            </button>
+          </span>
         </div>
         <div id="memview_overview_blocks"></div>
         <div class="memview_subtitle memview_bpl_title">
@@ -140,9 +145,61 @@
       <div id="memview_detail_col">
         <div id="memview_header">
           <span class="memview_title">memory</span>
+          <button type="button" id="memview_info" title="what am I looking at?" aria-label="info">i</button>
           <label class="memview_live_label"><input type="checkbox" id="memview_live" checked> live</label>
           <span class="memview_addr">$<input type="text" id="memview_start" value="000000" spellcheck="false"></span>
-          <button type="button" id="memview_close" onclick="memview_close_panel()" title="close">&times;</button>
+          <button type="button" id="memview_close" title="close">&times;</button>
+        </div>
+        <div id="memview_info_pop" style="display:none">
+          <div class="memview_info_head">
+            <span>What am I looking at?</span>
+            <button type="button" id="memview_info_close" title="close">&times;</button>
+          </div>
+          <div class="memview_info_body">
+            <p>The detail view renders raw memory as pixels: <b>every bit is one pixel</b>. Each row is one bitplane scanline, so graphics in chip RAM show up as recognizable images. Drag or scroll to move through memory; type an address in the <span class="mono">$</span> field to jump, or pick a detected bitplane from the list on the left to jump straight to it.</p>
+
+            <h6>Bitplane detection</h6>
+            <p>The panel <b>continuously tries to work out which memory areas are currently used as bitplanes</b> by watching the Amiga's DMA and measuring the line-to-line stride. The detected areas are listed on the left, largest first.</p>
+            <p>With <b>auto-select</b> enabled, the detail view <b>automatically follows bitplane&nbsp;1</b>: whenever the guessed bpl1 area changes (for example on a screen or buffer flip), the view jumps along with it so you keep seeing the active image. Turn it off to stay parked at a fixed address.</p>
+
+            <h6>Colors (write tracking)</h6>
+            <p>Freshly written memory briefly lights up in the color of whoever wrote it, then fades back to the amber <b>cold</b> palette. This shows <b>which areas are being written right now, and by whom</b>:</p>
+            <table class="memview_color_table">
+              <tr><th></th><th>set bit (1)</th><th>cleared bit (0)</th></tr>
+              <tr>
+                <td>Cold (idle &gt;5&nbsp;s)</td>
+                <td><span class="memview_sw" style="background:#df942a"></span></td>
+                <td><span class="memview_sw" style="background:#371d20;border-color:#665"></span></td>
+              </tr>
+              <tr>
+                <td>Blitter</td>
+                <td><span class="memview_sw" style="background:#2196f3"></span></td>
+                <td><span class="memview_sw" style="background:#0d1f35;border-color:#456"></span></td>
+              </tr>
+              <tr>
+                <td>CPU</td>
+                <td><span class="memview_sw" style="background:#cccccc"></span></td>
+                <td><span class="memview_sw" style="background:#1a1a1a;border-color:#555"></span></td>
+              </tr>
+            </table>
+            <p class="memview_info_note">Great for telling apart blitter graphics build-up from CPU writes.</p>
+
+            <h6>Fade length</h6>
+            <p>How many rendered frames a write stays highlighted before fading back to the cold palette. The fade freezes while the emulation is paused.</p>
+            <div class="memview_fade_ctl">
+              <input type="range" id="memview_fade_frames" min="10" max="1000" step="10" value="250">
+              <span><b id="memview_fade_frames_val">250</b>&nbsp;frames</span>
+            </div>
+
+            <h6>Slomo speed</h6>
+            <p>How fast slow-motion single stepping runs: the delay between the frames it steps through. Lower = faster.</p>
+            <div class="memview_fade_ctl">
+              <input type="range" id="memview_slomo_interval" min="50" max="2000" step="50" value="500">
+              <span>one step / <b id="memview_slomo_interval_val">500</b>&nbsp;ms</span>
+            </div>
+
+            <button type="button" id="memview_info_close_bottom" class="memview_info_close_btn">Close</button>
+          </div>
         </div>
         <canvas id="memview_canvas" oncontextmenu="event.preventDefault()"></canvas>
       </div>
@@ -1374,6 +1431,7 @@ touch screen settings for virtual keyboard
         {
           if(
             el.id == 'virtual_keyboard'||
+            el.id == 'memview_panel'||
             (
               el.classList !== undefined && 
               (

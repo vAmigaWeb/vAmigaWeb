@@ -124,6 +124,12 @@ Agnus::doBitplaneDmaRead()
         if (a < bplGuessMinLive[bitplane]) bplGuessMinLive[bitplane] = a;
         if (a > bplGuessMaxLive[bitplane]) bplGuessMaxLive[bitplane] = a;
         bplGuessLineWords[bitplane]++;
+        // Record the pointer at the first fetch of this scanline so the guesser
+        // can measure the real line-to-line stride (see wasm_get_bitplane_areas)
+        if (!bplGuessHadFirst[bitplane] && pos.v < BPL_GUESS_MAX_LINES) {
+            bplGuessFirstLive[pos.v][bitplane] = a;
+            bplGuessHadFirst[bitplane] = true;
+        }
     }
 
     busOwner[pos.h] = owner;
