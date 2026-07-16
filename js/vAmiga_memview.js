@@ -421,8 +421,17 @@ function memview_reset_geometry() {
 
 function memview_toggle() {
     // dismiss the button's bootstrap tooltip so it doesn't linger and cover the
-    // panel/canvas after the click
-    if (typeof $ !== "undefined") $("#button_memview").tooltip("hide");
+    // panel/canvas after the click. on touch, tapping the button focuses it, so
+    // bootstrap (trigger "hover focus") re-shows the tooltip on focus right
+    // after our hide - with a mouse there is no focus-on-tap so it stays hidden.
+    // blur the button (removes the focus that triggers the re-show) and hide
+    // again on the next tick via the shared helper to defeat that re-show.
+    let el = document.getElementById("button_memview");
+    if (el && el.blur) el.blur();
+    if (typeof hide_all_tooltips === "function") {
+        hide_all_tooltips();
+        setTimeout(hide_all_tooltips, 0);
+    }
     if (memview_open) memview_close_panel();
     else memview_open_panel();
 }
@@ -766,14 +775,17 @@ function memdump_do(start0, col1, col2) {
         }
         return false;
     };
-    // heatmap decay: reset the state whenever the visible window changes so it
-    // only ever holds addresses that are currently on screen. the fade is driven
-    // by the rendered-frame counter, so it freezes while the emulation is paused
+    // heatmap decay: the fade is driven by the rendered-frame counter, so it
+    // freezes while the emulation is paused. the state is keyed by absolute
+    // address, so it is kept across scrolling/dragging - that way hot writes
+    // stay visible when you drag the (paused) view instead of vanishing the
+    // moment the window moves. off-screen entries are simply not drawn; bound
+    // the map's growth by dropping fully faded (cold) entries once it gets big.
     let seq = memview_frame_seq;
-    if (writers && (start !== memview_heat_start || memview_row_stride !== memview_heat_stride)) {
-        memview_heat_start = start;
-        memview_heat_stride = memview_row_stride;
-        memview_heat.clear();
+    if (writers && memview_heat.size > 200000) {
+        for (let [k, rec] of memview_heat) {
+            if (seq - rec.f >= MEMVIEW_HEAT_FADE_FRAMES) memview_heat.delete(k);
+        }
     }
     for (let y = 0; y < MEMVIEW_VPIXELS; y++) {
         let addr = start + y * memview_row_stride;

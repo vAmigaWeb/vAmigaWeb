@@ -6452,7 +6452,10 @@ function add_monitor(id, label, splitted=false)
     color.CPU={start: '50,50,50', end:'255,255,255'}
 
 
-    document.querySelector(`#monitor_${id}`).addEventListener('click', 
+    // bind via pointerup (not click) so it also fires for apple pencil taps,
+    // which do not reliably generate a synthetic click on ipad safari (this is
+    // why the toolbar icons use add_click/pointerup too)
+    document.querySelector(`#monitor_${id}`).addEventListener('pointerup', 
         (e)=>{
             let id=e.currentTarget.id.replace('monitor_','');
             if(id.includes("Ram") || id.includes("Rom"))
