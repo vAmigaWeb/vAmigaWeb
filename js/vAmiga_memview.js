@@ -218,6 +218,24 @@ function memview_init() {
     addPop(stepBtn);
     addPop(slomoBtn);
 
+    // info ("i") button: toggle the "what am I looking at?" explanation overlay
+    let infoBtn = document.getElementById("memview_info");
+    let infoPop = document.getElementById("memview_info_pop");
+    let infoClose = document.getElementById("memview_info_close");
+    if (infoBtn && infoPop) {
+        infoBtn.addEventListener("click", function(e) {
+            e.stopPropagation();
+            infoPop.style.display = (infoPop.style.display === "none") ? "flex" : "none";
+        });
+    }
+    if (infoClose && infoPop) {
+        infoClose.addEventListener("click", function() { infoPop.style.display = "none"; });
+    }
+    // start interacting with the memory canvas -> get the overlay out of the way
+    if (infoPop) {
+        canvas.addEventListener("pointerdown", function() { infoPop.style.display = "none"; });
+    }
+
     // auto-select (follow mode): keep the detail view locked to the top-of-list
     // bitplane while enabled; toggling it on re-locks onto the current bpl1
     let bplAutoCb = document.getElementById("memview_bpl_autoselect");

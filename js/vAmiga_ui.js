@@ -3950,6 +3950,14 @@ $('.layer').change( function(event) {
     emulator_currently_runs=false;
     add_click("button_run", function() {
         hide_all_tooltips();
+        // if slow-motion single stepping (memview slomo) is active, a run/pause
+        // click cancels it immediately. don't auto-resume here (resume=false) -
+        // the normal run/pause toggle below handles the running state.
+        if(typeof memview_slomo_timer !== "undefined" && memview_slomo_timer !== null &&
+           typeof memview_slomo_stop === "function")
+        {
+            memview_slomo_stop(false);
+        }
         if(running)
         {        
             wasm_halt();
