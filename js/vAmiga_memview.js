@@ -54,9 +54,13 @@ var memdump_blt_col2 = 0xff0d1f35; // blitter = very dark blue, 10% lighter
 
 // heatmap fade: a fresh write flashes in its author's color (blitter = blue,
 // cpu = gray) and then fades back to the default amber palette over this many
-// milliseconds (wall-clock, so it fades even while the emulation is paused)
-const MEMVIEW_HEAT_FADE_MS = 5000;
-// per-address decay state: addr -> { v: last seen value, ts: last-write time }.
+// *rendered emulation frames*. tying the fade to frames (instead of wall-clock
+// time) means it freezes while the emulation is paused and only advances when
+// frames are actually produced (running, single step or slomo).
+var MEMVIEW_HEAT_FADE_FRAMES = 250;     // ~5s at 50fps (PAL); user-adjustable
+// counter of rendered emulation frames while the panel is open (drives the fade)
+var memview_frame_seq = 0;
+// per-address decay state: addr -> { v: last seen value, f: last-write frame seq }.
 // only holds addresses currently on screen; rebuilt when the window changes
 var memview_heat = new Map();
 var memview_heat_start = null;
@@ -234,6 +238,45 @@ function memview_init() {
     // start interacting with the memory canvas -> get the overlay out of the way
     if (infoPop) {
         canvas.addEventListener("pointerdown", function() { infoPop.style.display = "none"; });
+    }
+
+    // heatmap fade-length slider (in rendered frames); persisted across sessions
+    let fadeInput = document.getElementById("memview_fade_frames");
+    let fadeVal = document.getElementById("memview_fade_frames_val");
+    if (fadeInput) {
+        let saved = (typeof load_setting === "function")
+            ? parseInt(load_setting("memview_fade_frames", MEMVIEW_HEAT_FADE_FRAMES), 10)
+            : MEMVIEW_HEAT_FADE_FRAMES;
+        if (!isNaN(saved) && saved >= 10) MEMVIEW_HEAT_FADE_FRAMES = saved;
+        fadeInput.value = MEMVIEW_HEAT_FADE_FRAMES;
+        if (fadeVal) fadeVal.textContent = MEMVIEW_HEAT_FADE_FRAMES;
+        fadeInput.addEventListener("input", function() {
+            let v = parseInt(this.value, 10);
+            if (isNaN(v) || v < 10) v = 10;
+            MEMVIEW_HEAT_FADE_FRAMES = v;
+            if (fadeVal) fadeVal.textContent = v;
+            if (typeof save_setting === "function") save_setting("memview_fade_frames", v);
+        });
+    }
+
+    // slomo speed slider (step interval in ms); applies live and is persisted
+    let slomoInput = document.getElementById("memview_slomo_interval");
+    let slomoVal = document.getElementById("memview_slomo_interval_val");
+    if (slomoInput) {
+        let saved = (typeof load_setting === "function")
+            ? parseInt(load_setting("memview_slomo_interval", MEMVIEW_SLOMO_INTERVAL_MS), 10)
+            : MEMVIEW_SLOMO_INTERVAL_MS;
+        if (!isNaN(saved) && saved >= 50) MEMVIEW_SLOMO_INTERVAL_MS = saved;
+        slomoInput.value = MEMVIEW_SLOMO_INTERVAL_MS;
+        if (slomoVal) slomoVal.textContent = MEMVIEW_SLOMO_INTERVAL_MS;
+        slomoInput.addEventListener("input", function() {
+            let v = parseInt(this.value, 10);
+            if (isNaN(v) || v < 50) v = 50;
+            MEMVIEW_SLOMO_INTERVAL_MS = v;
+            if (slomoVal) slomoVal.textContent = v;
+            memview_slomo_restart_timer();   // apply immediately if slomo is running
+            if (typeof save_setting === "function") save_setting("memview_slomo_interval", v);
+        });
     }
 
     // auto-select (follow mode): keep the detail view locked to the top-of-list
@@ -431,8 +474,12 @@ function memview_step_frame() {
 // --- slomo: slow-motion single stepping -----------------------------------
 // executes one frame every MEMVIEW_SLOMO_INTERVAL_MS and keeps going until the
 // button is clicked again, which resumes normal running speed.
-const MEMVIEW_SLOMO_INTERVAL_MS = 500;   // one single-step every 500ms
+var MEMVIEW_SLOMO_INTERVAL_MS = 500;     // one single-step every 500ms; user-adjustable
 var memview_slomo_timer = null;
+
+function memview_slomo_step() {
+    memview_step_frame();   // pauses the run loop on the first call, then steps
+}
 
 function memview_slomo_toggle() {
     // second press while active: stop and resume normal speed
@@ -441,11 +488,15 @@ function memview_slomo_toggle() {
     let slomoBtn = document.getElementById("memview_slomo");
     if (slomoBtn) slomoBtn.classList.add("slomo_active");
 
-    let doStep = function() {
-        memview_step_frame();   // pauses the run loop on the first call, then steps
-    };
-    doStep();   // immediate first step for responsiveness
-    memview_slomo_timer = setInterval(doStep, MEMVIEW_SLOMO_INTERVAL_MS);
+    memview_slomo_step();   // immediate first step for responsiveness
+    memview_slomo_timer = setInterval(memview_slomo_step, MEMVIEW_SLOMO_INTERVAL_MS);
+}
+
+// apply a changed interval right away if slomo is currently running
+function memview_slomo_restart_timer() {
+    if (memview_slomo_timer === null) return;
+    clearInterval(memview_slomo_timer);
+    memview_slomo_timer = setInterval(memview_slomo_step, MEMVIEW_SLOMO_INTERVAL_MS);
 }
 
 function memview_slomo_stop(resume) {
@@ -465,6 +516,10 @@ function memview_slomo_stop(resume) {
 // throttled per-frame driver: refreshes the bitplane list while the panel is open
 function memview_bpl_tick() {
     if (!memview_open) return;
+    // one rendered emulation frame -> advance the heatmap fade clock. this is
+    // the single per-frame hook (called from render_frame for live, single step
+    // and slomo), so the fade only progresses when frames are actually produced.
+    memview_frame_seq++;
     if ((++memview_bpl_counter % MEMVIEW_BPL_THROTTLE) !== 0) return;
     memview_refresh_bitplanes(false);
 }
@@ -670,8 +725,9 @@ function memdump_do(start0, col1, col2) {
         return false;
     };
     // heatmap decay: reset the state whenever the visible window changes so it
-    // only ever holds addresses that are currently on screen
-    let now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    // only ever holds addresses that are currently on screen. the fade is driven
+    // by the rendered-frame counter, so it freezes while the emulation is paused
+    let seq = memview_frame_seq;
     if (writers && (start !== memview_heat_start || memview_row_stride !== memview_heat_stride)) {
         memview_heat_start = start;
         memview_heat_stride = memview_row_stride;
@@ -696,13 +752,13 @@ function memdump_do(start0, col1, col2) {
                 // open/scroll); a later change starts the fade at full heat.
                 let rec = memview_heat.get(a);
                 if (rec === undefined) {
-                    rec = { v: value, ts: -Infinity };
+                    rec = { v: value, f: -Infinity };
                     memview_heat.set(a, rec);
                 } else if (value !== rec.v) {
                     rec.v = value;
-                    rec.ts = now;
+                    rec.f = seq;
                 }
-                let heat = 1 - (now - rec.ts) / MEMVIEW_HEAT_FADE_MS;
+                let heat = 1 - (seq - rec.f) / MEMVIEW_HEAT_FADE_FRAMES;
                 if (heat > 0) {
                     if (heat > 1) heat = 1;
                     let base1 = (ownerTag === MEMVIEW_WRITE_BLITTER) ? memdump_blt_col1 : memdump_cpu_col1;

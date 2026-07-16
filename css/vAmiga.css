@@ -1341,6 +1341,20 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
 }
 .memview_color_table td:first-child { text-align: left; }
 .memview_color_table td .memview_sw { margin: 0; }
+.memview_fade_ctl {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: 0.75rem;
+}
+.memview_fade_ctl input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: #df942a;
+  cursor: pointer;
+}
+.memview_fade_ctl span { white-space: nowrap; color: #cfc39a; }
+.memview_fade_ctl #memview_fade_frames_val { color: #df942a; }
 #memview_header .memview_addr { font-family: monospace; }
 #memview_start {
   width: 6.5em;

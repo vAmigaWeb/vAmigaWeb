@@ -179,6 +179,20 @@
               </tr>
             </table>
             <p class="memview_info_note">Great for telling apart blitter graphics build-up from CPU writes.</p>
+
+            <h6>Fade length</h6>
+            <p>How many rendered frames a write stays highlighted before fading back to the cold palette. The fade freezes while the emulation is paused.</p>
+            <div class="memview_fade_ctl">
+              <input type="range" id="memview_fade_frames" min="10" max="1000" step="10" value="250">
+              <span><b id="memview_fade_frames_val">250</b>&nbsp;frames</span>
+            </div>
+
+            <h6>Slomo speed</h6>
+            <p>How fast slow-motion single stepping runs: the delay between the frames it steps through. Lower = faster.</p>
+            <div class="memview_fade_ctl">
+              <input type="range" id="memview_slomo_interval" min="50" max="2000" step="50" value="500">
+              <span>one step / <b id="memview_slomo_interval_val">500</b>&nbsp;ms</span>
+            </div>
           </div>
         </div>
         <canvas id="memview_canvas" oncontextmenu="event.preventDefault()"></canvas>
