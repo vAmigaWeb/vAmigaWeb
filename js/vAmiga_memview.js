@@ -96,6 +96,7 @@ var memview_bpl_sel_sig = null;      // signature of the currently followed bpl1
 var memview_bpl_recent = [];         // recent bpl1 signatures (page-flip detection)
 const MEMVIEW_BPL_THROTTLE = 15;     // update every n live frames
 const MEMVIEW_BPL_RECENT_MAX = 6;    // how many recent signatures to remember
+const MEMVIEW_BPL_MIN_HEIGHT = 3;    // drop guessed areas shorter than this (fragments)
 
 // width reserved by the docked panel (used by scaleVMCanvas in vAmiga_canvas.js)
 function memview_reserved_width() {
@@ -477,8 +478,10 @@ function memview_refresh_bitplanes(force) {
         return;
     }
 
-    let firstSel = null;   // first listed (valid) entry -> tracked by follow mode
+    let firstSel = null;   // dominant listed entry -> tracked by follow mode
 
+    // parse + validate, then drop fragments too short to be a real image
+    let parsed = [];
     for (let i = 0; i < entries.length; i++) {
         let parts = entries[i].split(",");
         let plane = parseInt(parts[0], 10);
@@ -504,19 +507,51 @@ function memview_refresh_bitplanes(force) {
                 ? Math.max(1, Math.round((end - start - words * 2) / stride) + 1)
                 : 1;
         }
-        // skip implausible one-scanline detections (e.g. 320x1): these come from
-        // transition frames (bpl dma just (dis)enabled) and never represent a
-        // real, viewable bitplane image
-        if (heightPx < 2) continue;
+        // drop transitional / fragment detections: only keep areas tall enough
+        // to be a real, viewable bitplane image
+        if (heightPx < MEMVIEW_BPL_MIN_HEIGHT) continue;
+        parsed.push({ plane: plane, start: start, mod: mod, words: words,
+                      widthPx: widthPx, heightPx: heightPx });
+    }
+
+    // keep the bpl1..bpl6 grouping, but put the tallest (dominant) area of each
+    // plane on top of its group -> easy to find, and follow mode locks onto the
+    // main image instead of a small segment
+    parsed.sort(function(a, b) {
+        if (a.plane !== b.plane) return a.plane - b.plane;
+        return b.heightPx - a.heightPx;
+    });
+
+    if (parsed.length === 0) {
+        let empty = document.createElement("div");
+        empty.className = "memview_bpl_empty";
+        empty.textContent = "no bitplane dma detected \u2013 run a graphical program";
+        list.appendChild(empty);
+        memview_bpl_sel_sig = null;
+        memview_bpl_recent.length = 0;
+        return;
+    }
+
+    // per-plane segment counts (to label "k/n" when a plane has several areas)
+    let planeCount = {};
+    for (let e of parsed) planeCount[e.plane] = (planeCount[e.plane] || 0) + 1;
+    let planeSeen = {};
+
+    for (let e of parsed) {
+        let plane = e.plane, start = e.start, mod = e.mod, words = e.words;
+        let widthPx = e.widthPx, heightPx = e.heightPx;
+        let n = planeCount[plane];
+        let k = (planeSeen[plane] = (planeSeen[plane] || 0) + 1);
+        let segLabel = n > 1 ? " (" + k + "/" + n + ")" : "";
 
         let item = document.createElement("div");
         item.className = "memview_bpl_item";
-        item.title = "jump to bitplane " + plane + " \u00b7 " +
+        item.title = "jump to bitplane " + plane + segLabel + " \u00b7 " +
             widthPx + "x" + heightPx + " px \u00b7 modulo " + mod;
         item.innerHTML =
             "<span class='memview_bpl_pl'>bpl" + (plane + 1) + "</span>" +
             "<span class='memview_bpl_addr'>$" + ("000000" + start.toString(16)).slice(-6) + "</span>" +
-            "<span class='memview_bpl_meta'>" + widthPx + "\u00d7" + heightPx + "</span>";
+            "<span class='memview_bpl_meta'>" + widthPx + "\u00d7" + heightPx + segLabel + "</span>";
         let addrEl = item.querySelector(".memview_bpl_addr");
         (function(addr, w, m, ael) {
             item.addEventListener("click", function() {

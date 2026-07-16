@@ -148,6 +148,14 @@ public:
     u16 bplGuessWords[6] = { 0, 0, 0, 0, 0, 0 };               // committed words per line
     u16 bplGuessLinesLive[6] = { 0, 0, 0, 0, 0, 0 };           // scanlines with dma (current frame)
     u16 bplGuessLines[6] = { 0, 0, 0, 0, 0, 0 };               // committed scanline count
+    // Per-scanline first bitplane pointer (start of each line's fetch). This
+    // lets the guesser derive the real line-to-line stride/modulo from the
+    // measured pointer deltas instead of the BPLxMOD registers, so it stays
+    // correct even for demos that reload bplpt every line via the copper/cpu.
+    static constexpr isize BPL_GUESS_MAX_LINES = 320;
+    bool bplGuessHadFirst[6] = { };                            // first fetch seen on current line
+    u32 bplGuessFirstLive[BPL_GUESS_MAX_LINES][6] = { };       // first bplpt per line (current frame)
+    u32 bplGuessFirst[BPL_GUESS_MAX_LINES][6] = { };           // committed (last finished frame)
 
     // The sprite DMA pointers
     u32 sprpt[8] = { };
