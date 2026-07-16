@@ -1137,7 +1137,12 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
   justify-content: space-between;
   gap: 0.5em;
 }
-#memview_step {
+.memview_title_actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+#memview_step, #memview_slomo {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1150,9 +1155,30 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
   padding: 1px 6px;
   cursor: pointer;
 }
-#memview_step svg { display: block; }
-#memview_step:hover { background: rgba(223,148,42,0.35); color: #fff; }
-#memview_step:active { background: rgba(223,148,42,0.5); }
+#memview_step svg, #memview_slomo svg { display: block; }
+#memview_step:hover, #memview_slomo:hover { background: rgba(223,148,42,0.35); color: #fff; }
+#memview_step:active, #memview_slomo:active { background: rgba(223,148,42,0.5); }
+/* while slomo is running, pulse the button so it's obvious it is active */
+#memview_slomo.slomo_active {
+  color: #fff;
+  animation: memview_slomo_pulse 1s ease-in-out infinite;
+}
+@keyframes memview_slomo_pulse {
+  0%   { background: rgba(223,148,42,0.25); box-shadow: 0 0 0 0 rgba(223,148,42,0.5); }
+  50%  { background: rgba(223,148,42,0.75); box-shadow: 0 0 6px 2px rgba(223,148,42,0.7); }
+  100% { background: rgba(223,148,42,0.25); box-shadow: 0 0 0 0 rgba(223,148,42,0.5); }
+}
+/* subtle hop on press. id+class specificity (and source order) lets this
+   briefly win over the slomo pulse animation. */
+@keyframes memview_pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.97); }
+  70%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+#memview_step.pop, #memview_slomo.pop {
+  animation: memview_pop 0.28s ease-out forwards;
+}
 #memview_overview_blocks {
   flex: 1 1 auto;
   min-height: 0;

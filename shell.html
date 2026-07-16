@@ -123,12 +123,17 @@
       <div id="memview_overview_col">
         <div class="memview_subtitle memview_overview_title">
           overview
-          <button type="button" id="memview_step" title="single step: pause emulation and render exactly one frame">
-            <svg class="bi bi-step-over" width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-              <path fill="currentColor" d="M12 14a2 2 0 0 1 2 2a2 2 0 0 1-2 2a2 2 0 0 1-2-2a2 2 0 0 1 2-2m11.46-5.14l-1.59 6.89L15 14.16l3.8-2.38A7.97 7.97 0 0 0 12 8c-3.95 0-7.23 2.86-7.88 6.63l-1.97-.35C2.96 9.58 7.06 6 12 6c3.58 0 6.73 1.89 8.5 4.72z"/>
-            </svg>
-            single step
-          </button>
+          <span class="memview_title_actions">
+            <button type="button" id="memview_slomo" title="slomo: slow-motion single step (one frame every 500ms); click again to resume normal speed">
+              slomo
+            </button>
+            <button type="button" id="memview_step" title="single step: pause emulation and render exactly one frame">
+              <svg class="bi bi-step-over" width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path fill="currentColor" d="M12 14a2 2 0 0 1 2 2a2 2 0 0 1-2 2a2 2 0 0 1-2-2a2 2 0 0 1 2-2m11.46-5.14l-1.59 6.89L15 14.16l3.8-2.38A7.97 7.97 0 0 0 12 8c-3.95 0-7.23 2.86-7.88 6.63l-1.97-.35C2.96 9.58 7.06 6 12 6c3.58 0 6.73 1.89 8.5 4.72z"/>
+              </svg>
+    
+            </button>
+          </span>
         </div>
         <div id="memview_overview_blocks"></div>
         <div class="memview_subtitle memview_bpl_title">

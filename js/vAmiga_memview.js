@@ -185,11 +185,37 @@ function memview_init() {
         });
     }
 
-    // "step" button: pause emulation and advance exactly one frame per click
+    // "step" button: pause emulation and advance exactly one frame per click.
+    // if slomo is running, this cancels it and stays in manual
+    // single-step mode (pressing slomo again re-enters slow-mo)
     let stepBtn = document.getElementById("memview_step");
     if (stepBtn) {
-        stepBtn.addEventListener("click", function() { memview_step_frame(); });
+        stepBtn.addEventListener("click", function() { memview_step_button(); });
     }
+
+    // "slomo" button: toggle slow-motion single stepping (one frame every 500ms);
+    // press again to resume normal running speed
+    let slomoBtn = document.getElementById("memview_slomo");
+    if (slomoBtn) {
+        slomoBtn.addEventListener("click", function() { memview_slomo_toggle(); });
+    }
+
+    // hop on press, just like the navbar icons: add the "pop" class on pointerup
+    // and drop it when the popBounce animation finishes (restart via reflow so
+    // rapid presses re-trigger)
+    let addPop = function(btn) {
+        if (!btn) return;
+        btn.addEventListener("animationend", function(e) {
+            if (e.animationName === "memview_pop") btn.classList.remove("pop");
+        });
+        btn.addEventListener("pointerup", function() {
+            btn.classList.remove("pop");
+            void btn.offsetWidth;   // force reflow so the animation restarts
+            btn.classList.add("pop");
+        });
+    };
+    addPop(stepBtn);
+    addPop(slomoBtn);
 
     // auto-select (follow mode): keep the detail view locked to the top-of-list
     // bitplane while enabled; toggling it on re-locks onto the current bpl1
@@ -332,6 +358,8 @@ function memview_close_panel() {
     let panel = document.getElementById("memview_panel");
     if (panel) panel.style.display = "none";
     memview_open = false;
+    // cancel a running slomo and return to normal speed
+    memview_slomo_stop(true);
     // stop recording to avoid the small per-write/per-fetch overhead when the
     // panel is closed
     if (typeof wasm_set_bitplane_guess === "function") wasm_set_bitplane_guess(0);
@@ -342,6 +370,13 @@ function memview_close_panel() {
 
 // backward-compatible alias for the former "guess" button (pre-rebuild html)
 function memview_guess_bitplanes() { memview_refresh_bitplanes(true); }
+
+// single-step button handler: if slomo is active, cancel it and
+// stay paused in manual single-step mode; then advance exactly one frame.
+function memview_step_button() {
+    if (memview_slomo_timer !== null) memview_slomo_stop(false); // stop slow-mo, no resume
+    memview_step_frame();
+}
 
 // advances the emulation by exactly one frame. the emulator is paused first
 // (so it stays frozen between clicks) and the freshly computed frame is
@@ -372,6 +407,40 @@ function memview_step_frame() {
     memview_refresh_bitplanes(true);
     // the activity monitor interval skips paused frames, so update it here too
     if (typeof update_activity_monitors === "function") update_activity_monitors();
+}
+
+// --- slomo: slow-motion single stepping -----------------------------------
+// executes one frame every MEMVIEW_SLOMO_INTERVAL_MS and keeps going until the
+// button is clicked again, which resumes normal running speed.
+const MEMVIEW_SLOMO_INTERVAL_MS = 500;   // one single-step every 500ms
+var memview_slomo_timer = null;
+
+function memview_slomo_toggle() {
+    // second press while active: stop and resume normal speed
+    if (memview_slomo_timer !== null) { memview_slomo_stop(true); return; }
+
+    let slomoBtn = document.getElementById("memview_slomo");
+    if (slomoBtn) slomoBtn.classList.add("slomo_active");
+
+    let doStep = function() {
+        memview_step_frame();   // pauses the run loop on the first call, then steps
+    };
+    doStep();   // immediate first step for responsiveness
+    memview_slomo_timer = setInterval(doStep, MEMVIEW_SLOMO_INTERVAL_MS);
+}
+
+function memview_slomo_stop(resume) {
+    if (memview_slomo_timer !== null) {
+        clearInterval(memview_slomo_timer);
+        memview_slomo_timer = null;
+    }
+    let slomoBtn = document.getElementById("memview_slomo");
+    if (slomoBtn) slomoBtn.classList.remove("slomo_active");
+    // return to normal running speed (memview_step_frame paused the loop)
+    if (resume && !is_running_safe() && typeof app !== "undefined" &&
+        typeof app.button_run_click === "function") {
+        app.button_run_click();
+    }
 }
 
 // throttled per-frame driver: refreshes the bitplane list while the panel is open
