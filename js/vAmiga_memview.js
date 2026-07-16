@@ -229,7 +229,28 @@ function memview_init() {
     if (infoBtn && infoPop) {
         infoBtn.addEventListener("click", function(e) {
             e.stopPropagation();
-            infoPop.style.display = (infoPop.style.display === "none") ? "flex" : "none";
+            let showing = (infoPop.style.display === "none");
+            if (showing) {
+                // if there is enough room to the left of the docked panel, float
+                // the overlay there (over the amiga canvas, via position:fixed so
+                // it escapes the panel's overflow:hidden) so the detail view stays
+                // visible while dragging the sliders; otherwise cover the detail
+                // canvas as before. 320px overlay + 6px gap = ~330px.
+                let panel = document.getElementById("memview_panel");
+                let rect = panel ? panel.getBoundingClientRect() : null;
+                if (rect && rect.left >= 330) {
+                    infoPop.classList.add("to_left");
+                    infoPop.style.right = (window.innerWidth - rect.left + 6) + "px";
+                    infoPop.style.top = (rect.top + 6) + "px";
+                    infoPop.style.maxHeight = (rect.height - 12) + "px";
+                } else {
+                    infoPop.classList.remove("to_left");
+                    infoPop.style.right = "";
+                    infoPop.style.top = "";
+                    infoPop.style.maxHeight = "";
+                }
+            }
+            infoPop.style.display = showing ? "flex" : "none";
         });
     }
     if (infoClose && infoPop) {
@@ -476,6 +497,9 @@ function memview_step_frame() {
 // button is clicked again, which resumes normal running speed.
 var MEMVIEW_SLOMO_INTERVAL_MS = 500;     // one single-step every 500ms; user-adjustable
 var memview_slomo_timer = null;
+// whether the emulator was running when slomo started. if it was already
+// paused, stopping slomo must leave it paused (don't force a resume)
+var memview_slomo_was_running = false;
 
 function memview_slomo_step() {
     memview_step_frame();   // pauses the run loop on the first call, then steps
@@ -487,6 +511,9 @@ function memview_slomo_toggle() {
 
     let slomoBtn = document.getElementById("memview_slomo");
     if (slomoBtn) slomoBtn.classList.add("slomo_active");
+
+    // remember the pre-slomo run state so we can restore it on stop
+    memview_slomo_was_running = (typeof is_running_safe === "function") ? is_running_safe() : false;
 
     memview_slomo_step();   // immediate first step for responsiveness
     memview_slomo_timer = setInterval(memview_slomo_step, MEMVIEW_SLOMO_INTERVAL_MS);
@@ -506,9 +533,11 @@ function memview_slomo_stop(resume) {
     }
     let slomoBtn = document.getElementById("memview_slomo");
     if (slomoBtn) slomoBtn.classList.remove("slomo_active");
-    // return to normal running speed (memview_step_frame paused the loop)
-    if (resume && !is_running_safe() && typeof app !== "undefined" &&
-        typeof app.button_run_click === "function") {
+    // return to normal running speed only if the emulator was running before
+    // slomo started (memview_step_frame paused the loop). if it was already
+    // paused, stay paused.
+    if (resume && memview_slomo_was_running && !is_running_safe() &&
+        typeof app !== "undefined" && typeof app.button_run_click === "function") {
         app.button_run_click();
     }
 }

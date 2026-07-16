@@ -119,7 +119,7 @@
       <canvas class="emscripten" width="724" height="568" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     </div>
     <!-- live memory view (docked right) -->
-    <div id="memview_panel" style="display:none">
+    <div id="memview_panel" style="display:none" ontouchstart="event.stopPropagation()">
       <div id="memview_overview_col">
         <div class="memview_subtitle memview_overview_title">
           overview
