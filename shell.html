@@ -162,30 +162,35 @@
             <p>The panel <b>continuously tries to work out which memory areas are currently used as bitplanes</b> by watching the Amiga's DMA and measuring the line-to-line stride. The detected areas are listed on the left, largest first.</p>
             <p>With <b>auto-select</b> enabled, the detail view <b>automatically follows bitplane&nbsp;1</b>: whenever the guessed bpl1 area changes (for example on a screen or buffer flip), the view jumps along with it so you keep seeing the active image. Turn it off to stay parked at a fixed address.</p>
 
-            <h6>Colors (write tracking)</h6>
-            <p>Freshly written memory briefly lights up in the color of whoever wrote it, then fades back to the amber <b>cold</b> palette. This shows <b>which areas are being written right now, and by whom</b>:</p>
+            <h6>Colors (access tracking)</h6>
+            <p>Every RAM access briefly lights up in a color, then fades back to the gray <b>cold</b> palette. This shows <b>which areas are being read and written right now, and by whom</b> (chip, slow and fast RAM):</p>
             <table class="memview_color_table">
               <tr><th></th><th>set bit (1)</th><th>cleared bit (0)</th></tr>
               <tr>
-                <td>Cold (idle &gt;5&nbsp;s)</td>
-                <td><span class="memview_sw" style="background:#df942a"></span></td>
-                <td><span class="memview_sw" style="background:#371d20;border-color:#665"></span></td>
+                <td>Cold (idle)</td>
+                <td><span class="memview_sw" style="background:#aaaaaa"></span></td>
+                <td><span class="memview_sw" style="background:#444444;border-color:#555"></span></td>
               </tr>
               <tr>
-                <td>Blitter</td>
+                <td>CPU read</td>
+                <td><span class="memview_sw" style="background:#34c759"></span></td>
+                <td><span class="memview_sw" style="background:#0d2513;border-color:#465"></span></td>
+              </tr>
+              <tr>
+                <td>CPU write</td>
+                <td><span class="memview_sw" style="background:#ff3b30"></span></td>
+                <td><span class="memview_sw" style="background:#350d0d;border-color:#644"></span></td>
+              </tr>
+              <tr>
+                <td>Blitter write</td>
                 <td><span class="memview_sw" style="background:#2196f3"></span></td>
                 <td><span class="memview_sw" style="background:#0d1f35;border-color:#456"></span></td>
               </tr>
-              <tr>
-                <td>CPU</td>
-                <td><span class="memview_sw" style="background:#cccccc"></span></td>
-                <td><span class="memview_sw" style="background:#1a1a1a;border-color:#555"></span></td>
-              </tr>
             </table>
-            <p class="memview_info_note">Great for telling apart blitter graphics build-up from CPU writes.</p>
+            <p class="memview_info_note">Green = CPU reads, red = CPU writes, blue = blitter writes. Writes win over reads on the same cell. Note: because the CPU also fetches its code from RAM, executing areas glow green heavily.</p>
 
             <h6>Fade length</h6>
-            <p>How many rendered frames a write stays highlighted before fading back to the cold palette. The fade freezes while the emulation is paused.</p>
+            <p>How many emulated frames an access stays highlighted before fading back to the cold palette. The fade freezes while the emulation is paused.</p>
             <div class="memview_fade_ctl">
               <input type="range" id="memview_fade_frames" min="10" max="1000" step="10" value="250">
               <span><b id="memview_fade_frames_val">250</b>&nbsp;frames</span>

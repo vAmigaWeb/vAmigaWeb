@@ -538,6 +538,10 @@ Memory::setWriteOwnerTracking(bool on)
     } else {
         writeOwner.clear();
         writeOwner.shrink_to_fit();
+        writeFrame.clear();
+        writeFrame.shrink_to_fit();
+        readFrame.clear();
+        readFrame.shrink_to_fit();
     }
 }
 
@@ -545,8 +549,43 @@ void
 Memory::resetWriteOwner()
 {
     if (!writeOwnerEnabled) return;
-    isize n = config.chipSize > 0 ? config.chipSize : 0;
+    // one packed slot per byte of tracked Ram (chip | slow | fast)
+    isize n = ramSize();
+    if (n < 0) n = 0;
     writeOwner.assign((size_t)n, WRITE_OWNER_NONE);
+    writeFrame.assign((size_t)n, 0);
+    readFrame.assign((size_t)n, 0);
+    accessFrame = 1;
+}
+
+u32
+Memory::fastRamBaseAddr() const
+{
+    return config.fastSize > 0 ? FAST_RAM_STRT : 0;
+}
+
+isize
+Memory::shadowOffset(u32 addr) const
+{
+    // packing order matches resetWriteOwner(): chip | slow | fast.
+    // chip ram (and its mirrors) live in the low address space below 0x200000
+    if (addr < 0x200000) {
+        return config.chipSize > 0 ? (isize)(addr & chipMask) : -1;
+    }
+    // slow (bogo) ram
+    if (config.slowSize > 0 &&
+        addr >= SLOW_RAM_STRT && addr < SLOW_RAM_STRT + (u32)config.slowSize) {
+        return (isize)config.chipSize + (isize)(addr - SLOW_RAM_STRT);
+    }
+    // fast ram (base address is dynamic; see FAST_RAM_STRT)
+    if (config.fastSize > 0) {
+        u32 fb = FAST_RAM_STRT;
+        if (addr >= fb && addr < fb + (u32)config.fastSize) {
+            return (isize)config.chipSize + (isize)config.slowSize +
+                   (isize)(addr - fb);
+        }
+    }
+    return -1;
 }
 
 void
@@ -555,22 +594,40 @@ Memory::markWriteOwner(u32 addr, u8 tag, u32 bytes)
     if (!writeOwnerEnabled || writeOwner.empty()) return;
     size_t n = writeOwner.size();
     for (u32 i = 0; i < bytes; i++) {
-        size_t idx = (addr + i) & chipMask;
-        if (idx < n) writeOwner[idx] = tag;   // guard against size mismatch
+        isize off = shadowOffset(addr + i);
+        if (off >= 0 && (size_t)off < n) {
+            writeOwner[(size_t)off] = tag;
+            writeFrame[(size_t)off] = accessFrame;
+        }
     }
+}
+
+void
+Memory::markCpuRead(u32 addr, u32 bytes)
+{
+    if (!writeOwnerEnabled || readFrame.empty()) return;
+    size_t n = readFrame.size();
+    for (u32 i = 0; i < bytes; i++) {
+        isize off = shadowOffset(addr + i);
+        if (off >= 0 && (size_t)off < n) readFrame[(size_t)off] = accessFrame;
+    }
+}
+
+void
+Memory::tickAccessFrame()
+{
+    if (!writeOwnerEnabled) return;
+    // keep 0 reserved as the "never accessed" sentinel
+    if (++accessFrame == 0) accessFrame = 1;
 }
 
 u8
 Memory::getWriteOwner(u32 addr) const
 {
     if (!writeOwnerEnabled || writeOwner.empty()) return WRITE_OWNER_NONE;
-    // only physical Chip Ram is tracked. masking with chipMask would alias
-    // Fast/Slow Ram addresses onto Chip Ram indices (e.g. 0x200000 & chipMask
-    // -> 0), so a Fast Ram cell would wrongly inherit a Chip Ram writer. reject
-    // anything outside the tracked Chip Ram window first (the buffer is sized
-    // to config.chipSize, so this is both the chip-window and bounds check).
-    if (addr >= writeOwner.size()) return WRITE_OWNER_NONE;
-    return writeOwner[addr];
+    isize off = shadowOffset(addr);
+    return (off >= 0 && (size_t)off < writeOwner.size())
+        ? writeOwner[(size_t)off] : WRITE_OWNER_NONE;
 }
 
 void
@@ -578,6 +635,9 @@ Memory::allocSlow(i32 bytes, bool update)
 {
     config.slowSize = bytes;
     alloc(slowAllocator, bytes, update);
+
+    // keep the access-shadow buffers in sync with the Ram layout
+    if (writeOwnerEnabled) resetWriteOwner();
 }
 
 void
@@ -585,6 +645,9 @@ Memory::allocFast(i32 bytes, bool update)
 {
     config.fastSize = bytes;
     alloc(fastAllocator, bytes, update);
+
+    // keep the access-shadow buffers in sync with the Ram layout
+    if (writeOwnerEnabled) resetWriteOwner();
 }
 
 void
@@ -1146,6 +1209,7 @@ Memory::peek8 <Accessor::CPU, MemSrc::CHIP> (u32 addr)
     agnus.busAddr[agnus.pos.h] = addr;
     agnus.busData[agnus.pos.h] = dataBus;
 
+    markCpuRead(addr, 1);
     return (u8)dataBus;
 }
 
@@ -1160,7 +1224,8 @@ Memory::peek16 <Accessor::CPU, MemSrc::CHIP> (u32 addr)
     stats.chipReads.raw++;
     agnus.busAddr[agnus.pos.h] = addr;
     agnus.busData[agnus.pos.h] = dataBus;
-    
+
+    markCpuRead(addr, 2);
     return dataBus;
 }
 
@@ -1181,7 +1246,8 @@ Memory::peek8 <Accessor::CPU, MemSrc::SLOW> (u32 addr)
     stats.slowReads.raw++;
     agnus.busAddr[agnus.pos.h] = addr;
     agnus.busData[agnus.pos.h] = dataBus;
-    
+
+    markCpuRead(addr, 1);
     return (u8)dataBus;
 }
 
@@ -1196,7 +1262,8 @@ Memory::peek16 <Accessor::CPU, MemSrc::SLOW> (u32 addr)
     stats.slowReads.raw++;
     agnus.busAddr[agnus.pos.h] = addr;
     agnus.busData[agnus.pos.h] = dataBus;
-    
+
+    markCpuRead(addr, 2);
     return dataBus;
 }
 
@@ -1212,6 +1279,7 @@ Memory::peek8 <Accessor::CPU, MemSrc::FAST> (u32 addr)
     ASSERT_FAST_ADDR(addr);
     
     stats.fastReads.raw++;
+    markCpuRead(addr, 1);
     return READ_FAST_8(addr);
 }
 
@@ -1225,6 +1293,7 @@ Memory::peek16 <Accessor::CPU, MemSrc::FAST> (u32 addr)
     ASSERT_FAST_ADDR(addr);
     
     stats.fastReads.raw++;
+    markCpuRead(addr, 2);
     return READ_FAST_16(addr);
 }
 
@@ -1738,6 +1807,7 @@ Memory::poke8 <Accessor::CPU, MemSrc::SLOW> (u32 addr, u8 value)
     agnus.busData[agnus.pos.h] = dataBus;
     
     WRITE_SLOW_8(addr, value);
+    markWriteOwner(addr, WRITE_OWNER_CPU, 1);
 }
 
 template <> void
@@ -1754,6 +1824,7 @@ Memory::poke16 <Accessor::CPU, MemSrc::SLOW> (u32 addr, u16 value)
     agnus.busData[agnus.pos.h] = dataBus;
     
     WRITE_SLOW_16(addr, value);
+    markWriteOwner(addr, WRITE_OWNER_CPU, 2);
 }
 
 template <> void
@@ -1763,6 +1834,7 @@ Memory::poke8 <Accessor::CPU, MemSrc::FAST> (u32 addr, u8 value)
     
     stats.fastWrites.raw++;
     WRITE_FAST_8(addr, value);
+    markWriteOwner(addr, WRITE_OWNER_CPU, 1);
 }
 
 template <> void
@@ -1772,6 +1844,7 @@ Memory::poke16 <Accessor::CPU, MemSrc::FAST> (u32 addr, u16 value)
     
     stats.fastWrites.raw++;
     WRITE_FAST_16(addr, value);
+    markWriteOwner(addr, WRITE_OWNER_CPU, 2);
 }
 
 template <> void
@@ -2859,6 +2932,10 @@ Memory::eofHandler()
 {
     // Update statistics
     updateStats();
+
+    // advance the access-frame counter that drives the read/write heatmap fade
+    // in the live memory view (no-op while tracking is off)
+    tickAccessFrame();
 }
 
 std::vector <u32>

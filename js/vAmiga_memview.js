@@ -36,21 +36,24 @@ var memview_words_per_row = MEMVIEW_WORDS_PER_ROW;
 var memview_hpixels = MEMVIEW_HPIXELS;
 var memview_row_stride = MEMVIEW_BYTES_PER_ROW;   // bytes advanced per displayed row
 
-// amber on dark-brown, matching the original look
-var memdump_col1 = 0xffdf942a;
-var memdump_col2 = 0xff371d20;
+// cold palette: light gray (set bit) on black (cleared bit)
+var memdump_col1 = 0xffaaaaaa;
+var memdump_col2 = 0xff444444;
 
-// writer-highlight mode: tint each word by who last wrote it (chip ram only).
-// requires the core's write-owner tracking (wasm_set_write_tracking). the tag
-// values match Memory::WRITE_OWNER_* (1 = cpu, 2 = blitter).
+// access-heatmap mode: tint each word by its most recent chip-ram access
+// (chip ram only). requires the core's write/read tracking (wasm_set_write_
+// tracking + the *_ptr / access-frame bindings). owner tags match
+// Memory::WRITE_OWNER_* (1 = cpu, 2 = blitter).
 var memview_show_writers = true;
 const MEMVIEW_WRITE_CPU = 1;
 const MEMVIEW_WRITE_BLITTER = 2;
-// writer mode colors: set bit vs. cleared bit background
-var memdump_cpu_col1 = 0xffcccccc; // cpu = light gray
-var memdump_cpu_col2 = 0xff1a1a1a; // cpu = very dark gray
-var memdump_blt_col1 = 0xff2196f3; // blitter = blue
-var memdump_blt_col2 = 0xff0d1f35; // blitter = very dark blue, 10% lighter
+// heatmap colors: set bit (1) vs. cleared bit (0) background
+var memdump_write_col1 = 0xffff3b30; // cpu write = red
+var memdump_write_col2 = 0xff350d0d; // cpu write = very dark red
+var memdump_read_col1  = 0xff34c759; // cpu read  = green
+var memdump_read_col2  = 0xff0d2513; // cpu read  = very dark green
+var memdump_blt_col1   = 0xff2196f3; // blitter write = blue
+var memdump_blt_col2   = 0xff0d1f35; // blitter write = very dark blue
 
 // heatmap fade: a fresh write flashes in its author's color (blitter = blue,
 // cpu = gray) and then fades back to the default amber palette over this many
@@ -757,70 +760,82 @@ function memview_lerp_color(c0, c1, t) {
 
 function memdump_do(start0, col1, col2) {
     let start = start0 < 0 ? 0 : start0;
-    let writers = memview_show_writers && typeof wasm_get_write_owner === "function";
-    // fast/slow ram can only be written by the cpu (the blitter/chipset cannot
-    // reach it), so any such address is cpu; collect their ranges once.
-    let cpuRanges = [];
+    // access heatmap: the core stamps every tracked ram byte (chip | slow |
+    // fast) with the emulated-frame counter of its last CPU read and last write
+    // (plus who wrote it). we read those shadow buffers straight from the wasm
+    // heap and fade each cell back to the cold gray palette over
+    // MEMVIEW_HEAT_FADE_FRAMES frames. because the fade is driven by the core's
+    // frame counter, it freezes while the emulation is paused (and stays put
+    // while scrolling/dragging).
+    let writers = memview_show_writers && typeof wasm_get_access_frame === "function";
+    let chipSize = 0, slowSize = 0, fastSize = 0, fastBase = 0;
+    let chipMask = 0, nowFrame = 0;
+    let ownerOff = 0, wOff = 0, rOff = 0;
+    let heapU8 = null, heapU16 = null;
     if (writers) {
-        for (let i = 0; i < memview_regions.length; i++) {
-            let r = memview_regions[i];
-            if (r.name === "fast" || r.name === "slow") {
-                cpuRanges.push([r.base, r.base + r.size]);
-            }
+        chipSize = wasm_get_access_chip_size() | 0;
+        slowSize = (typeof wasm_get_access_slow_size === "function") ? (wasm_get_access_slow_size() | 0) : 0;
+        fastSize = (typeof wasm_get_access_fast_size === "function") ? (wasm_get_access_fast_size() | 0) : 0;
+        fastBase = (typeof wasm_get_fast_base === "function") ? (wasm_get_fast_base() >>> 0) : MEM_FAST_BASE;
+        let op = wasm_get_write_owner_ptr() | 0;
+        let wp = wasm_get_write_frame_ptr() | 0;
+        let rp = wasm_get_read_frame_ptr() | 0;
+        if ((chipSize > 0 || slowSize > 0 || fastSize > 0) && op && wp && rp) {
+            chipMask = chipSize > 0 ? chipSize - 1 : 0;
+            nowFrame = wasm_get_access_frame() | 0;
+            ownerOff = op;          // HEAPU8 byte index
+            wOff = wp >>> 1;        // HEAPU16 word index
+            rOff = rp >>> 1;
+            heapU8 = Module.HEAPU8;
+            heapU16 = Module.HEAPU16;
+        } else {
+            writers = false;
         }
     }
-    let isCpuOnly = function(a) {
-        for (let i = 0; i < cpuRanges.length; i++) {
-            if (a >= cpuRanges[i][0] && a < cpuRanges[i][1]) return true;
-        }
-        return false;
-    };
-    // heatmap decay: the fade is driven by the rendered-frame counter, so it
-    // freezes while the emulation is paused. the state is keyed by absolute
-    // address, so it is kept across scrolling/dragging - that way hot writes
-    // stay visible when you drag the (paused) view instead of vanishing the
-    // moment the window moves. off-screen entries are simply not drawn; bound
-    // the map's growth by dropping fully faded (cold) entries once it gets big.
-    let seq = memview_frame_seq;
-    if (writers && memview_heat.size > 200000) {
-        for (let [k, rec] of memview_heat) {
-            if (seq - rec.f >= MEMVIEW_HEAT_FADE_FRAMES) memview_heat.delete(k);
-        }
-    }
+    let FADE = MEMVIEW_HEAT_FADE_FRAMES;
     for (let y = 0; y < MEMVIEW_VPIXELS; y++) {
         let addr = start + y * memview_row_stride;
         for (let w = 0; w < memview_words_per_row; w++) {
             let a = addr + w * 2;
             let value = wasm_peek16(a);
             let c1 = col1, c2 = col2;
+            // map the absolute cpu address to its packed shadow-buffer index
+            // (layout chip | slow | fast, matching Memory::shadowOffset)
+            let idx = -1;
             if (writers) {
-                // who last wrote this cell (only the blitter/chip can be blue;
-                // fast/slow and everything else is attributed to the cpu)
-                let ownerTag;
-                if (isCpuOnly(a)) ownerTag = MEMVIEW_WRITE_CPU;
-                else ownerTag = (wasm_get_write_owner(a) === MEMVIEW_WRITE_BLITTER)
-                    ? MEMVIEW_WRITE_BLITTER : MEMVIEW_WRITE_CPU;
-
-                // detect a fresh write by watching the value change. the first
-                // time we see an address we record it silently (no flash on
-                // open/scroll); a later change starts the fade at full heat.
-                let rec = memview_heat.get(a);
-                if (rec === undefined) {
-                    rec = { v: value, f: -Infinity };
-                    memview_heat.set(a, rec);
-                } else if (value !== rec.v) {
-                    rec.v = value;
-                    rec.f = seq;
+                if (a < 0x200000) { if (chipSize > 0) idx = a & chipMask; }
+                else if (slowSize > 0 && a >= MEM_SLOW_BASE && a < MEM_SLOW_BASE + slowSize) idx = chipSize + (a - MEM_SLOW_BASE);
+                else if (fastSize > 0 && a >= fastBase && a < fastBase + fastSize) idx = chipSize + slowSize + (a - fastBase);
+            }
+            if (idx >= 0) {
+                let owner = heapU8[ownerOff + idx];
+                // write heat (owner != 0 means a write was recorded here)
+                let writeHeat = 0, blitter = false;
+                if (owner !== 0) {
+                    let age = (nowFrame - heapU16[wOff + idx]) & 0xffff;
+                    if (age < FADE) {
+                        writeHeat = 1 - age / FADE;
+                        blitter = (owner === MEMVIEW_WRITE_BLITTER);
+                    }
                 }
-                let heat = 1 - (seq - rec.f) / MEMVIEW_HEAT_FADE_FRAMES;
-                if (heat > 0) {
-                    if (heat > 1) heat = 1;
-                    let base1 = (ownerTag === MEMVIEW_WRITE_BLITTER) ? memdump_blt_col1 : memdump_cpu_col1;
-                    let base2 = (ownerTag === MEMVIEW_WRITE_BLITTER) ? memdump_blt_col2 : memdump_cpu_col2;
-                    c1 = memview_lerp_color(col1, base1, heat);
-                    c2 = memview_lerp_color(col2, base2, heat);
+                // read heat (frame stamp 0 means never read)
+                let readHeat = 0;
+                let rf = heapU16[rOff + idx];
+                if (rf !== 0) {
+                    let age = (nowFrame - rf) & 0xffff;
+                    if (age < FADE) readHeat = 1 - age / FADE;
                 }
-                // heat <= 0 -> stays at the default amber palette (col1/col2)
+                // a write (red / blitter blue) wins over a read (green) of equal
+                // or lower heat so freshly modified memory stays obvious
+                if (writeHeat > 0 && writeHeat >= readHeat) {
+                    let base1 = blitter ? memdump_blt_col1 : memdump_write_col1;
+                    let base2 = blitter ? memdump_blt_col2 : memdump_write_col2;
+                    c1 = memview_lerp_color(col1, base1, writeHeat);
+                    c2 = memview_lerp_color(col2, base2, writeHeat);
+                } else if (readHeat > 0) {
+                    c1 = memview_lerp_color(col1, memdump_read_col1, readHeat);
+                    c2 = memview_lerp_color(col2, memdump_read_col2, readHeat);
+                }
             }
             memdump_plotword(w * 16, y, value, c1, c2);
         }
