@@ -38,8 +38,8 @@ var memview_hpixels = MEMVIEW_HPIXELS;
 var memview_row_stride = MEMVIEW_BYTES_PER_ROW;   // bytes advanced per displayed row
 
 // cold palette: light gray (set bit) on black (cleared bit)
-var memdump_col1 = 0xffaaaaaa;
-var memdump_col2 = 0xff444444;
+var memdump_col1 = 0xffa0a0a0;
+var memdump_col2 = 0xff3a3a3a;
 
 // access-heatmap mode: tint each word by its most recent chip-ram access
 // (chip ram only). requires the core's write/read tracking (wasm_set_write_

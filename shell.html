@@ -156,10 +156,11 @@
             <button type="button" id="memview_info_close" title="close">&times;</button>
           </div>
           <div class="memview_info_body">
-            <p>The detail view renders raw memory as pixels: <b>every bit is one pixel</b>. Each row is one bitplane scanline, so graphics in chip RAM show up as recognizable images. Drag or scroll to move through memory; type an address in the <span class="mono">$</span> field to jump, or pick a detected bitplane from the list on the left to jump straight to it.</p>
+            <p>On the left is an overview of the Amiga's configured RAM areas, with detected bitplanes shown underneath. On the right is the detail memory view, showing the currently selected memory window.</p>
+            <p>Drag or scroll to move through memory, type an address in the <span class="mono">$</span> field to jump, or select a bitplane from the list to inspect it in the detail view.</p>
 
             <h6>Bitplane detection</h6>
-            <p>The panel <b>continuously tries to work out which memory areas are currently used as bitplanes</b> by watching the Amiga's DMA and measuring the line-to-line stride. The detected areas are listed on the left, largest first.</p>
+            <p>The bitplanes panel <b>continuously tries to work out which memory areas are currently used as bitplanes</b> by watching the Amiga's DMA and measuring the line-to-line stride. Detected areas are listed on the left, largest first. Graphics in chip RAM show up as recognizable images.</p>
             <p>With <b>auto-select</b> enabled, the detail view <b>automatically follows bitplane&nbsp;1</b>: whenever the guessed bpl1 area changes (for example on a screen or buffer flip), the view jumps along with it so you keep seeing the active image. Turn it off to stay parked at a fixed address.</p>
 
             <h6>Colors (access tracking)</h6>
@@ -168,8 +169,8 @@
               <tr><th></th><th>set bit (1)</th><th>cleared bit (0)</th></tr>
               <tr>
                 <td>Cold (idle)</td>
-                <td><span class="memview_sw" style="background:#aaaaaa"></span></td>
-                <td><span class="memview_sw" style="background:#444444;border-color:#555"></span></td>
+                <td><span class="memview_sw" style="background:#a0a0a0"></span></td>
+                <td><span class="memview_sw" style="background:#3a3a3a;border-color:#555"></span></td>
               </tr>
               <tr>
                 <td>CPU read</td>
@@ -187,7 +188,7 @@
                 <td><span class="memview_sw" style="background:#0d1f35;border-color:#456"></span></td>
               </tr>
             </table>
-            <p class="memview_info_note">Green = CPU reads, red = CPU writes, blue = blitter writes. Writes win over reads on the same cell. Note: because the CPU also fetches its code from RAM, executing areas glow green heavily.</p>
+            <p class="memview_info_note">Green = CPU reads, red = CPU writes, blue = blitter writes. Writes win over reads on the same cell. Note: CPU also fetches its instruction code from memory so these areas will also glow green.</p>
 
             <h6>Fade length</h6>
             <p>How many emulated frames an access stays highlighted before fading back to the cold palette. The fade freezes while the emulation is paused.</p>
@@ -202,6 +203,8 @@
               <input type="range" id="memview_slomo_interval" min="50" max="2000" step="50" value="500">
               <span>one step / <b id="memview_slomo_interval_val">500</b>&nbsp;ms</span>
             </div>
+            <br>
+            <p class="memview_info_note">Many thanks to <b>Losso / AttentionWhore</b> for creating the foundation on which this idea and concept were built.</p>
 
             <button type="button" id="memview_info_close_bottom" class="memview_info_close_btn">Close</button>
           </div>
