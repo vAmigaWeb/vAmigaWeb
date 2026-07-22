@@ -759,6 +759,54 @@ function memview_lerp_color(c0, c1, t) {
     return ((a << 24) | (r << 16) | (g << 8) | b) >>> 0;
 }
 
+// number of set bits in a 16-bit word (0..16)
+function memview_popcount16(v) {
+    v = v & 0xffff;
+    v = v - ((v >> 1) & 0x5555);
+    v = (v & 0x3333) + ((v >> 2) & 0x3333);
+    v = (v + (v >> 4)) & 0x0f0f;
+    return (v + (v >> 8)) & 0x1f;
+}
+
+// snapshots the core's access-shadow buffers (write owner / write frame / read
+// frame) plus the ram/rom geometry needed to address them. returns null when
+// tracking is off or unavailable. shared by the detail view and the overview.
+function memview_access_ctx() {
+    if (!(memview_show_writers && typeof wasm_get_access_frame === "function")) return null;
+    let chipSize = wasm_get_access_chip_size() | 0;
+    let slowSize = (typeof wasm_get_access_slow_size === "function") ? (wasm_get_access_slow_size() | 0) : 0;
+    let fastSize = (typeof wasm_get_access_fast_size === "function") ? (wasm_get_access_fast_size() | 0) : 0;
+    let romSize = (typeof wasm_get_rom_size === "function") ? (wasm_get_rom_size() | 0) : 0;
+    let fastBase = (typeof wasm_get_fast_base === "function") ? (wasm_get_fast_base() >>> 0) : MEM_FAST_BASE;
+    let op = wasm_get_write_owner_ptr() | 0;
+    let wp = wasm_get_write_frame_ptr() | 0;
+    let rp = wasm_get_read_frame_ptr() | 0;
+    if (!((chipSize > 0 || slowSize > 0 || fastSize > 0 || romSize > 0) && op && wp && rp)) return null;
+    return {
+        chipSize: chipSize, slowSize: slowSize, fastSize: fastSize, romSize: romSize,
+        fastBase: fastBase,
+        chipMask: chipSize > 0 ? chipSize - 1 : 0,
+        romMask: romSize > 0 ? romSize - 1 : 0,
+        romOff: chipSize + slowSize + fastSize,   // rom slice starts here
+        nowFrame: wasm_get_access_frame() | 0,
+        ownerOff: op,                             // HEAPU8 byte index
+        wOff: wp >>> 1,                           // HEAPU16 word index
+        rOff: rp >>> 1,
+        heapU8: Module.HEAPU8,
+        heapU16: Module.HEAPU16
+    };
+}
+
+// maps an absolute cpu address to its packed shadow-buffer index
+// (layout chip | slow | fast | rom, matching Memory::shadowOffset); -1 if none
+function memview_addr_to_idx(c, a) {
+    if (a < 0x200000) return c.chipSize > 0 ? (a & c.chipMask) : -1;
+    if (c.slowSize > 0 && a >= MEM_SLOW_BASE && a < MEM_SLOW_BASE + c.slowSize) return c.chipSize + (a - MEM_SLOW_BASE);
+    if (c.fastSize > 0 && a >= c.fastBase && a < c.fastBase + c.fastSize) return c.chipSize + c.slowSize + (a - c.fastBase);
+    if (c.romSize > 0 && a >= MEM_ROM_BASE) return c.romOff + (a & c.romMask);
+    return -1;
+}
+
 function memdump_do(start0, col1, col2) {
     let start = start0 < 0 ? 0 : start0;
     // access heatmap: the core stamps every tracked memory byte (chip | slow |
@@ -768,34 +816,7 @@ function memdump_do(start0, col1, col2) {
     // MEMVIEW_HEAT_FADE_FRAMES frames. because the fade is driven by the core's
     // frame counter, it freezes while the emulation is paused (and stays put
     // while scrolling/dragging).
-    let writers = memview_show_writers && typeof wasm_get_access_frame === "function";
-    let chipSize = 0, slowSize = 0, fastSize = 0, romSize = 0, fastBase = 0;
-    let chipMask = 0, romMask = 0, romOff = 0, nowFrame = 0;
-    let ownerOff = 0, wOff = 0, rOff = 0;
-    let heapU8 = null, heapU16 = null;
-    if (writers) {
-        chipSize = wasm_get_access_chip_size() | 0;
-        slowSize = (typeof wasm_get_access_slow_size === "function") ? (wasm_get_access_slow_size() | 0) : 0;
-        fastSize = (typeof wasm_get_access_fast_size === "function") ? (wasm_get_access_fast_size() | 0) : 0;
-        romSize = (typeof wasm_get_rom_size === "function") ? (wasm_get_rom_size() | 0) : 0;
-        fastBase = (typeof wasm_get_fast_base === "function") ? (wasm_get_fast_base() >>> 0) : MEM_FAST_BASE;
-        let op = wasm_get_write_owner_ptr() | 0;
-        let wp = wasm_get_write_frame_ptr() | 0;
-        let rp = wasm_get_read_frame_ptr() | 0;
-        if ((chipSize > 0 || slowSize > 0 || fastSize > 0 || romSize > 0) && op && wp && rp) {
-            chipMask = chipSize > 0 ? chipSize - 1 : 0;
-            romMask = romSize > 0 ? romSize - 1 : 0;
-            romOff = chipSize + slowSize + fastSize;   // rom slice starts here
-            nowFrame = wasm_get_access_frame() | 0;
-            ownerOff = op;          // HEAPU8 byte index
-            wOff = wp >>> 1;        // HEAPU16 word index
-            rOff = rp >>> 1;
-            heapU8 = Module.HEAPU8;
-            heapU16 = Module.HEAPU16;
-        } else {
-            writers = false;
-        }
-    }
+    let ctx = memview_access_ctx();
     let FADE = MEMVIEW_HEAT_FADE_FRAMES;
     for (let y = 0; y < MEMVIEW_VPIXELS; y++) {
         let addr = start + y * memview_row_stride;
@@ -803,21 +824,13 @@ function memdump_do(start0, col1, col2) {
             let a = addr + w * 2;
             let value = wasm_peek16(a);
             let c1 = col1, c2 = col2;
-            // map the absolute cpu address to its packed shadow-buffer index
-            // (layout chip | slow | fast | rom, matching Memory::shadowOffset)
-            let idx = -1;
-            if (writers) {
-                if (a < 0x200000) { if (chipSize > 0) idx = a & chipMask; }
-                else if (slowSize > 0 && a >= MEM_SLOW_BASE && a < MEM_SLOW_BASE + slowSize) idx = chipSize + (a - MEM_SLOW_BASE);
-                else if (fastSize > 0 && a >= fastBase && a < fastBase + fastSize) idx = chipSize + slowSize + (a - fastBase);
-                else if (romSize > 0 && a >= MEM_ROM_BASE) idx = romOff + (a & romMask);
-            }
+            let idx = ctx ? memview_addr_to_idx(ctx, a) : -1;
             if (idx >= 0) {
-                let owner = heapU8[ownerOff + idx];
+                let owner = ctx.heapU8[ctx.ownerOff + idx];
                 // write heat (owner != 0 means a write was recorded here)
                 let writeHeat = 0, blitter = false;
                 if (owner !== 0) {
-                    let age = (nowFrame - heapU16[wOff + idx]) & 0xffff;
+                    let age = (ctx.nowFrame - ctx.heapU16[ctx.wOff + idx]) & 0xffff;
                     if (age < FADE) {
                         writeHeat = 1 - age / FADE;
                         blitter = (owner === MEMVIEW_WRITE_BLITTER);
@@ -825,9 +838,9 @@ function memdump_do(start0, col1, col2) {
                 }
                 // read heat (frame stamp 0 means never read)
                 let readHeat = 0;
-                let rf = heapU16[rOff + idx];
+                let rf = ctx.heapU16[ctx.rOff + idx];
                 if (rf !== 0) {
-                    let age = (nowFrame - rf) & 0xffff;
+                    let age = (ctx.nowFrame - rf) & 0xffff;
                     if (age < FADE) readHeat = 1 - age / FADE;
                 }
                 // a write (red / blitter blue) wins over a read (green) of equal
@@ -957,29 +970,61 @@ function memview_overview_jump(r, e) {
     mempreview();
 }
 
-// draws each memory region as a heatmap; the visible detail window is tinted red
+// draws each memory region: raw memory as green/blue pixels, the visible detail
+// window marked gray, and the same read/write access heatmap as the detail view
 function mempreview() {
     if (typeof wasm_peek16 !== "function") return;
     memview_update_regions();
+    let ctx = memview_access_ctx();   // shadow buffers fetched once per refresh
     for (let i = 0; i < memview_regions.length; i++) {
-        memview_render_region(memview_regions[i]);
+        memview_render_region(memview_regions[i], ctx);
     }
 }
 
-function memview_render_region(r) {
+function memview_render_region(r, ctx) {
     if (!r.ctx) return;
     let W = MEMPREVIEW_HPIXELS, H = MEMPREVIEW_BLOCK_ROWS;
     let bytes_per_px = r.size / (W * H);
     let winStart = memdump_start;
     let winEnd = memdump_start + MEMVIEW_VPIXELS * memview_row_stride;
+    let FADE = MEMVIEW_HEAT_FADE_FRAMES;
     let buf = r.buffer;
     for (let y = 0; y < H; y++) {
         for (let x = 0; x < W; x++) {
-            let idx = y * W + x;
-            let addr = r.base + Math.floor(idx * bytes_per_px);
-            let base_col = (addr >= winStart && addr < winEnd) ? 0xffff0000 : 0xff000000;
-            let argb = base_col | wasm_peek16(addr);
-            let o = idx * 4;
+            let p = y * W + x;
+            let addr = r.base + Math.floor(p * bytes_per_px);
+            // cold base: grayscale by set-bit density so it matches the detail
+            // view's gray palette (empty = dark gray, full = light gray) instead
+            // of leaking the raw word into the green/blue channels
+            let dens = memview_popcount16(wasm_peek16(addr)) / 16;
+            let argb = memview_lerp_color(memdump_col2, memdump_col1, dens);
+            // gray marker for the current detail-view window: brighten neutrally
+            // so it is not confused with the red "cpu write" heatmap tint
+            if (addr >= winStart && addr < winEnd) argb = memview_lerp_color(argb, 0xffffffff, 0.22);
+            // overlay the read/write access heatmap (one shadow sample per pixel)
+            if (ctx) {
+                let sidx = memview_addr_to_idx(ctx, addr);
+                if (sidx >= 0) {
+                    let owner = ctx.heapU8[ctx.ownerOff + sidx];
+                    let writeHeat = 0, blitter = false;
+                    if (owner !== 0) {
+                        let age = (ctx.nowFrame - ctx.heapU16[ctx.wOff + sidx]) & 0xffff;
+                        if (age < FADE) { writeHeat = 1 - age / FADE; blitter = (owner === MEMVIEW_WRITE_BLITTER); }
+                    }
+                    let readHeat = 0;
+                    let rf = ctx.heapU16[ctx.rOff + sidx];
+                    if (rf !== 0) {
+                        let age = (ctx.nowFrame - rf) & 0xffff;
+                        if (age < FADE) readHeat = 1 - age / FADE;
+                    }
+                    if (writeHeat > 0 && writeHeat >= readHeat) {
+                        argb = memview_lerp_color(argb, blitter ? memdump_blt_col1 : memdump_write_col1, writeHeat);
+                    } else if (readHeat > 0) {
+                        argb = memview_lerp_color(argb, memdump_read_col1, readHeat);
+                    }
+                }
+            }
+            let o = p * 4;
             buf[o + 0] = 0xff & (argb >> 16); // R
             buf[o + 1] = 0xff & (argb >> 8);  // G
             buf[o + 2] = 0xff & (argb);       // B

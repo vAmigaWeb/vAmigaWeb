@@ -1196,8 +1196,8 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
 .memview_ov_label {
   padding: 1px 6px;
   font-size: 0.72rem;
-  color: #cfc39a;
-  background-color: rgba(0,0,0,0.35);
+  color: var(--lighterbg);
+  background-color: var(--gray);
   user-select: none;
   white-space: nowrap;
 }
