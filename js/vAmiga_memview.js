@@ -28,6 +28,7 @@ const MEMPREVIEW_BLOCK_ROWS = 128;   // internal height per block
 const MEM_CHIP_BASE = 0x000000;
 const MEM_FAST_BASE = 0x200000;
 const MEM_SLOW_BASE = 0xC00000;
+const MEM_ROM_BASE = 0xF80000;
 
 // dynamic detail-view geometry (defaults to 16 words per row, contiguous).
 // a bitplane "guess" click switches these so one canvas row equals one
@@ -760,28 +761,31 @@ function memview_lerp_color(c0, c1, t) {
 
 function memdump_do(start0, col1, col2) {
     let start = start0 < 0 ? 0 : start0;
-    // access heatmap: the core stamps every tracked ram byte (chip | slow |
-    // fast) with the emulated-frame counter of its last CPU read and last write
+    // access heatmap: the core stamps every tracked memory byte (chip | slow |
+    // fast | rom) with the emulated-frame counter of its last CPU read and write
     // (plus who wrote it). we read those shadow buffers straight from the wasm
     // heap and fade each cell back to the cold gray palette over
     // MEMVIEW_HEAT_FADE_FRAMES frames. because the fade is driven by the core's
     // frame counter, it freezes while the emulation is paused (and stays put
     // while scrolling/dragging).
     let writers = memview_show_writers && typeof wasm_get_access_frame === "function";
-    let chipSize = 0, slowSize = 0, fastSize = 0, fastBase = 0;
-    let chipMask = 0, nowFrame = 0;
+    let chipSize = 0, slowSize = 0, fastSize = 0, romSize = 0, fastBase = 0;
+    let chipMask = 0, romMask = 0, romOff = 0, nowFrame = 0;
     let ownerOff = 0, wOff = 0, rOff = 0;
     let heapU8 = null, heapU16 = null;
     if (writers) {
         chipSize = wasm_get_access_chip_size() | 0;
         slowSize = (typeof wasm_get_access_slow_size === "function") ? (wasm_get_access_slow_size() | 0) : 0;
         fastSize = (typeof wasm_get_access_fast_size === "function") ? (wasm_get_access_fast_size() | 0) : 0;
+        romSize = (typeof wasm_get_rom_size === "function") ? (wasm_get_rom_size() | 0) : 0;
         fastBase = (typeof wasm_get_fast_base === "function") ? (wasm_get_fast_base() >>> 0) : MEM_FAST_BASE;
         let op = wasm_get_write_owner_ptr() | 0;
         let wp = wasm_get_write_frame_ptr() | 0;
         let rp = wasm_get_read_frame_ptr() | 0;
-        if ((chipSize > 0 || slowSize > 0 || fastSize > 0) && op && wp && rp) {
+        if ((chipSize > 0 || slowSize > 0 || fastSize > 0 || romSize > 0) && op && wp && rp) {
             chipMask = chipSize > 0 ? chipSize - 1 : 0;
+            romMask = romSize > 0 ? romSize - 1 : 0;
+            romOff = chipSize + slowSize + fastSize;   // rom slice starts here
             nowFrame = wasm_get_access_frame() | 0;
             ownerOff = op;          // HEAPU8 byte index
             wOff = wp >>> 1;        // HEAPU16 word index
@@ -800,12 +804,13 @@ function memdump_do(start0, col1, col2) {
             let value = wasm_peek16(a);
             let c1 = col1, c2 = col2;
             // map the absolute cpu address to its packed shadow-buffer index
-            // (layout chip | slow | fast, matching Memory::shadowOffset)
+            // (layout chip | slow | fast | rom, matching Memory::shadowOffset)
             let idx = -1;
             if (writers) {
                 if (a < 0x200000) { if (chipSize > 0) idx = a & chipMask; }
                 else if (slowSize > 0 && a >= MEM_SLOW_BASE && a < MEM_SLOW_BASE + slowSize) idx = chipSize + (a - MEM_SLOW_BASE);
                 else if (fastSize > 0 && a >= fastBase && a < fastBase + fastSize) idx = chipSize + slowSize + (a - fastBase);
+                else if (romSize > 0 && a >= MEM_ROM_BASE) idx = romOff + (a & romMask);
             }
             if (idx >= 0) {
                 let owner = heapU8[ownerOff + idx];
@@ -867,6 +872,9 @@ function memview_update_regions() {
     if (chip > 0) defs.push({ name: "chip", base: MEM_CHIP_BASE, size: chip * 1024 });
     if (slow > 0) defs.push({ name: "slow", base: MEM_SLOW_BASE, size: slow * 1024 });
     if (fast > 0) defs.push({ name: "fast", base: MEM_FAST_BASE, size: fast * 1024 });
+    // kickstart rom (mapped at $F80000; romMask makes base+romSize one clean copy)
+    let rom = (typeof wasm_get_rom_size === "function") ? (wasm_get_rom_size() | 0) : 0;
+    if (rom > 0) defs.push({ name: "rom", base: MEM_ROM_BASE, size: rom });
     if (defs.length === 0) defs.push({ name: "chip", base: MEM_CHIP_BASE, size: 512 * 1024 });
 
     let signature = defs.map(function(d) { return d.name + d.size; }).join(",");

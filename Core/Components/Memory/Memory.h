@@ -413,6 +413,9 @@ public:
     isize fastRamSize() const { return config.fastSize; }
     isize ramSize() const { return config.chipSize + config.slowSize + config.fastSize; }
 
+    // Returns the size of the (Kickstart) Rom in bytes
+    isize kickRomSize() const { return config.romSize; }
+
     // Base CPU address of Fast Ram (dynamic; 0 if no Fast Ram is present)
     u32 fastRamBaseAddr() const;
 

@@ -549,8 +549,8 @@ void
 Memory::resetWriteOwner()
 {
     if (!writeOwnerEnabled) return;
-    // one packed slot per byte of tracked Ram (chip | slow | fast)
-    isize n = ramSize();
+    // one packed slot per byte of tracked memory (chip | slow | fast | rom)
+    isize n = ramSize() + config.romSize;
     if (n < 0) n = 0;
     writeOwner.assign((size_t)n, WRITE_OWNER_NONE);
     writeFrame.assign((size_t)n, 0);
@@ -584,6 +584,11 @@ Memory::shadowOffset(u32 addr) const
             return (isize)config.chipSize + (isize)config.slowSize +
                    (isize)(addr - fb);
         }
+    }
+    // kickstart rom (mapped at $F80000; romMask folds mirrors onto one copy)
+    if (config.romSize > 0 && addr >= 0xF80000) {
+        return (isize)config.chipSize + (isize)config.slowSize +
+               (isize)config.fastSize + (isize)(addr & romMask);
     }
     return -1;
 }
@@ -655,6 +660,9 @@ Memory::allocRom(i32 bytes, bool update)
 {
     config.romSize = bytes;
     alloc(romAllocator, bytes, romMask, update);
+
+    // keep the access-shadow buffers in sync with the memory layout
+    if (writeOwnerEnabled) resetWriteOwner();
 }
 
 void
@@ -1461,6 +1469,7 @@ Memory::peek8 <Accessor::CPU, MemSrc::ROM> (u32 addr)
     ASSERT_ROM_ADDR(addr);
     
     stats.kickReads.raw++;
+    markCpuRead(addr, 1);
     return READ_ROM_8(addr);
 }
 
@@ -1470,6 +1479,7 @@ Memory::peek16 <Accessor::CPU, MemSrc::ROM> (u32 addr)
     ASSERT_ROM_ADDR(addr);
     
     stats.kickReads.raw++;
+    markCpuRead(addr, 2);
     return READ_ROM_16(addr);
 }
 

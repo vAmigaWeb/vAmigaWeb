@@ -1059,6 +1059,12 @@ extern "C" u32 wasm_get_fast_base()
   return wrapper->emu->mem.mem->fastRamBaseAddr();
 }
 
+extern "C" u32 wasm_get_rom_size()
+{
+  if(wrapper == NULL) return 0;
+  return (u32)wrapper->emu->mem.mem->kickRomSize();
+}
+
 char wasm_bitplane_areas_result[4096];
 extern "C" const char* wasm_get_bitplane_areas()
 {

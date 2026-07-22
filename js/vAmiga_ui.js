@@ -2044,6 +2044,7 @@ function InitWrappers() {
     wasm_get_access_slow_size = Module.cwrap('wasm_get_access_slow_size', 'number');
     wasm_get_access_fast_size = Module.cwrap('wasm_get_access_fast_size', 'number');
     wasm_get_fast_base = Module.cwrap('wasm_get_fast_base', 'number');
+    wasm_get_rom_size = Module.cwrap('wasm_get_rom_size', 'number');
     wasm_poke = Module.cwrap('wasm_poke', 'undefined', ['number', 'number']);
     wasm_has_disk = Module.cwrap('wasm_has_disk', 'number', ['string']);
     wasm_eject_disk = Module.cwrap('wasm_eject_disk', 'undefined', ['string']);
