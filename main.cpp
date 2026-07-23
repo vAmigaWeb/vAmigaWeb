@@ -1004,6 +1004,67 @@ extern "C" int wasm_get_write_owner(u32 addr)
   return wrapper->emu->mem.mem->getWriteOwner(addr);
 }
 
+// read/write heatmap: expose the raw shadow buffers so the JS memory view can
+// read them directly from the wasm heap (much cheaper than one call per cell).
+// writeOwner is u8 (0/1/2), writeFrame/readFrame are u16 frame stamps, and
+// accessFrame is the current frame counter. a stamp of 0 means "never".
+extern "C" u32 wasm_get_write_owner_ptr()
+{
+  if(wrapper == NULL) return 0;
+  auto &v = wrapper->emu->mem.mem->writeOwner;
+  return v.empty() ? 0 : (u32)(uintptr_t)v.data();
+}
+
+extern "C" u32 wasm_get_write_frame_ptr()
+{
+  if(wrapper == NULL) return 0;
+  auto &v = wrapper->emu->mem.mem->writeFrame;
+  return v.empty() ? 0 : (u32)(uintptr_t)v.data();
+}
+
+extern "C" u32 wasm_get_read_frame_ptr()
+{
+  if(wrapper == NULL) return 0;
+  auto &v = wrapper->emu->mem.mem->readFrame;
+  return v.empty() ? 0 : (u32)(uintptr_t)v.data();
+}
+
+extern "C" u32 wasm_get_access_frame()
+{
+  if(wrapper == NULL) return 0;
+  return (u32)wrapper->emu->mem.mem->accessFrame;
+}
+
+extern "C" u32 wasm_get_access_chip_size()
+{
+  if(wrapper == NULL) return 0;
+  return (u32)wrapper->emu->mem.mem->chipRamSize();
+}
+
+extern "C" u32 wasm_get_access_slow_size()
+{
+  if(wrapper == NULL) return 0;
+  return (u32)wrapper->emu->mem.mem->slowRamSize();
+}
+
+extern "C" u32 wasm_get_access_fast_size()
+{
+  if(wrapper == NULL) return 0;
+  return (u32)wrapper->emu->mem.mem->fastRamSize();
+}
+
+extern "C" u32 wasm_get_fast_base()
+{
+  if(wrapper == NULL) return 0;
+  return wrapper->emu->mem.mem->fastRamBaseAddr();
+}
+
+extern "C" u32 wasm_get_rom_size()
+{
+  if(wrapper == NULL) return 0;
+  return (u32)wrapper->emu->mem.mem->kickRomSize();
+}
+
 char wasm_bitplane_areas_result[4096];
 extern "C" const char* wasm_get_bitplane_areas()
 {

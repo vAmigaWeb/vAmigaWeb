@@ -156,36 +156,42 @@
             <button type="button" id="memview_info_close" title="close">&times;</button>
           </div>
           <div class="memview_info_body">
-            <p>The detail view renders raw memory as pixels: <b>every bit is one pixel</b>. Each row is one bitplane scanline, so graphics in chip RAM show up as recognizable images. Drag or scroll to move through memory; type an address in the <span class="mono">$</span> field to jump, or pick a detected bitplane from the list on the left to jump straight to it.</p>
+            <p>On the left is an overview of the Amiga's configured RAM areas, with detected bitplanes shown underneath. On the right is the detail memory view, showing the currently selected memory window.</p>
+            <p>Drag or scroll to move through memory, type an address in the <span class="mono">$</span> field to jump, or select a bitplane from the list to inspect it in the detail view.</p>
 
             <h6>Bitplane detection</h6>
-            <p>The panel <b>continuously tries to work out which memory areas are currently used as bitplanes</b> by watching the Amiga's DMA and measuring the line-to-line stride. The detected areas are listed on the left, largest first.</p>
+            <p>The bitplanes panel <b>continuously tries to work out which memory areas are currently used as bitplanes</b> by watching the Amiga's DMA and measuring the line-to-line stride. Detected areas are listed on the left, largest first. Graphics in chip RAM show up as recognizable images.</p>
             <p>With <b>auto-select</b> enabled, the detail view <b>automatically follows bitplane&nbsp;1</b>: whenever the guessed bpl1 area changes (for example on a screen or buffer flip), the view jumps along with it so you keep seeing the active image. Turn it off to stay parked at a fixed address.</p>
 
-            <h6>Colors (write tracking)</h6>
-            <p>Freshly written memory briefly lights up in the color of whoever wrote it, then fades back to the amber <b>cold</b> palette. This shows <b>which areas are being written right now, and by whom</b>:</p>
+            <h6>Colors (access tracking)</h6>
+            <p>Every RAM/ROM access briefly lights up in a color, then fades back to the gray <b>cold</b> palette. This shows <b>which areas are being read and written right now, and by whom</b> (chip, slow, fast RAM and Kickstart ROM):</p>
             <table class="memview_color_table">
               <tr><th></th><th>set bit (1)</th><th>cleared bit (0)</th></tr>
               <tr>
-                <td>Cold (idle &gt;5&nbsp;s)</td>
-                <td><span class="memview_sw" style="background:#df942a"></span></td>
-                <td><span class="memview_sw" style="background:#371d20;border-color:#665"></span></td>
+                <td>Cold (idle)</td>
+                <td><span class="memview_sw" style="background:#a0a0a0"></span></td>
+                <td><span class="memview_sw" style="background:#3a3a3a;border-color:#555"></span></td>
               </tr>
               <tr>
-                <td>Blitter</td>
+                <td>CPU read</td>
+                <td><span class="memview_sw" style="background:#34c759"></span></td>
+                <td><span class="memview_sw" style="background:#0d2513;border-color:#465"></span></td>
+              </tr>
+              <tr>
+                <td>CPU write</td>
+                <td><span class="memview_sw" style="background:#ff3b30"></span></td>
+                <td><span class="memview_sw" style="background:#350d0d;border-color:#644"></span></td>
+              </tr>
+              <tr>
+                <td>Blitter write</td>
                 <td><span class="memview_sw" style="background:#2196f3"></span></td>
                 <td><span class="memview_sw" style="background:#0d1f35;border-color:#456"></span></td>
               </tr>
-              <tr>
-                <td>CPU</td>
-                <td><span class="memview_sw" style="background:#cccccc"></span></td>
-                <td><span class="memview_sw" style="background:#1a1a1a;border-color:#555"></span></td>
-              </tr>
             </table>
-            <p class="memview_info_note">Great for telling apart blitter graphics build-up from CPU writes.</p>
+            <p class="memview_info_note">Green = CPU reads, red = CPU writes, blue = blitter writes. Writes win over reads on the same cell. Note: CPU also fetches its instruction code from memory so these areas will also glow green.</p>
 
             <h6>Fade length</h6>
-            <p>How many rendered frames a write stays highlighted before fading back to the cold palette. The fade freezes while the emulation is paused.</p>
+            <p>How many emulated frames an access stays highlighted before fading back to the cold palette. The fade freezes while the emulation is paused.</p>
             <div class="memview_fade_ctl">
               <input type="range" id="memview_fade_frames" min="10" max="1000" step="10" value="250">
               <span><b id="memview_fade_frames_val">250</b>&nbsp;frames</span>
@@ -197,6 +203,8 @@
               <input type="range" id="memview_slomo_interval" min="50" max="2000" step="50" value="500">
               <span>one step / <b id="memview_slomo_interval_val">500</b>&nbsp;ms</span>
             </div>
+            <br>
+            <p class="memview_info_note">Many thanks to <b>Losso / AttentionWhore</b> for creating the foundation on which this idea and concept were built.</p>
 
             <button type="button" id="memview_info_close_bottom" class="memview_info_close_btn">Close</button>
           </div>
@@ -310,9 +318,20 @@
       </button>
 
       <button id="button_memview" class="btn btn-sm icon" type="button" data-toggle="tooltip" data-placement="top" title="live memory view" style="display:none">
-        <svg xmlns="http://www.w3.org/2000/svg" width="1.6em" height="1.6em" fill="currentColor" viewBox="0 0 16 16">
-          <path d="M11 5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6zM5 4a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H5z"/>
-          <path d="M5 0a.5.5 0 0 1 .5.5V2h1V.5a.5.5 0 0 1 1 0V2h1V.5a.5.5 0 0 1 1 0V2h1V.5a.5.5 0 0 1 1 0V2A2.5 2.5 0 0 1 14 4.5h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14A2.5 2.5 0 0 1 11.5 14v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14A2.5 2.5 0 0 1 2 11.5H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2A2.5 2.5 0 0 1 4.5 2V.5A.5.5 0 0 1 5 0zm-.5 3A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13h7a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 11.5 3h-7z"/>
+        <svg width="2.0em" height="2.0em" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path fill="currentColor" d="M106.672,42.432c0-9.958-8.074-18.032-18.022-18.032h-6.63c-9.948,0-18.022,8.074-18.022,18.032v49.878h42.674V42.432z"/>
+          <path fill="currentColor" d="M192.003,42.432c0-9.958-8.074-18.032-18.023-18.032h-6.62c-9.94,0-18.013,8.074-18.013,18.032v49.878h42.657V42.432z"/>
+          <path fill="currentColor" d="M277.332,42.432c0-9.958-8.074-18.032-18.022-18.032h-6.62c-9.94,0-18.013,8.074-18.013,18.032v49.878h42.656V42.432z"/>
+          <path fill="currentColor" d="M362.672,42.432c0-9.958-8.074-18.032-18.014-18.032h-6.638c-9.94,0-18.014,8.074-18.014,18.032v49.878h42.666V42.432z"/>
+          <path fill="currentColor" d="M63.998,469.569c0,9.958,8.074,18.031,18.022,18.031h6.63c9.949,0,18.022-8.074,18.022-18.031v-49.86H63.998V469.569z"/>
+          <path fill="currentColor" d="M149.346,469.569c0,9.958,8.074,18.031,18.013,18.031h6.62c9.949,0,18.023-8.074,18.023-18.031v-49.86h-42.657V469.569z"/>
+          <path fill="currentColor" d="M234.677,469.569c0,9.958,8.074,18.031,18.013,18.031h6.62c9.948,0,18.022-8.074,18.022-18.031v-49.86h-42.656V469.569z"/>
+          <path fill="currentColor" d="M320.006,469.569c0,9.958,8.074,18.031,18.014,18.031h6.638c9.94,0,18.014-8.074,18.014-18.031v-49.86h-42.666V469.569z"/>
+          <path fill="currentColor" d="M448.002,42.432c0-9.958-8.056-18.032-18.032-18.032h-6.62c-9.94,0-18.013,8.074-18.013,18.032v49.878h42.665V42.432z"/>
+          <path fill="currentColor" d="M405.337,469.569c0,9.958,8.074,18.031,18.013,18.031h6.62c9.976,0,18.032-8.074,18.032-18.031v-49.86h-42.665V469.569z"/>
+          <path fill="currentColor" d="M168.176,223.974h-19.206c-0.529,0-0.789,0.26-0.789,0.79v23.978c0,0.529,0.26,0.79,0.789,0.79h19.206c8.209,0,13.77-5.033,13.77-12.712C181.946,229.007,176.384,223.974,168.176,223.974z"/>
+          <path fill="currentColor" d="M0,118.971v274.076h512V118.971H0z M198.38,300.002h-14.712c-1.058,0-1.578-0.395-1.982-1.328l-17.215-35.103h-15.502c-0.529,0-0.789,0.269-0.789,0.798v34.304c0,0.798-0.538,1.328-1.328,1.328h-12.989c-0.79,0-1.319-0.529-1.319-1.328v-87.42c0-0.799,0.529-1.328,1.319-1.328h34.842c16.561,0,28.742,10.998,28.742,26.895c0,11.788-6.754,20.929-17.08,24.768l18.937,36.69C199.834,299.204,199.305,300.002,198.38,300.002z M288.286,300.002h-12.99c-0.915,0-1.453-0.395-1.713-1.328l-5.966-17.485h-33.91l-5.956,17.485c-0.269,0.932-0.79,1.328-1.722,1.328h-12.847c-0.932,0-1.201-0.529-0.932-1.328l30.859-87.42c0.269-0.799,0.807-1.328,1.722-1.328h12.192c0.924,0,1.462,0.529,1.722,1.328l30.465,87.42C289.47,299.473,289.21,300.002,288.286,300.002z M381.771,298.675c0,0.798-0.53,1.328-1.328,1.328h-11.527c-0.79,0-1.319-0.529-1.319-1.328v-55.099h-0.529l-19.072,42.388c-0.538,1.193-1.327,1.722-2.52,1.722h-7.688c-1.184,0-1.982-0.529-2.512-1.722l-19.071-42.388h-0.529v55.099c0,0.798-0.53,1.328-1.328,1.328h-11.528c-0.789,0-1.318-0.529-1.318-1.328v-87.42c0-0.799,0.529-1.328,1.318-1.328h11.788c1.202,0,1.867,0.404,2.261,1.328l24.768,55.502h0.529l24.374-55.502c0.394-0.924,1.058-1.328,2.252-1.328h11.652c0.798,0,1.328,0.529,1.328,1.328V298.675z"/>
+          <polygon fill="currentColor" points="250.536,232.317 238.48,267.286 262.845,267.286 250.932,232.317"/>
         </svg>
       </button>
       <button id="button_retro_shell" class="btn btn-sm icon" type="button" style="display:none">

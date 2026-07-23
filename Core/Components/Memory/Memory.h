@@ -228,6 +228,16 @@ public:
     bool writeOwnerEnabled = false;
     std::vector<u8> writeOwner;
 
+    /* Read/write access heatmap (extends the write-owner tracking above).
+     * While tracking is on we also stamp, per Chip Ram byte, the emulated-frame
+     * counter of the last CPU read and the last write. The UI turns these into
+     * a fading green (CPU read) / red (CPU write) / blue (Blitter write)
+     * overlay. A stored frame of 0 means "never accessed"; accessFrame is kept
+     * >= 1 (it skips 0 on wrap) so 0 stays reserved as that sentinel. */
+    std::vector<u16> writeFrame;   // frame counter of the last write
+    std::vector<u16> readFrame;    // frame counter of the last CPU read
+    u16 accessFrame = 1;           // ticks once per emulated frame while tracking
+
 
     //
     // Methods
@@ -403,6 +413,12 @@ public:
     isize fastRamSize() const { return config.fastSize; }
     isize ramSize() const { return config.chipSize + config.slowSize + config.fastSize; }
 
+    // Returns the size of the (Kickstart) Rom in bytes
+    isize kickRomSize() const { return config.romSize; }
+
+    // Base CPU address of Fast Ram (dynamic; 0 if no Fast Ram is present)
+    u32 fastRamBaseAddr() const;
+
 private:
     
     void fillRamWithInitPattern();
@@ -529,6 +545,16 @@ public:
 
     // Returns the recorded writer tag for a Chip Ram address (0 if none/off)
     u8 getWriteOwner(u32 addr) const;
+
+    // Records a CPU read of a tracked Ram range (no-op while tracking is off)
+    void markCpuRead(u32 addr, u32 bytes);
+
+    // Advances the access-frame counter (once per emulated frame; skips 0)
+    void tickAccessFrame();
+
+    // Maps a CPU address to its index in the packed access-shadow buffers
+    // (layout: chip | slow | fast). Returns -1 for untracked addresses.
+    isize shadowOffset(u32 addr) const;
 
     
 

@@ -1196,8 +1196,8 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
 .memview_ov_label {
   padding: 1px 6px;
   font-size: 0.72rem;
-  color: #cfc39a;
-  background-color: rgba(0,0,0,0.35);
+  color: var(--lighterbg);
+  background-color: var(--gray);
   user-select: none;
   white-space: nowrap;
 }
@@ -1222,11 +1222,11 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
   padding: 6px 8px;
   font-size: 0.85rem;
   color: #ddd;
-  background-color: rgba(0,0,0,0.25);
+  background-color: rgba(0,0,0,0.35);
   user-select: none;
 }
 [data-theme="dark"] #memview_header {
-  background-color: rgba(0,0,0,0.75);
+  background-color: rgba(0,0,0,0.80);
 }
 #memview_header .memview_title { font-weight: bold; }
 #memview_header .memview_live_label { margin: 0 0 0 auto; display: flex; align-items: center; gap: 0.25em; }

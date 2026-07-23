@@ -2036,6 +2036,15 @@ function InitWrappers() {
     wasm_get_bitplane_areas = Module.cwrap('wasm_get_bitplane_areas', 'string');
     wasm_set_write_tracking = Module.cwrap('wasm_set_write_tracking', 'undefined', ['number']);
     wasm_get_write_owner = Module.cwrap('wasm_get_write_owner', 'number', ['number']);
+    wasm_get_write_owner_ptr = Module.cwrap('wasm_get_write_owner_ptr', 'number');
+    wasm_get_write_frame_ptr = Module.cwrap('wasm_get_write_frame_ptr', 'number');
+    wasm_get_read_frame_ptr = Module.cwrap('wasm_get_read_frame_ptr', 'number');
+    wasm_get_access_frame = Module.cwrap('wasm_get_access_frame', 'number');
+    wasm_get_access_chip_size = Module.cwrap('wasm_get_access_chip_size', 'number');
+    wasm_get_access_slow_size = Module.cwrap('wasm_get_access_slow_size', 'number');
+    wasm_get_access_fast_size = Module.cwrap('wasm_get_access_fast_size', 'number');
+    wasm_get_fast_base = Module.cwrap('wasm_get_fast_base', 'number');
+    wasm_get_rom_size = Module.cwrap('wasm_get_rom_size', 'number');
     wasm_poke = Module.cwrap('wasm_poke', 'undefined', ['number', 'number']);
     wasm_has_disk = Module.cwrap('wasm_has_disk', 'number', ['string']);
     wasm_eject_disk = Module.cwrap('wasm_eject_disk', 'undefined', ['string']);
