@@ -1437,15 +1437,28 @@ body.retro-shell-open #button_show_menu { z-index: 41; }
 [data-theme="dark"] .memview_fade_ctl span { color: #cfcfcf; }
 .memview_fade_ctl b { color: #111; }
 [data-theme="dark"] .memview_fade_ctl b { color: #fff; }
-#memview_header .memview_addr { font-family: monospace; }
-#memview_start {
-  width: 6.5em;
+#memview_header .memview_addr {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  font-family: monospace;
+}
+#memview_start,
+#memview_width {
+  box-sizing: border-box;
   font-family: monospace;
   background: #111;
   color: #df942a;
   border: 1px solid #555;
   border-radius: 3px;
   padding: 1px 4px;
+}
+#memview_start {
+  width: 7.2ch;
+}
+#memview_width {
+  width: 5ch;
+  text-align: center;
 }
 #memview_close {
   background: transparent;
