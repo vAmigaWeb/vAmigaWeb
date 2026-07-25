@@ -1530,9 +1530,15 @@ body.memview-dragging {
   cursor: pointer;
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-.memview_bpl_item:hover { background: rgba(223,148,42,0.22); }
+.memview_bpl_item:hover,
+.memview_bpl_item.memview_bpl_item_active { background: rgba(223,148,42,0.22); }
 .memview_bpl_pl { font-weight: bold; color: #df942a; }
 .memview_bpl_addr { font-family: monospace; color: #f0e6c5; }
+.memview_bpl_addr.memview_bpl_addr_active {
+  background: rgba(223,148,42,0.22);
+  border-radius: 3px;
+  padding: 0 2px;
+}
 /* brief pop+highlight when an address is (auto-)selected, echoing the navbar
    icon "pop". inline-block so the transform applies to the address span too. */
 @keyframes memview_flash_anim {
