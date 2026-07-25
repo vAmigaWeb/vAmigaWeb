@@ -20,7 +20,7 @@ function create2d_context()
 function render_canvas()
 {
     let pixels = Module._wasm_pixel_buffer() + yOff*(HPIXELS<<2);
-    let pixel_buffer=new Uint8Array(Module.HEAPU32.buffer, pixels, HPIXELS*clipped_height<<2);
+    let pixel_buffer=new Uint8Array(Module.HEAPU8.buffer, pixels, HPIXELS*clipped_height<<2);
     image_data.data.set(pixel_buffer);
 
     //putImageData(imageData, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight)

@@ -147,7 +147,8 @@
           <span class="memview_title">memory</span>
           <button type="button" id="memview_info" title="what am I looking at?" aria-label="info">i</button>
           <label class="memview_live_label"><input type="checkbox" id="memview_live" checked> live</label>
-          <span class="memview_addr">$<input type="text" id="memview_start" value="000000" spellcheck="false"></span>
+          <span class="memview_addr">$<input type="text" id="memview_start" value="000000" maxlength="6" spellcheck="false"></span>
+          <span class="memview_addr"><input type="text" id="memview_width" value="320" maxlength="3" spellcheck="false"><span style="font-size: x-small;margin-left: -2px">px</span></span>
           <button type="button" id="memview_close" title="close">&times;</button>
         </div>
         <div id="memview_info_pop" style="display:none">

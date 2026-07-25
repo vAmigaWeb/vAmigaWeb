@@ -12,7 +12,7 @@
 //
 
 // internal (crisp) render resolution of the memory canvas
-const MEMVIEW_WORDS_PER_ROW = 16;                       // 16 words per row
+const MEMVIEW_WORDS_PER_ROW = 20;                       // 16 words per row
 const MEMVIEW_HPIXELS = MEMVIEW_WORDS_PER_ROW * 16;     // 16px per word -> 256
 const MEMVIEW_VPIXELS = 512;                            // rows (1px each)
 const MEMVIEW_BYTES_PER_ROW = MEMVIEW_WORDS_PER_ROW * 2;
@@ -96,7 +96,6 @@ var memview_regions = [];
 var memview_regions_signature = "";
 
 // bitplane area list state (auto-refreshed while the panel is open)
-var memview_bpl_hover = false;       // paused while the mouse is over the list
 var memview_bpl_counter = 0;         // frame throttle counter
 var memview_bpl_last_raw = null;     // last rendered payload (skip if unchanged)
 var memview_bpl_autoselect = true;   // follow mode: keep detail view locked to bpl1
@@ -167,6 +166,18 @@ function memview_init() {
                 memview_set_start(v);
                 if (!(live_memory_dump_enabled && is_running_safe())) memdump();
             }
+        });
+    }
+
+    // manual detail width input
+    let widthInput = document.getElementById("memview_width");
+    if (widthInput) {
+        widthInput.addEventListener("change", function() {
+            let px = parseInt(this.value.replace(/\D/g, ""), 10);
+            if (isNaN(px) || px < 16) px = memview_words_per_row * 16;
+            memview_set_width(px);
+            this.value = String(memview_words_per_row * 16);
+            if (!(live_memory_dump_enabled && is_running_safe())) memdump();
         });
     }
 
@@ -331,11 +342,6 @@ function memview_init() {
             }
         });
     }
-    let bplList = document.getElementById("memview_bpl_list");
-    if (bplList) {
-        bplList.addEventListener("mouseenter", function() { memview_bpl_hover = true; });
-        bplList.addEventListener("mouseleave", function() { memview_bpl_hover = false; });
-    }
 
     // keep the panel below the navbar while it is visible, full height otherwise
     if (typeof $ !== "undefined") {
@@ -393,6 +399,25 @@ function memview_set_start(addr, keepPressed) {
     if (addr < 0) addr = 0;
     memdump_start = addr & 0xfffffe;   // word aligned
     if (!keepPressed) memview_pressed = false;
+    memview_update_bpl_list_selection();
+}
+
+function memview_set_width(px) {
+    let pixels = parseInt(px, 10);
+    if (isNaN(pixels) || pixels < 16) pixels = memview_words_per_row * 16;
+    let words = Math.max(1, Math.min(512, Math.round(pixels / 16)));
+    memview_set_geometry(words, Math.max(2, words * 2));
+}
+
+function memview_sync_header_inputs(start) {
+    let startEl = document.getElementById("memview_start");
+    if (startEl && document.activeElement !== startEl) {
+        startEl.value = ("000000" + start.toString(16)).slice(-6);
+    }
+    let widthEl = document.getElementById("memview_width");
+    if (widthEl && document.activeElement !== widthEl) {
+        widthEl.value = String(memview_words_per_row * 16);
+    }
 }
 
 // (re)allocates the detail canvas/backbuffer for the current words-per-row
@@ -404,6 +429,7 @@ function memview_apply_geometry() {
     canvas.height = MEMVIEW_VPIXELS;
     memview_image_data = memview_ctx.createImageData(memview_hpixels, MEMVIEW_VPIXELS);
     memview_buffer = new Uint8Array(memview_hpixels * MEMVIEW_VPIXELS * 4);
+    memview_sync_header_inputs(memdump_start);
 }
 
 // switches the detail view to a specific bitplane geometry:
@@ -586,8 +612,6 @@ function memview_refresh_bitplanes(force) {
     let list = document.getElementById("memview_bpl_list");
     if (!list) return;
     if (typeof wasm_get_bitplane_areas !== "function") return;
-    // don't rebuild under the cursor (would make entries jump away on click)
-    if (!force && memview_bpl_hover) return;
 
     let raw = wasm_get_bitplane_areas() || "";
     // skip the DOM work when nothing changed since the last render
@@ -682,6 +706,17 @@ function memview_refresh_bitplanes(force) {
             "<span class='memview_bpl_meta'>" + widthPx + "\u00d7" + heightPx + segLabel + "</span>";
         let addrEl = item.querySelector(".memview_bpl_addr");
         (function(addr, w, m, ael) {
+            let clearActive = function() {
+                item.classList.remove("memview_bpl_item_active");
+                if (ael) ael.classList.remove("memview_bpl_addr_active");
+            };
+            item.addEventListener("pointerdown", function() {
+                item.classList.add("memview_bpl_item_active");
+                if (ael) ael.classList.add("memview_bpl_addr_active");
+            });
+            item.addEventListener("pointerup", clearActive);
+            item.addEventListener("pointercancel", clearActive);
+            item.addEventListener("pointerleave", clearActive);
             item.addEventListener("click", function() {
                 memview_select_bpl(addr, w, m, ael);
             });
@@ -690,6 +725,8 @@ function memview_refresh_bitplanes(force) {
 
         if (!firstSel) firstSel = { start: start, words: words, mod: mod, addrEl: addrEl };
     }
+
+    memview_update_bpl_list_selection();
 
     // auto-select (follow mode): keep the detail view locked to the top-of-list
     // bitplane and re-jump whenever its address/geometry changes. suppressed
@@ -721,12 +758,31 @@ function memview_refresh_bitplanes(force) {
 // width = words per line, stride = line bytes + modulo (skips the modulo gap /
 // interleaved planes) -> clean bitplane image
 function memview_select_bpl(addr, words, mod, addrEl) {
+    let oldWords = memview_words_per_row;
     memview_set_geometry(words, words * 2 + mod);
     memview_set_start(addr);
+    let widthEl = document.getElementById("memview_width");
+    memview_sync_header_inputs(addr);
     memdump();
     mempreview();
     if (addrEl) memview_flash(addrEl);
     memview_flash(document.getElementById("memview_start"));
+    if (widthEl && oldWords !== memview_words_per_row) memview_flash(widthEl);
+}
+
+function memview_update_bpl_list_selection() {
+    let list = document.getElementById("memview_bpl_list");
+    if (!list) return;
+    let items = list.querySelectorAll(".memview_bpl_item");
+    let start = memdump_start >>> 0;
+    for (let item of items) {
+        let addrEl = item.querySelector(".memview_bpl_addr");
+        let addrText = addrEl ? addrEl.textContent.replace(/[^0-9a-fA-F]/g, "") : "";
+        let addrVal = addrText ? parseInt(addrText, 16) : NaN;
+        let active = !isNaN(addrVal) && (addrVal >>> 0) === start;
+        item.classList.toggle("memview_bpl_item_active", active);
+        if (addrEl) addrEl.classList.toggle("memview_bpl_addr_active", active);
+    }
 }
 
 // retriggerable pop+highlight animation (see .memview_flash in vAmiga.css)
@@ -998,9 +1054,9 @@ function memview_render_region(r, ctx) {
             // of leaking the raw word into the green/blue channels
             let dens = memview_popcount16(wasm_peek16(addr)) / 16;
             let argb = memview_lerp_color(memdump_col2, memdump_col1, dens);
-            // gray marker for the current detail-view window: brighten neutrally
-            // so it is not confused with the red "cpu write" heatmap tint
-            if (addr >= winStart && addr < winEnd) argb = memview_lerp_color(argb, 0xffffffff, 0.22);
+            // marker for the current detail-view window: tint it with the same
+            // accent color used by the detail-view start address input
+            if (addr >= winStart && addr < winEnd) argb = memview_lerp_color(argb, 0xffdf942a, 0.22);
             // overlay the read/write access heatmap (one shadow sample per pixel)
             if (ctx) {
                 let sidx = memview_addr_to_idx(ctx, addr);
@@ -1052,8 +1108,5 @@ function memdumpset(x, y, argb) {
 function update_memdump_info(start) {
     if (start === last_memdump_info_start) return;
     last_memdump_info_start = start;
-    let el = document.getElementById("memview_start");
-    if (el && document.activeElement !== el) {
-        el.value = ("000000" + start.toString(16)).slice(-6);
-    }
+    memview_sync_header_inputs(start);
 }
