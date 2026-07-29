@@ -2301,6 +2301,8 @@ extern "C" const char* wasm_rom_info()
     wrapper->emu->mem.getExtTraits().model
   );
 
+  printf("rom crc=%x, ext crc=%x\n", wrapper->emu->mem.getRomTraits().crc, wrapper->emu->mem.getExtTraits().crc);
+
 /*
   printf("%s, %s, %s, %s\n",      wrapper->emu->mem.romTitle(),
     wrapper->emu->mem.romVersion(),
