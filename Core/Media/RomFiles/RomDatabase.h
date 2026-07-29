@@ -397,6 +397,21 @@ static std::vector<RomTraits> roms = {
         .model      = "",
         .vendor     = RomVendor::AROS
     },{
+        .crc        = CRC32_AROS_20260727,
+        .title      = "AROS Kickstart replacement",
+        .revision   = "Version 20260727",
+        .released   = "July 2026",
+        .model      = "",
+        .vendor     = RomVendor::AROS
+    },{
+        .crc        = CRC32_AROS_20260727_EXT,
+        .title      = "AROS Kickstart replacement",
+        .revision   = "Version 20260727",
+        .released   = "July 2026",
+        .model      = "",
+        .vendor     = RomVendor::AROS
+    },
+    {
         .crc        = CRC32_EMUTOS13,
         .title      = "EmuTOS Kickstart replacement",
         .revision   = "Version 1.3",

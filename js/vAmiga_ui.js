@@ -652,9 +652,9 @@ async function fetchOpenROMS(osname='aros'){
     }
     if(osname=='aros')
     {
-        let response = await fetch("roms/aros-rom-20250219.bin");
+        let response = await fetch("roms/aros-rom-20260727.bin");
         await installer('.rom_file', response);
-        response = await fetch("roms/aros-ext-20250219.bin");
+        response = await fetch("roms/aros-ext-20260727.bin");
         await installer('.rom_ext_file', response);   
     }
     else if(osname=='emutos')
