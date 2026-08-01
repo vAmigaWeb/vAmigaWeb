@@ -3414,9 +3414,10 @@ agnus_map = [
     {v: "OCS_OLD", t:`Early OCS (512KB) | A1000, A2000a (<span id="MOS8367">MOS8367</span><span id="MOS8361">MOS8361</span>)`},
     {v: "OCS", t:`OCS (512KB) | Early A500, A2000 (<span id="MOS8370">MOS8370</span><span id="MOS8371">MOS8371</span>)`},
     {v: "ECS_1MB", t:"ECS (1MB) | Later A500, A2000 (MOS8372A)"},
-    {v: "ECS_2MB", t:"ECS (2MB) | A500+, A600 (MOS8375)"}];    
+    {v: "ECS_2MB", t:"ECS (2MB) | A500+, A600 (MOS8375)"},
+    {v: "AGA", t:"AGA (2MB) | A1200, A4000 (Alice)"}];    
  
-bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_OLD','OCS','ECS_1MB','ECS_2MB'],'ECS_2MB',
+bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_OLD','OCS','ECS_1MB','ECS_2MB','AGA'],'ECS_2MB',
     (v)=> {
         let found = agnus_map.filter(e=>e.v === v);
         if(found.length>0)
@@ -3435,8 +3436,9 @@ bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_OLD','OCS','ECS_
 );
 
 denise_map = [ {v: "OCS", t:"OCS | A500, A1000, A2000 (MOS8362R8)"},
-    {v: "ECS", t:"ECS | A500+, A600 (MOS8373R4)"}];
-bind_config_choice("OPT_DENISE_REVISION", "denise revision",['OCS','ECS'],'OCS',(v)=> {
+    {v: "ECS", t:"ECS | A500+, A600 (MOS8373R4)"},
+    {v: "AGA", t:"AGA | A1200, A4000 (MOS8364)"}];
+bind_config_choice("OPT_DENISE_REVISION", "denise revision",['OCS','ECS','AGA'],'OCS',(v)=> {
     let found = denise_map.filter(e=>e.v==v);
     if(found.length>0)
         return found[0].t;

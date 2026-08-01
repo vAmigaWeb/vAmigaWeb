@@ -1053,8 +1053,15 @@ Memory::updateCpuMemSrcTable()
 
     // Blend in Rom in lower memory area if the overlay line (OVL) is high
     if (ovl) {
-        for (isize i = 0; i < 8 && cpuMemSrc[0xF8 + i] != MemSrc::NONE; i++)
-            cpuMemSrc[i] = cpuMemSrc[0xF8 + i];
+        // AGA Kickstart (1 MB) lives at 0xE0_0000; older 256/512 KB ROMs are at 0xF8_0000.
+        // 0xE0 is the ROM start for 1 MB images, so use it when it maps to ROM.
+        isize base = 0xF8;
+        auto src = cpuMemSrc[0xE0];
+        if (src == MemSrc::ROM || src == MemSrc::ROM_MIRROR || src == MemSrc::WOM) {
+            base = 0xE0;
+        }
+        for (isize i = 0; i < 8 && cpuMemSrc[base + i] != MemSrc::NONE; i++)
+            cpuMemSrc[i] = cpuMemSrc[base + i];
     }
 
     // Expansion boards
@@ -2423,6 +2430,48 @@ Memory::pokeCustom16(u32 addr, u16 value)
 
     dataBus = value;
 
+    // AGA debug log: first 60 scanlines, AGA display/control registers
+    if (agnus.pos.v >= 0 && agnus.pos.v < 60) {
+        u32 reg = (addr >> 1) & 0xFF;
+        bool log = false;
+        switch (reg) {
+            case 0x80: case 0x81: case 0x82: case 0x83: case 0x86: // BPLCON0-4
+            case 0xFE:                                               // FMODE
+            case 0x15: case 0x16:                                  // VPOSW, VHPOSW
+            case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: // COP1/2 LCH/LCL, COPJMP1/2
+            case 0x47: case 0x48: case 0x49: case 0x4A: case 0x4B: // DIWSTRT/STOP/DDFSTRT/STOP/DMACON
+            case 0x84: case 0x85:                                  // BPL1MOD/BPL2MOD
+            case 0x70: case 0x71: case 0x72: case 0x73:            // BPL1/2 PTH/PTL
+            case 0x74: case 0x75: case 0x76: case 0x77:            // BPL3/4
+            case 0x78: case 0x79: case 0x7A: case 0x7B:            // BPL5/6
+            case 0x7C: case 0x7D: case 0x7E: case 0x7F:            // BPL7/8
+            case 0xC0: case 0xC1: case 0xC2: case 0xC3:
+            case 0xC4: case 0xC5: case 0xC6: case 0xC7:
+            case 0xC8: case 0xC9: case 0xCA: case 0xCB:
+            case 0xCC: case 0xCD: case 0xCE: case 0xCF:
+            case 0xD0: case 0xD1: case 0xD2: case 0xD3:
+            case 0xD4: case 0xD5: case 0xD6: case 0xD7:
+            case 0xD8: case 0xD9: case 0xDA: case 0xDB:
+            case 0xDC: case 0xDD: case 0xDE: case 0xDF:            // COLOR00-31
+                log = true;
+                break;
+        }
+        if (log) {
+            static u16 last[256];
+            static bool ready = false;
+            if (!ready) {
+                for (int i = 0; i < 256; i++) last[i] = 0xFFFF;
+                ready = true;
+            }
+            if (last[reg] != value) {
+                last[reg] = value;
+                printf("vAmiga %4ld:%3ld W %03X %-8s = %04X\n",
+                       (long)agnus.pos.v, (long)agnus.pos.h,
+                       (unsigned)(addr & 0x1FE), MemoryDebugger::regName(addr & 0x1FE), value);
+            }
+        }
+    }
+
     switch ((addr >> 1) & 0xFF) {
 
         case 0x020 >> 1: // DSKPTH
@@ -2629,11 +2678,14 @@ Memory::pokeCustom16(u32 addr, u16 value)
             agnus.pokeBPLxPTH<6,s>(value); return;
         case 0x0F6 >> 1: // BPL6PTL
             agnus.pokeBPLxPTL<6,s>(value); return;
-        case 0x0F8 >> 1: // Unused
-        case 0x0FA >> 1: // Unused
-        case 0x0FC >> 1: // Unused
-        case 0x0FE >> 1: // Unused
-            break;
+        case 0x0F8 >> 1: // BPL7PTH
+            agnus.pokeBPLxPTH<7,s>(value); return;
+        case 0x0FA >> 1: // BPL7PTL
+            agnus.pokeBPLxPTL<7,s>(value); return;
+        case 0x0FC >> 1: // BPL8PTH
+            agnus.pokeBPLxPTH<8,s>(value); return;
+        case 0x0FE >> 1: // BPL8PTL
+            agnus.pokeBPLxPTL<8,s>(value); return;
         case 0x100 >> 1: // BPLCON0
             agnus.pokeBPLCON0<s>(value);
             denise.pokeBPLCON0<s>(value);
@@ -2651,7 +2703,8 @@ Memory::pokeCustom16(u32 addr, u16 value)
             agnus.pokeBPL1MOD(value); return;
         case 0x10A >> 1: // BPL2MOD
             agnus.pokeBPL2MOD(value); return;
-        case 0x10C >> 1: // Unused
+        case 0x10C >> 1: // BPLCON4 (AGA)
+            denise.pokeBPLCON4<s>(value); return;
         case 0x10E >> 1: // Unused
             break;
         case 0x110 >> 1: // BPL1DAT
@@ -2666,9 +2719,10 @@ Memory::pokeCustom16(u32 addr, u16 value)
             denise.pokeBPLxDAT<4,s>(value); return;
         case 0x11A >> 1: // BPL6DAT
             denise.pokeBPLxDAT<5,s>(value); return;
-        case 0x11C >> 1: // Unused
-        case 0x11E >> 1: // Unused
-            break;
+        case 0x11C >> 1: // BPL7DAT
+            denise.pokeBPLxDAT<6,s>(value); return;
+        case 0x11E >> 1: // BPL8DAT
+            denise.pokeBPLxDAT<7,s>(value); return;
         case 0x120 >> 1: // SPR0PTH
             agnus.pokeSPRxPTH<0,s>(value); return;
         case 0x122 >> 1: // SPR0PTL
@@ -2833,6 +2887,8 @@ Memory::pokeCustom16(u32 addr, u16 value)
             agnus.pokeBEAMCON0(value); return;
         case 0x1E4 >> 1: // DIWHIGH (ECS)
             agnus.pokeDIWHIGH<s>(value); return;
+        case 0x1FC >> 1: // FMODE (AGA)
+            agnus.pokeFMODE<s>(value); return;
         case 0x1FE >> 1: // NO-OP
             copper.pokeNOOP(value); return;
     }

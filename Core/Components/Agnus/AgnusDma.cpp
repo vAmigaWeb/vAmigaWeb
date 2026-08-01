@@ -114,30 +114,52 @@ Agnus::doAudioDmaRead()
 template <int bitplane> u16
 Agnus::doBitplaneDmaRead()
 {
-    assert(bitplane >= 0 && bitplane <= 5);
+    assert(bitplane >= 0 && bitplane <= 7);
     constexpr BusOwner owner = BusOwner(BUS_BPL1 + bitplane);
-    
-    u16 result = mem.peek16 <Accessor::AGNUS> (bplpt[bitplane]);
 
-    if (bplGuessEnabled) {
-        u32 a = bplpt[bitplane];
+    // Number of words fetched in this DMA cycle (AGA FMODE)
+    const u8 words = bplFetchWords();
+
+    u32 a = bplpt[bitplane];
+    u16 result = mem.peek16 <Accessor::AGNUS> (a);
+
+    /* Collect the remaining words of the fetch. They are handed over to Denise
+     * separately and shifted into the bitplane pipeline one by one.
+     */
+    bpldatNext[bitplane] = 0;
+    for (u8 i = 1; i < words; i++) {
+        u16 w = mem.peek16 <Accessor::AGNUS> (a + 2 * i);
+        bpldatNext[bitplane] |= (u64)w << (16 * (i - 1));
+    }
+    bpldatNextValid[bitplane] = words - 1;
+
+    if (bplGuessEnabled && bitplane < 6) {
+        // A single AGA fetch covers several words, so count them all and let
+        // the address range span up to the last word (see FMODE)
+        u32 last = a + 2 * (words - 1);
         if (a < bplGuessMinLive[bitplane]) bplGuessMinLive[bitplane] = a;
-        if (a > bplGuessMaxLive[bitplane]) bplGuessMaxLive[bitplane] = a;
-        bplGuessLineWords[bitplane]++;
-        // Record the pointer at the first fetch of this scanline so the guesser
-        // can measure the real line-to-line stride (see wasm_get_bitplane_areas)
-        if (!bplGuessHadFirst[bitplane] && pos.v < BPL_GUESS_MAX_LINES) {
-            bplGuessFirstLive[pos.v][bitplane] = a;
-            bplGuessHadFirst[bitplane] = true;
+        if (last > bplGuessMaxLive[bitplane]) bplGuessMaxLive[bitplane] = last;
+        bplGuessLineWords[bitplane] += words;
+        if (pos.v < BPL_GUESS_MAX_LINES) {
+
+            bplGuessWordsPerLineLive[pos.v][bitplane] += words;
+
+            // Record the pointer at the first fetch of this scanline so the
+            // guesser can measure the real line-to-line stride (see
+            // wasm_get_bitplane_areas)
+            if (!bplGuessHadFirst[bitplane]) {
+                bplGuessFirstLive[pos.v][bitplane] = a;
+                bplGuessHadFirst[bitplane] = true;
+            }
         }
     }
 
     busOwner[pos.h] = owner;
-    busAddr[pos.h] = bplpt[bitplane];
+    busAddr[pos.h] = a;
     busData[pos.h] = result;
     stats.usage[isize(owner)]++;
 
-    bplpt[bitplane] += 2;
+    bplpt[bitplane] += 2 * words;
     return result;
 }
 
@@ -147,14 +169,31 @@ Agnus::doSpriteDmaRead()
     assert(channel >= 0 && channel <= 7);
     constexpr BusOwner owner = BusOwner(BUS_SPRITE0 + channel);
 
-    u16 result = mem.peek16 <Accessor::AGNUS> (sprpt[channel]);
+    // Number of words fetched in this DMA cycle (AGA FMODE)
+    const u8 words = sprFetchWords();
+
+    u32 a = sprpt[channel];
+    u16 result = mem.peek16 <Accessor::AGNUS> (a);
+
+    /* Collect the remaining words of the fetch. They are handed over to Denise
+     * separately and extend the sprite to 32 or 64 pixels. The first fetched
+     * word is the leftmost one, so the extension is stored right below it.
+     */
+    sprdatNext[channel] = 0;
+    for (u8 i = 1; i < words; i++) {
+        u16 w = mem.peek16 <Accessor::AGNUS> (a + 2 * i);
+        sprdatNext[channel] |= (u64)w << (48 - 16 * i);
+    }
 
     busOwner[pos.h] = owner;
-    busAddr[pos.h] = sprpt[channel];
+    busAddr[pos.h] = a;
     busData[pos.h] = result;
     stats.usage[isize(owner)]++;
 
-    sprpt[channel] += 2;
+    /* The pointer always advances by the full bus width, even when the fetched
+     * words carry a control word rather than pixel data.
+     */
+    sprpt[channel] += 2 * words;
     return result;
 }
 
@@ -234,6 +273,8 @@ template u16 Agnus::doBitplaneDmaRead<2>();
 template u16 Agnus::doBitplaneDmaRead<3>();
 template u16 Agnus::doBitplaneDmaRead<4>();
 template u16 Agnus::doBitplaneDmaRead<5>();
+template u16 Agnus::doBitplaneDmaRead<6>();
+template u16 Agnus::doBitplaneDmaRead<7>();
 
 template u16 Agnus::doSpriteDmaRead<0>();
 template u16 Agnus::doSpriteDmaRead<1>();

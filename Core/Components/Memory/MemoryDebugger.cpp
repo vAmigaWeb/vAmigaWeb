@@ -265,7 +265,7 @@ MemoryDebugger::isReadable(Reg reg) const
 
         case Reg::DENISEID:
 
-            return denise.isECS();
+            return denise.isECSorLater();
 
         default:
 
@@ -333,15 +333,15 @@ MemoryDebugger::isWritable(Reg reg) const
         case Reg::VBSTOP:    case Reg::BEAMCON0:  case Reg::HSSTRT:    case Reg::VSSTRT:
         case Reg::HCENTER:
 
-            return agnus.isECS();
+            return agnus.isECSorLater();
 
         case Reg::DENISEID:
 
-            return denise.isECS();
+            return denise.isECSorLater();
 
         case Reg::DIWHIGH:
 
-            return agnus.isECS() || denise.isECS();
+            return agnus.isECSorLater() || denise.isECSorLater();
 
         default:
 

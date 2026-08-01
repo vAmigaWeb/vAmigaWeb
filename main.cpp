@@ -1115,13 +1115,41 @@ extern "C" const char* wasm_get_bitplane_areas()
       long stride = delta;
       if(stride < 0) { start = (u32)((long)start + delta * h); stride = -stride; }
 
-      int planeWords = words;
-      int mod = (int)stride - 2*planeWords;
-      if(mod < 0) { planeWords = (int)(stride / 2); mod = (int)stride - 2*planeWords; }
+      /* Take the word count from inside this run instead of the frame-wide
+       * maximum. A single odd scanline elsewhere in the frame (mode switch,
+       * split screen, menu bar) would otherwise widen every reported area.
+       * The middle of the run is sampled, which avoids the partial first and
+       * last lines of an area.
+       */
+      int planeWords = (int)ag->bplGuessWordsPerLine[y + h/2][p];
+      if(planeWords <= 0) planeWords = words;
+
+      /* An interlaced frame covers one field only, so the measured stride
+       * spans two picture rows: both fields are interleaved in one buffer.
+       * Halving it yields the real row width and doubles the height. This is
+       * only applied when the stride really has room for two rows, so screens
+       * that keep each field in its own buffer stay untouched.
+       */
+      long rowBytes = stride;
+      int lines = h;
+      if(ag->bplGuessLace && stride >= 2*(long)planeWords)
+      {
+        rowBytes = stride / 2;
+        lines = 2 * h;
+      }
+
+      /* AGA fetches whole 32/64 bit chunks (FMODE), so a scanline can cover
+       * more words than the picture row holds. The surplus is clipped by the
+       * display window and taken back by a negative modulo, so it must not
+       * count towards the width.
+       */
+      if(2*(long)planeWords > rowBytes) planeWords = (int)(rowBytes / 2);
+
+      int mod = (int)rowBytes - 2*planeWords;
 
       u32 end = start + (u32)stride * (u32)h;
       snprintf(b, sizeof b, "%d,%u,%u,%d,%u,%u;",
-               p, start, end, mod, (unsigned)planeWords, (unsigned)h);
+               p, start, end, mod, (unsigned)planeWords, (unsigned)lines);
       s += b;
       emitted++;
       y += h;

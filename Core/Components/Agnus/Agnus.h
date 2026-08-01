@@ -119,6 +119,9 @@ public:
     // The DMA control register
     u16 dmacon = 0;
     u16 dmaconInitial = 0;
+
+    // The AGA bitplane/sprite fetch mode register
+    u16 fmode = 0;
     
     // The disk DMA pointer
     u32 dskpt = 0;
@@ -128,7 +131,11 @@ public:
     u32 audlc[4] = { };
 
     // The bitplane DMA pointers
-    u32 bplpt[6] = { };
+    u32 bplpt[8] = { };
+
+    // AGA bus prefetch buffer (up to 4 words per fetch)
+    u64 bpldatNext[8] = { };
+    u8 bpldatNextValid[8] = { };
 
     // The bitplane modulo registers for odd bitplanes
     i16 bpl1mod = 0;
@@ -143,7 +150,7 @@ public:
     u32 bplGuessMin[6] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u };      // committed (last finished frame)
     u32 bplGuessMax[6] = { 0, 0, 0, 0, 0, 0 };
     i16 bplGuessMod[6] = { 0, 0, 0, 0, 0, 0 };                  // committed modulo per plane
-    u16 bplGuessLineWords[6] = { 0, 0, 0, 0, 0, 0 };            // fetches in current line
+    u16 bplGuessLineWords[6] = { 0, 0, 0, 0, 0, 0 };            // words in current line
     u16 bplGuessWordsLive[6] = { 0, 0, 0, 0, 0, 0 };            // max words per line (current frame)
     u16 bplGuessWords[6] = { 0, 0, 0, 0, 0, 0 };               // committed words per line
     u16 bplGuessLinesLive[6] = { 0, 0, 0, 0, 0, 0 };           // scanlines with dma (current frame)
@@ -156,9 +163,27 @@ public:
     bool bplGuessHadFirst[6] = { };                            // first fetch seen on current line
     u32 bplGuessFirstLive[BPL_GUESS_MAX_LINES][6] = { };       // first bplpt per line (current frame)
     u32 bplGuessFirst[BPL_GUESS_MAX_LINES][6] = { };           // committed (last finished frame)
+    // Per-scanline word count. The frame-wide maximum in bplGuessWords cannot
+    // be used to describe an individual area, because a single odd scanline
+    // (mode switch, split screen, menu bar) would widen every reported area.
+    u16 bplGuessWordsPerLineLive[BPL_GUESS_MAX_LINES][6] = { }; // words per line (current frame)
+    u16 bplGuessWordsPerLine[BPL_GUESS_MAX_LINES][6] = { };     // committed (last finished frame)
+    /* Interlace flag of the last finished frame. In interlaced modes a frame
+     * covers a single field, so the measured line-to-line stride spans two
+     * picture rows (both fields are interleaved in one buffer).
+     */
+    bool bplGuessLace = false;
 
     // The sprite DMA pointers
     u32 sprpt[8] = { };
+
+    /* AGA fetches up to four words per sprite in a single DMA cycle (see
+     * FMODE). The first word is passed to Denise as usual, the remaining words
+     * of a 32 or 64 pixel wide sprite are collected here (first fetched word
+     * in the upper bits, so that bit 63 stays the leftmost pixel). The value
+     * is always zero on OCS and ECS.
+     */
+    u64 sprdatNext[8] = { };
 
 
     //
@@ -222,6 +247,12 @@ public:
     // The current DMA states of all 8 sprites
     bool sprDmaEnabled[8] = { };
 
+    /* Scan doubling flags of all 8 sprites (AGA only). In AGA, bit 7 of
+     * SPRxPOS requests that every sprite line is displayed twice. The flag
+     * only takes effect when SSCAN2 is set in FMODE (see sscan2Skips).
+     */
+    bool sprSscan2[8] = { };
+
     
     //
     // Class methods
@@ -267,10 +298,13 @@ private:
         << bplcon1Initial
         << dmacon
         << dmaconInitial
+        << fmode
         << dskpt
         << audpt
         << audlc
         << bplpt
+        << bpldatNext
+        << bpldatNextValid
         << bpl1mod
         << bpl2mod
         << sprpt
@@ -289,7 +323,8 @@ private:
 
         << sprVStrt
         << sprVStop
-        << sprDmaEnabled;
+        << sprDmaEnabled
+        << sprSscan2;
 
         if (isSoftResetter(worker)) return;
 
@@ -352,6 +387,14 @@ public:
 
     bool isOCS() const;
     bool isECS() const;
+    bool isAGA() const;
+
+    /* Returns true for ECS and AGA. Because AGA is a superset of ECS, this
+     * predicate has to be used for all features that were introduced by ECS
+     * and are still present in AGA. Note that isECS() is an exact match which
+     * yields false on an AGA machine.
+     */
+    bool isECSorLater() const { return isECS() || isAGA(); }
     bool isPAL() const { return pos.type == TV::PAL; }
     bool isNTSC() const { return !isPAL(); }
 
@@ -410,6 +453,34 @@ public:
     bool hires() { return res == Resolution::HIRES; }
     bool shres() { return res == Resolution::SHRES; }
 
+    /* Returns the number of words read in a single bitplane DMA cycle. The
+     * value is determined by the sequencer when the fetch unit layout is
+     * computed, so that DMA and display logic always agree.
+     */
+    u8 bplFetchWords() const { return sequencer.fetchWords; }
+
+    /* Returns the number of words read in a single sprite DMA cycle. AGA
+     * widens sprites to 32 or 64 pixels via FMODE bits 2 and 3. Both bits
+     * are zero on OCS and ECS, which yields the classic 16 pixel sprite.
+     */
+    u8 sprFetchWords() const {
+
+        if (!isAGA()) return 1;
+
+        switch ((fmode >> 2) & 0b11) {
+
+            case 0b00: return 1;
+            case 0b11: return 4;
+            default:   return 2;
+        }
+    }
+
+    // Returns the sprite width in pixels (16, 32 or 64)
+    isize spriteWidth() const { return 16 * sprFetchWords(); }
+
+    // Returns the state of the AGA sprite scan doubling bit (FMODE bit 15)
+    bool sscan2() const { return isAGA() && GET_BIT(fmode, 15); }
+
     // Returns the external synchronization bit from BPLCON0
     static bool ersy(u16 value) { return GET_BIT(value, 1); }
     bool ersy() { return ersy(bplcon0); }
@@ -451,6 +522,9 @@ private:
 
     // Checks whether the sprite DMA cycle is blocked by bitplane DMA
     bool spriteCycleIsBlocked();
+
+    // Checks whether the sprite data fetch is skipped by AGA scan doubling
+    bool sscan2Skips(isize nr) const;
 
     // Updates the sprite DMA status in cycle 0xDF
     void updateSpriteDMA();
@@ -560,6 +634,9 @@ public:
 
     void pokeBPLCON1(u16 value);
     void setBPLCON1(u16 oldValue, u16 newValue);
+
+    template <Accessor s> void pokeFMODE(u16 value);
+    void setFMODE(u16 value);
 
     template <Accessor s> void pokeDIWSTRT(u16 value);
     template <Accessor s> void pokeDIWSTOP(u16 value);

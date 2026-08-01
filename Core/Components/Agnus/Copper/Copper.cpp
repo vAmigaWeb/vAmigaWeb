@@ -12,6 +12,7 @@
 #include "Emulator.h"
 #include "CopperDebugger.h"
 #include "Checksum.h"
+#include "Denise.h"
 #include "IOUtils.h"
 #include "PixelEngine.h"
 
@@ -206,9 +207,12 @@ Copper::move(u32 addr, u16 value)
         trace(OCSREG_DEBUG,
               "pokeCustom16(%X [%s], %X)\n", addr, MemoryDebugger::regName(addr), value);
 
-        // Color registers
-        auto reg = Reg(isize(Reg::COLOR00) + ((addr - 0x180) >> 1));
-        pixelEngine.colChanges.insert(agnus.pos.pixel(), RegChange { .reg = reg, .value = value} );
+        /* Color registers are recorded in the change history to preserve the
+         * exact pixel position of the write. Denise handles the AGA specifics
+         * on the way, namely the redirection to the color bank selected by
+         * BPLCON3 and the suppression of writes while LOCT is set.
+         */
+        denise.recordColorChange((addr - 0x180) >> 1, value);
         return;
     }
 

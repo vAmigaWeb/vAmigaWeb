@@ -40,13 +40,13 @@ PixelEngine::_dump(Category category, std::ostream &os) const
 void
 PixelEngine::_initialize()
 {
-    // Setup ECS BRDRBLNK color
-    palette[64] = TEXEL(GpuColor(0x00, 0x00, 0x00).rawValue);
-    
+    // Setup ECS/AGA BRDRBLNK color
+    palette[288] = TEXEL(GpuColor(0x00, 0x00, 0x00).rawValue);
+
     // Setup debug colors
-    palette[65] = TEXEL(GpuColor(0xD0, 0x00, 0x00).rawValue);
-    palette[66] = TEXEL(GpuColor(0xA0, 0x00, 0x00).rawValue);
-    palette[67] = TEXEL(GpuColor(0x90, 0x00, 0x00).rawValue);
+    palette[289] = TEXEL(GpuColor(0xD0, 0x00, 0x00).rawValue);
+    palette[290] = TEXEL(GpuColor(0xA0, 0x00, 0x00).rawValue);
+    palette[291] = TEXEL(GpuColor(0x90, 0x00, 0x00).rawValue);
 }
 
 void
@@ -81,7 +81,7 @@ PixelEngine::_powerOn()
 void
 PixelEngine::setColor(isize reg, u16 value)
 {
-    assert(reg < 32);
+    assert(reg < 256);
 
     AmigaColor newColor(value & 0xFFF);
 
@@ -90,8 +90,10 @@ PixelEngine::setColor(isize reg, u16 value)
     // Update standard palette entry
     palette[reg] = colorSpace[value & 0xFFF];
 
-    // Update halfbright palette entry
-    palette[reg + 32] = colorSpace[newColor.ehb().rawValue()];
+    // Update halfbright palette entry (OCS/ECS only)
+    if (!denise.isAGA() && reg < 32) {
+        palette[reg + 32] = colorSpace[newColor.ehb().rawValue()];
+    }
 }
 
 void
@@ -112,7 +114,7 @@ PixelEngine::updateRGBA()
     }
 
     // Update all cached RGBA values
-    for (isize i = 0; i < 32; i++) setColor(i, color[i].rawValue());
+    for (isize i = 0; i < 256; i++) setColor(i, color[i].rawValue());
 }
 
 void
@@ -287,7 +289,7 @@ PixelEngine::applyRegisterChange(const RegChange &change)
         default: // It must be a color register then
             
             auto nr = isize(change.reg) - isize(Reg::COLOR00);
-            assert(0 <= nr && nr < 32);
+            assert(0 <= nr && nr < 256);
 
             if (color[nr].rawValue() != change.value) {
                 setColor(nr, change.value);
@@ -350,7 +352,7 @@ PixelEngine::colorize(Texel *dst, Pixel from, Pixel to)
     }
     */
     for (Pixel i = from; i < to; i++) {
-        dst[i] = palette[bbuf[i] == 0xFF ? mbuf[i] : bbuf[i]];
+        dst[i] = palette[bbuf[i] == 0xFFFF ? mbuf[i] : bbuf[i]];
     }
 }
 
@@ -365,7 +367,7 @@ PixelEngine::colorizeSHRES(Texel *dst, Pixel from, Pixel to)
 
         // Output two super-hires pixels as a single texel
         for (Pixel i = from; i < to; i++) {
-            dst[i] = palette[bbuf[i] == 0xFF ? mbuf[i] : bbuf[i]];
+            dst[i] = palette[bbuf[i] == 0xFFFF ? mbuf[i] : bbuf[i]];
         }
 
     } else {
@@ -375,7 +377,7 @@ PixelEngine::colorizeSHRES(Texel *dst, Pixel from, Pixel to)
 
             u32 *p = (u32 *)(dst + i);
 
-            if (bbuf[i] != 0xFF) {
+            if (bbuf[i] != 0xFFFF) {
 
                 p[0] =
                 p[1] = u32(palette[bbuf[i]]);

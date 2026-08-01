@@ -45,3 +45,7 @@ sw.js
 .vscode/settings.json
 
 node_modules/
+
+logs
+SAE
+amiberry_source

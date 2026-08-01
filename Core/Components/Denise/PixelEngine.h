@@ -72,16 +72,16 @@ private:
     Texel colorSpace[4096];
 
     // Color register colors
-    AmigaColor color[32];
+    AmigaColor color[256];
 
     /* Active color palette
      *
-     *  0 .. 31 : ABGR values of the 32 color registers
-     * 32 .. 63 : ABGR values of the 32 color registers in halfbright mode
-     *       64 : Pure black (used if the ECS BRDRBLNK bit is set)
-     * 65 .. 67 : Additional debug colors
+     *  0 ..255 : ABGR values of the color registers (32 for OCS/ECS, 256 for AGA)
+     * 256 ..287 : Halfbright OCS/ECS palette entries (unused on AGA)
+     *      288 : Pure black (used if the ECS BRDRBLNK bit is set)
+     * 289 ..291 : Additional debug colors
      */
-    static const int paletteCnt = 32 + 32 + 1 + 3;
+    static const int paletteCnt = 256 + 32 + 1 + 3;
     Texel palette[paletteCnt];
     
     // Indicates whether HAM mode or SHRES mode is enabled

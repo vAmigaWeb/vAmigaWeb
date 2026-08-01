@@ -320,8 +320,10 @@ Agnus::setBPLCON0(u16 oldValue, u16 newValue)
     // Determine the new bitmap resolution
     res = resolution(newValue);
 
-    // Check if one of the resolution bits or the BPU bits have been modified
-    if ((oldValue ^ newValue) & 0xF040) {
+    /* Check if one of the resolution bits or the BPU bits have been modified.
+     * Bit 4 is the fourth BPU bit (BPU3) in AGA, so it has to be checked, too.
+     */
+    if ((oldValue ^ newValue) & 0xF050) {
 
         // Record the change
         sequencer.sigRecorder.insert(pos.h, HI_W_LO_W(newValue, SIG_CON));
@@ -368,16 +370,51 @@ Agnus::setBPLCON1(u16 oldValue, u16 newValue)
     assert(oldValue != newValue);
     trace(DMA_DEBUG | SEQ_DEBUG, "setBPLCON1(%04x,%04x)\n", oldValue, newValue);
 
-    bplcon1 = newValue & 0xFF;
+    // In AGA, the upper byte holds the extended scroll bits
+    bplcon1 = newValue & (isAGA() ? 0xFFFF : 0x00FF);
     
     // Compute comparision values for the hpos counter
     scrollOdd  = (bplcon1 & 0b00001110) >> 1;
     scrollEven = (bplcon1 & 0b11100000) >> 5;
+
+    /* The extended AGA scroll bits are not evaluated here. They delay the
+     * output by whole 16 pixel words, which must not shift the position of the
+     * drawing flags, because Denise emits exactly 16 pixels per drawing cycle.
+     * Denise applies them as a pixel offset instead (see setBPLCON1).
+     */
     
     // Update the bitplane event table
     sequencer.computeBplEventTable(sequencer.sigRecorder);
     
     // Update the scheduled bitplane event according to the new table
+    scheduleBplEventForCycle(pos.h);
+}
+
+template <Accessor s> void
+Agnus::pokeFMODE(u16 value)
+{
+    trace(DMA_DEBUG, "pokeFMODE(%04x)\n", value);
+
+    // FMODE is an AGA-only register
+    if (!isAGA()) return;
+
+    setFMODE(value);
+}
+
+void
+Agnus::setFMODE(u16 value)
+{
+    trace(DMA_DEBUG | SEQ_DEBUG, "setFMODE(%04x)\n", value);
+
+    /* Bits 0 to 3 select the bitplane and sprite fetch width, bit 15 enables
+     * sprite scan doubling (SSCAN2). All other bits are unused.
+     */
+    value &= 0x800f;
+    if (fmode == value) return;
+
+    fmode = value;
+
+    sequencer.computeBplEventTable(sequencer.sigRecorder);
     scheduleBplEventForCycle(pos.h);
 }
 
@@ -470,6 +507,9 @@ Agnus::setSPRxPOS(u16 value)
     // Compute the new vertical start position
     sprVStrt[x] = ((value & 0xFF00) >> 8) | (sprVStrt[x] & 0x0100);
 
+    // In AGA, bit 7 doubles as the scan doubling flag of this sprite
+    sprSscan2[x] = isAGA() && GET_BIT(value, 7);
+
     // Update sprite DMA status
     if (!inVBlankArea(v)) {
         if (sprVStrt[x] == v) sprDmaEnabled[x] = true;
@@ -512,16 +552,16 @@ Agnus::setSPRxCTL(u16 value)
     sprVStrt[x] = (i16)((value & 0b100) << 6 | (sprVStrt[x] & 0x00FF));
     sprVStop[x] = (i16)((value & 0b010) << 7 | (value >> 8));
 
-    // ECS Agnus supports additional position bits (encoded in 'unused' area)
+    // ECS and AGA support additional position bits (encoded in 'unused' area)
     if (GET_BIT(value, 6)) {
 
         xfiles("setSPR%dCTL: Extended VSTRT bit set\n", x);
-        if (isECS()) sprVStrt[x] |= 0x0200;
+        if (isECSorLater()) sprVStrt[x] |= 0x0200;
     }
     if (GET_BIT(value, 5)) {
 
         xfiles("setSPR%dCTL: Extended VSTOP bit set\n", x);
-        if (isECS()) sprVStop[x] |= 0x0200;
+        if (isECSorLater()) sprVStop[x] |= 0x0200;
     }
 
     // Update sprite DMA status
@@ -740,6 +780,7 @@ template void Agnus::x<y>(u16 value);
 DECLARE(pokeDSKPTH)
 DECLARE(pokeDSKPTL)
 DECLARE(pokeBPLCON0)
+DECLARE(pokeFMODE)
 DECLARE(pokeDMACON)
 DECLARE(pokeDIWSTRT)
 DECLARE(pokeDIWSTOP)
@@ -764,7 +805,9 @@ template void Agnus::x<2,y>(u16 value); \
 template void Agnus::x<3,y>(u16 value); \
 template void Agnus::x<4,y>(u16 value); \
 template void Agnus::x<5,y>(u16 value); \
-template void Agnus::x<6,y>(u16 value);
+template void Agnus::x<6,y>(u16 value); \
+template void Agnus::x<7,y>(u16 value); \
+template void Agnus::x<8,y>(u16 value);
 
 DECLARE(pokeBPLxPTH)
 DECLARE(pokeBPLxPTL)
@@ -795,7 +838,9 @@ template void Agnus::x<2>(u16 value); \
 template void Agnus::x<3>(u16 value); \
 template void Agnus::x<4>(u16 value); \
 template void Agnus::x<5>(u16 value); \
-template void Agnus::x<6>(u16 value);
+template void Agnus::x<6>(u16 value); \
+template void Agnus::x<7>(u16 value); \
+template void Agnus::x<8>(u16 value);
 
 DECLARE(setBPLxPTH)
 DECLARE(setBPLxPTL)
