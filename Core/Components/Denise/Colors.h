@@ -81,6 +81,12 @@ struct YuvColor {
 // Amiga color (native Amiga RGB format)
 //
 
+/* Native Amiga color with 8 bit per component. OCS and ECS only provide the
+ * upper nibble of each component, AGA adds the lower nibble through a second
+ * write with the LOCT bit set (see PixelEngine::setColor). Colors originating
+ * from a 12 bit register value therefore carry a zero lower nibble, which is
+ * how this emulator has always expanded them.
+ */
 struct AmigaColor : SerializableStruct
 {
     u8 r;
@@ -90,8 +96,9 @@ struct AmigaColor : SerializableStruct
     // template <class W> void operator<<(W& worker) { worker << r << g << b; }
 
     AmigaColor() : r(0), g(0), b(0) {}
-    AmigaColor(u8 rv, u8 gv, u8 bv) : r(rv & 0xF), g(gv & 0xF), b(bv & 0xF) {}
-    AmigaColor(u16 rgb) : AmigaColor(u8(rgb >> 8), u8(rgb >> 4), u8(rgb)) {}
+    AmigaColor(u8 rv, u8 gv, u8 bv) : r(rv), g(gv), b(bv) {}
+    AmigaColor(u16 rgb) :
+    AmigaColor(u8((rgb >> 4) & 0xF0), u8(rgb & 0xF0), u8((rgb << 4) & 0xF0)) {}
     AmigaColor(const RgbColor &c);
     AmigaColor(const YuvColor &c) : AmigaColor(RgbColor(c)) { }
     AmigaColor(const GpuColor &c);
@@ -113,7 +120,11 @@ public:
 
 
 
-    u16 rawValue() const { return u16(r << 8 | g << 4 | b); }
+    // Returns the color in the 12 bit format of the COLORxx registers
+    u16 rawValue() const { return u16((r & 0xF0) << 4 | (g & 0xF0) | (b >> 4)); }
+
+    // Returns the color in the 24 bit format used by AGA
+    u32 rawValue24() const { return u32(r << 16 | g << 8 | b); }
 
     static const AmigaColor black;
     static const AmigaColor white;

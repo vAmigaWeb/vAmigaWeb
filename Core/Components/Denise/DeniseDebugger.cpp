@@ -49,8 +49,9 @@ DeniseDebugger::recordSprite(isize nr)
         spriteInfo[nr].vstop = agnus.sprVStop[nr];
         spriteInfo[nr].attach = IS_ODD(nr) ? GET_BIT(denise.sprctl[nr], 7) : 0;
         
+        // In AGA, the color bank of the sprite is selected by BPLCON4
         for (isize i = 0; i < 16; i++) {
-            spriteInfo[nr].colors[i] = pixelEngine.getColor(i + 16);
+            spriteInfo[nr].colors[i] = pixelEngine.getColor(i + denise.sprBase(nr));
         }
     }
     

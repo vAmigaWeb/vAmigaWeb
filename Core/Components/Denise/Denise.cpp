@@ -28,6 +28,12 @@ Denise::Denise(Amiga& ref) : SubComponent(ref)
 void
 Denise::_didReset(bool hard)
 {
+    /* Reset value of BPLCON3. The PF2OF bits are set to 3, which selects a
+     * color offset of 8 for the second playfield and thus reproduces the
+     * behaviour of OCS and ECS. All other bits are cleared.
+     */
+    bplcon3 = 0x0C00;
+
     /* Reset value of BPLCON4. The lower byte selects the sprite color banks
      * (ESPRM and OSPRM). Bank 1 is the default, which puts the sprite colors
      * at register 16 and up, exactly where OCS and ECS have them.
@@ -163,6 +169,12 @@ Denise::updateSprHCoords(isize x)
 
     // Convert to a pixel position
     sprhppos[x] = sprhpos[x] + 2 - 4 * HBLANK_MIN;
+}
+
+Pixel
+Denise::sprStrt(isize x) const
+{
+    return agnus.sscan2() ? sprhppos[x] - (sprhpos[x] & SPR_WRAP) : sprhppos[x];
 }
 
 bool
@@ -703,16 +715,30 @@ Denise::translateDPF(Pixel from, Pixel to, PFState &state)
     /* If the priority of a playfield is set to an illegal value (zpf1 or
      * zpf2 will be 0 in that case), all pixels are drawn transparent.
      */
-    u8 mask1 = state.zpf1 ? 0b1111 : 0b0000;
-    u8 mask2 = state.zpf2 ? 0b1111 : 0b0000;
+    u8 mask1 = state.zpf1 ? 0xFF : 0x00;
+    u8 mask2 = state.zpf2 ? 0xFF : 0x00;
+
+    /* Contribution of the two additional bitplanes. In AGA, dual playfield
+     * mode can use all eight bitplanes, which widens the color index of each
+     * playfield from three to four bits. OCS and ECS never set these bits, so
+     * masking them out keeps their index computation unchanged.
+     */
+    u8 bpl7 = isAGA() ? 0x40 : 0x00;
+    u8 bpl8 = isAGA() ? 0x80 : 0x00;
+
+    // Color offset of the second playfield
+    u8 ofs2 = pf2of();
 
     for (Pixel i = from; i < to; i++) {
 
         u8 s = dBuffer[i];
 
         // Determine color indices for both playfields
-        u8 index1 = (((s & 1) >> 0) | ((s & 4) >> 1) | ((s & 16) >> 2));
-        u8 index2 = (((s & 2) >> 1) | ((s & 8) >> 2) | ((s & 32) >> 3));
+        u8 index1 = u8(((s & 1) >> 0) | ((s & 4) >> 1) | ((s & 16) >> 2) | ((s & bpl7) >> 3));
+        u8 index2 = u8(((s & 2) >> 1) | ((s & 8) >> 2) | ((s & 32) >> 3) | ((s & bpl8) >> 4));
+
+        // Apply the color offset of the second playfield
+        u8 col2 = u8((index2 + ofs2) & mask2);
 
         if (index1) {
             
@@ -720,7 +746,7 @@ Denise::translateDPF(Pixel from, Pixel to, PFState &state)
 
                 // PF1 is solid, PF2 is solid
                 if (prio) {
-                    mBuffer[i] = ((index2 | 0b1000) & mask2) ^ bplcon4Xor;
+                    mBuffer[i] = col2 ^ bplcon4Xor;
                     zBuffer[i] = state.zpf2 | Z_DPF21;
                 } else {
                     mBuffer[i] = (index1 & mask1) ^ bplcon4Xor;
@@ -739,7 +765,7 @@ Denise::translateDPF(Pixel from, Pixel to, PFState &state)
             if (index2) {
 
                 // PF1 is transparent, PF2 is solid
-                mBuffer[i] = ((index2 | 0b1000) & mask2) ^ bplcon4Xor;
+                mBuffer[i] = col2 ^ bplcon4Xor;
                 zBuffer[i] = state.zpf2 | Z_DPF2;
 
             } else {
@@ -797,8 +823,8 @@ Denise::drawSpritePair()
     constexpr Pixel hposMask = R == Resolution::SHRES ? ~0 : ~1;
 
     Pixel strt = 0;
-    Pixel strt1 = sprhppos[sprite1] & hposMask;
-    Pixel strt2 = sprhppos[sprite2] & hposMask;
+    Pixel strt1 = sprStrt(sprite1) & hposMask;
+    Pixel strt2 = sprStrt(sprite2) & hposMask;
     
     // Iterate over all recorded register changes
     if (!sprChanges[pair].isEmpty()) {
@@ -960,14 +986,21 @@ Denise::drawSpritePair(Pixel hstrt, Pixel hstop, Pixel strt1, Pixel strt2)
     bool attached = GET_BIT(sprctl[sprite2], 7);
     Pixel offset = R == Resolution::SHRES ? 1 : 2;
 
+    /* Second trigger position of the horizontal comparator. Scan doubling
+     * shortens the comparator by one bit (see sprStrt), so the sprite is
+     * matched a second time half a comparator period further to the right.
+     * A value of zero disables the second trigger.
+     */
+    Pixel wrap = agnus.sscan2() ? SPR_WRAP : 0;
+
     for (Pixel hpos = hstrt; hpos < hstop; hpos += offset) {
 
-        if (hpos == strt1 && armed1) {
+        if (armed1 && (hpos == strt1 || (wrap && hpos == strt1 + wrap))) {
             
             ssra[sprite1] = loadSSR(sprdata[sprite1], sprdataExt[sprite1]);
             ssrb[sprite1] = loadSSR(sprdatb[sprite1], sprdatbExt[sprite1]);
         }
-        if (hpos == strt2 && armed2) {
+        if (armed2 && (hpos == strt2 || (wrap && hpos == strt2 + wrap))) {
             
             ssra[sprite2] = loadSSR(sprdata[sprite2], sprdataExt[sprite2]);
             ssrb[sprite2] = loadSSR(sprdatb[sprite2], sprdatbExt[sprite2]);
@@ -1396,8 +1429,12 @@ Denise::hsyncHandler(isize vpos)
     // Remember whether sprites were armed in this line
     wasArmed = armed;
 
-    // Reset the sprite clipping range
-    spriteClipBegin = HPIXELS;
+    /* Reset the sprite clipping range. Sprites are normally confined to the
+     * area covered by bitplane data, which is why the range starts out empty
+     * and is opened up by the first BPL1DAT write. The AGA BRDSPRT bit lifts
+     * that restriction and lets sprites appear in the border as well.
+     */
+    spriteClipBegin = brdsprt() ? 0 : HPIXELS;
     spriteClipEnd = HPIXELS + 32;
 
     // Save the current values of various Denise registers

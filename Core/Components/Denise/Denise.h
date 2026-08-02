@@ -266,9 +266,10 @@ public:
      * bBuffer: Border pixel buffer
      *
      * This buffer is used to determine whether a border pixel has to be drawn.
-     * If the buffer contains a value of 0xFF, border drawing is off for this
-     * pixel. Otherwise, the buffer contains the number of the color register
-     * storing the border color.
+     * If the buffer contains a value of 0xFFFF, border drawing is off for this
+     * pixel. Otherwise, the buffer contains the palette index of the border
+     * color, which may also be one of the artificial entries beyond the color
+     * registers.
      *
      * iBuffer: Color index buffer
      *
@@ -818,6 +819,15 @@ public:
     bool lace() const { return lace(bplcon0); }
     static bool ham(u16 v) { return (v & 0x8800) == 0x0800; }
     bool ham() const { return ham(bplcon0); }
+
+    /* Returns true if the AGA variant of HAM mode is active. HAM8 requires all
+     * eight bitplanes, which are selected by setting BPU3 and clearing the
+     * three traditional BPU bits (see bpu).
+     */
+    bool ham8(u16 v) const {
+        return isAGA() && ham(v) && GET_BIT(v, 4) && !(v & 0x7000);
+    }
+    bool ham8() const { return ham8(bplcon0); }
     static bool ecsena(u16 v) { return GET_BIT(v, 0); }
     bool ecsena() const { return ecsena(bplcon0); }
 
@@ -836,6 +846,38 @@ public:
     u8 colorBank() const { return colorBank(bplcon3); }
     static bool loct(u16 v) { return !!GET_BIT(v, 9); }
     bool loct() const { return loct(bplcon3); }
+
+    /* Returns true if sprites remain visible inside the border. The feature is
+     * AGA only, has to be unlocked by the ECSENA bit, and is overruled by
+     * border blanking, which wins over the sprite.
+     */
+    bool brdsprt() const {
+        return isAGA() && GET_BIT(bplcon3, 1) && ecsena() && !brdrblnk();
+    }
+
+    /* Returns the first color register a sprite takes its colors from. OCS and
+     * ECS have this hard-wired to 16. AGA lets BPLCON4 select one of 16 banks,
+     * separately for the even and the odd sprite of a pair (ESPRM and OSPRM).
+     * The reset value 0x0011 selects bank 1 for both, which yields 16 again.
+     */
+    u8 sprBase(isize x) const {
+
+        if (!isAGA()) return 16;
+
+        auto nibble = IS_ODD(x) ? (bplcon4 & 0xF) : ((bplcon4 >> 4) & 0xF);
+        return u8(nibble << 4);
+    }
+
+    /* Returns the color offset of the second playfield in dual playfield mode.
+     * OCS and ECS place the colors of playfield 2 at register 8 and up. AGA
+     * makes the offset selectable through the PF2OF bits in BPLCON3, whose
+     * reset value reproduces the classic offset of 8.
+     */
+    u8 pf2of() const {
+
+        static constexpr u8 ofs[8] = { 0, 2, 4, 8, 16, 32, 64, 128 };
+        return isAGA() ? ofs[(bplcon3 >> 10) & 7] : 8;
+    }
 
     // CLXCON
     template <int x> bool ensp() { return !!GET_BIT(clxcon, 12 + (x/2)); }
@@ -886,24 +928,25 @@ private:
         return b;
     }
 
+    /* Distance between the two trigger positions of the horizontal sprite
+     * comparator when scan doubling is active. It corresponds to bit 8 of the
+     * lores position, which is two buffer entries wide.
+     */
+    static constexpr Pixel SPR_WRAP = 512;
+
+    /* Returns the position at which a sprite starts to be drawn. With AGA scan
+     * doubling enabled, SPRxPOS bit 7 no longer contributes to the horizontal
+     * position, because it has been taken over by the scan doubling flag. The
+     * comparator ignores the corresponding bit instead of evaluating it, which
+     * is why the sprite is matched twice per line (see drawSpritePair).
+     */
+    Pixel sprStrt(isize x) const;
+
     /* Assembles a sprite shift register value. The first word occupies the
      * upper 16 bits, the AGA extension continues below it. Bit 63 is always
      * the leftmost pixel, so a 16 pixel sprite runs empty after 16 shifts.
      */
     static u64 loadSSR(u16 value, u64 ext) { return (u64)value << 48 | ext; }
-
-    /* Returns the first color register a sprite takes its colors from. OCS and
-     * ECS have this hard-wired to 16. AGA lets BPLCON4 select one of 16 banks,
-     * separately for the even and the odd sprite of a pair (ESPRM and OSPRM).
-     * The reset value 0x0011 selects bank 1 for both, which yields 16 again.
-     */
-    u8 sprBase(isize x) const {
-
-        if (!isAGA()) return 16;
-
-        auto nibble = IS_ODD(x) ? (bplcon4 & 0xF) : ((bplcon4 >> 4) & 0xF);
-        return u8(nibble << 4);
-    }
 
     /* Returns the resolution sprites are drawn in. AGA decouples it from the
      * bitplane resolution via the SPRES bits in BPLCON3. The pixel buffer

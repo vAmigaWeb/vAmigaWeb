@@ -437,14 +437,13 @@ Denise::recordColorChange(isize nr, u16 value)
 
         /* AGA maintains 256 color registers with 8 bit per component. Writes
          * are directed to one of eight 32-color banks (BPLCON3 bits 13-15).
-         * Because the OS writes each color twice (first the high nibbles with
-         * LOCT = 0, then the low nibbles with LOCT = 1) and our palette only
-         * holds 12 bit colors, the second write has to be discarded. Otherwise
-         * the low nibbles would overwrite the actual color.
+         * A write with the LOCT bit set carries the lower nibbles of the
+         * components, which is how a program supplies the full 8 bit range.
+         * Such a write is marked by adding 256 to the register number, because
+         * the change history has no room for an extra flag.
          */
-        if (loct()) return;
-
         nr += colorBank() << 5;
+        if (loct()) nr += 256;
     }
 
     /* Record the color change. The target register is encoded as an offset to
