@@ -597,13 +597,13 @@ function message_handler_queue_worker(msg, data, data2)
         v=wasm_get_config_item("CPU.OVERCLOCKING");
         $(`#button_OPT_CPU_OVERCLOCKING`).text(`${Math.round((v==0?1:v)*7.09)} MHz ${cause}`);
         v=wasm_get_config_item("AGNUS.REVISION");
-        let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB'];
+        let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB','AGA'];
         let agnus_description = agnus_map.filter((e) => e.v == agnus_revs[v]);
         agnus_description= agnus_description.length>0 ? agnus_description[0].t : agnus_revs[v];
         $(`#button_OPT_AGNUS_REVISION`).html(`agnus revision=${agnus_description} ${cause}`);
 
         v=wasm_get_config_item("DENISE.REVISION");
-        let denise_revs=['OCS','ECS'];
+        let denise_revs=['OCS','ECS','AGA'];
         let denise_description = denise_map.filter((e) => e.v == denise_revs[v]);
         denise_description= denise_description.length>0 ? denise_description[0].t : denise_revs[v];
         $(`#button_OPT_DENISE_REVISION`).text(`denise revision=${denise_description} ${cause}`);
