@@ -466,6 +466,84 @@ Denise::drawBoth(Pixel offset)
     for (isize i = 0; i < 8; i++) shiftReg[i] = 0;
 }
 
+bool
+Denise::isReloadCycle(u8 scrollWord) const
+{
+    /* The extended scroll bits delay the output by whole words. Real hardware
+     * implements this delay by reloading the shift registers at a drawing cycle
+     * whose position matches the scroll value. The relevant positions repeat
+     * with the length of a fetch unit, because that is the amount of data a
+     * single fetch provides (dhv == bplcon1_shift_full in Amiberry).
+     *
+     * The delay is therefore not measured from the arrival of the data, but
+     * from a fixed grid that is aligned to the rasterline. Anchoring it to the
+     * arrival instead would place the first word of a line up to three words
+     * too far to the right and leave a gap at the left edge of the display
+     * window.
+     */
+    auto unit = isize(agnus.sequencer.fetchUnit);
+
+    // Length of a drawing cycle in DMA cycles
+    auto step = res == Resolution::LORES ? 8 : res == Resolution::HIRES ? 4 : 2;
+
+    /* Number of words a fetch unit is divided into. The delay cannot exceed
+     * this amount, which is why the extended bits stay without effect in 16 bit
+     * fetch mode (bplcon1_shift_mask in Amiberry).
+     */
+    auto words = unit / 8;
+    if (words < 1) return true;
+
+    // Convert the delay from words into drawing cycles
+    auto slot = (scrollWord & (words - 1)) * 8 / step;
+
+    return ((agnus.pos.h % unit) / step) == slot;
+}
+
+void
+Denise::prepareOdd()
+{
+    if (latchedOdd && isReloadCycle(scrollWordOdd)) {
+
+        for (isize i = 0; i < 8; i += 2) {
+
+            bpldatPipe[i] = bpldatLatch[i];
+            bpldatPipeExt[i] = bpldatLatchExt[i];
+        }
+        extCntOdd = latchExtCnt;
+        latchedOdd = false;
+        armedOdd = true;
+
+    } else {
+
+        /* Keep emitting the remaining words of the current fetch. Latched data
+         * has to wait for its reload cycle, just like the shift registers of
+         * the real hardware keep shifting until they are reloaded.
+         */
+        feedPipeOdd();
+    }
+}
+
+void
+Denise::prepareEven()
+{
+    if (latchedEven && isReloadCycle(scrollWordEven)) {
+
+        for (isize i = 1; i < 8; i += 2) {
+
+            bpldatPipe[i] = bpldatLatch[i];
+            bpldatPipeExt[i] = bpldatLatchExt[i];
+        }
+        extCntEven = latchExtCnt;
+        latchedEven = false;
+        armedEven = true;
+
+    } else {
+
+        // See prepareOdd()
+        feedPipeEven();
+    }
+}
+
 void
 Denise::feedPipeOdd()
 {
@@ -497,24 +575,26 @@ Denise::feedPipeEven()
 void
 Denise::drawLoresOdd()
 {
+    prepareOdd();
+
     if (armedOdd) {
 
         updateShiftRegistersOdd();
         drawOdd <Resolution::LORES> (pixelOffsetOdd);
         armedOdd = false;
-        feedPipeOdd();
     }
 }
 
 void
 Denise::drawLoresEven()
 {
+    prepareEven();
+
     if (armedEven) {
         
         updateShiftRegistersEven();
         drawEven <Resolution::LORES> (pixelOffsetEven);
         armedEven = false;
-        feedPipeEven();
     }
 }
 
@@ -528,24 +608,26 @@ Denise::drawLoresBoth()
 void
 Denise::drawHiresOdd()
 {
+    prepareOdd();
+
     if (armedOdd) {
 
         updateShiftRegistersOdd();
         drawOdd <Resolution::HIRES> (pixelOffsetOdd);
         armedOdd = false;
-        feedPipeOdd();
     }
 }
 
 void
 Denise::drawHiresEven()
 {
+    prepareEven();
+
     if (armedEven) {
 
         updateShiftRegistersEven();
         drawEven <Resolution::HIRES> (pixelOffsetEven);
         armedEven = false;
-        feedPipeEven();
     }
 }
 
@@ -559,24 +641,26 @@ Denise::drawHiresBoth()
 void
 Denise::drawShresOdd()
 {
+    prepareOdd();
+
     if (armedOdd) {
 
         updateShiftRegistersOdd();
         drawOdd <Resolution::SHRES> (pixelOffsetOdd);
         armedOdd = false;
-        feedPipeOdd();
     }
 }
 
 void
 Denise::drawShresEven()
 {
+    prepareEven();
+
     if (armedEven) {
 
         updateShiftRegistersEven();
         drawEven <Resolution::SHRES> (pixelOffsetEven);
         armedEven = false;
-        feedPipeEven();
     }
 }
 
@@ -1428,6 +1512,13 @@ Denise::hsyncHandler(isize vpos)
 
     // Remember whether sprites were armed in this line
     wasArmed = armed;
+
+    /* Drop bitplane data that has never reached its reload cycle. This happens
+     * when bitplane DMA stops before the drawing cycle selected by the extended
+     * scroll bits is reached (see prepareOdd).
+     */
+    latchedOdd = false;
+    latchedEven = false;
 
     /* Reset the sprite clipping range. Sprites are normally confined to the
      * area covered by bitplane data, which is why the range starts out empty

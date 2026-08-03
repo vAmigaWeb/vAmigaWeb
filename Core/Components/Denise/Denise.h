@@ -144,6 +144,25 @@ public:
     u8 extCntOdd;
     u8 extCntEven;
 
+    /* In AGA, the pipeline is not reloaded when the fetched data arrives, but
+     * at the drawing cycle selected by the extended scroll bits in BPLCON1
+     * (see prepareOdd). Because Agnus fetches plane 1 last, the data registers
+     * hold a complete fetch at the time BPL1DAT is written, and only then. They
+     * are therefore snapshotted here, as the next fetch would otherwise
+     * overwrite them before the reload cycle is reached.
+     */
+    u16 bpldatLatch[8];
+    u64 bpldatLatchExt[8];
+    u8 latchExtCnt;
+
+    // Indicates that the latched data still waits for its reload cycle
+    bool latchedOdd;
+    bool latchedEven;
+
+    // The extended scroll values from BPLCON1, in units of whole words
+    u8 scrollWordOdd;
+    u8 scrollWordEven;
+
     // Sprite collision registers
     u16 clxdat;
     u16 clxcon;
@@ -172,6 +191,15 @@ public:
     // Shifts the next AGA word into the bitplane pipeline (FMODE)
     void feedPipeOdd();
     void feedPipeEven();
+
+    /* Prepares a drawing cycle. Either the latched data is transferred to the
+     * pipeline, or the next word of the current fetch is shifted in.
+     */
+    void prepareOdd();
+    void prepareEven();
+
+    // Checks if the current drawing cycle is the reload cycle (see prepareOdd)
+    bool isReloadCycle(u8 scrollWord) const;
 
     
     //
@@ -420,6 +448,13 @@ public:
         CLONE(bpldatExtCnt)
         CLONE(extCntOdd)
         CLONE(extCntEven)
+        CLONE_ARRAY(bpldatLatch)
+        CLONE_ARRAY(bpldatLatchExt)
+        CLONE(latchExtCnt)
+        CLONE(latchedOdd)
+        CLONE(latchedEven)
+        CLONE(scrollWordOdd)
+        CLONE(scrollWordEven)
         CLONE(clxdat)
         CLONE(clxcon)
         CLONE(clxcon2)
@@ -494,6 +529,13 @@ private:
         << bpldatExtCnt
         << extCntOdd
         << extCntEven
+        << bpldatLatch
+        << bpldatLatchExt
+        << latchExtCnt
+        << latchedOdd
+        << latchedEven
+        << scrollWordOdd
+        << scrollWordEven
         << clxdat
         << clxcon
         << clxcon2
@@ -763,6 +805,12 @@ public:
 
     template <Accessor s> void pokeBPLCON1(u16 value);
     void setBPLCON1(u16 oldValue, u16 newValue);
+
+    /* Derives the horizontal scroll offsets from BPLCON1. The result depends on
+     * the bitplane resolution and the fetch width, hence this function must be
+     * called after a change of BPLCON0 or FMODE, too.
+     */
+    void updateScrollOffsets();
 
     template <Accessor s> void pokeBPLCON2(u16 value);
     void setBPLCON2(u16 value);

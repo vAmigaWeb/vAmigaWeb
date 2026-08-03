@@ -160,6 +160,9 @@ Denise::setBPLCON0(u16 oldValue, u16 newValue)
     // Determine the new bitmap resolution
     res = resolution(newValue);
 
+    // The scroll offsets depend on the resolution
+    updateScrollOffsets();
+
     // Update border color index, because the ECSENA bit might have changed
     updateBorderColor();
     
@@ -189,23 +192,25 @@ Denise::setBPLCON1(u16 oldValue, u16 newValue)
     // In AGA, the upper byte holds the extended scroll bits
     bplcon1 = newValue & (isAGA() ? 0xFFFF : 0x00FF);
 
-    pixelOffsetOdd  = (i8)((bplcon1 & 0b00000001) << 1);
-    pixelOffsetEven = (i8)((bplcon1 & 0b00010000) >> 3);
+    updateScrollOffsets();
+}
+
+void
+Denise::updateScrollOffsets()
+{
+    pixelOffsetOdd  = Pixel((bplcon1 & 0b00000001) << 1);
+    pixelOffsetEven = Pixel((bplcon1 & 0b00010000) >> 3);
 
     /* AGA widens the scroll range from 16 to 64 lores pixels. The additional
      * bits are PF1H6 and PF1H7 in bits 11-10, and PF2H6 and PF2H7 in bits
-     * 15-14. They delay the output by up to three whole 16 pixel words.
+     * 15-14. They delay the output by whole 16 pixel words.
      *
-     * Agnus cannot express this delay, because the position of its drawing
-     * flags repeats every 16 lores pixels. It is therefore applied here as an
-     * additional pixel offset. One lores pixel occupies two entries of the
-     * data buffer, hence the factor of 32 per word.
+     * This delay is not a pixel offset. It selects the drawing cycle that
+     * reloads the shift registers, which is why it is applied in prepareOdd()
+     * and prepareEven() instead (see there).
      */
-    if (isAGA()) {
-
-        pixelOffsetOdd  += Pixel((bplcon1 & 0x0C00) >> 10) * 32;
-        pixelOffsetEven += Pixel((bplcon1 & 0xC000) >> 14) * 32;
-    }
+    scrollWordOdd  = isAGA() ? u8((bplcon1 & 0x0C00) >> 10) : 0;
+    scrollWordEven = isAGA() ? u8((bplcon1 & 0xC000) >> 14) : 0;
 }
 
 template <Accessor s> void
@@ -334,14 +339,32 @@ Denise::setBPLxDAT(u16 value)
     bpldat[x] = value;
 
     if constexpr (x == 0) {
-        
-        // Feed data registers into pipe
-        for (isize i = 0; i < 8; i++) bpldatPipe[i] = bpldat[i];
-        for (isize i = 0; i < 8; i++) bpldatPipeExt[i] = bpldatExt[i];
-        extCntOdd = extCntEven = bpldatExtCnt;
 
-        armedOdd = true;
-        armedEven = true;
+        if (agnus.sequencer.fetchWords > 1) {
+
+            /* In AGA, a single fetch provides data for several drawing cycles.
+             * The pipeline is not reloaded here, but at the drawing cycle
+             * selected by the extended scroll bits (see prepareOdd). Take a
+             * snapshot of the fetched data, because the next fetch may overwrite
+             * the data registers before that cycle is reached.
+             */
+            for (isize i = 0; i < 8; i++) bpldatLatch[i] = bpldat[i];
+            for (isize i = 0; i < 8; i++) bpldatLatchExt[i] = bpldatExt[i];
+            latchExtCnt = bpldatExtCnt;
+
+            latchedOdd = true;
+            latchedEven = true;
+
+        } else {
+
+            // Feed data registers into pipe
+            for (isize i = 0; i < 8; i++) bpldatPipe[i] = bpldat[i];
+            for (isize i = 0; i < 8; i++) bpldatPipeExt[i] = bpldatExt[i];
+            extCntOdd = extCntEven = bpldatExtCnt;
+
+            armedOdd = true;
+            armedEven = true;
+        }
 
         spriteClipBegin = std::min(spriteClipBegin, Pixel(agnus.pos.pixel() + 4));
     }

@@ -150,11 +150,13 @@ private:
      */
     EventID fetch[2][32];
 
-    // Length of a fetch unit in DMA cycles
-    u8 fetchUnit = 8;
-
     // Bit mask for wrapping the fetch unit counter (fetchUnit / 2 - 1)
     u8 cntMask = 3;
+
+public:
+
+    // Length of a fetch unit in DMA cycles
+    u8 fetchUnit = 8;
 
 public:
 

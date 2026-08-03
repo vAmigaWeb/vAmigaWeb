@@ -414,6 +414,9 @@ Agnus::setFMODE(u16 value)
 
     fmode = value;
 
+    // The fetch width limits the AGA scroll range (see updateScrollOffsets)
+    denise.updateScrollOffsets();
+
     sequencer.computeBplEventTable(sequencer.sigRecorder);
     scheduleBplEventForCycle(pos.h);
 }
