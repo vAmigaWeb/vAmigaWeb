@@ -757,7 +757,7 @@ Agnus::eolHandler()
     // count how many scanlines actually did bitplane dma (layout-independent
     // height, works even when the copper reloads bplpt every line)
     if (bplGuessEnabled) {
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < BPL_GUESS_PLANES; i++) {
             if (bplGuessLineWords[i] > bplGuessWordsLive[i]) bplGuessWordsLive[i] = bplGuessLineWords[i];
             if (bplGuessLineWords[i] > 0) bplGuessLinesLive[i]++;
             bplGuessLineWords[i] = 0;
@@ -796,7 +796,7 @@ Agnus::eofHandler()
 
     // Commit the bitplane guesser range and reset it for the next frame
     if (bplGuessEnabled) {
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < BPL_GUESS_PLANES; i++) {
             bplGuessMin[i] = bplGuessMinLive[i];
             bplGuessMax[i] = bplGuessMaxLive[i];
             bplGuessMod[i] = (i & 1) ? bpl2mod : bpl1mod;
@@ -810,7 +810,7 @@ Agnus::eofHandler()
         // Commit the per-line first-pointer table and reset it for the next
         // frame (invalid marker ~0u = no bitplane dma on that line)
         for (int l = 0; l < BPL_GUESS_MAX_LINES; l++) {
-            for (int i = 0; i < 6; i++) {
+            for (int i = 0; i < BPL_GUESS_PLANES; i++) {
                 bplGuessFirst[l][i] = bplGuessFirstLive[l][i];
                 bplGuessFirstLive[l][i] = ~0u;
                 bplGuessWordsPerLine[l][i] = bplGuessWordsPerLineLive[l][i];

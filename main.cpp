@@ -986,7 +986,7 @@ extern "C" void wasm_set_bitplane_guess(int on)
     // Prime the per-line first-pointer table with the invalid marker so lines
     // without bitplane dma are ignored by the guesser from the very first frame
     for(int l=0; l<Agnus::BPL_GUESS_MAX_LINES; l++)
-      for(int i=0; i<6; i++)
+      for(int i=0; i<Agnus::BPL_GUESS_PLANES; i++)
         ag->bplGuessFirstLive[l][i] = ~0u;
   }
   ag->bplGuessEnabled = (on != 0);
@@ -1084,7 +1084,7 @@ extern "C" const char* wasm_get_bitplane_areas()
 
   std::string s;
   char b[96];
-  for(int p=0; p<6; p++)
+  for(int p=0; p<Agnus::BPL_GUESS_PLANES; p++)
   {
     int words = (int)ag->bplGuessWords[p];
     if(words <= 0) continue;

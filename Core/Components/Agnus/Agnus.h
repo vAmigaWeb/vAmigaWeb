@@ -144,30 +144,32 @@ public:
     i16 bpl2mod = 0;
 
     // Bitplane guesser: records the bitplane DMA address range per frame
+    // All eight planes are tracked, so AGA screens are covered as well.
+    static constexpr isize BPL_GUESS_PLANES = 8;
     bool bplGuessEnabled = false;
-    u32 bplGuessMinLive[6] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u };  // running min (current frame)
-    u32 bplGuessMaxLive[6] = { 0, 0, 0, 0, 0, 0 };              // running max (current frame)
-    u32 bplGuessMin[6] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u };      // committed (last finished frame)
-    u32 bplGuessMax[6] = { 0, 0, 0, 0, 0, 0 };
-    i16 bplGuessMod[6] = { 0, 0, 0, 0, 0, 0 };                  // committed modulo per plane
-    u16 bplGuessLineWords[6] = { 0, 0, 0, 0, 0, 0 };            // words in current line
-    u16 bplGuessWordsLive[6] = { 0, 0, 0, 0, 0, 0 };            // max words per line (current frame)
-    u16 bplGuessWords[6] = { 0, 0, 0, 0, 0, 0 };               // committed words per line
-    u16 bplGuessLinesLive[6] = { 0, 0, 0, 0, 0, 0 };           // scanlines with dma (current frame)
-    u16 bplGuessLines[6] = { 0, 0, 0, 0, 0, 0 };               // committed scanline count
+    u32 bplGuessMinLive[BPL_GUESS_PLANES] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u };  // running min (current frame)
+    u32 bplGuessMaxLive[BPL_GUESS_PLANES] = { };                // running max (current frame)
+    u32 bplGuessMin[BPL_GUESS_PLANES] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u };      // committed (last finished frame)
+    u32 bplGuessMax[BPL_GUESS_PLANES] = { };
+    i16 bplGuessMod[BPL_GUESS_PLANES] = { };                    // committed modulo per plane
+    u16 bplGuessLineWords[BPL_GUESS_PLANES] = { };              // words in current line
+    u16 bplGuessWordsLive[BPL_GUESS_PLANES] = { };              // max words per line (current frame)
+    u16 bplGuessWords[BPL_GUESS_PLANES] = { };                  // committed words per line
+    u16 bplGuessLinesLive[BPL_GUESS_PLANES] = { };              // scanlines with dma (current frame)
+    u16 bplGuessLines[BPL_GUESS_PLANES] = { };                  // committed scanline count
     // Per-scanline first bitplane pointer (start of each line's fetch). This
     // lets the guesser derive the real line-to-line stride/modulo from the
     // measured pointer deltas instead of the BPLxMOD registers, so it stays
     // correct even for demos that reload bplpt every line via the copper/cpu.
     static constexpr isize BPL_GUESS_MAX_LINES = 320;
-    bool bplGuessHadFirst[6] = { };                            // first fetch seen on current line
-    u32 bplGuessFirstLive[BPL_GUESS_MAX_LINES][6] = { };       // first bplpt per line (current frame)
-    u32 bplGuessFirst[BPL_GUESS_MAX_LINES][6] = { };           // committed (last finished frame)
+    bool bplGuessHadFirst[BPL_GUESS_PLANES] = { };             // first fetch seen on current line
+    u32 bplGuessFirstLive[BPL_GUESS_MAX_LINES][BPL_GUESS_PLANES] = { }; // first bplpt per line (current frame)
+    u32 bplGuessFirst[BPL_GUESS_MAX_LINES][BPL_GUESS_PLANES] = { };     // committed (last finished frame)
     // Per-scanline word count. The frame-wide maximum in bplGuessWords cannot
     // be used to describe an individual area, because a single odd scanline
     // (mode switch, split screen, menu bar) would widen every reported area.
-    u16 bplGuessWordsPerLineLive[BPL_GUESS_MAX_LINES][6] = { }; // words per line (current frame)
-    u16 bplGuessWordsPerLine[BPL_GUESS_MAX_LINES][6] = { };     // committed (last finished frame)
+    u16 bplGuessWordsPerLineLive[BPL_GUESS_MAX_LINES][BPL_GUESS_PLANES] = { }; // words per line (current frame)
+    u16 bplGuessWordsPerLine[BPL_GUESS_MAX_LINES][BPL_GUESS_PLANES] = { };     // committed (last finished frame)
     /* Interlace flag of the last finished frame. In interlaced modes a frame
      * covers a single field, so the measured line-to-line stride spans two
      * picture rows (both fields are interleaved in one buffer).

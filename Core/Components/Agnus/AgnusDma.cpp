@@ -136,7 +136,7 @@ Agnus::doBitplaneDmaRead()
     }
     bpldatNextValid[bitplane] = words - 1;
 
-    if (bplGuessEnabled && bitplane < 6) {
+    if (bplGuessEnabled && bitplane < BPL_GUESS_PLANES) {
         // A single AGA fetch covers several words, so count them all and let
         // the address range span up to the last word (see FMODE)
         u32 last = a + 2 * (words - 1);
