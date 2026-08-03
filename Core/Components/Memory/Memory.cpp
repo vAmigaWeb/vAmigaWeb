@@ -2430,48 +2430,6 @@ Memory::pokeCustom16(u32 addr, u16 value)
 
     dataBus = value;
 
-    // AGA debug log: first 60 scanlines, AGA display/control registers
-    if (agnus.pos.v >= 0 && agnus.pos.v < 60) {
-        u32 reg = (addr >> 1) & 0xFF;
-        bool log = false;
-        switch (reg) {
-            case 0x80: case 0x81: case 0x82: case 0x83: case 0x86: // BPLCON0-4
-            case 0xFE:                                               // FMODE
-            case 0x15: case 0x16:                                  // VPOSW, VHPOSW
-            case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: // COP1/2 LCH/LCL, COPJMP1/2
-            case 0x47: case 0x48: case 0x49: case 0x4A: case 0x4B: // DIWSTRT/STOP/DDFSTRT/STOP/DMACON
-            case 0x84: case 0x85:                                  // BPL1MOD/BPL2MOD
-            case 0x70: case 0x71: case 0x72: case 0x73:            // BPL1/2 PTH/PTL
-            case 0x74: case 0x75: case 0x76: case 0x77:            // BPL3/4
-            case 0x78: case 0x79: case 0x7A: case 0x7B:            // BPL5/6
-            case 0x7C: case 0x7D: case 0x7E: case 0x7F:            // BPL7/8
-            case 0xC0: case 0xC1: case 0xC2: case 0xC3:
-            case 0xC4: case 0xC5: case 0xC6: case 0xC7:
-            case 0xC8: case 0xC9: case 0xCA: case 0xCB:
-            case 0xCC: case 0xCD: case 0xCE: case 0xCF:
-            case 0xD0: case 0xD1: case 0xD2: case 0xD3:
-            case 0xD4: case 0xD5: case 0xD6: case 0xD7:
-            case 0xD8: case 0xD9: case 0xDA: case 0xDB:
-            case 0xDC: case 0xDD: case 0xDE: case 0xDF:            // COLOR00-31
-                log = true;
-                break;
-        }
-        if (log) {
-            static u16 last[256];
-            static bool ready = false;
-            if (!ready) {
-                for (int i = 0; i < 256; i++) last[i] = 0xFFFF;
-                ready = true;
-            }
-            if (last[reg] != value) {
-                last[reg] = value;
-                printf("vAmiga %4ld:%3ld W %03X %-8s = %04X\n",
-                       (long)agnus.pos.v, (long)agnus.pos.h,
-                       (unsigned)(addr & 0x1FE), MemoryDebugger::regName(addr & 0x1FE), value);
-            }
-        }
-    }
-
     switch ((addr >> 1) & 0xFF) {
 
         case 0x020 >> 1: // DSKPTH
