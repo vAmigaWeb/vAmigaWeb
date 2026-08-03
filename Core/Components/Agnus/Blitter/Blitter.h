@@ -154,7 +154,13 @@ class Blitter final : public SubComponent, public Inspectable<BlitterInfo>
      * is cleared a few cycles before the Blitter actually terminates.
      */
     bool bbusy;
-    
+
+    /* Remaining delay until the busy flag is cleared, measured in CCKs. In
+     * AGA, a blit with an active D channel keeps the flag set for two more
+     * cycles after the last word has been processed.
+     */
+    u8 bbusyDelay;
+
     // The Blitter zero flag
     bool bzero;
     
@@ -249,6 +255,7 @@ public:
 
         CLONE(running)
         CLONE(bbusy)
+        CLONE(bbusyDelay)
         CLONE(bzero)
         CLONE(birq)
 
@@ -317,6 +324,7 @@ public:
 
         << running
         << bbusy
+        << bbusyDelay
         << bzero
         << birq
 

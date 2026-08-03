@@ -148,6 +148,13 @@ public:
     u16 clxdat;
     u16 clxcon;
 
+    /* Collision control for the two AGA bitplanes. CLXCON only covers planes 1
+     * to 6, so AGA adds ENBP7/ENBP8 and MVBP7/MVBP8 in a second register. The
+     * bit layout mirrors CLXCON: the match values sit in the low bits, the
+     * enable bits six positions above.
+     */
+    u16 clxcon2;
+
     //
     // Shift registers
     //
@@ -415,6 +422,7 @@ public:
         CLONE(extCntEven)
         CLONE(clxdat)
         CLONE(clxcon)
+        CLONE(clxcon2)
         CLONE_ARRAY(shiftReg)
         CLONE(armedOdd)
         CLONE(armedEven)
@@ -488,6 +496,7 @@ private:
         << extCntEven
         << clxdat
         << clxcon
+        << clxcon2
         << shiftReg
         << armedOdd
         << armedEven
@@ -767,6 +776,7 @@ public:
     u16 peekCLXDAT();
     u16 spypeekCLXDAT() const;
     void pokeCLXCON(u16 value);
+    void pokeCLXCON2(u16 value);
     
     template <isize x, Accessor s> void pokeBPLxDAT(u16 value);
     template <isize x> void setBPLxDAT(u16 value);
@@ -791,6 +801,13 @@ public:
     template <isize x> void setSPRxDATB(u16 value, u64 ext);
     
     template <isize xx, Accessor s> void pokeCOLORxx(u16 value);
+
+    /* Reads one of the 32 color registers. AGA makes the registers readable by
+     * setting the RDRAM bit in BPLCON2. As with a write, BPLCON3 selects the
+     * color bank and determines whether the upper or the lower nibbles of the
+     * components are returned.
+     */
+    u16 peekCOLORxx(isize nr) const;
 
     /* Records a write to one of the 32 color registers in the change history.
      * In AGA, the write is redirected to the color bank selected by BPLCON3,
@@ -838,6 +855,36 @@ public:
     u16 pf1px() const { return pf1px(bplcon2); }
     static u16 pf2px(u16 bplcon2) { return (bplcon2 >> 3) & 7; }
     u16 pf2px() const { return pf2px(bplcon2); }
+    static bool killehb(u16 v) { return GET_BIT(v, 9); }
+    bool killehb() const { return killehb(bplcon2); }
+
+    /* Returns true if the color registers are switched to read mode. The
+     * feature is AGA only. With RDRAM set, the registers can be read back and
+     * write accesses are ignored.
+     */
+    static bool rdram(u16 v) { return GET_BIT(v, 8); }
+    bool rdram() const { return isAGA() && rdram(bplcon2); }
+
+    /* Returns true if Extra-Half-Brite mode is active. EHB requires six
+     * bitplanes and is available in single-playfield mode only. OCS also
+     * enters EHB with seven bitplanes selected, which is an invalid setting
+     * Denise treats like six. ECS and AGA allow the mode to be disabled with
+     * the KILLEHB bit in BPLCON2.
+     */
+    bool ehb(u16 con0, u16 con2) const {
+
+        if (ham(con0) || dbplf(con0)) return false;
+
+        u8 planes = isAGA() && GET_BIT(con0, 4) ? ((con0 & 0x7000) ? 0 : 8) : bpu(con0);
+
+        if (isAGA()) {
+            if (planes != 6) return false;
+        } else {
+            if (planes != 6 && planes != 7) return false;
+        }
+        return isOCS() ? true : !killehb(con2);
+    }
+    bool ehb() const { return ehb(bplcon0, bplcon2); }
 
     // BPLCON3
     static bool brdrblnk(u16 v) { return !!GET_BIT(v, 5); }
@@ -879,12 +926,16 @@ public:
         return isAGA() ? ofs[(bplcon3 >> 10) & 7] : 8;
     }
 
-    // CLXCON
+    /* CLXCON and CLXCON2. Bit n of the returned mask belongs to bitplane n+1,
+     * matching the layout of the bitplane buffer. Planes 7 and 8 come from
+     * CLXCON2 and land in bit 6 and bit 7. On OCS and ECS that register stays
+     * zero, so the masks are unaffected there.
+     */
     template <int x> bool ensp() { return !!GET_BIT(clxcon, 12 + (x/2)); }
-    u8 enbp1() const { return (u8)((clxcon >> 6) & 0b010101); }
-    u8 enbp2() const { return (u8)((clxcon >> 6) & 0b101010); }
-    u8 mvbp1() const { return (u8)(clxcon & 0b010101); }
-    u8 mvbp2() const { return (u8)(clxcon & 0b101010); }
+    u8 enbp1() const { return (u8)(((clxcon >> 6) & 0b010101) | (clxcon2 & 0x40)); }
+    u8 enbp2() const { return (u8)(((clxcon >> 6) & 0b101010) | (clxcon2 & 0x80)); }
+    u8 mvbp1() const { return (u8)((clxcon & 0b010101) | ((clxcon2 << 6) & 0x40)); }
+    u8 mvbp2() const { return (u8)((clxcon & 0b101010) | ((clxcon2 << 6) & 0x80)); }
     
     
     //

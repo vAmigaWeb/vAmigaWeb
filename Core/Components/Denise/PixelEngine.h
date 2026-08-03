@@ -107,6 +107,15 @@ private:
     bool hamMode;
     bool shresMode;
 
+    /* Indicates whether Extra-Half-Brite mode is enabled. In EHB mode, the
+     * palette entries 32 to 63 are replaced by darkened copies of the entries
+     * 0 to 31. The mode is derived from BPLCON0 and BPLCON2, whose replayed
+     * values are mirrored below (see updateEhbPalette).
+     */
+    bool ehbMode;
+    u16 ehbCon0;
+    u16 ehbCon2;
+
     /* Indicates whether the AGA variant of HAM mode is enabled. HAM8 takes its
      * control bits from the two lowest bitplanes instead of the two highest
      * ones, and it modifies six bits of a component instead of four.
@@ -150,6 +159,9 @@ public:
         CLONE(hamMode)
         CLONE(shresMode)
         CLONE(hamMode8)
+        CLONE(ehbMode)
+        CLONE(ehbCon0)
+        CLONE(ehbCon2)
         CLONE_ARRAY(palette)
 
         return *this;
@@ -171,7 +183,10 @@ private:
         << color
         << hamMode
         << shresMode
-        << hamMode8;
+        << hamMode8
+        << ehbMode
+        << ehbCon0
+        << ehbCon2;
 
     } SERIALIZERS(serialize);
 
@@ -241,6 +256,13 @@ public:
 
     // Converts an Amiga color into a texel, applying the monitor settings
     Texel toTexel(AmigaColor c) const;
+
+    /* Recomputes the palette entries 32 to 63. Depending on the current
+     * bitplane mode, this range either holds the color registers 32 to 63
+     * (AGA), darkened copies of the registers 0 to 31 (Extra-Half-Brite), or
+     * plain copies of the registers 0 to 31 (ECS with KILLEHB set).
+     */
+    void updateEhbPalette();
 
 private:
 

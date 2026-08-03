@@ -145,8 +145,12 @@ Denise::setBPLCON0(u16 oldValue, u16 newValue)
     i64 pixel = std::max(agnus.pos.pixel() - 4, (isize)0);
     conChanges.insert(pixel, RegChange { .reg = Reg::BPLCON0, .value = newValue });
     
-    // Check if the HAM bit or the SHRES bit have changed
-    if ((ham(oldValue) ^ ham(newValue)) || (shres(oldValue) ^ shres(newValue))) {
+    /* Check if the HAM bit, the SHRES bit, or one of the bits the EHB mode
+     * depends on have changed. The latter are the BPU bits (including BPU3 in
+     * AGA) and the dual-playfield bit.
+     */
+    if ((ham(oldValue) ^ ham(newValue)) || (shres(oldValue) ^ shres(newValue)) ||
+        ((oldValue ^ newValue) & 0x7410)) {
         pixelEngine.colChanges.insert(pixel, RegChange { .reg = Reg::BPLCON0, .value = newValue, .accessor = Accessor::DENISE } );
     }
 
@@ -217,6 +221,7 @@ Denise::setBPLCON2(u16 newValue)
 {
     trace(BPLREG_DEBUG, "setBPLCON2(%X)\n", newValue);
 
+    auto oldValue = bplcon2;
     bplcon2 = newValue;
 
     if (pf1px() > 4) { xfiles("BPLCON2: PF1P = %d\n", pf1px()); }
@@ -225,6 +230,11 @@ Denise::setBPLCON2(u16 newValue)
     // Record the register change
     i64 pixel = agnus.pos.pixel() + 4;
     conChanges.insert(pixel, RegChange { .reg = Reg::BPLCON2, .value = newValue });
+
+    // Check if the KILLEHB bit has changed
+    if (killehb(oldValue) ^ killehb(newValue)) {
+        pixelEngine.colChanges.insert(pixel, RegChange { .reg = Reg::BPLCON2, .value = newValue });
+    }
 }
 
 template <Accessor s> void
@@ -287,6 +297,17 @@ Denise::pokeCLXCON(u16 value)
 {
     trace(CLXREG_DEBUG, "pokeCLXCON(%x)\n", value);
     clxcon = value;
+}
+
+void
+Denise::pokeCLXCON2(u16 value)
+{
+    trace(CLXREG_DEBUG, "pokeCLXCON2(%x)\n", value);
+
+    // CLXCON2 is an AGA-only register
+    if (!isAGA()) return;
+
+    clxcon2 = value;
 }
 
 template <isize x, Accessor s> void
@@ -428,10 +449,31 @@ Denise::pokeCOLORxx(u16 value)
     recordColorChange(xx, value);
 }
 
+u16
+Denise::peekCOLORxx(isize nr) const
+{
+    assert(nr >= 0 && nr < 32);
+
+    // The registers are readable in AGA only, and only if RDRAM is set
+    if (!rdram()) return 0xFFFF;
+
+    auto c = pixelEngine.getAmigaColor(nr + (colorBank() << 5));
+
+    // With LOCT set, the lower nibbles of the components are returned
+    if (loct()) {
+        return u16(((c.r & 0xF) << 8) | ((c.g & 0xF) << 4) | (c.b & 0xF));
+    } else {
+        return u16(((c.r >> 4) << 8) | ((c.g >> 4) << 4) | (c.b >> 4));
+    }
+}
+
 void
 Denise::recordColorChange(isize nr, u16 value)
 {
     assert(nr >= 0 && nr < 32);
+
+    // With RDRAM set, the color registers are read-only
+    if (rdram()) return;
 
     if (isAGA()) {
 

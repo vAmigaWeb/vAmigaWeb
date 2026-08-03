@@ -587,6 +587,15 @@ public:
     // Accessing the custom chip space
     //
     
+    /* Checks whether an address inside the custom chip space refers to one of
+     * the 32 color registers (COLOR00 to COLOR31), and returns the number of
+     * the addressed register.
+     */
+    static bool isColorReg(u32 addr) {
+        auto reg = (addr >> 1) & 0xFF; return reg >= 0xC0 && reg <= 0xDF;
+    }
+    static isize colorRegNr(u32 addr) { return isize(((addr >> 1) & 0xFF) - 0xC0); }
+
     u16 peekCustom16(u32 addr);
     u16 peekCustomFaulty16(u32 addr);
     

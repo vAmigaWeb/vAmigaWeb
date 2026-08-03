@@ -22,6 +22,9 @@ Blitter::serviceEvent()
 void
 Blitter::serviceEvent(EventID id)
 {
+    // Advance the delayed clearing of the busy flag (see clearBusyFlag)
+    if (bbusyDelay && --bbusyDelay == 0) bbusy = false;
+
     switch (id) {
 
         case BLT_STRT1:
@@ -79,6 +82,13 @@ Blitter::serviceEvent(EventID id)
             
             trace(BLT_DEBUG, "Line fake %d:%d\n", bltconUSEB(), bltpc);
             (this->*lineBlitInstr[bltconUSEBC()][1][bltpc])();
+            break;
+
+        case BLT_BUSY:
+
+            // The Blitter has terminated with the busy flag still set
+            bbusy = false;
+            agnus.cancel<SLOT_BLT>();
             break;
 
         default:

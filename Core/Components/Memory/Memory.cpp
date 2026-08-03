@@ -2342,8 +2342,15 @@ Memory::peekCustom16(u32 addr)
         case 0x07C >> 1: // DENISEID
             result = denise.peekDENISEID(); break;
         default:
-            result = peekCustomFaulty16(addr);
 
+            /* In AGA, the color registers become readable if the RDRAM bit in
+             * BPLCON2 is set. All other registers are write-only.
+             */
+            if (isColorReg(addr) && denise.rdram()) {
+                result = denise.peekCOLORxx(colorRegNr(addr));
+            } else {
+                result = peekCustomFaulty16(addr);
+            }
     }
 
     trace(OCSREG_DEBUG, "peekCustom16(%X [%s]) = %X\n", addr, MemoryDebugger::regName(addr), result);
@@ -2415,6 +2422,11 @@ Memory::spypeekCustom16(u32 addr) const
             return denise.spypeekDENISEID();
 
         default:
+
+            // In AGA, the color registers are readable if RDRAM is set
+            if (isColorReg(addr) && denise.rdram()) {
+                return denise.peekCOLORxx(colorRegNr(addr));
+            }
             return 0;
     }
 }
@@ -2663,8 +2675,8 @@ Memory::pokeCustom16(u32 addr, u16 value)
             agnus.pokeBPL2MOD(value); return;
         case 0x10C >> 1: // BPLCON4 (AGA)
             denise.pokeBPLCON4<s>(value); return;
-        case 0x10E >> 1: // Unused
-            break;
+        case 0x10E >> 1: // CLXCON2 (AGA)
+            denise.pokeCLXCON2(value); return;
         case 0x110 >> 1: // BPL1DAT
             denise.pokeBPLxDAT<0,s>(value); return;
         case 0x112 >> 1: // BPL2DAT

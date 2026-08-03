@@ -85,12 +85,22 @@ PixelEngine::setColor(isize reg, AmigaColor value)
 
     color[reg] = value;
 
-    // Update standard palette entry
-    palette[reg] = toTexel(value);
+    /* Update the standard palette entry. In EHB mode, the entries 32 to 63 are
+     * occupied by the darkened copies of the entries 0 to 31, so a write to
+     * one of these registers must not touch the palette.
+     */
+    if (!ehbMode || reg < 32 || reg >= 64) {
+        palette[reg] = toTexel(value);
+    }
 
-    // Update halfbright palette entry (OCS/ECS only)
-    if (!denise.isAGA() && reg < 32) {
-        palette[reg + 32] = toTexel(value.ehb());
+    // Update the mirrored entry in the upper half of the lower palette
+    if (reg < 32) {
+
+        if (ehbMode) {
+            palette[reg + 32] = toTexel(value.ehb());
+        } else if (!denise.isAGA()) {
+            palette[reg + 32] = palette[reg];
+        }
     }
 }
 
@@ -167,6 +177,37 @@ PixelEngine::updateRGBA()
 
     // Update all cached RGBA values
     for (isize i = 0; i < 256; i++) setColor(i, color[i]);
+
+    // Update the Extra-Half-Brite entries
+    updateEhbPalette();
+}
+
+void
+PixelEngine::updateEhbPalette()
+{
+    ehbMode = denise.ehb(ehbCon0, ehbCon2);
+
+    for (isize i = 0; i < 32; i++) {
+
+        if (ehbMode) {
+
+            // Extra-Half-Brite: The entry holds a darkened copy
+            palette[i + 32] = toTexel(color[i].ehb());
+
+        } else if (denise.isAGA()) {
+
+            // AGA: The entry holds a color register of its own
+            palette[i + 32] = toTexel(color[i + 32]);
+
+        } else {
+
+            /* OCS and ECS: The register does not exist. With KILLEHB set, ECS
+             * Denise ignores bitplane 6, which makes the entry an alias of the
+             * corresponding register in the lower half.
+             */
+            palette[i + 32] = toTexel(color[i]);
+        }
+    }
 }
 
 void
@@ -347,6 +388,14 @@ PixelEngine::applyRegisterChange(const RegChange &change)
             hamMode = Denise::ham(change.value);
             hamMode8 = denise.ham8(change.value);
             shresMode = Denise::shres(change.value);
+            ehbCon0 = change.value;
+            updateEhbPalette();
+            break;
+
+        case Reg::BPLCON2:
+
+            ehbCon2 = change.value;
+            updateEhbPalette();
             break;
             
         default: // It must be a color register then

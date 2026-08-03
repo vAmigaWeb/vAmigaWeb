@@ -594,6 +594,17 @@ Blitter::clearBusyFlag()
 {
     debug(BLTTIM_DEBUG, "(%ld,%ld) Blitter bbusy\n", agnus.pos.v, agnus.pos.h);
 
+    /* In AGA, a blit that writes to the D channel keeps the busy flag set for
+     * two more CCKs. Line blits are not affected, because they take a
+     * different path through the D logic. The delay is a cycle-exact detail
+     * the fast Blitter does not participate in.
+     */
+    if (config.accuracy >= 2 && agnus.isAGA() && bltconUSED() && !bltconLINE()) {
+
+        bbusyDelay = 2;
+        return;
+    }
+
     // Clear the Blitter busy flag
     bbusy = false;
 }
@@ -606,8 +617,15 @@ Blitter::endBlit()
     running = false;
     if (BLT_MEM_GUARD) blitcount++;
     
-    // Clear the Blitter slot
-    agnus.cancel<SLOT_BLT>();
+    /* Clear the Blitter slot. If the busy flag is still waiting to be cleared,
+     * the slot is kept alive until the delay has expired (see clearBusyFlag).
+     */
+    if (bbusyDelay) {
+        agnus.scheduleRel<SLOT_BLT>(DMA_CYCLES(bbusyDelay), BLT_BUSY);
+        bbusyDelay = 0;
+    } else {
+        agnus.cancel<SLOT_BLT>();
+    }
     
     // Dump checksums if requested
     debug(BLT_CHECKSUM,

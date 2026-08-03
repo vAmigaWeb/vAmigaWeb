@@ -120,7 +120,10 @@ Agnus::doBitplaneDmaRead()
     // Number of words fetched in this DMA cycle (AGA FMODE)
     const u8 words = bplFetchWords();
 
-    u32 a = bplpt[bitplane];
+    /* A wide fetch ignores the low address bits, so an unaligned pointer is
+     * truncated rather than honored (see alignPtr).
+     */
+    u32 a = alignPtr(bplpt[bitplane], words);
     u16 result = mem.peek16 <Accessor::AGNUS> (a);
 
     /* Collect the remaining words of the fetch. They are handed over to Denise
@@ -159,7 +162,7 @@ Agnus::doBitplaneDmaRead()
     busData[pos.h] = result;
     stats.usage[isize(owner)]++;
 
-    bplpt[bitplane] += 2 * words;
+    bplpt[bitplane] = a + 2 * words;
     return result;
 }
 
@@ -172,7 +175,8 @@ Agnus::doSpriteDmaRead()
     // Number of words fetched in this DMA cycle (AGA FMODE)
     const u8 words = sprFetchWords();
 
-    u32 a = sprpt[channel];
+    // A wide fetch ignores the low address bits (see alignPtr)
+    u32 a = alignPtr(sprpt[channel], words);
     u16 result = mem.peek16 <Accessor::AGNUS> (a);
 
     /* Collect the remaining words of the fetch. They are handed over to Denise
@@ -193,7 +197,7 @@ Agnus::doSpriteDmaRead()
     /* The pointer always advances by the full bus width, even when the fetched
      * words carry a control word rather than pixel data.
      */
-    sprpt[channel] += 2 * words;
+    sprpt[channel] = a + 2 * words;
     return result;
 }
 

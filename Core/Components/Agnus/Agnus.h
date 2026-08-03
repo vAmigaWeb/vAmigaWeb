@@ -478,6 +478,26 @@ public:
     // Returns the sprite width in pixels (16, 32 or 64)
     isize spriteWidth() const { return 16 * sprFetchWords(); }
 
+    /* Aligns a DMA pointer to the width of a single fetch. A 32 or 64 bit
+     * fetch ignores the low address bits, so an unaligned pointer is truncated
+     * by the hardware rather than honored. The mask is derived from the number
+     * of words per fetch: 1 word leaves the pointer untouched, 2 words align it
+     * to 4 bytes, 4 words to 8 bytes.
+     */
+    static u32 alignPtr(u32 ptr, u8 words) { return ptr & ~u32(2 * words - 1); }
+
+    /* Adds the modulo to a bitplane pointer. AGA clears the low address bits
+     * before the addition, so a pointer that was set up unaligned stays
+     * truncated for the rest of the frame.
+     */
+    void addBplMod(isize plane) {
+
+        u32 p = bplpt[plane];
+        if (isAGA()) p = alignPtr(p, bplFetchWords());
+        U32_INC(p, (plane & 1) ? bpl2mod : bpl1mod);
+        bplpt[plane] = p;
+    }
+
     // Returns the state of the AGA sprite scan doubling bit (FMODE bit 15)
     bool sscan2() const { return isAGA() && GET_BIT(fmode, 15); }
 
