@@ -3407,6 +3407,107 @@ $("#cb_df0_poll_sound").change( function() {
 
 bind_config_choice("OPT_DRIVE_SPEED", "floppy drive speed",['-1', '1', '2', '4', '8'],'1');
 
+var amiga_models = {
+    "A1000": { name: "Amiga 1000", chipset: "OCS", agnus: "OCS_OLD", denise: "OCS", chip: "512", slow: "0", fast: "0", cpu: "0", clock: "0" },
+    "A500":  { name: "Amiga 500",  chipset: "OCS", agnus: "OCS",     denise: "OCS", chip: "512", slow: "0", fast: "0", cpu: "0", clock: "0" },
+    "A500+": { name: "Amiga 500+", chipset: "ECS", agnus: "ECS_1MB", denise: "ECS", chip: "1024", slow: "0", fast: "0", cpu: "0", clock: "0" },
+    "A600":  { name: "Amiga 600",  chipset: "ECS", agnus: "ECS_2MB", denise: "ECS", chip: "1024", slow: "0", fast: "0", cpu: "0", clock: "0" },
+    "A1200": { name: "Amiga 1200", chipset: "AGA", agnus: "AGA",     denise: "AGA", chip: "2048", slow: "0", fast: "2048", cpu: "2", clock: "2" },
+};
+
+function model_display(key) {
+    let preset = amiga_models[key];
+    return preset ? `${preset.name} - ${preset.chipset}` : key;
+}
+
+function get_hardware_display(key, value) {
+    if (key == 'OPT_AGNUS_REVISION') {
+        let found = agnus_map.filter(e => e.v === value);
+        return found.length > 0 ? found[0].t : value;
+    }
+    if (key == 'OPT_DENISE_REVISION') {
+        let found = denise_map.filter(e => e.v === value);
+        return found.length > 0 ? found[0].t : value;
+    }
+    if (key == 'OPT_CHIP_RAM' || key == 'OPT_SLOW_RAM' || key == 'OPT_FAST_RAM') {
+        return `${value} KB`;
+    }
+    if (key == 'OPT_CPU_REVISION') {
+        return value == 4 ? `fake 030 for Settlers map size 8` : (68000 + value * 10);
+    }
+    if (key == 'OPT_CPU_OVERCLOCKING') {
+        return Math.round((value == 0 ? 1 : value) * 7.09) + ' MHz';
+    }
+    return value;
+}
+
+function update_hardware_button(key, value) {
+    let display = get_hardware_display(key, value);
+    let names = {
+        'OPT_AGNUS_REVISION': 'agnus revision',
+        'OPT_DENISE_REVISION': 'denise revision',
+        'OPT_CHIP_RAM': 'chip ram',
+        'OPT_SLOW_RAM': 'slow ram',
+        'OPT_FAST_RAM': 'fast ram',
+        'OPT_CPU_REVISION': 'CPU',
+        'OPT_CPU_OVERCLOCKING': ''
+    };
+    let name = names[key] || '';
+    $(`#button_${key}`).html(`${name}${name.length > 0 ? '=' : ''}${display}`);
+}
+
+function apply_model(model_key) {
+    let preset = amiga_models[model_key];
+    if (!preset) return;
+    save_setting('OPT_AMIGA_MODEL', model_key);
+
+    set_hardware('OPT_AGNUS_REVISION', preset.agnus);
+    set_hardware('OPT_DENISE_REVISION', preset.denise);
+    set_hardware('OPT_CHIP_RAM', preset.chip);
+    set_hardware('OPT_SLOW_RAM', preset.slow);
+    set_hardware('OPT_FAST_RAM', preset.fast);
+    set_hardware('OPT_CPU_REVISION', preset.cpu);
+    set_hardware('OPT_CPU_OVERCLOCKING', preset.clock);
+
+    validate_hardware();
+
+    update_hardware_button('OPT_AGNUS_REVISION', preset.agnus);
+    update_hardware_button('OPT_DENISE_REVISION', preset.denise);
+    update_hardware_button('OPT_CHIP_RAM', preset.chip);
+    update_hardware_button('OPT_SLOW_RAM', preset.slow);
+    update_hardware_button('OPT_FAST_RAM', preset.fast);
+    update_hardware_button('OPT_CPU_REVISION', preset.cpu);
+    update_hardware_button('OPT_CPU_OVERCLOCKING', preset.clock);
+
+    $('#button_OPT_AMIGA_MODEL').html(`model=${model_display(model_key)}`);
+}
+
+let current_model = load_setting('OPT_AMIGA_MODEL', 'A500');
+if (!amiga_models[current_model]) current_model = 'A500';
+let model_list = '';
+for (let key of Object.keys(amiga_models)) {
+    model_list += `<a class="dropdown-item" href="#" data-model="${key}">${model_display(key)}</a>`;
+}
+$('#hardware_settings').append(`<div class="mt-4">model settings</div>`);
+$('#hardware_settings').append(`
+<div class="dropdown mr-1 mt-3">
+    <button id="button_OPT_AMIGA_MODEL" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    model
+    </button>
+    <div id="choose_OPT_AMIGA_MODEL" class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+    ${model_list}
+    </div>
+</div>
+`);
+
+$('#choose_OPT_AMIGA_MODEL a').click(function () {
+    let choice = $(this).attr('data-model');
+    apply_model(choice);
+    $("#modal_settings").focus();
+});
+
+$('#button_OPT_AMIGA_MODEL').html(`model=${model_display(current_model)}`);
+
 $('#hardware_settings').append(`<div class="mt-4">hardware settings</div><span style="font-size: smaller;">(shuts machine down on agnus model or memory change)</span>`);
 
 
