@@ -587,9 +587,18 @@ PixelEngine::colorizeHAM(Texel *dst, Pixel from, Pixel to, AmigaColor& ham)
             continue;
         }
 
-        /* The control bits and the color register index are read from the
-         * value with the BPLCON4 XOR applied, whereas the data written into
-         * the hold register is taken from the unmodified bitplane value.
+        /* The two data paths of HAM mode have different origins. The control
+         * bits are taken from the raw bitplane value, because Denise taps them
+         * off the bitplane serializer, ahead of the color index logic. The
+         * value that is written into the hold register, on the other hand, is
+         * the output of that logic, which is why it is read from the iBuffer.
+         *
+         * The distinction only matters if HAM is combined with dual playfield
+         * mode, where the iBuffer holds a playfield color index instead of the
+         * bitplane bits. The vAmigaTS test dualpf1 enables both modes and
+         * confirms the split: the picture reacts to the playfield priorities in
+         * BPLCON2, so the data path runs through the playfield logic, and it
+         * still shows HAM modifications, so the control bits do not.
          */
         u8 pw = dbuf[i];
         u8 pv = ibuf[i];
@@ -600,10 +609,10 @@ PixelEngine::colorizeHAM(Texel *dst, Pixel from, Pixel to, AmigaColor& ham)
              * remaining six as data. Because a component holds eight bits,
              * the two least significant ones are left untouched.
              */
-            u8 val = pw & 0xFC;
+            u8 val = pv & 0xFC;
             assert(isPaletteIndex(pv >> 2));
 
-            switch (pv & 0b11) {
+            switch (pw & 0b11) {
 
                 case 0b00: ham = color[pv >> 2]; break;
                 case 0b01: ham.b = u8((ham.b & 0x03) | val); break;
@@ -622,12 +631,11 @@ PixelEngine::colorizeHAM(Texel *dst, Pixel from, Pixel to, AmigaColor& ham)
         /* HAM6 supplies four data bits. AGA replicates them into both nibbles
          * of the component, OCS and ECS only know the upper nibble.
          */
-        u8 n = pw & 0xF;
-        u8 val = denise.isAGA() ? u8(n << 4 | n) : u8(n << 4);
         u8 index = pv & 0xF;
+        u8 val = denise.isAGA() ? u8(index << 4 | index) : u8(index << 4);
         assert(isPaletteIndex(index));
 
-        switch ((pv >> 4) & 0b11) {
+        switch ((pw >> 4) & 0b11) {
 
             case 0b00: // Get color from register
 
