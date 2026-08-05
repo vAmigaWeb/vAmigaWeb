@@ -576,8 +576,24 @@ Sequencer::computeFetchUnit(u16 bplcon0)
     // Disable the bitplanes if the current mode cannot feed them all
     if (bpu > planes) bpu = 0;
 
-    // In OCS and ECS, seven bitplanes in Lores mode disable the bitplanes, too
-    if (!agnus.isAGA() && bpu == 7) bpu = 0;
+    // Seven bitplanes is an invalid setting; the hardware treats it as 4
+    //if (!agnus.isAGA() && bpu == 7) bpu = 4;
+
+  if (!agnus.isAGA())
+  {
+    switch(resol)
+    {
+        case Resolution::LORES:
+            if(bpu == 7) bpu = 4;
+            break;
+        case Resolution::HIRES:
+            if(bpu > 4) bpu = 0;
+            break;
+        case Resolution::SHRES:
+            if(bpu > 2) bpu = 0;
+            break;        
+    }   
+  }
 
     const u8 *seq = sequences[planes == 2 ? 0 : planes == 4 ? 1 : 2];
 
