@@ -21,6 +21,9 @@ let call_param_kickstart_ext_url=null;
 let patch_kickemu_address=null;
 let patch_kickemu_rom=null;
 
+const agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB','AGA'];
+const denise_revs=['OCS','ECS','AGA'];
+
 let startup_script_executed=false;
 let on_ready_to_run=()=>{};
 let on_hdr_step=(drive_number, cylinder)=>{};
@@ -597,13 +600,11 @@ function message_handler_queue_worker(msg, data, data2)
         v=wasm_get_config_item("CPU.OVERCLOCKING");
         $(`#button_OPT_CPU_OVERCLOCKING`).text(`${Math.round((v==0?1:v)*7.09)} MHz ${cause}`);
         v=wasm_get_config_item("AGNUS.REVISION");
-        let agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB','AGA'];
         let agnus_description = agnus_map.filter((e) => e.v == agnus_revs[v]);
         agnus_description= agnus_description.length>0 ? agnus_description[0].t : agnus_revs[v];
         $(`#button_OPT_AGNUS_REVISION`).html(`agnus revision=${agnus_description} ${cause}`);
 
         v=wasm_get_config_item("DENISE.REVISION");
-        let denise_revs=['OCS','ECS','AGA'];
         let denise_description = denise_map.filter((e) => e.v == denise_revs[v]);
         denise_description= denise_description.length>0 ? denise_description[0].t : denise_revs[v];
         $(`#button_OPT_DENISE_REVISION`).text(`denise revision=${denise_description} ${cause}`);
@@ -612,6 +613,8 @@ function message_handler_queue_worker(msg, data, data2)
         $(`#button_${"OPT_SLOW_RAM"}`).text(`slow ram=${wasm_get_config_item('SLOW_RAM')} KB ${cause}`);
         $(`#button_${"OPT_FAST_RAM"}`).text(`fast ram=${wasm_get_config_item('FAST_RAM')} KB ${cause}`);
     
+        update_model_from_hardware();
+
         wasm_configure("OPT_AMIGA_SPEED_BOOST", 
             current_speed.toString());
 
@@ -3459,7 +3462,6 @@ function update_hardware_button(key, value) {
 function apply_model(model_key) {
     let preset = amiga_models[model_key];
     if (!preset) return;
-    save_setting('OPT_AMIGA_MODEL', model_key);
 
     set_hardware('OPT_AGNUS_REVISION', preset.agnus);
     set_hardware('OPT_DENISE_REVISION', preset.denise);
@@ -3486,24 +3488,27 @@ function model_cpu_class(cpu) {
     return String(cpu) === '1' ? '0' : String(cpu);
 }
 
-function update_model_from_hardware() {
-    let agnus = String(load_setting('OPT_AGNUS_REVISION', ''));
-    let denise = String(load_setting('OPT_DENISE_REVISION', ''));
-    let cpu = model_cpu_class(load_setting('OPT_CPU_REVISION', ''));
+function update_model_from_hardware(preset=null) {
+    let agnus_v = wasm_get_config_item("AGNUS.REVISION");
+    let denise_v = wasm_get_config_item("DENISE.REVISION");
+    let cpu_v = wasm_get_config_item("CPU.REVISION");
+
+    let agnus = agnus_revs[agnus_v] !== undefined ? agnus_revs[agnus_v] : String(agnus_v);
+    let denise = denise_revs[denise_v] !== undefined ? denise_revs[denise_v] : String(denise_v);
+    let cpu = model_cpu_class(cpu_v);
 
     for (let key in amiga_models) {
         let m = amiga_models[key];
         if (m.agnus === agnus && m.denise === denise && model_cpu_class(m.cpu) === cpu) {
             current_model = key;
-            save_setting('OPT_AMIGA_MODEL', key);
             $('#button_OPT_AMIGA_MODEL').html(`model=${model_display(key)}`);
             return;
         }
     }
 }
+window.update_model_from_hardware = update_model_from_hardware;
 
-let current_model = load_setting('OPT_AMIGA_MODEL', 'A500');
-if (!amiga_models[current_model]) current_model = 'A500';
+let current_model = 'A500';
 let model_list = '';
 for (let key of Object.keys(amiga_models)) {
     model_list += `<a class="dropdown-item" href="#" data-model="${key}">${model_display(key)}</a>`;
@@ -4228,6 +4233,7 @@ $('.layer').change( function(event) {
 
     $('#modal_settings').on('show.bs.modal', function() 
     {    
+        update_model_from_hardware();
         for(var dn=0; dn<4; dn++)
         {
             if(wasm_has_disk("df"+dn))
