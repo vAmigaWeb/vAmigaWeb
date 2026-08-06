@@ -20,13 +20,14 @@ namespace vamiga {
 enum class DeniseRev : long
 {
     OCS,           // Revision 8362R8
-    ECS            // Revision 8373      (only partially supported)
+    ECS,           // Revision 8373      (only partially supported)
+    AGA            // Revision 8364      (Advanced Graphics Architecture)
 };
 
 struct DeniseRevEnum : Reflection<DeniseRevEnum, DeniseRev>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = long(DeniseRev::ECS);
+    static constexpr long maxVal = long(DeniseRev::AGA);
     
     static const char *_key(DeniseRev value)
     {
@@ -34,6 +35,7 @@ struct DeniseRevEnum : Reflection<DeniseRevEnum, DeniseRev>
                 
             case DeniseRev::OCS:          return "OCS";
             case DeniseRev::ECS:          return "ECS";
+            case DeniseRev::AGA:          return "AGA";
         }
         return "???";
     }
@@ -43,6 +45,7 @@ struct DeniseRevEnum : Reflection<DeniseRevEnum, DeniseRev>
                 
             case DeniseRev::OCS:          return "MOS 8362R8";
             case DeniseRev::ECS:          return "MOS 8373 (Super Denise)";
+            case DeniseRev::AGA:          return "MOS 8364 (Advanced Denise)";
         }
         return "???";
     }
@@ -124,7 +127,7 @@ typedef struct
     u16 bplcon1;
     u16 bplcon2;
     i16 bpu;
-    u16 bpldat[6];
+    u16 bpldat[8];
     
     u16 diwstrt;
     u16 diwstop;

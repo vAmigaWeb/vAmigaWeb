@@ -143,8 +143,28 @@ private:
     // Offset into the DAS lookup table
     u16 dmaDAS;
 
-    // Current layout of a fetch unit
-    EventID fetch[2][8];
+    /* Current layout of a fetch unit. A fetch unit is the indivisible block of
+     * DMA cycles during which the display data fetch is active. Its length
+     * depends on the resolution and the width of the bitplane bus (FMODE) and
+     * ranges from 8 to 32 cycles (see fetchUnits[] in computeFetchUnit).
+     */
+    EventID fetch[2][32];
+
+    // Bit mask for wrapping the fetch unit counter (fetchUnit / 2 - 1)
+    u8 cntMask = 3;
+
+public:
+
+    // Length of a fetch unit in DMA cycles
+    u8 fetchUnit = 8;
+
+public:
+
+    /* Number of words read in a single bitplane DMA cycle. This value is
+     * determined together with the fetch unit layout to make sure that Agnus
+     * reads exactly as much data as the layout expects (see computeFetchUnit).
+     */
+    u8 fetchWords = 1;
 
 public:
 
@@ -367,10 +387,7 @@ private:
     void updateBplJumpTable(i16 end = HPOS_MAX);
 
     // Computes the layout of a single fetch unit
-    void computeFetchUnit(u16 dmacon);
-    template <u8 channels> void computeLoresFetchUnit();
-    template <u8 channels> void computeHiresFetchUnit();
-    template <u8 channels> void computeShresFetchUnit();
+    void computeFetchUnit(u16 bplcon0);
 
     
     //

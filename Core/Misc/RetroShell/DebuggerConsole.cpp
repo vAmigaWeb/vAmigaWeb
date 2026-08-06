@@ -521,8 +521,8 @@ DebuggerConsole::initCommands(RSCommand &root)
         .tokens = { "btrap", "at" },
         .chelp  = { "Set a beamtrap at the specified coordinate" },
         .args   = {
-            { .name = { "x", "Vertical trigger position" }, .flags = rs::keyval },
-            { .name = { "y", "Horizontal trigger position" }, .flags = rs::keyval },
+            { .name = { "x", "Horizontal trigger position" }, .flags = rs::keyval },
+            { .name = { "y", "Vertical trigger position" }, .flags = rs::keyval },
             { .name = { "ignores", "Ignore count" }, .flags = rs::opt }
         },
         .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {

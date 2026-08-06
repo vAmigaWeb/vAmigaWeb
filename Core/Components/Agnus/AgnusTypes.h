@@ -39,13 +39,14 @@ enum class AgnusRevision : long
     OCS_OLD,          // Revision 8367 (A1000, A2000A)
     OCS,              // Revision 8371 (A500, A2000B)
     ECS_1MB,          // Revision 8372 (A500, A2000B)
-    ECS_2MB           // Revision 8375 (A500+, A600)
+    ECS_2MB,          // Revision 8375 (A500+, A600)
+    AGA               // Alice (A1200, A4000)
 };
 
 struct AgnusRevisionEnum : Reflection<AgnusRevisionEnum, AgnusRevision>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = long(AgnusRevision::ECS_2MB);
+    static constexpr long maxVal = long(AgnusRevision::AGA);
     
     static const char *_key(AgnusRevision value)
     {
@@ -55,6 +56,7 @@ struct AgnusRevisionEnum : Reflection<AgnusRevisionEnum, AgnusRevision>
             case AgnusRevision::OCS:      return "OCS";
             case AgnusRevision::ECS_1MB:  return "ECS_1MB";
             case AgnusRevision::ECS_2MB:  return "ECS_2MB";
+            case AgnusRevision::AGA:      return "AGA";
         }
         return "???";
     }
@@ -67,6 +69,7 @@ struct AgnusRevisionEnum : Reflection<AgnusRevisionEnum, AgnusRevision>
             case AgnusRevision::OCS:      return "Amiga 500, Amiga 2000";
             case AgnusRevision::ECS_1MB:  return "Fat Agnus";
             case AgnusRevision::ECS_2MB:  return "Fatter Agnus";
+            case AgnusRevision::AGA:      return "Alice (AGA)";
         }
         return "???";
     }
@@ -233,7 +236,7 @@ struct EventSlotEnum : Reflection<EventSlotEnum, EventSlot>
     }
 };
 
-enum EventID : i8
+enum EventID : u8
 {
     EVENT_NONE          = 0,
     
@@ -275,7 +278,19 @@ enum EventID : i8
     BPL_S1_MOD          = 0x58,
     BPL_S2              = 0x5C,
     BPL_S2_MOD          = 0x60,
-    BPL_EVENT_COUNT     = 0x64,
+    BPL_L7              = 0x64,
+    BPL_L7_MOD          = 0x68,
+    BPL_L8              = 0x6C,
+    BPL_L8_MOD          = 0x70,
+    BPL_H5              = 0x74,
+    BPL_H5_MOD          = 0x78,
+    BPL_H6              = 0x7C,
+    BPL_H6_MOD          = 0x80,
+    BPL_H7              = 0x84,
+    BPL_H7_MOD          = 0x88,
+    BPL_H8              = 0x8C,
+    BPL_H8_MOD          = 0x90,
+    BPL_EVENT_COUNT     = 0x94,
     
     // DAS slot
     DAS_REFRESH         = 1,
@@ -333,6 +348,7 @@ enum EventID : i8
     BLT_COPY_FAKE,
     BLT_LINE_SLOW,
     BLT_LINE_FAKE,
+    BLT_BUSY,
     BLT_EVENT_COUNT,
     
     // SEC slot
@@ -460,8 +476,10 @@ static inline bool isBplxEvent(EventID id, int x)
         case BPL_L2: case BPL_H2: return x == 2;
         case BPL_L3: case BPL_H3: return x == 3;
         case BPL_L4: case BPL_H4: return x == 4;
-        case BPL_L5:              return x == 5;
-        case BPL_L6:              return x == 6;
+        case BPL_L5: case BPL_H5: return x == 5;
+        case BPL_L6: case BPL_H6: return x == 6;
+        case BPL_L7: case BPL_H7: return x == 7;
+        case BPL_L8: case BPL_H8: return x == 8;
             
         default:
             return false;
@@ -549,7 +567,7 @@ typedef struct
     
     u32 coppc0;
     u32 dskpt;
-    u32 bplpt[6];
+    u32 bplpt[8];
     u32 audpt[4];
     u32 audlc[4];
     u32 bltpt[4];

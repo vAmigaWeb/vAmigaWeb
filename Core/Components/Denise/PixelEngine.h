@@ -67,26 +67,60 @@ private:
     //
 
 private:
-    
-    // Lookup table for all 4096 Amiga colors
-    Texel colorSpace[4096];
+
+    /* Coefficients of the color adjustment performed by the monitor settings.
+     * The adjustment is an affine transformation of the RGB components, which
+     * allows it to be tabulated: the contribution of each input component to
+     * each output component is looked up and summed (see toTexel). A lookup
+     * table over all colors is not an option, because AGA colors span the full
+     * 24 bit range.
+     *
+     * The table is indexed by adjIdx(out, in) + value, where out selects the
+     * output component and in the input component. Values are stored in 16.16
+     * fixed point format, and the constant part of the transformation is
+     * folded into the tables of the red input component.
+     */
+    i32 adjLut[9 * 256];
+
+    static constexpr isize adjIdx(isize out, isize in) { return (out * 3 + in) * 256; }
+
+    /* Set if the color adjustment leaves all colors untouched. This is the
+     * case for the default RGB palette, which is checked for separately to
+     * keep the common case as fast as possible.
+     */
+    bool adjIdentity;
 
     // Color register colors
-    AmigaColor color[32];
+    AmigaColor color[256];
 
     /* Active color palette
      *
-     *  0 .. 31 : ABGR values of the 32 color registers
-     * 32 .. 63 : ABGR values of the 32 color registers in halfbright mode
-     *       64 : Pure black (used if the ECS BRDRBLNK bit is set)
-     * 65 .. 67 : Additional debug colors
+     *  0 ..255 : ABGR values of the color registers (32 for OCS/ECS, 256 for AGA)
+     * 256 ..287 : Halfbright OCS/ECS palette entries (unused on AGA)
+     *      288 : Pure black (used if the ECS BRDRBLNK bit is set)
+     * 289 ..291 : Additional debug colors
      */
-    static const int paletteCnt = 32 + 32 + 1 + 3;
+    static const int paletteCnt = 256 + 32 + 1 + 3;
     Texel palette[paletteCnt];
     
     // Indicates whether HAM mode or SHRES mode is enabled
     bool hamMode;
     bool shresMode;
+
+    /* Indicates whether Extra-Half-Brite mode is enabled. In EHB mode, the
+     * palette entries 32 to 63 are replaced by darkened copies of the entries
+     * 0 to 31. The mode is derived from BPLCON0 and BPLCON2, whose replayed
+     * values are mirrored below (see updateEhbPalette).
+     */
+    bool ehbMode;
+    u16 ehbCon0;
+    u16 ehbCon2;
+
+    /* Indicates whether the AGA variant of HAM mode is enabled. HAM8 takes its
+     * control bits from the two lowest bitplanes instead of the two highest
+     * ones, and it modifies six bits of a component instead of four.
+     */
+    bool hamMode8;
 
     
     //
@@ -95,8 +129,14 @@ private:
 
 public:
 
-    // Color register history
-    RegChangeRecorder<256> colChanges;
+    /* Color register history. The capacity has to accommodate every color
+     * write that fits into a single rasterline. In AGA, a program supplies the
+     * full 8 bit range by writing each register twice (once with LOCT cleared
+     * and once with LOCT set), and both writes are recorded here. Overflowing
+     * this buffer is not a benign event: the ring buffer would wrap around and
+     * report itself as empty, discarding the whole line.
+     */
+    RegChangeRecorder<1024> colChanges;
 
 
     //
@@ -112,11 +152,16 @@ public:
 
     PixelEngine& operator= (const PixelEngine& other) {
 
-        CLONE_ARRAY(colorSpace)
+        CLONE_ARRAY(adjLut)
+        CLONE(adjIdentity)
         CLONE(colChanges)
         CLONE_ARRAY(color)
         CLONE(hamMode)
         CLONE(shresMode)
+        CLONE(hamMode8)
+        CLONE(ehbMode)
+        CLONE(ehbCon0)
+        CLONE(ehbCon2)
         CLONE_ARRAY(palette)
 
         return *this;
@@ -137,7 +182,11 @@ private:
         << colChanges
         << color
         << hamMode
-        << shresMode;
+        << shresMode
+        << hamMode8
+        << ehbMode
+        << ehbCon0
+        << ehbCon2;
 
     } SERIALIZERS(serialize);
 
@@ -177,15 +226,23 @@ public:
     // Performs a consistency check for debugging
     static bool isPaletteIndex(isize nr) { return nr < paletteCnt; }
     
-    // Changes one of the 32 Amiga color registers
+    /* Changes one of the color registers. The u16 variant performs a regular
+     * register write, which sets the upper nibble of each component. The Loct
+     * variant performs an AGA write with the LOCT bit set, which replaces the
+     * lower nibbles and leaves the upper ones alone.
+     */
     void setColor(isize reg, u16 value);
+    void setColorLoct(isize reg, u16 value);
     void setColor(isize reg, AmigaColor value);
 
     // Returns a color value in Amiga format
     u16 getColor(isize nr) const { return color[nr].rawValue(); }
 
+    // Returns a color register with the full AGA precision
+    AmigaColor getAmigaColor(isize nr) const { return color[nr]; }
+
     // Returns sprite color in Amiga format
-    u16 getSpriteColor(isize s, isize nr) const { return getColor(16 + nr + 2 * (s & 6)); }
+    u16 getSpriteColor(isize s, isize nr) const;
 
 
     //
@@ -194,13 +251,23 @@ public:
 
 public:
 
-    // Updates the entire RGBA lookup table
+    // Recomputes the color adjustment tables and all cached RGBA values
     void updateRGBA();
 
+    // Converts an Amiga color into a texel, applying the monitor settings
+    Texel toTexel(AmigaColor c) const;
+
+    /* Recomputes the palette entries 32 to 63. Depending on the current
+     * bitplane mode, this range either holds the color registers 32 to 63
+     * (AGA), darkened copies of the registers 0 to 31 (Extra-Half-Brite), or
+     * plain copies of the registers 0 to 31 (ECS with KILLEHB set).
+     */
+    void updateEhbPalette();
+
 private:
-    
-    // Adjusts the RGBA value according to the selected color parameters
-    void adjustRGB(u8 &r, u8 &g, u8 &b);
+
+    // Recomputes the color adjustment tables from the monitor settings
+    void updateAdjLut();
 
 
     //

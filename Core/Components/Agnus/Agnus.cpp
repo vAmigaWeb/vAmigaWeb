@@ -74,6 +74,7 @@ Agnus::operator= (const Agnus& other) {
     CLONE_ARRAY(sprVStrt)
     CLONE_ARRAY(sprVStop)
     CLONE_ARRAY(sprDmaEnabled)
+    CLONE_ARRAY(sprSscan2)
 
     CLONE(clock)
 
@@ -172,6 +173,7 @@ Agnus::setOption(Opt option, i64 value)
                 case AgnusRevision::OCS:     ptrMask = 0x07FFFF; break;
                 case AgnusRevision::ECS_1MB: ptrMask = 0x0FFFFF; break;
                 case AgnusRevision::ECS_2MB: ptrMask = 0x1FFFFF; break;
+                case AgnusRevision::AGA:     ptrMask = 0x1FFFFF; break;
 
                 default:
                     fatalError;
@@ -235,6 +237,12 @@ Agnus::isECS() const
     return config.revision == AgnusRevision::ECS_1MB || config.revision == AgnusRevision::ECS_2MB;
 }
 
+bool
+Agnus::isAGA() const
+{
+    return config.revision == AgnusRevision::AGA;
+}
+
 u16
 Agnus::idBits() const
 {
@@ -242,6 +250,7 @@ Agnus::idBits() const
             
         case AgnusRevision::ECS_2MB: return 0x2000; // TODO: CHECK ON REAL MACHINE
         case AgnusRevision::ECS_1MB: return 0x2000;
+        case AgnusRevision::AGA:     return 0x2300; // Alice (8374) rev 3/4, PAL
         default:            return 0x0000;
     }
 }
@@ -251,6 +260,7 @@ Agnus::chipRamLimit() const
 {
     switch (config.revision) {
 
+        case AgnusRevision::AGA:    return 2048;
         case AgnusRevision::ECS_2MB: return 2048;
         case AgnusRevision::ECS_1MB: return 1024;
         default:            return 512;
@@ -260,7 +270,7 @@ Agnus::chipRamLimit() const
 Resolution
 Agnus::resolution(u16 v)
 {
-    if (GET_BIT(v,6) && isECS()) {
+    if (GET_BIT(v,6) && (isECS() || isAGA())) {
         return Resolution::SHRES;
     } else if (GET_BIT(v,15)) {
         return Resolution::HIRES;
@@ -582,11 +592,15 @@ Agnus::executeFirstSpriteCycle()
         if (!spriteCycleIsBlocked()) {
 
             // Read in the next data word (part A)
-            if (sprdma()) {
+            if (sprdma() && !sscan2Skips(nr)) {
                 
                 auto value = doSpriteDmaRead<nr>();
-                denise.pokeSPRxDATA<nr>(value);
+                denise.setSPRxDATA<nr>(value, sprdatNext[nr]);
                 
+            } else if (sprdma()) {
+
+                // Scan doubling: the previous line is repeated (AGA SSCAN2)
+
             } else {
 
                 busOwner[pos.h] = BusOwner::BLOCKED;
@@ -623,18 +637,36 @@ Agnus::executeSecondSpriteCycle()
 
         if (!spriteCycleIsBlocked()) {
 
-            if (sprdma()) {
+            if (sprdma() && !sscan2Skips(nr)) {
                 
                 // Read in the next data word (part B)
                 auto value = doSpriteDmaRead<nr>();
-                denise.pokeSPRxDATB<nr>(value);
+                denise.setSPRxDATB<nr>(value, sprdatNext[nr]);
                 
+            } else if (sprdma()) {
+
+                // Scan doubling: the previous line is repeated (AGA SSCAN2)
+
             } else {
 
                 busOwner[pos.h] = BusOwner::BLOCKED;
             }
         }
     }
+}
+
+bool
+Agnus::sscan2Skips(isize nr) const
+{
+    /* AGA scan doubling (SSCAN2): the sprite data fetch is suppressed on every
+     * second line, so the previously fetched line is displayed once more. The
+     * sprite stays armed in Denise, hence skipping the fetch is all it takes.
+     * The parity is anchored at the vertical start position, which makes the
+     * first line of the sprite the first line of a doubled pair.
+     */
+    if (!sscan2() || !sprSscan2[nr]) return false;
+
+    return (pos.v & 1) != (sprVStrt[nr] & 1);
 }
 
 bool 
@@ -687,6 +719,9 @@ Agnus::eolHandler()
     // Move to the next line
     pos.eol();
 
+    // Flush AGA 32-bit bitplane prefetches at end of line
+    for (isize i = 0; i < 8; i++) bpldatNextValid[i] = 0;
+
     // Update pot counters
     if (paula.chargeX0 < 1.0 || controlPort1.mouse.MMB()) U8_INC(paula.potCntX0, 1);
     if (paula.chargeY0 < 1.0 || controlPort1.mouse.RMB()) U8_INC(paula.potCntY0, 1);
@@ -722,7 +757,7 @@ Agnus::eolHandler()
     // count how many scanlines actually did bitplane dma (layout-independent
     // height, works even when the copper reloads bplpt every line)
     if (bplGuessEnabled) {
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < BPL_GUESS_PLANES; i++) {
             if (bplGuessLineWords[i] > bplGuessWordsLive[i]) bplGuessWordsLive[i] = bplGuessLineWords[i];
             if (bplGuessLineWords[i] > 0) bplGuessLinesLive[i]++;
             bplGuessLineWords[i] = 0;
@@ -761,7 +796,7 @@ Agnus::eofHandler()
 
     // Commit the bitplane guesser range and reset it for the next frame
     if (bplGuessEnabled) {
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < BPL_GUESS_PLANES; i++) {
             bplGuessMin[i] = bplGuessMinLive[i];
             bplGuessMax[i] = bplGuessMaxLive[i];
             bplGuessMod[i] = (i & 1) ? bpl2mod : bpl1mod;
@@ -775,11 +810,14 @@ Agnus::eofHandler()
         // Commit the per-line first-pointer table and reset it for the next
         // frame (invalid marker ~0u = no bitplane dma on that line)
         for (int l = 0; l < BPL_GUESS_MAX_LINES; l++) {
-            for (int i = 0; i < 6; i++) {
+            for (int i = 0; i < BPL_GUESS_PLANES; i++) {
                 bplGuessFirst[l][i] = bplGuessFirstLive[l][i];
                 bplGuessFirstLive[l][i] = ~0u;
+                bplGuessWordsPerLine[l][i] = bplGuessWordsPerLineLive[l][i];
+                bplGuessWordsPerLineLive[l][i] = 0;
             }
         }
+        bplGuessLace = denise.lace();
     }
 
     // Update statistics

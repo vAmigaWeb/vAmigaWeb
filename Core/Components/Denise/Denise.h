@@ -109,6 +109,8 @@ public:
     u16 bplcon1;
     u16 bplcon2;
     u16 bplcon3;
+    u16 bplcon4;
+    u8  bplcon4Xor;
 
     // Bitplane control registers at cycle 0 in the current rasterline
     u16 initialBplcon0;
@@ -123,17 +125,54 @@ public:
     Pixel pixelOffsetEven;
 
     // Color register index for the border color (0 = background color)
-    u8 borderColor;
+    u16 borderColor;
     
     // Bitplane data registers
-    u16 bpldat[6];
+    u16 bpldat[8];
     
     // Pipeline registers
-    u16 bpldatPipe[6];
+    u16 bpldatPipe[8];
+
+    /* AGA fetches up to four words per bitplane in a single DMA cycle (see
+     * FMODE). The first word is stored in bpldat, all remaining words are
+     * collected in bpldatExt (lowest word first). They are shifted into the
+     * pipeline one by one, each time a drawing cycle has been completed.
+     */
+    u64 bpldatExt[8];
+    u64 bpldatPipeExt[8];
+    u8 bpldatExtCnt;
+    u8 extCntOdd;
+    u8 extCntEven;
+
+    /* In AGA, the pipeline is not reloaded when the fetched data arrives, but
+     * at the drawing cycle selected by the extended scroll bits in BPLCON1
+     * (see prepareOdd). Because Agnus fetches plane 1 last, the data registers
+     * hold a complete fetch at the time BPL1DAT is written, and only then. They
+     * are therefore snapshotted here, as the next fetch would otherwise
+     * overwrite them before the reload cycle is reached.
+     */
+    u16 bpldatLatch[8];
+    u64 bpldatLatchExt[8];
+    u8 latchExtCnt;
+
+    // Indicates that the latched data still waits for its reload cycle
+    bool latchedOdd;
+    bool latchedEven;
+
+    // The extended scroll values from BPLCON1, in units of whole words
+    u8 scrollWordOdd;
+    u8 scrollWordEven;
 
     // Sprite collision registers
     u16 clxdat;
     u16 clxcon;
+
+    /* Collision control for the two AGA bitplanes. CLXCON only covers planes 1
+     * to 6, so AGA adds ENBP7/ENBP8 and MVBP7/MVBP8 in a second register. The
+     * bit layout mirrors CLXCON: the match values sit in the low bits, the
+     * enable bits six positions above.
+     */
+    u16 clxcon2;
 
     //
     // Shift registers
@@ -143,11 +182,24 @@ public:
      * of the BPLDAT registers into these shift registers after BPLDAT1 is
      * written to. This is emulated in function fillShiftRegister().
      */
-    u16 shiftReg[6];
+    u16 shiftReg[8];
 
     // Flags indicating that the shift registers have been loaded
     bool armedOdd;
     bool armedEven;
+
+    // Shifts the next AGA word into the bitplane pipeline (FMODE)
+    void feedPipeOdd();
+    void feedPipeEven();
+
+    /* Prepares a drawing cycle. Either the latched data is transferred to the
+     * pipeline, or the next word of the current fetch is shifted in.
+     */
+    void prepareOdd();
+    void prepareEven();
+
+    // Checks if the current drawing cycle is the reload cycle (see prepareOdd)
+    bool isReloadCycle(u8 scrollWord) const;
 
     
     //
@@ -174,6 +226,17 @@ public:
     u16 sprdata[8];
     u16 sprdatb[8];
 
+    /* AGA fetches up to four words per sprite in a single DMA cycle (see
+     * FMODE). The first word is held in sprdata / sprdatb, the remaining words
+     * of a 32 or 64 pixel wide sprite are kept here. The extension is aligned
+     * so that it continues seamlessly below the first word (bit 47 downwards).
+     * Both arrays stay zero on OCS and ECS, and they are also cleared whenever
+     * the CPU or the Copper writes to the data registers, because such a write
+     * only carries the first 16 pixels.
+     */
+    u64 sprdataExt[8];
+    u64 sprdatbExt[8];
+
     // The position and control registers of all 8 sprites
     u16 sprpos[8];
     u16 sprctl[8];
@@ -182,9 +245,13 @@ public:
     i16 sprhpos[8];
     i16 sprhppos[8];
 
-    // The serial shift registers of all 8 sprites
-    u16 ssra[8];
-    u16 ssrb[8];
+    /* The serial shift registers of all 8 sprites. Bit 63 always holds the
+     * leftmost pixel, no matter how wide the sprite is. A 16 pixel sprite
+     * therefore only occupies the upper 16 bits and the register runs empty
+     * after 16 shifts, exactly as it did when these were 16 bit wide.
+     */
+    u64 ssra[8];
+    u64 ssrb[8];
     
     /* Indicates which sprites are currently armed. An armed sprite is a sprite
      * that will be drawn in this line.
@@ -234,9 +301,10 @@ public:
      * bBuffer: Border pixel buffer
      *
      * This buffer is used to determine whether a border pixel has to be drawn.
-     * If the buffer contains a value of 0xFF, border drawing is off for this
-     * pixel. Otherwise, the buffer contains the number of the color register
-     * storing the border color.
+     * If the buffer contains a value of 0xFFFF, border drawing is off for this
+     * pixel. Otherwise, the buffer contains the palette index of the border
+     * color, which may also be one of the artificial entries beyond the color
+     * registers.
      *
      * iBuffer: Color index buffer
      *
@@ -277,11 +345,24 @@ public:
      *  SPx : Set if the pixel is solid in sprite x.
      *  _x_ : Playfield priority derived from the current value in BPLCON2.
      */
-    u8 dBuffer[HPIXELS + (4 * 16) + 8];
-    u8 bBuffer[HPIXELS + (4 * 16) + 8];
-    u8 iBuffer[HPIXELS + (4 * 16) + 8];
-    u8 mBuffer[HPIXELS + (4 * 16) + 8];
-    u16 zBuffer[HPIXELS + (4 * 16) + 8];
+    /* Logical length of a rasterline in buffer entries. The horizontal DIW
+     * flipflop is derived by running Denise's horizontal counter across this
+     * range, so the value must not be changed (see updateBorderBuffer).
+     */
+    static constexpr isize LINE_CNT = HPIXELS + (4 * 16) + 8;
+
+    /* Additional space beyond the logical line length. It has to cover the
+     * largest pixel offset a drawing cycle can be shifted by. In AGA, the
+     * extended BPLCON1 scroll bits add up to three 16 pixel words, which is 96
+     * buffer entries (see Denise::setBPLCON1).
+     */
+    static constexpr isize OVERHANG = (4 * 16) + 8 + 96;
+
+    u8 dBuffer[HPIXELS + OVERHANG];
+    u16 bBuffer[HPIXELS + OVERHANG];
+    u8 iBuffer[HPIXELS + OVERHANG];
+    u8 mBuffer[HPIXELS + OVERHANG];
+    u16 zBuffer[HPIXELS + OVERHANG];
 
     static constexpr u16 Z_0   = 0b10000000'00000000;
     static constexpr u16 Z_SP0 = 0b01000000'00000000;
@@ -351,6 +432,8 @@ public:
         CLONE(bplcon1)
         CLONE(bplcon2)
         CLONE(bplcon3)
+        CLONE(bplcon4)
+        CLONE(bplcon4Xor)
         CLONE(initialBplcon0)
         CLONE(initialBplcon1)
         CLONE(initialBplcon2)
@@ -360,8 +443,21 @@ public:
         CLONE(borderColor)
         CLONE_ARRAY(bpldat)
         CLONE_ARRAY(bpldatPipe)
+        CLONE_ARRAY(bpldatExt)
+        CLONE_ARRAY(bpldatPipeExt)
+        CLONE(bpldatExtCnt)
+        CLONE(extCntOdd)
+        CLONE(extCntEven)
+        CLONE_ARRAY(bpldatLatch)
+        CLONE_ARRAY(bpldatLatchExt)
+        CLONE(latchExtCnt)
+        CLONE(latchedOdd)
+        CLONE(latchedEven)
+        CLONE(scrollWordOdd)
+        CLONE(scrollWordEven)
         CLONE(clxdat)
         CLONE(clxcon)
+        CLONE(clxcon2)
         CLONE_ARRAY(shiftReg)
         CLONE(armedOdd)
         CLONE(armedEven)
@@ -372,6 +468,8 @@ public:
 
         CLONE_ARRAY(sprdata)
         CLONE_ARRAY(sprdatb)
+        CLONE_ARRAY(sprdataExt)
+        CLONE_ARRAY(sprdatbExt)
         CLONE_ARRAY(sprpos)
         CLONE_ARRAY(sprctl)
         CLONE_ARRAY(sprhpos)
@@ -415,6 +513,8 @@ private:
         << bplcon1
         << bplcon2
         << bplcon3
+        << bplcon4
+        << bplcon4Xor
         << initialBplcon0
         << initialBplcon1
         << initialBplcon2
@@ -424,8 +524,21 @@ private:
         << borderColor
         << bpldat
         << bpldatPipe
+        << bpldatExt
+        << bpldatPipeExt
+        << bpldatExtCnt
+        << extCntOdd
+        << extCntEven
+        << bpldatLatch
+        << bpldatLatchExt
+        << latchExtCnt
+        << latchedOdd
+        << latchedEven
+        << scrollWordOdd
+        << scrollWordEven
         << clxdat
         << clxcon
+        << clxcon2
         << shiftReg
         << armedOdd
         << armedEven
@@ -435,6 +548,8 @@ private:
 
         << sprdata
         << sprdatb
+        << sprdataExt
+        << sprdatbExt
         << sprpos
         << sprctl
         << sprhpos
@@ -499,6 +614,14 @@ public:
 
     bool isOCS() const { return config.revision == DeniseRev::OCS; }
     bool isECS() const { return config.revision == DeniseRev::ECS; }
+    bool isAGA() const { return config.revision == DeniseRev::AGA; }
+
+    /* Returns true for ECS and AGA. Because AGA is a superset of ECS, this
+     * predicate has to be used for all features that were introduced by ECS
+     * and are still present in AGA. Note that isECS() is an exact match which
+     * yields false on an AGA machine.
+     */
+    bool isECSorLater() const { return isECS() || isAGA(); }
 
 
     //
@@ -683,25 +806,63 @@ public:
     template <Accessor s> void pokeBPLCON1(u16 value);
     void setBPLCON1(u16 oldValue, u16 newValue);
 
+    /* Derives the horizontal scroll offsets from BPLCON1. The result depends on
+     * the bitplane resolution and the fetch width, hence this function must be
+     * called after a change of BPLCON0 or FMODE, too.
+     */
+    void updateScrollOffsets();
+
     template <Accessor s> void pokeBPLCON2(u16 value);
     void setBPLCON2(u16 value);
     
     template <Accessor s> void pokeBPLCON3(u16 value);
     void setBPLCON3(u16 value);
 
+    template <Accessor s> void pokeBPLCON4(u16 value);
+    void setBPLCON4(u16 value);
+
     u16 peekCLXDAT();
     u16 spypeekCLXDAT() const;
     void pokeCLXCON(u16 value);
+    void pokeCLXCON2(u16 value);
     
     template <isize x, Accessor s> void pokeBPLxDAT(u16 value);
     template <isize x> void setBPLxDAT(u16 value);
+
+    /* Passes the additional words of an AGA multi-word bitplane fetch to
+     * Denise. This function has to be called prior to setBPLxDAT.
+     */
+    template <isize x> void setBPLxDATExt(u64 value, u8 count);
 
     template <isize x> void pokeSPRxPOS(u16 value);
     template <isize x> void pokeSPRxCTL(u16 value);
     template <isize x> void pokeSPRxDATA(u16 value);
     template <isize x> void pokeSPRxDATB(u16 value);
+
+    /* Writes a sprite data register on behalf of Agnus. In AGA, a single DMA
+     * cycle fetches up to four words, and ext carries all words beyond the
+     * first one (see FMODE). The CPU and Copper entry points above forward to
+     * these functions with an empty extension, because a register write only
+     * ever covers the first 16 pixels.
+     */
+    template <isize x> void setSPRxDATA(u16 value, u64 ext);
+    template <isize x> void setSPRxDATB(u16 value, u64 ext);
     
     template <isize xx, Accessor s> void pokeCOLORxx(u16 value);
+
+    /* Reads one of the 32 color registers. AGA makes the registers readable by
+     * setting the RDRAM bit in BPLCON2. As with a write, BPLCON3 selects the
+     * color bank and determines whether the upper or the lower nibbles of the
+     * components are returned.
+     */
+    u16 peekCOLORxx(isize nr) const;
+
+    /* Records a write to one of the 32 color registers in the change history.
+     * In AGA, the write is redirected to the color bank selected by BPLCON3,
+     * and discarded if the LOCT bit is set. Called by pokeCOLORxx() and by the
+     * Copper, which writes color registers directly to preserve their timing.
+     */
+    void recordColorChange(isize nr, u16 value);
     
     
     //
@@ -712,7 +873,7 @@ public:
     
     // BPLCON0
     static bool shres(u16 v) { return GET_BIT(v, 6); }
-    bool shres() const { return ham(bplcon0); }
+    bool shres() const { return shres(bplcon0); }
     static bool hires(u16 v) { return GET_BIT(v, 15); }
     bool hires() const { return hires(bplcon0); }
     static bool lores(u16 v) { return !hires(v); }
@@ -723,6 +884,15 @@ public:
     bool lace() const { return lace(bplcon0); }
     static bool ham(u16 v) { return (v & 0x8800) == 0x0800; }
     bool ham() const { return ham(bplcon0); }
+
+    /* Returns true if the AGA variant of HAM mode is active. HAM8 requires all
+     * eight bitplanes, which are selected by setting BPU3 and clearing the
+     * three traditional BPU bits (see bpu).
+     */
+    bool ham8(u16 v) const {
+        return isAGA() && ham(v) && GET_BIT(v, 4) && !(v & 0x7000);
+    }
+    bool ham8() const { return ham8(bplcon0); }
     static bool ecsena(u16 v) { return GET_BIT(v, 0); }
     bool ecsena() const { return ecsena(bplcon0); }
 
@@ -733,17 +903,87 @@ public:
     u16 pf1px() const { return pf1px(bplcon2); }
     static u16 pf2px(u16 bplcon2) { return (bplcon2 >> 3) & 7; }
     u16 pf2px() const { return pf2px(bplcon2); }
+    static bool killehb(u16 v) { return GET_BIT(v, 9); }
+    bool killehb() const { return killehb(bplcon2); }
+
+    /* Returns true if the color registers are switched to read mode. The
+     * feature is AGA only. With RDRAM set, the registers can be read back and
+     * write accesses are ignored.
+     */
+    static bool rdram(u16 v) { return GET_BIT(v, 8); }
+    bool rdram() const { return isAGA() && rdram(bplcon2); }
+
+    /* Returns true if Extra-Half-Brite mode is active. EHB requires six
+     * bitplanes and is available in single-playfield mode only. OCS also
+     * enters EHB with seven bitplanes selected, which is an invalid setting
+     * Denise treats like six. ECS and AGA allow the mode to be disabled with
+     * the KILLEHB bit in BPLCON2.
+     */
+    bool ehb(u16 con0, u16 con2) const {
+
+        if (ham(con0) || dbplf(con0)) return false;
+
+        u8 planes = isAGA() && GET_BIT(con0, 4) ? ((con0 & 0x7000) ? 0 : 8) : bpu(con0);
+
+        if (isAGA()) {
+            if (planes != 6) return false;
+        } else {
+            if (planes != 6 && planes != 7) return false;
+        }
+        return isOCS() ? true : !killehb(con2);
+    }
+    bool ehb() const { return ehb(bplcon0, bplcon2); }
 
     // BPLCON3
     static bool brdrblnk(u16 v) { return !!GET_BIT(v, 5); }
     bool brdrblnk() const { return brdrblnk(bplcon3); }
+    static u8 colorBank(u16 v) { return (v >> 13) & 0b111; }
+    u8 colorBank() const { return colorBank(bplcon3); }
+    static bool loct(u16 v) { return !!GET_BIT(v, 9); }
+    bool loct() const { return loct(bplcon3); }
 
-    // CLXCON
+    /* Returns true if sprites remain visible inside the border. The feature is
+     * AGA only, has to be unlocked by the ECSENA bit, and is overruled by
+     * border blanking, which wins over the sprite.
+     */
+    bool brdsprt() const {
+        return isAGA() && GET_BIT(bplcon3, 1) && ecsena() && !brdrblnk();
+    }
+
+    /* Returns the first color register a sprite takes its colors from. OCS and
+     * ECS have this hard-wired to 16. AGA lets BPLCON4 select one of 16 banks,
+     * separately for the even and the odd sprite of a pair (ESPRM and OSPRM).
+     * The reset value 0x0011 selects bank 1 for both, which yields 16 again.
+     */
+    u8 sprBase(isize x) const {
+
+        if (!isAGA()) return 16;
+
+        auto nibble = IS_ODD(x) ? (bplcon4 & 0xF) : ((bplcon4 >> 4) & 0xF);
+        return u8(nibble << 4);
+    }
+
+    /* Returns the color offset of the second playfield in dual playfield mode.
+     * OCS and ECS place the colors of playfield 2 at register 8 and up. AGA
+     * makes the offset selectable through the PF2OF bits in BPLCON3, whose
+     * reset value reproduces the classic offset of 8.
+     */
+    u8 pf2of() const {
+
+        static constexpr u8 ofs[8] = { 0, 2, 4, 8, 16, 32, 64, 128 };
+        return isAGA() ? ofs[(bplcon3 >> 10) & 7] : 8;
+    }
+
+    /* CLXCON and CLXCON2. Bit n of the returned mask belongs to bitplane n+1,
+     * matching the layout of the bitplane buffer. Planes 7 and 8 come from
+     * CLXCON2 and land in bit 6 and bit 7. On OCS and ECS that register stays
+     * zero, so the masks are unaffected there.
+     */
     template <int x> bool ensp() { return !!GET_BIT(clxcon, 12 + (x/2)); }
-    u8 enbp1() const { return (u8)((clxcon >> 6) & 0b010101); }
-    u8 enbp2() const { return (u8)((clxcon >> 6) & 0b101010); }
-    u8 mvbp1() const { return (u8)(clxcon & 0b010101); }
-    u8 mvbp2() const { return (u8)(clxcon & 0b101010); }
+    u8 enbp1() const { return (u8)(((clxcon >> 6) & 0b010101) | (clxcon2 & 0x40)); }
+    u8 enbp2() const { return (u8)(((clxcon >> 6) & 0b101010) | (clxcon2 & 0x80)); }
+    u8 mvbp1() const { return (u8)((clxcon & 0b010101) | ((clxcon2 << 6) & 0x40)); }
+    u8 mvbp2() const { return (u8)((clxcon & 0b101010) | ((clxcon2 << 6) & 0x80)); }
     
     
     //
@@ -771,7 +1011,65 @@ private:
      * differs if the BPU bits reflect an invalid bit pattern.
      */
     static u8 bpu(u16 v);
-    u8 bpu() const { return bpu(bplcon0); }
+    u8 bpu() const {
+
+        /* In AGA, BPLCON0 bit 4 serves as the fourth BPU bit (BPU3). Hence,
+         * eight bitplanes are selected by setting bit 4 and clearing the three
+         * traditional BPU bits. Any other combination with bit 4 set would
+         * request more than eight bitplanes which disables the bitplanes.
+         */
+        if (isAGA() && GET_BIT(bplcon0, 4)) {
+            return (bplcon0 & 0x7000) ? 0 : 8;
+        }
+
+        u8 b = bpu(bplcon0);
+        if (b == 7) return 6;
+        return b;
+    }
+
+    /* Distance between the two trigger positions of the horizontal sprite
+     * comparator when scan doubling is active. It corresponds to bit 8 of the
+     * lores position, which is two buffer entries wide.
+     */
+    static constexpr Pixel SPR_WRAP = 512;
+
+    /* Returns the position at which a sprite starts to be drawn. With AGA scan
+     * doubling enabled, SPRxPOS bit 7 no longer contributes to the horizontal
+     * position, because it has been taken over by the scan doubling flag. The
+     * comparator ignores the corresponding bit instead of evaluating it, which
+     * is why the sprite is matched twice per line (see drawSpritePair).
+     */
+    Pixel sprStrt(isize x) const;
+
+    /* Assembles a sprite shift register value. The first word occupies the
+     * upper 16 bits, the AGA extension continues below it. Bit 63 is always
+     * the leftmost pixel, so a 16 pixel sprite runs empty after 16 shifts.
+     */
+    static u64 loadSSR(u16 value, u64 ext) { return (u64)value << 48 | ext; }
+
+    /* Returns the resolution sprites are drawn in. AGA decouples it from the
+     * bitplane resolution via the SPRES bits in BPLCON3. The pixel buffer
+     * cannot hold more than one sprite pixel per hires pixel, so super hires
+     * sprites are drawn at hires width.
+     *
+     * The returned value is the width of a single sprite pixel in buffer
+     * entries: 2 for a lores sprite, 1 for a hires or super hires sprite.
+     */
+    isize sprPixelWidth() const {
+
+        if (isAGA()) {
+
+            switch ((bplcon3 >> 6) & 0b11) {
+
+                case 0b01: return 2;    // lores
+                case 0b10: return 1;    // hires
+                case 0b11: return 1;    // super hires (clamped to hires)
+                default:   break;       // fall through to the ECS behaviour
+            }
+        }
+
+        return res == Resolution::SHRES ? 1 : 2;
+    }
 };
 
 }

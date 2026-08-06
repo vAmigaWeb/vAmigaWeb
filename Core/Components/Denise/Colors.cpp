@@ -14,9 +14,9 @@ namespace vamiga {
 
 RgbColor::RgbColor(const AmigaColor &c)
 {
-    r = c.r / 15.0;
-    g = c.g / 15.0;
-    b = c.b / 15.0;
+    r = c.r / 255.0;
+    g = c.g / 255.0;
+    b = c.b / 255.0;
 }
 
 RgbColor::RgbColor(const GpuColor &c)
@@ -82,16 +82,16 @@ const YuvColor YuvColor::cyan(RgbColor::cyan);
 
 AmigaColor::AmigaColor(const GpuColor &c)
 {
-    r = u8(c.rawValue >> 4  & 0xF);
-    g = u8(c.rawValue >> 12 & 0xF);
-    b = u8(c.rawValue >> 20 & 0xF);
+    r = u8(c.rawValue       & 0xFF);
+    g = u8(c.rawValue >> 8  & 0xFF);
+    b = u8(c.rawValue >> 16 & 0xFF);
 }
 
 AmigaColor::AmigaColor(const struct RgbColor &c)
 {
-    r = u8(c.r * 0xF);
-    g = u8(c.g * 0xF);
-    b = u8(c.b * 0xF);
+    r = u8(c.r * 0xFF);
+    g = u8(c.g * 0xFF);
+    b = u8(c.b * 0xFF);
 }
 
 const AmigaColor AmigaColor::black(RgbColor::black);
@@ -106,7 +106,17 @@ const AmigaColor AmigaColor::cyan(RgbColor::cyan);
 AmigaColor
 AmigaColor::ehb() const
 {
-    return AmigaColor { u8(r / 2), u8(g / 2), u8(b / 2) };
+    /* Extra half brite operates on the 4 bit color representation of OCS and
+     * ECS Denise. Halving is therefore performed on the upper nibble, and the
+     * bit shifted out of it is discarded rather than carried into the lower
+     * nibble. AGA colors never take this path (see PixelEngine::setColor).
+     */
+    return AmigaColor {
+
+        u8((r >> 1) & 0xF0),
+        u8((g >> 1) & 0xF0),
+        u8((b >> 1) & 0xF0)
+    };
 }
 
 AmigaColor
@@ -114,9 +124,9 @@ AmigaColor::shr() const
 {
     return AmigaColor {
 
-        u8((r & 0xC) | r >> 2),
-        u8((g & 0xC) | g >> 2),
-        u8((b & 0xC) | b >> 2)
+        u8((r & 0xC0) | r >> 2),
+        u8((g & 0xC0) | g >> 2),
+        u8((b & 0xC0) | b >> 2)
     };
 }
 
@@ -133,7 +143,7 @@ AmigaColor::mix(const AmigaColor &c) const
 
 GpuColor::GpuColor(const AmigaColor &c)
 {
-    rawValue = u32(0xFF << 24 | c.b << 20 | c.g << 12 | c.r << 4);
+    rawValue = u32(0xFF << 24 | c.b << 16 | c.g << 8 | c.r);
 }
 
 GpuColor::GpuColor(const RgbColor &c)

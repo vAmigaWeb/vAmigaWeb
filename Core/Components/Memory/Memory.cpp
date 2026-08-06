@@ -1053,8 +1053,15 @@ Memory::updateCpuMemSrcTable()
 
     // Blend in Rom in lower memory area if the overlay line (OVL) is high
     if (ovl) {
-        for (isize i = 0; i < 8 && cpuMemSrc[0xF8 + i] != MemSrc::NONE; i++)
-            cpuMemSrc[i] = cpuMemSrc[0xF8 + i];
+        // AGA Kickstart (1 MB) lives at 0xE0_0000; older 256/512 KB ROMs are at 0xF8_0000.
+        // 0xE0 is the ROM start for 1 MB images, so use it when it maps to ROM.
+        isize base = 0xF8;
+        auto src = cpuMemSrc[0xE0];
+        if (src == MemSrc::ROM || src == MemSrc::ROM_MIRROR || src == MemSrc::WOM) {
+            base = 0xE0;
+        }
+        for (isize i = 0; i < 8 && cpuMemSrc[base + i] != MemSrc::NONE; i++)
+            cpuMemSrc[i] = cpuMemSrc[base + i];
     }
 
     // Expansion boards
@@ -2335,8 +2342,15 @@ Memory::peekCustom16(u32 addr)
         case 0x07C >> 1: // DENISEID
             result = denise.peekDENISEID(); break;
         default:
-            result = peekCustomFaulty16(addr);
 
+            /* In AGA, the color registers become readable if the RDRAM bit in
+             * BPLCON2 is set. All other registers are write-only.
+             */
+            if (isColorReg(addr) && denise.rdram()) {
+                result = denise.peekCOLORxx(colorRegNr(addr));
+            } else {
+                result = peekCustomFaulty16(addr);
+            }
     }
 
     trace(OCSREG_DEBUG, "peekCustom16(%X [%s]) = %X\n", addr, MemoryDebugger::regName(addr), result);
@@ -2408,6 +2422,11 @@ Memory::spypeekCustom16(u32 addr) const
             return denise.spypeekDENISEID();
 
         default:
+
+            // In AGA, the color registers are readable if RDRAM is set
+            if (isColorReg(addr) && denise.rdram()) {
+                return denise.peekCOLORxx(colorRegNr(addr));
+            }
             return 0;
     }
 }
@@ -2629,11 +2648,14 @@ Memory::pokeCustom16(u32 addr, u16 value)
             agnus.pokeBPLxPTH<6,s>(value); return;
         case 0x0F6 >> 1: // BPL6PTL
             agnus.pokeBPLxPTL<6,s>(value); return;
-        case 0x0F8 >> 1: // Unused
-        case 0x0FA >> 1: // Unused
-        case 0x0FC >> 1: // Unused
-        case 0x0FE >> 1: // Unused
-            break;
+        case 0x0F8 >> 1: // BPL7PTH
+            agnus.pokeBPLxPTH<7,s>(value); return;
+        case 0x0FA >> 1: // BPL7PTL
+            agnus.pokeBPLxPTL<7,s>(value); return;
+        case 0x0FC >> 1: // BPL8PTH
+            agnus.pokeBPLxPTH<8,s>(value); return;
+        case 0x0FE >> 1: // BPL8PTL
+            agnus.pokeBPLxPTL<8,s>(value); return;
         case 0x100 >> 1: // BPLCON0
             agnus.pokeBPLCON0<s>(value);
             denise.pokeBPLCON0<s>(value);
@@ -2651,9 +2673,10 @@ Memory::pokeCustom16(u32 addr, u16 value)
             agnus.pokeBPL1MOD(value); return;
         case 0x10A >> 1: // BPL2MOD
             agnus.pokeBPL2MOD(value); return;
-        case 0x10C >> 1: // Unused
-        case 0x10E >> 1: // Unused
-            break;
+        case 0x10C >> 1: // BPLCON4 (AGA)
+            denise.pokeBPLCON4<s>(value); return;
+        case 0x10E >> 1: // CLXCON2 (AGA)
+            denise.pokeCLXCON2(value); return;
         case 0x110 >> 1: // BPL1DAT
             denise.pokeBPLxDAT<0,s>(value); return;
         case 0x112 >> 1: // BPL2DAT
@@ -2666,9 +2689,10 @@ Memory::pokeCustom16(u32 addr, u16 value)
             denise.pokeBPLxDAT<4,s>(value); return;
         case 0x11A >> 1: // BPL6DAT
             denise.pokeBPLxDAT<5,s>(value); return;
-        case 0x11C >> 1: // Unused
-        case 0x11E >> 1: // Unused
-            break;
+        case 0x11C >> 1: // BPL7DAT
+            denise.pokeBPLxDAT<6,s>(value); return;
+        case 0x11E >> 1: // BPL8DAT
+            denise.pokeBPLxDAT<7,s>(value); return;
         case 0x120 >> 1: // SPR0PTH
             agnus.pokeSPRxPTH<0,s>(value); return;
         case 0x122 >> 1: // SPR0PTL
@@ -2833,6 +2857,8 @@ Memory::pokeCustom16(u32 addr, u16 value)
             agnus.pokeBEAMCON0(value); return;
         case 0x1E4 >> 1: // DIWHIGH (ECS)
             agnus.pokeDIWHIGH<s>(value); return;
+        case 0x1FC >> 1: // FMODE (AGA)
+            agnus.pokeFMODE<s>(value); return;
         case 0x1FE >> 1: // NO-OP
             copper.pokeNOOP(value); return;
     }

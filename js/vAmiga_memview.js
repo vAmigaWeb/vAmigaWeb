@@ -666,7 +666,7 @@ function memview_refresh_bitplanes(force) {
                       widthPx: widthPx, heightPx: heightPx });
     }
 
-    // keep the bpl1..bpl6 grouping, but put the tallest (dominant) area of each
+    // keep the bpl1..bpl8 grouping, but put the tallest (dominant) area of each
     // plane on top of its group -> easy to find, and follow mode locks onto the
     // main image instead of a small segment
     parsed.sort(function(a, b) {

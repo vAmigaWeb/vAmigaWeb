@@ -986,7 +986,7 @@ extern "C" void wasm_set_bitplane_guess(int on)
     // Prime the per-line first-pointer table with the invalid marker so lines
     // without bitplane dma are ignored by the guesser from the very first frame
     for(int l=0; l<Agnus::BPL_GUESS_MAX_LINES; l++)
-      for(int i=0; i<6; i++)
+      for(int i=0; i<Agnus::BPL_GUESS_PLANES; i++)
         ag->bplGuessFirstLive[l][i] = ~0u;
   }
   ag->bplGuessEnabled = (on != 0);
@@ -1084,7 +1084,7 @@ extern "C" const char* wasm_get_bitplane_areas()
 
   std::string s;
   char b[96];
-  for(int p=0; p<6; p++)
+  for(int p=0; p<Agnus::BPL_GUESS_PLANES; p++)
   {
     int words = (int)ag->bplGuessWords[p];
     if(words <= 0) continue;
@@ -1115,13 +1115,41 @@ extern "C" const char* wasm_get_bitplane_areas()
       long stride = delta;
       if(stride < 0) { start = (u32)((long)start + delta * h); stride = -stride; }
 
-      int planeWords = words;
-      int mod = (int)stride - 2*planeWords;
-      if(mod < 0) { planeWords = (int)(stride / 2); mod = (int)stride - 2*planeWords; }
+      /* Take the word count from inside this run instead of the frame-wide
+       * maximum. A single odd scanline elsewhere in the frame (mode switch,
+       * split screen, menu bar) would otherwise widen every reported area.
+       * The middle of the run is sampled, which avoids the partial first and
+       * last lines of an area.
+       */
+      int planeWords = (int)ag->bplGuessWordsPerLine[y + h/2][p];
+      if(planeWords <= 0) planeWords = words;
+
+      /* An interlaced frame covers one field only, so the measured stride
+       * spans two picture rows: both fields are interleaved in one buffer.
+       * Halving it yields the real row width and doubles the height. This is
+       * only applied when the stride really has room for two rows, so screens
+       * that keep each field in its own buffer stay untouched.
+       */
+      long rowBytes = stride;
+      int lines = h;
+      if(ag->bplGuessLace && stride >= 2*(long)planeWords)
+      {
+        rowBytes = stride / 2;
+        lines = 2 * h;
+      }
+
+      /* AGA fetches whole 32/64 bit chunks (FMODE), so a scanline can cover
+       * more words than the picture row holds. The surplus is clipped by the
+       * display window and taken back by a negative modulo, so it must not
+       * count towards the width.
+       */
+      if(2*(long)planeWords > rowBytes) planeWords = (int)(rowBytes / 2);
+
+      int mod = (int)rowBytes - 2*planeWords;
 
       u32 end = start + (u32)stride * (u32)h;
       snprintf(b, sizeof b, "%d,%u,%u,%d,%u,%u;",
-               p, start, end, mod, (unsigned)planeWords, (unsigned)h);
+               p, start, end, mod, (unsigned)planeWords, (unsigned)lines);
       s += b;
       emitted++;
       y += h;
