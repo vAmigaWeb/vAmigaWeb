@@ -97,9 +97,9 @@ RemoteManager::numErroneous() const
 }
 
 void
-RemoteManager::serviceServerEvent()
+RemoteManager::update()
 {
-    assert(agnus.id[SLOT_SRV] == SRV_LAUNCH_DAEMON);
+    if (frame++ % 32 != 0) return;
 
     // Run the launch daemon
     if (serServer.config.autoRun) {
@@ -114,9 +114,6 @@ RemoteManager::serviceServerEvent()
     if (gdbServer.config.autoRun) {
         gdbServer.shouldRun() ? gdbServer.start() : gdbServer.stop();
     }
-
-    // Schedule next event
-    agnus.scheduleInc <SLOT_SRV> (SEC(0.5), SRV_LAUNCH_DAEMON);
 }
 
 }
