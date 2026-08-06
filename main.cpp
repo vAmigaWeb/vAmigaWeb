@@ -389,9 +389,35 @@ bool calculate_viewport_dimensions(u32 *texture)
 #define MAX_GAP 5
 VAmiga *emu=NULL;
 u8 executed_since_last_host_frame=0;
+
+// computeFrame() may throw a StateChangeException when the core wants to
+// stop emulation in the middle of a frame (e.g. breakpoint, watchpoint or
+// beam trap). This wraps computeFrame() and reacts to that request by
+// properly transitioning the emulator into the paused state, which also
+// posts Msg::PAUSE so the JS UI can update (see MSG_PAUSE handler).
+static inline void wasm_compute_frame_safe()
+{
+  // Mirror Thread::execute()'s guard: don't run any further instructions
+  // once the core has (auto-)paused, e.g. due to a breakpoint, watchpoint
+  // or beam trap. Without this check, calls already queued from JS
+  // (setTimeout(execute_amiga_frame) / loops below) would keep executing
+  // instructions even though the core just requested a pause.
+  if (!emu->emu->isRunning()) 
+  {
+    emu->emu->update();
+    return;
+  }
+
+  try {
+    emu->emu->computeFrame();
+  } catch (StateChangeException &) {
+    emu->emu->pause();
+  }
+}
+
 extern "C" void wasm_execute()
 {
-  emu->emu->computeFrame(); //execute();
+  wasm_compute_frame_safe(); //execute();
   executed_since_last_host_frame++;
   executed_frame_count++;
   total_executed_frame_count++;
@@ -426,7 +452,7 @@ extern "C" int wasm_draw_one_frame(double now)
     int i=25;
     while(emu->isWarping() == true && i>0)
     {
-      emu->emu->computeFrame();
+      wasm_compute_frame_safe();
       i--;
     }
     start_time=now;
@@ -504,7 +530,7 @@ extern "C" int wasm_draw_one_frame(double now)
         return -1;
       }
       else{
-        emu->emu->computeFrame();
+        wasm_compute_frame_safe();
 //        printf("compute_frame \n"); 
         executed_frame_count++;
         total_executed_frame_count++;
@@ -515,7 +541,7 @@ extern "C" int wasm_draw_one_frame(double now)
       //0 + 0 < 0 -2
       while(current_frame+vframes  < current_frame + vsync_speed)
       {
-        emu->emu->computeFrame();
+        wasm_compute_frame_safe();
         //printf("compute_frame \n"); 
         executed_frame_count++;
         total_executed_frame_count++;
@@ -540,7 +566,7 @@ extern "C" int wasm_draw_one_frame(double now)
 #ifndef wasm_worker    
   if(behind>0)
   {
-    emu->emu->computeFrame();
+    wasm_compute_frame_safe();
 
     executed_frame_count++;
     total_executed_frame_count++;

@@ -517,11 +517,45 @@ function message_handler_queue_worker(msg, data, data2)
         required_roms_loaded=true;
         emulator_currently_runs=true;
         document.body.setAttribute('warpstate',Module._wasm_is_warping());
+
+        // the core can autonomously resume emulation (e.g. RetroShell
+        // 'run', 'step' or 'next' commands). there is no native background
+        // thread in the wasm build - execution is entirely driven by the
+        // JS requestAnimationFrame loop - so make sure that loop is
+        // actually running and the UI reflects that, even if the user
+        // didn't click button_run.
+        if(!running)
+        {
+            running = true;
+            try { audioContext.resume(); } catch(e){ console.error(e); }
+            $('#button_run').html(`<svg class="bi bi-pause-fill" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z"/>
+          </svg>`).parent().attr("title", "pause").attr("data-original-title", "pause");
+            if(stop_request_animation_frame && typeof do_animation_frame === 'function')
+            {
+                stop_request_animation_frame = false;
+                requestAnimationFrame(do_animation_frame);
+            }
+        }
     }
     else if(msg == "MSG_PAUSE")
     {
         emulator_currently_runs=false;
         document.body.setAttribute('warpstate', 0);
+
+        // the core can autonomously pause emulation (e.g. breakpoint,
+        // watchpoint or beam trap hit in the RetroShell debugger). reflect
+        // that in the UI even though the user didn't click button_run.
+        if(running)
+        {
+            stop_request_animation_frame = true;
+            running = false;
+            try { audioContext.suspend(); } catch(e){ console.error(e); }
+            $('#button_run').html(`<svg class="bi bi-play-fill" width="1.6em" height="1.6em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+          </svg>`).parent().attr("title", "run").attr("data-original-title", "run");
+            check_wake_lock();
+        }
     }
     else if(msg === "MSG_WARP")
     {
