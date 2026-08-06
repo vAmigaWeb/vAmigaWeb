@@ -3408,8 +3408,8 @@ $("#cb_df0_poll_sound").change( function() {
 bind_config_choice("OPT_DRIVE_SPEED", "floppy drive speed",['-1', '1', '2', '4', '8'],'1');
 
 var amiga_models = {
-    "A1000": { name: "Amiga 1000", chipset: "OCS", agnus: "OCS_OLD", denise: "OCS", chip: "512", slow: "0", fast: "0", cpu: "0", clock: "0" },
-    "A500":  { name: "Amiga 500",  chipset: "OCS", agnus: "OCS",     denise: "OCS", chip: "512", slow: "0", fast: "0", cpu: "0", clock: "0" },
+    "A1000": { name: "Amiga 1000", chipset: "OCS early revision", agnus: "OCS_OLD", denise: "OCS", chip: "512", slow: "0", fast: "512", cpu: "0", clock: "0" },
+    "A500":  { name: "Amiga 500",  chipset: "OCS", agnus: "OCS",     denise: "OCS", chip: "512", slow: "512", fast: "0", cpu: "0", clock: "0" },
     "A500+": { name: "Amiga 500+", chipset: "ECS", agnus: "ECS_1MB", denise: "ECS", chip: "1024", slow: "0", fast: "0", cpu: "0", clock: "0" },
     "A600":  { name: "Amiga 600",  chipset: "ECS", agnus: "ECS_2MB", denise: "ECS", chip: "1024", slow: "0", fast: "0", cpu: "0", clock: "0" },
     "A1200": { name: "Amiga 1200", chipset: "AGA", agnus: "AGA",     denise: "AGA", chip: "2048", slow: "0", fast: "2048", cpu: "2", clock: "2" },
@@ -3417,7 +3417,7 @@ var amiga_models = {
 
 function model_display(key) {
     let preset = amiga_models[key];
-    return preset ? `${preset.name} - ${preset.chipset}` : key;
+    return preset ? `${preset.name} (${preset.chipset})` : key;
 }
 
 function get_hardware_display(key, value) {
@@ -3482,6 +3482,26 @@ function apply_model(model_key) {
     $('#button_OPT_AMIGA_MODEL').html(`model=${model_display(model_key)}`);
 }
 
+function model_cpu_class(cpu) {
+    return String(cpu) === '1' ? '0' : String(cpu);
+}
+
+function update_model_from_hardware() {
+    let agnus = String(load_setting('OPT_AGNUS_REVISION', ''));
+    let denise = String(load_setting('OPT_DENISE_REVISION', ''));
+    let cpu = model_cpu_class(load_setting('OPT_CPU_REVISION', ''));
+
+    for (let key in amiga_models) {
+        let m = amiga_models[key];
+        if (m.agnus === agnus && m.denise === denise && model_cpu_class(m.cpu) === cpu) {
+            current_model = key;
+            save_setting('OPT_AMIGA_MODEL', key);
+            $('#button_OPT_AMIGA_MODEL').html(`model=${model_display(key)}`);
+            return;
+        }
+    }
+}
+
 let current_model = load_setting('OPT_AMIGA_MODEL', 'A500');
 if (!amiga_models[current_model]) current_model = 'A500';
 let model_list = '';
@@ -3533,7 +3553,9 @@ bind_config_choice("OPT_AGNUS_REVISION", "agnus revision",['OCS_OLD','OCS','ECS_
             return found[0].v;
         else
             return t;
-    }
+    },
+    null,
+    ()=>update_model_from_hardware()
 );
 
 denise_map = [ {v: "OCS", t:"OCS | A500, A1000, A2000 (MOS8362R8)"},
@@ -3553,10 +3575,10 @@ bind_config_choice("OPT_DENISE_REVISION", "denise revision",['OCS','ECS','AGA'],
         return found[0].v;
     else
         return t;
-});
-bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
-bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0', (v)=>`${v} KB`, t=>parseInt(t));
-bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048', (v)=>`${v} KB`, t=>parseInt(t));
+},null,()=>update_model_from_hardware());
+bind_config_choice("OPT_CHIP_RAM", "chip ram",['256', '512', '1024', '2048'],'2048', (v)=>`${v} KB`, t=>parseInt(t), null, ()=>update_model_from_hardware());
+bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0', (v)=>`${v} KB`, t=>parseInt(t), null, ()=>update_model_from_hardware());
+bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048', (v)=>`${v} KB`, t=>parseInt(t), null, ()=>update_model_from_hardware());
 
 $('#hardware_settings').append("<div id='divCPU' style='display:flex;flex-direction:row'></div>");
 bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2,4], 0, 
@@ -3565,7 +3587,7 @@ bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2,4], 0,
     let val = t.toString().replace("fake 030 for Settlers map size 8","68030");
     val = (val-68000)/10;
     return val==3 ?4: val;
-}, "#divCPU");
+}, "#divCPU", ()=>update_model_from_hardware());
 
 bind_config_choice("OPT_CPU_OVERCLOCKING", "",[0,2,3,4,5,6,8,12,14], 0, 
 (v)=>{ return Math.round((v==0?1:v)*7.09)+' MHz'},
@@ -3573,7 +3595,7 @@ bind_config_choice("OPT_CPU_OVERCLOCKING", "",[0,2,3,4,5,6,8,12,14], 0,
     let val =t.replace(' MHz','');
     val = Math.round(val /7.09);
     return val == 1 ? 0: val;
-},"#divCPU");
+},"#divCPU", ()=>update_model_from_hardware());
 $('#hardware_settings').append(`<div style="font-size: smaller" class="ml-3 vbk_choice_text">
 <span>7.09 Mhz</span> is the original speed of a stock A1000 or A500 machine. For effective overclocking be sure to enable fast ram and disable slow ram otherwise the overclocked CPU will get blocked by chipset DMA. CPU speed is proportional to energy consumption.
 </div>`);
