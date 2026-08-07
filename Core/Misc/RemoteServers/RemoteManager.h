@@ -44,6 +44,13 @@ public:
         &serServer, &rshServer, &gdbServer, &promServer
     };
 
+private:
+
+    // Counts the calls to update()
+    isize frame = 0;
+
+public:
+
     
     //
     // Initializing
@@ -117,12 +124,12 @@ public:
 
 
     //
-    // Servicing events
+    // Running the launch daemon
     //
     
 public:
     
-    void serviceServerEvent();
+    void update();
 };
 
 }
