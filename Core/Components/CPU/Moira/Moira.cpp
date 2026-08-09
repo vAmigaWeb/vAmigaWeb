@@ -67,14 +67,15 @@ void
 Moira::setModel(Model cpuModel, Model dasmModel)
 {
     if (this->cpuModel != cpuModel || this->dasmModel != dasmModel) {
-        
+
         this->cpuModel = cpuModel;
         this->dasmModel = dasmModel;
 
         createJumpTable(cpuModel, dasmModel);
-        
+
         reg.cacr &= cacrMask();
         flags &= ~State::LOOPING;
+        flushInstructionCache();
     }
 }
 
@@ -205,6 +206,8 @@ Moira::reset()
     reg = { };
     reg.sr.s = 1;
     reg.sr.ipl = 7;
+
+    flushInstructionCache();
 
     ipl = 0;
     fcl = 2;
@@ -515,6 +518,7 @@ void
 Moira::setCACR(u32 val)
 {
     reg.cacr = val & cacrMask();
+    if (is68020()) flushInstructionCache();
     didChangeCACR(val);
 }
 
@@ -523,6 +527,45 @@ Moira::setCAAR(u32 val)
 {
     reg.caar = val;
     didChangeCAAR(val);
+}
+
+void
+Moira::flushInstructionCache()
+{
+    iCacheAddr020 = 0xffffffff;
+    iCacheData020 = 0xffffffff;
+    for (int i = 0; i < ICacheLines020; i++) {
+        iCache020[i].valid = false;
+    }
+}
+
+void
+Moira::fillInstructionCache(u32 addr)
+{
+    u32 base = (addr & addrMask()) & ~3;
+    int index = (int)((base >> 2) & (ICacheLines020 - 1));
+    u32 tag = (reg.sr.s ? 1u : 0u) | (base & ~((u32)((ICacheLines020 << 2) - 1)));
+
+    if (iCache020[index].valid && iCache020[index].tag == tag) {
+        iCacheData020 = iCache020[index].data;
+    } else {
+        u32 data = read32(base);
+        iCacheData020 = data;
+        if ((reg.cacr & 1) && !(reg.cacr & 2)) {
+            iCache020[index].tag = tag;
+            iCache020[index].data = data;
+            iCache020[index].valid = true;
+        }
+    }
+    iCacheAddr020 = base;
+}
+
+u16
+Moira::readInstructionCache(u32 addr)
+{
+    u32 base = addr & ~3;
+    if (iCacheAddr020 != base) fillInstructionCache(base);
+    return u16(iCacheData020 >> ((addr & 2) ? 0 : 16));
 }
 
 void

@@ -360,6 +360,21 @@ Agnus::executeUntilBusIsFree()
         // Execute Agnus until the bus is free
         do {
 
+            // On AGA, the 68020 CPU can use CPU-owned, refresh, and free slots
+            // without waiting. Don't advance Agnus here to avoid double-counting
+            // bus cycles (prefetch/executeUntilBusIsFree interaction).
+            if (isAGA() && cpu.is68020()) {
+                // CPU steals the Blitter cycle if it has been waiting long enough
+                if (delay >= 3 && busOwner[pos.h] == BusOwner::BLITTER && !bltpri()) {
+                    break;
+                }
+
+/*                if (busOwner[pos.h] == BusOwner::NONE ||
+                    busOwner[pos.h] == BusOwner::CPU ||
+                    busOwner[pos.h] == BusOwner::REFRESH) break;
+*/
+            }
+
             execute();
             if (++delay == 2) bls = true;
 
@@ -580,7 +595,9 @@ Agnus::executeFirstSpriteCycle()
             } else {
 
                 busOwner[pos.h] = BusOwner::BLOCKED;
-            }
+                //                busOwner[pos.h] = BusOwner::NONE;
+
+}
         }
 
     } else if (sprDmaEnabled[nr]) {
@@ -599,6 +616,7 @@ Agnus::executeFirstSpriteCycle()
 
             } else {
 
+            //  busOwner[pos.h] = BusOwner::NONE;
                 busOwner[pos.h] = BusOwner::BLOCKED;
             }
         }
@@ -625,7 +643,7 @@ Agnus::executeSecondSpriteCycle()
                 
             } else {
 
-                busOwner[pos.h] = BusOwner::BLOCKED;
+                busOwner[pos.h] = BusOwner::NONE;
             }
         }
 
@@ -645,6 +663,7 @@ Agnus::executeSecondSpriteCycle()
 
             } else {
 
+                //  busOwner[pos.h] = BusOwner::NONE;
                 busOwner[pos.h] = BusOwner::BLOCKED;
             }
         }
