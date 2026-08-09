@@ -1023,7 +1023,7 @@ private:
         }
 
         u8 b = bpu(bplcon0);
-        if (b == 7) return 6;
+        if (b == 7 && !isAGA()) return 6;
         return b;
     }
 
