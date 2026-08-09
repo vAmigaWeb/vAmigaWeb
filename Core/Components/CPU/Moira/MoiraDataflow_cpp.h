@@ -394,11 +394,26 @@ Moira::read(u32 addr)
 
     if constexpr (S == Long) {
 
-        result = read16(addr & addrMask<C>()) << 16;
-        SYNC(4);
-        if constexpr (F & POLL) POLL_IPL;
-        result |= read16((addr + 2) & addrMask<C>());
-        SYNC(2);
+        if constexpr (C >= Core::C68020) {
+            if ((addr & 3) == 0) {
+
+                result = read32(addr & addrMask<C>());
+                if constexpr (F & POLL) POLL_IPL;
+
+            } else {
+
+                result = read16(addr & addrMask<C>()) << 16;
+                if constexpr (F & POLL) POLL_IPL;
+                result |= read16((addr + 2) & addrMask<C>());
+            }
+        } else {
+
+            result = read16(addr & addrMask<C>()) << 16;
+            SYNC(4);
+            if constexpr (F & POLL) POLL_IPL;
+            result |= read16((addr + 2) & addrMask<C>());
+            SYNC(2);
+        }
     }
 
     return result;
@@ -447,21 +462,47 @@ Moira::write(u32 addr, u32 val)
 
     if constexpr (S == Long) {
 
-        if constexpr (F & REVERSE) {
+        if constexpr (C >= Core::C68020) {
 
-            write16((addr + 2) & addrMask<C>(), u16(val & 0xFFFF));
-            SYNC(4);
-            if constexpr (F & POLL) POLL_IPL;
-            write16(addr & addrMask<C>(), u16(val >> 16));
-            SYNC(2);
+            if ((addr & 3) == 0) {
+
+                write32(addr & addrMask<C>(), val);
+                if constexpr (F & POLL) POLL_IPL;
+
+            } else {
+
+                if constexpr (F & REVERSE) {
+
+                    write16((addr + 2) & addrMask<C>(), u16(val & 0xFFFF));
+                    if constexpr (F & POLL) POLL_IPL;
+                    write16(addr & addrMask<C>(), u16(val >> 16));
+
+                } else {
+
+                    write16(addr & addrMask<C>(), u16(val >> 16));
+                    if constexpr (F & POLL) POLL_IPL;
+                    write16((addr + 2) & addrMask<C>(), u16(val & 0xFFFF));
+                }
+            }
 
         } else {
 
-            write16(addr & addrMask<C>(), u16(val >> 16));
-            SYNC(4);
-            if constexpr (F & POLL) POLL_IPL;
-            write16((addr + 2) & addrMask<C>(), u16(val & 0xFFFF));
-            SYNC(2);
+            if constexpr (F & REVERSE) {
+
+                write16((addr + 2) & addrMask<C>(), u16(val & 0xFFFF));
+                SYNC(4);
+                if constexpr (F & POLL) POLL_IPL;
+                write16(addr & addrMask<C>(), u16(val >> 16));
+                SYNC(2);
+
+            } else {
+
+                write16(addr & addrMask<C>(), u16(val >> 16));
+                SYNC(4);
+                if constexpr (F & POLL) POLL_IPL;
+                write16((addr + 2) & addrMask<C>(), u16(val & 0xFFFF));
+                SYNC(2);
+            }
         }
     }
 }
@@ -571,6 +612,36 @@ Moira::makeFrame(u32 addr)
     return makeFrame<F>(addr, getPC(), getSR(), getIRD());
 }
 
+template <Core C, Flags F> u16
+Moira::readInstructionWord(u32 addr)
+{
+    // Update function code pins
+    setFC(FC::USER_PROG);
+    SYNC(2);
+
+    // Check for address errors
+    if (misaligned<C, Word>(addr)) {
+        throw AddressError(makeFrame<F>(addr));
+    }
+
+    // Check if a watchpoint has been reached
+    if ((flags & State::CHECK_WP) && debugger.watchpointMatches(addr, Word)) {
+        didReachWatchpoint(addr);
+    }
+
+    if constexpr (F & POLL) POLL_IPL;
+
+    u16 result;
+    if constexpr (C == Core::C68020) {
+        result = readInstructionCache(addr & addrMask<C>());
+    } else {
+        result = read16(addr & addrMask<C>());
+    }
+    SYNC(2);
+
+    return result;
+}
+
 template <Core C, Flags F> void
 Moira::prefetch()
 {
@@ -582,7 +653,7 @@ Moira::prefetch()
     reg.pc0 = reg.pc;
 
     queue.ird = queue.irc;
-    queue.irc = (u16)read<C, AddrSpace::PROG, Word, F>(reg.pc + 2);
+    queue.irc = readInstructionWord<C, F>(reg.pc + 2);
     readBuffer = queue.irc;
 }
 
@@ -591,7 +662,7 @@ Moira::fullPrefetch()
 {
     assert(!misaligned<C>(reg.pc));
 
-    queue.irc = (u16)read<C, AddrSpace::PROG, Word>(reg.pc);
+    queue.irc = readInstructionWord<C>(reg.pc);
     if (delay) SYNC(delay);
     prefetch<C, F>();
 }
@@ -612,7 +683,7 @@ Moira::readExt()
     assert(!misaligned<C>(reg.pc));
 
     reg.pc += 2;
-    queue.irc = (u16)read<C, AddrSpace::PROG, Word>(reg.pc);
+    queue.irc = readInstructionWord<C>(reg.pc);
 }
 
 template <Core C, Size S> u32

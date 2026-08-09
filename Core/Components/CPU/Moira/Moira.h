@@ -48,6 +48,12 @@ protected:
     
 public:
     
+    // Returns the emulated CPU model
+    Model getModel() const { return cpuModel; }
+    
+    // Checks whether the emulated CPU is a 68020 (EC or full)
+    bool is68020() const { return cpuModel == Model::M68EC020 || cpuModel == Model::M68020; }
+    
     // Debugger handling breakpoints, watchpoints, catchpoints, and instruction tracing
     Debugger debugger = Debugger(*this);
     
@@ -66,7 +72,14 @@ protected:
     
     // Prefetch queue for fetching instructions
     PrefetchQueue queue {};
-    
+
+    // 68020 instruction cache (64 lines of 4 bytes)
+    struct Cache020Line { u32 data = 0; u32 tag = 0; bool valid = false; };
+    static constexpr int ICacheLines020 = 64;
+    Cache020Line iCache020[ICacheLines020] {};
+    u32 iCacheAddr020 = 0xffffffff;
+    u32 iCacheData020 = 0;
+
     // Interrupt mode
     IrqMode irqMode {IrqMode::AUTO};
     
@@ -290,6 +303,7 @@ protected:
     // Reads a value from memory
     virtual u8 read8(u32 addr) const = 0;
     virtual u16 read16(u32 addr) const = 0;
+    virtual u32 read32(u32 addr) const;
     
     // Reads a 16-bit value from memory during the reset routine
     virtual u16 read16OnReset(u32 addr) const { return read16(addr); }
@@ -300,11 +314,11 @@ protected:
     // Writes a value into memory
     virtual void write8(u32 addr, u8 val) const = 0;
     virtual void write16(u32 addr, u16 val) const = 0;
+    virtual void write32(u32 addr, u32 val) const;
     
     // Provides the interrupt vector for a given interrupt level in USER mode
     virtual u16 readIrqUserVector(u8 level) const { return 0; }
 
-    
     //
     // State delegates
     //
@@ -382,6 +396,7 @@ protected:
     // Reads a value from memory
     u8 read8(u32 addr) const;
     u16 read16(u32 addr) const;
+    u32 read32(u32 addr) const;
     
     // Reads a 16-bit value from memory during the reset routine
     u16 read16OnReset(u32 addr) const;
@@ -392,6 +407,7 @@ protected:
     // Writes a value into memory
     void write8(u32 addr, u8 val) const;
     void write16(u32 addr, u16 val) const;
+    void write32(u32 addr, u32 val) const;
     
     // Provides the interrupt vector for a given interrupt level in USER mode
     u16 readIrqUserVector(u8 level) const;
@@ -465,9 +481,14 @@ protected:
     
     // Called when a software trap is hit
     void didReachSoftwareTrap(u32 addr);
-    
+
 #endif
-    
+
+    // 68020 instruction cache helpers
+    void flushInstructionCache();
+    void fillInstructionCache(u32 addr);
+    u16 readInstructionCache(u32 addr);
+
     //
     // Accessing the clock
     //
