@@ -119,11 +119,20 @@ function memview_init() {
     memview_ctx = canvas.getContext("2d");
     memview_apply_geometry();
 
-    // scroll by wheel
+    // scroll by wheel / trackpad
     canvas.addEventListener("wheel", function(e) {
         e.preventDefault();
-        let rows = Math.sign(e.deltaY) * 8;
-        memview_set_start(memdump_start + rows * memview_row_stride);
+        let rect = canvas.getBoundingClientRect();
+        let rowsPerPixel = MEMVIEW_VPIXELS / rect.height;
+        // wheel: 0 = pixels (trackpad), 1 = lines (mouse wheel), 2 = pages
+        let scale = 1;
+        if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) scale = 24;
+        else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) scale = rect.height;
+        let rows = Math.round(e.deltaY * scale * rowsPerPixel);
+        if (rows !== 0) {
+            memview_set_start(memdump_start + rows * memview_row_stride);
+            if (!(live_memory_dump_enabled && is_running_safe())) memdump();
+        }
     }, { passive: false });
 
     // drag to scroll (pointer events cover mouse, touch and pen -> works on iPad)
