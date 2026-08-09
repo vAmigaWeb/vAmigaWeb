@@ -642,8 +642,8 @@ Agnus::executeSecondSpriteCycle()
                 denise.pokeSPRxCTL<nr>(value);
                 
             } else {
-
-                busOwner[pos.h] = BusOwner::NONE;
+                busOwner[pos.h] = BusOwner::BLOCKED;
+//                busOwner[pos.h] = BusOwner::NONE;
             }
         }
 
