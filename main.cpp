@@ -2678,6 +2678,10 @@ extern "C" const char* wasm_configure(char* option, char* _value)
         wrapper->emu->powerOn();
         if(was_running) wrapper->emu->run();
     }
+
+    // execute the queued commands, otherwise a subsequent
+    // wasm_get_config_item() would still report the previous values
+    wrapper->emu->emu->update();
   }
   catch(AppError &exception) {    
 //    ErrorCode ec=exception.data;
@@ -2688,6 +2692,80 @@ extern "C" const char* wasm_configure(char* option, char* _value)
   }
   return config_result; 
 }
+extern "C" const char* wasm_configure_multi(char* _config)
+{
+  sprintf(config_result,"");
+  auto config = std::string(_config);
+  if(log_on) printf("wasm_configure_multi %s\n", config.c_str());
+
+  bool was_powered_on = wrapper->emu->isPoweredOn();
+  bool was_running = wrapper->emu->isRunning();
+
+  if(was_powered_on)
+  {
+      wrapper->emu->powerOff(); wrapper->emu->emu->update();
+  }
+
+  try
+  {
+    size_t start = 0;
+    while (start < config.size())
+    {
+      size_t end = config.find('\n', start);
+      if (end == std::string::npos) end = config.size();
+      std::string line = config.substr(start, end - start);
+      start = end + 1;
+      if(line.empty()) continue;
+
+      size_t eq = line.find('=');
+      if(eq == std::string::npos)
+      {
+        printf("wasm_configure_multi malformed line: %s\n", line.c_str());
+        continue;
+      }
+      std::string option = line.substr(0, eq);
+      std::string value  = line.substr(eq + 1);
+
+      if(log_on) printf("wasm_configure_multi %s = %s\n", option.c_str(), value.c_str());
+
+      if( strcmp(option.c_str(),"AGNUS_REVISION") == 0)
+        wrapper->emu->set(Opt::AGNUS_REVISION, util::parseEnum <AgnusRevisionEnum>(value));
+      else if( strcmp(option.c_str(),"DENISE_REVISION") == 0)
+        wrapper->emu->set(Opt::DENISE_REVISION, util::parseEnum <DeniseRevEnum>(value));
+      else if( strcmp(option.c_str(),"CHIP_RAM") == 0  ||
+               strcmp(option.c_str(),"SLOW_RAM") == 0  ||
+               strcmp(option.c_str(),"FAST_RAM") == 0)
+        wrapper->emu->set(Opt(util::parseEnum <OptEnum>(option)), util::parseNum(value));
+      else if( strcmp(option.c_str(),"CPU_REVISION") == 0)
+        wrapper->emu->set(Opt::CPU_REVISION, util::parseNum(value));
+      else if( strcmp(option.c_str(),"CPU_OVERCLOCKING") == 0)
+        wrapper->emu->set(Opt::CPU_OVERCLOCKING, util::parseNum(value));
+      else
+      {
+        printf("wasm_configure_multi unknown key: %s\n", option.c_str());
+        sprintf(config_result,"unknown key wasm_configure_multi %s", option.c_str());
+        return config_result;
+      }
+    }
+
+    if(was_powered_on)
+    {
+      wrapper->emu->powerOn();
+      if(was_running) wrapper->emu->run();
+    }
+
+    // execute the queued commands, otherwise a subsequent
+    // wasm_get_config_item() would still report the previous values
+    wrapper->emu->emu->update();
+  }
+  catch(AppError &exception) {
+    printf("wasm_configure_multi error: %s\n", exception.what());
+    if(config_result[0] == '\0')
+      sprintf(config_result,"%s", exception.what());
+  }
+  return config_result; 
+}
+
 extern "C" void wasm_print_error(unsigned exception_ptr)
 {
   if(exception_ptr!=0)
