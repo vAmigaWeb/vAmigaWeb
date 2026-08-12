@@ -3581,14 +3581,6 @@ function apply_model(model_key) {
     let preset = amiga_models[model_key];
     if (!preset) return;
 
-    save_setting('OPT_AGNUS_REVISION', preset.agnus);
-    save_setting('OPT_DENISE_REVISION', preset.denise);
-    save_setting('OPT_CHIP_RAM', preset.chip);
-    save_setting('OPT_SLOW_RAM', preset.slow);
-    save_setting('OPT_FAST_RAM', preset.fast);
-    save_setting('OPT_CPU_REVISION', preset.cpu);
-    save_setting('OPT_CPU_OVERCLOCKING', preset.clock);
-
     let config_lines = [
         `AGNUS_REVISION=${preset.agnus}`,
         `DENISE_REVISION=${preset.denise}`,
@@ -3604,6 +3596,14 @@ function apply_model(model_key) {
         alert(result);
         return;
     }
+
+    save_setting('OPT_AGNUS_REVISION', preset.agnus);
+    save_setting('OPT_DENISE_REVISION', preset.denise);
+    save_setting('OPT_CHIP_RAM', preset.chip);
+    save_setting('OPT_SLOW_RAM', preset.slow);
+    save_setting('OPT_FAST_RAM', preset.fast);
+    save_setting('OPT_CPU_REVISION', preset.cpu);
+    save_setting('OPT_CPU_OVERCLOCKING', preset.clock);
 
     update_hardware_button('OPT_AGNUS_REVISION', preset.agnus);
     update_hardware_button('OPT_DENISE_REVISION', preset.denise);
