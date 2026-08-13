@@ -13,6 +13,7 @@
 #include "Amiga.h"
 #include "AmigaTypes.h"
 #include "RomFile.h"
+#include "RomDatabase.h"
 #include "ADFFile.h"
 #include "ADZFile.h"
 #include "DMSFile.h"
@@ -1995,6 +1996,38 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
     {
       wrapper->emu->powerOff(); wrapper->emu->emu->update();
     }
+
+    // If this is an AROS kickstart, ensure at least 1 MB total RAM is
+    // available before loading. Otherwise the ROM load can overflow the
+    // available memory.
+    {
+      u32 crc = rom->crc32();
+      bool is_aros = false;
+      for (const auto &r : roms) {
+        if (r.crc == crc && r.title && strcmp(r.title, "AROS Kickstart replacement") == 0) {
+          is_aros = true;
+          break;
+        }
+      }
+      if (is_aros) {
+        long chip = (long)wrapper->emu->get(Opt::MEM_CHIP_RAM);
+        long slow = (long)wrapper->emu->get(Opt::MEM_SLOW_RAM);
+        long fast = (long)wrapper->emu->get(Opt::MEM_FAST_RAM);
+        if (chip + slow + fast < 1024) {
+          long additional = 1024 - (chip + slow + fast);
+          long new_fast = fast + 512;
+          if (new_fast < fast + additional) new_fast = fast + additional;
+          const long fast_options[] = {0, 256, 512, 1024, 2048, 8192};
+          long chosen = new_fast;
+          for (size_t i = 0; i < sizeof(fast_options)/sizeof(fast_options[0]); ++i) {
+            if (fast_options[i] >= new_fast) { chosen = fast_options[i]; break; }
+          }
+          wrapper->emu->set(Opt::MEM_FAST_RAM, chosen);
+          wrapper->emu->emu->update();
+        }
+      }
+    }
+
 //    wrapper->emu->suspend();
     try { 
       wrapper->emu->mem.loadRom(*rom); 

@@ -1951,6 +1951,10 @@ function InitWrappers() {
         Module.HEAPU8.set(file_buffer, file_slot_wasmbuf);
         let retVal=Module.ccall('wasm_loadFile', 'string', ['string','number','number', 'number'], [file_name,file_slot_wasmbuf,file_buffer.byteLength, drv_number]);
         Module._free(file_slot_wasmbuf);
+
+        if (typeof update_model_from_hardware === 'function') {
+            update_model_from_hardware();
+        }
         return retVal;                    
     }
     wasm_mem_patch = function (amiga_mem_address, file_buffer) {
@@ -3456,10 +3460,10 @@ bind_config_choice("OPT_DRIVE_SPEED", "floppy drive speed",['-1', '1', '2', '4',
 const CUSTOM_MODEL_KEY = 'CUSTOM';
 
 var amiga_models = {
-    "A1000": { name: "A1000", chipset: "OCS early revision", agnus: "OCS_OLD", denise: "OCS", chip: "512", slow: "0", fast: "512", cpu: "0", clock: "0" },
+    "A1000": { name: "A1000", chipset: "OCS <span style='font-size: x-small; display: inline-block; line-height: 1.1; vertical-align: top'>early<br>rev.</span>", agnus: "OCS_OLD", denise: "OCS", chip: "512", slow: "0", fast: "512", cpu: "0", clock: "0" },
     "A500_UNEXPANDED": { name: "A500", chipset: "OCS", agnus: "OCS", denise: "OCS", chip: "512", slow: "0", fast: "0", cpu: "0", clock: "0" },
     "A500_VANILLA": { name: "A500", chipset: "OCS", agnus: "OCS", denise: "OCS", chip: "512", slow: "512", fast: "0", cpu: "0", clock: "0" },
-    "A500+_STOCK": { name: "A500+", chipset: "ECS", agnus: "ECS_1MB", denise: "ECS", chip: "1024", slow: "0", fast: "0", cpu: "0", clock: "0" },
+    "A500+_STOCK": { name: "A500+", chipset: "ECS", agnus: "ECS_2MB", denise: "ECS", chip: "1024", slow: "0", fast: "0", cpu: "0", clock: "0" },
     "A500+_BOOST": { name: "A500+", chipset: "ECS", agnus: "ECS_2MB", denise: "ECS", chip: "2048", slow: "0", fast: "8192", cpu: "0", clock: "0" },
     "A1200_STOCK": { name: "A1200", chipset: "AGA", agnus: "AGA", denise: "AGA", chip: "2048", slow: "0", fast: "0", cpu: "2", clock: "2" },
     "A1200_BOOST": { name: "A1200", chipset: "AGA", agnus: "AGA", denise: "AGA", chip: "2048", slow: "0", fast: "8192", cpu: "2", clock: "4" }
@@ -3631,6 +3635,13 @@ function update_model_from_hardware(preset=null) {
 
     let clock_v = String(wasm_get_config_item('CPU.OVERCLOCKING'));
 
+    // Keep the dedicated FAST RAM UI in sync with the core. In case it was altered by the Core due to AROS which needs 1MB
+    let saved_fast = load_setting('OPT_FAST_RAM', '2048');
+    if (fast_v !== saved_fast) {
+        save_setting('OPT_FAST_RAM', fast_v);
+        $(`#button_OPT_FAST_RAM`).text(`fast ram=${format_ram(fast_v)}`);
+    }
+
     for (let key in amiga_models) {
         if (key === CUSTOM_MODEL_KEY) continue;
         let m = amiga_models[key];
@@ -3651,6 +3662,11 @@ function update_model_from_hardware(preset=null) {
             base = m;
             break;
         }
+    }
+
+    // Agnus ECS 1MB + Denise OCS was a common A500 shipping variant
+    if (!base && agnus === 'ECS_1MB' && denise === 'OCS') {
+        base = { name: 'A500', chipset: 'ECS' };
     }
 
     set_custom_model({
