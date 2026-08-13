@@ -112,7 +112,7 @@ Defaults::Defaults()
 
     setFallback(Opt::MEM_CHIP_RAM,               512);
     setFallback(Opt::MEM_SLOW_RAM,               512);
-    setFallback(Opt::MEM_FAST_RAM,               0);
+    setFallback(Opt::MEM_FAST_RAM,               2048);
     setFallback(Opt::MEM_EXT_START,              0xE0);
     setFallback(Opt::MEM_SAVE_ROMS,              true);
     setFallback(Opt::MEM_SLOW_RAM_DELAY,         true);
