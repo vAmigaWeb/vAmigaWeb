@@ -5,6 +5,7 @@
  */
 
 #include <stdio.h>
+#include <vector>
 #include "config.h"
 #include "VAmiga.h"
 #include "VAmigaTypes.h"
@@ -12,6 +13,7 @@
 #include "Amiga.h"
 #include "AmigaTypes.h"
 #include "RomFile.h"
+#include "RomDatabase.h"
 #include "ADFFile.h"
 #include "ADZFile.h"
 #include "DMSFile.h"
@@ -1994,6 +1996,38 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
     {
       wrapper->emu->powerOff(); wrapper->emu->emu->update();
     }
+
+    // If this is an AROS kickstart, ensure at least 1 MB total RAM is
+    // available before loading. Otherwise the ROM load can overflow the
+    // available memory.
+    {
+      u32 crc = rom->crc32();
+      bool is_aros = false;
+      for (const auto &r : roms) {
+        if (r.crc == crc && r.title && strcmp(r.title, "AROS Kickstart replacement") == 0) {
+          is_aros = true;
+          break;
+        }
+      }
+      if (is_aros) {
+        long chip = (long)wrapper->emu->get(Opt::MEM_CHIP_RAM);
+        long slow = (long)wrapper->emu->get(Opt::MEM_SLOW_RAM);
+        long fast = (long)wrapper->emu->get(Opt::MEM_FAST_RAM);
+        if (chip + slow + fast < 1024) {
+          long additional = 1024 - (chip + slow + fast);
+          long new_fast = fast + 512;
+          if (new_fast < fast + additional) new_fast = fast + additional;
+          const long fast_options[] = {0, 256, 512, 1024, 2048, 8192};
+          long chosen = new_fast;
+          for (size_t i = 0; i < sizeof(fast_options)/sizeof(fast_options[0]); ++i) {
+            if (fast_options[i] >= new_fast) { chosen = fast_options[i]; break; }
+          }
+          wrapper->emu->set(Opt::MEM_FAST_RAM, chosen);
+          wrapper->emu->emu->update();
+        }
+      }
+    }
+
 //    wrapper->emu->suspend();
     try { 
       wrapper->emu->mem.loadRom(*rom); 
@@ -2418,12 +2452,14 @@ extern "C" u64 wasm_get_cpu_cycles()
 char config_result[512];
 extern "C" const char* wasm_power_on(unsigned power_on)
 {
+  sprintf(config_result,"");
   try{
     bool was_powered_on=wrapper->emu->isPoweredOn();
     if(power_on == 1 && !was_powered_on)
     {
         wrapper->emu->powerOn();
         wrapper->emu->run();
+        wrapper->emu->emu->update();
     }
     else if(power_on == 0 && was_powered_on)
     {
@@ -2584,6 +2620,20 @@ extern "C" const char* wasm_configure(char* option, char* _value)
  
   if(was_powered_on && must_be_off)
   {
+      // If AROS is loaded, do not even power off when the selected configuration
+      // would leave the machine with less than 1 MB total RAM. Otherwise the
+      // emulator warning only appears delayed at a later power-on.
+      auto rom_title = wrapper->emu->mem.getRomTraits().title;
+      auto is_aros = [&](const char* t){ return t && strcmp(t, "AROS Kickstart replacement") == 0; };
+      if (is_aros(rom_title)) {
+          long chip = (strcmp(option,"CHIP_RAM") == 0) ? (long)util::parseNum(value) : (long)wrapper->emu->get(Opt::MEM_CHIP_RAM);
+          long slow = (strcmp(option,"SLOW_RAM") == 0) ? (long)util::parseNum(value) : (long)wrapper->emu->get(Opt::MEM_SLOW_RAM);
+          long fast = (strcmp(option,"FAST_RAM") == 0) ? (long)util::parseNum(value) : (long)wrapper->emu->get(Opt::MEM_FAST_RAM);
+          if (chip + slow + fast < 1024) {
+              sprintf(config_result, "The Aros Kickstart requires at least 1 MB of memory.");
+              return config_result;
+          }
+      }
       wrapper->emu->powerOff();wrapper->emu->emu->update();
   }
 
@@ -2678,6 +2728,10 @@ extern "C" const char* wasm_configure(char* option, char* _value)
         wrapper->emu->powerOn();
         if(was_running) wrapper->emu->run();
     }
+
+    // execute the queued commands, otherwise a subsequent
+    // wasm_get_config_item() would still report the previous values
+    wrapper->emu->emu->update();
   }
   catch(AppError &exception) {    
 //    ErrorCode ec=exception.data;
@@ -2688,6 +2742,110 @@ extern "C" const char* wasm_configure(char* option, char* _value)
   }
   return config_result; 
 }
+extern "C" const char* wasm_configure_multi(char* _config)
+{
+  sprintf(config_result,"");
+  auto config = std::string(_config);
+  if(log_on) printf("wasm_configure_multi %s\n", config.c_str());
+
+  bool was_powered_on = wrapper->emu->isPoweredOn();
+  bool was_running = wrapper->emu->isRunning();
+
+  struct Entry { std::string option; std::string value; };
+  std::vector<Entry> entries;
+  size_t start = 0;
+  while (start < config.size())
+  {
+    size_t end = config.find('\n', start);
+    if (end == std::string::npos) end = config.size();
+    std::string line = config.substr(start, end - start);
+    start = end + 1;
+    if(line.empty()) continue;
+
+    size_t eq = line.find('=');
+    if(eq == std::string::npos)
+    {
+      printf("wasm_configure_multi malformed line: %s\n", line.c_str());
+      continue;
+    }
+    std::string option = line.substr(0, eq);
+    std::string value  = line.substr(eq + 1);
+    entries.push_back({option, value});
+  }
+
+  // If AROS is loaded, verify the resulting total RAM before powering off.
+  auto rom_title = wrapper->emu->mem.getRomTraits().title;
+  auto is_aros = [&](const char* t){ return t && strcmp(t, "AROS Kickstart replacement") == 0; };
+  if (is_aros(rom_title)) {
+      auto entry = [&](const std::string& key) -> const std::string* {
+          for (auto &e : entries) if (e.option == key) return &e.value;
+          return nullptr;
+      };
+      auto memValue = [&](const std::string& key, long current) -> long {
+          auto* v = entry(key);
+          return v ? (long)util::parseNum(*v) : current;
+      };
+      long chip = memValue("CHIP_RAM", (long)wrapper->emu->get(Opt::MEM_CHIP_RAM));
+      long slow = memValue("SLOW_RAM", (long)wrapper->emu->get(Opt::MEM_SLOW_RAM));
+      long fast = memValue("FAST_RAM", (long)wrapper->emu->get(Opt::MEM_FAST_RAM));
+      if (chip + slow + fast < 1024) {
+          sprintf(config_result, "The Aros Kickstart requires at least 1 MB of memory.");
+          return config_result;
+      }
+  }
+
+  if(was_powered_on)
+  {
+      wrapper->emu->powerOff(); wrapper->emu->emu->update();
+  }
+
+  try
+  {
+    for (auto &kv : entries)
+    {
+      const std::string &option = kv.option;
+      const std::string &value  = kv.value;
+
+      if(log_on) printf("wasm_configure_multi %s = %s\n", option.c_str(), value.c_str());
+
+      if( strcmp(option.c_str(),"AGNUS_REVISION") == 0)
+        wrapper->emu->set(Opt::AGNUS_REVISION, util::parseEnum <AgnusRevisionEnum>(value));
+      else if( strcmp(option.c_str(),"DENISE_REVISION") == 0)
+        wrapper->emu->set(Opt::DENISE_REVISION, util::parseEnum <DeniseRevEnum>(value));
+      else if( strcmp(option.c_str(),"CHIP_RAM") == 0  ||
+               strcmp(option.c_str(),"SLOW_RAM") == 0  ||
+               strcmp(option.c_str(),"FAST_RAM") == 0)
+        wrapper->emu->set(Opt(util::parseEnum <OptEnum>(option)), util::parseNum(value));
+      else if( strcmp(option.c_str(),"CPU_REVISION") == 0)
+        wrapper->emu->set(Opt::CPU_REVISION, util::parseNum(value));
+      else if( strcmp(option.c_str(),"CPU_OVERCLOCKING") == 0)
+        wrapper->emu->set(Opt::CPU_OVERCLOCKING, util::parseNum(value));
+      else
+      {
+        printf("wasm_configure_multi unknown key: %s\n", option.c_str());
+        sprintf(config_result,"unknown key wasm_configure_multi %s", option.c_str());
+        return config_result;
+      }
+    }
+
+    if(was_powered_on)
+    {
+      wrapper->emu->powerOn();
+      if(was_running) wrapper->emu->run();
+    }
+
+    // execute the queued commands, otherwise a subsequent
+    // wasm_get_config_item() would still report the previous values
+    wrapper->emu->emu->update();
+  }
+  catch(AppError &exception) {
+    printf("wasm_configure_multi error: %s\n", exception.what());
+    if(config_result[0] == '\0')
+      sprintf(config_result,"%s", exception.what());
+  }
+  return config_result; 
+}
+
 extern "C" void wasm_print_error(unsigned exception_ptr)
 {
   if(exception_ptr!=0)
