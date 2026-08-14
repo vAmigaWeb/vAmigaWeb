@@ -481,22 +481,20 @@ Denise::isReloadCycle(u8 scrollWord) const
      * too far to the right and leave a gap at the left edge of the display
      * window.
      */
-    auto unit = isize(agnus.sequencer.fetchUnit);
-
     // Length of a drawing cycle in DMA cycles
     auto step = res == Resolution::LORES ? 8 : res == Resolution::HIRES ? 4 : 2;
 
-    /* Number of words a fetch unit is divided into. The delay cannot exceed
-     * this amount, which is why the extended bits stay without effect in 16 bit
+    /* Number of words delivered by a single fetch. The delay cannot exceed this
+     * amount, which is why the extended bits stay without effect in 16 bit
      * fetch mode (bplcon1_shift_mask in Amiberry).
      */
-    auto words = unit / 8;
-    if (words < 1) return true;
+    auto words = isize(agnus.sequencer.fetchWords);
+    if (words < 2) return true;
 
-    // Convert the delay from words into drawing cycles
-    auto slot = (scrollWord & (words - 1)) * 8 / step;
+    // The scroll value selects one of the words of the fetch
+    auto slot = scrollWord & (words - 1);
 
-    return ((agnus.pos.h % unit) / step) == slot;
+    return ((agnus.pos.h / step) % words) == slot;
 }
 
 void
