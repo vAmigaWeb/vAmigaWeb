@@ -424,6 +424,56 @@ extern "C" void wasm_execute()
   executed_frame_count++;
   total_executed_frame_count++;
 }
+
+// Computes exactly one frame no matter whether the core is currently running.
+// Used by the memory viewer's single step and slow motion mode: there the core
+// is intentionally paused, but the UI still has to produce fresh frames. The
+// isRunning() guard of wasm_compute_frame_safe() must not apply here - it only
+// exists to stop the catch-up frames the run loop queues via setTimeout after
+// the core paused on its own.
+//
+// Returns true if the core asked to stop (breakpoint, watchpoint, beam trap,
+// ...). Reporting this back is essential: since the core is already paused
+// while single stepping, Thread::pause() is a no-op and would neither switch
+// state nor post Msg::PAUSE, so the stepping loop in JS could never learn that
+// it has to stop.
+extern "C" bool wasm_execute_one_frame()
+{
+  bool trapped = false;
+  emu->emu->update(); //apply commands that were queued while being paused
+  try {
+    emu->emu->computeFrame();
+  } catch (StateChangeException &) {
+
+    if (emu->emu->isRunning()) {
+
+      // regular transition RUNNING -> PAUSED, which dispatches the _pause()
+      // hooks of all components on its own
+      emu->emu->pause();
+
+    } else {
+
+      // The core is already paused, so Thread::pause() would do nothing at all
+      // and none of the _pause() hooks would run. Dispatch them explicitly -
+      // this is exactly what Emulator::_pause() does. It makes the debugger
+      // console print the stop location (DebuggerConsole::_pause() runs
+      // "state") and posts Msg::PAUSE, just like a trap hit at normal speed.
+      emu->amiga.amiga->pause();
+    }
+
+    // Flush the console output produced above: Msg::RSH_UPDATE is only posted
+    // from Amiga::update(). At normal speed the run loop keeps calling update()
+    // and picks it up on the next host frame, but stepping stops right here, so
+    // the GUI would never learn that there is new RetroShell content.
+    emu->emu->update();
+
+    trapped = true;
+  }
+  executed_since_last_host_frame++;
+  executed_frame_count++;
+  total_executed_frame_count++;
+  return trapped;
+}
 #ifdef wasm_worker
 char wasm_log_buffer[256];
 #endif

@@ -25,6 +25,12 @@ const agnus_revs=['OCS_OLD','OCS','ECS_1MB','ECS_2MB','AGA'];
 const denise_revs=['OCS','ECS','AGA'];
 
 let startup_script_executed=false;
+// `running` holds the run state the user selected via the run/pause button,
+// `emulator_currently_runs` mirrors the real state of the core (MSG_RUN /
+// MSG_PAUSE). this counter tracks how many UI reasons (open modal dialogs,
+// slow motion stepping) currently hold the emulation paused on top of that,
+// see ui_suspend_emulation() / ui_resume_emulation().
+let ui_suspend_depth=0;
 let on_ready_to_run=()=>{};
 let on_hdr_step=(drive_number, cylinder)=>{};
 let on_power_led_dim=()=>{};
@@ -523,8 +529,10 @@ function message_handler_queue_worker(msg, data, data2)
         // thread in the wasm build - execution is entirely driven by the
         // JS requestAnimationFrame loop - so make sure that loop is
         // actually running and the UI reflects that, even if the user
-        // didn't click button_run.
-        if(!running)
+        // didn't click button_run. while the UI holds the emulation paused
+        // (ui_suspend_depth > 0) the user's selection must not be touched -
+        // ui_resume_emulation() restores it when the last reason goes away.
+        if(!running && ui_suspend_depth == 0)
         {
             running = true;
             try { audioContext.resume(); } catch(e){ console.error(e); }
@@ -545,8 +553,10 @@ function message_handler_queue_worker(msg, data, data2)
 
         // the core can autonomously pause emulation (e.g. breakpoint,
         // watchpoint or beam trap hit in the RetroShell debugger). reflect
-        // that in the UI even though the user didn't click button_run.
-        if(running)
+        // that in the UI even though the user didn't click button_run. a pause
+        // requested by the UI itself (ui_suspend_depth > 0, e.g. an open modal)
+        // must not clear the user's selection, otherwise it can't be restored.
+        if(running && ui_suspend_depth == 0)
         {
             stop_request_animation_frame = true;
             running = false;
@@ -562,6 +572,15 @@ function message_handler_queue_worker(msg, data, data2)
         let is_warping = Module._wasm_is_warping();
         document.body.setAttribute('warpstate', is_warping);
         window.parent.postMessage({ msg: 'render_run_state', value: is_running(), is_warping:  is_warping },"*");
+    }
+    else if(msg == "MSG_BREAKPOINT_REACHED" || msg == "MSG_WATCHPOINT_REACHED" ||
+            msg == "MSG_CATCHPOINT_REACHED" || msg == "MSG_SWTRAP_REACHED" ||
+            msg == "MSG_BEAMTRAP_REACHED" || msg == "MSG_COPPERBP_REACHED" ||
+            msg == "MSG_COPPERWP_REACHED")
+    {
+        // the core stopped in the middle of a frame. it does not report this in
+        // any visible way on its own, so tell the user what caused the stop.
+        if(typeof show_debug_stop_toast === 'function') show_debug_stop_toast(msg, data);
     }
      else if(msg == "MSG_RSH_UPDATE" || msg == "MSG_RSH_SWITCH")
     {
@@ -3476,7 +3495,7 @@ var amiga_models = {
     "A500_UNEXPANDED": { name: "A500", chipset: "OCS", agnus: "OCS", denise: "OCS", chip: "512", slow: "0", fast: "0", cpu: "0", clock: "0" },
     "A500_VANILLA": { name: "A500", chipset: "OCS", agnus: "OCS", denise: "OCS", chip: "512", slow: "512", fast: "0", cpu: "0", clock: "0" },
     "A500+_STOCK": { name: "A500+", chipset: "ECS", agnus: "ECS_2MB", denise: "ECS", chip: "1024", slow: "0", fast: "0", cpu: "0", clock: "0" },
-    "A500+_BOOST": { name: "A500+", chipset: "ECS", agnus: "ECS_2MB", denise: "ECS", chip: "2048", slow: "0", fast: "8192", cpu: "0", clock: "0" },
+    "A500+_BOOST": { name: "A500+", chipset: "ECS", agnus: "ECS_2MB", denise: "ECS", chip: "2048", slow: "0", fast: "2048", cpu: "0", clock: "0" },
     "A1200_STOCK": { name: "A1200", chipset: "AGA", agnus: "AGA", denise: "AGA", chip: "2048", slow: "0", fast: "0", cpu: "2", clock: "2" },
     "A1200_BOOST": { name: "A1200", chipset: "AGA", agnus: "AGA", denise: "AGA", chip: "2048", slow: "0", fast: "8192", cpu: "2", clock: "4" }
 };
@@ -3772,7 +3791,7 @@ bind_config_choice("OPT_SLOW_RAM", "slow ram",['0', '256', '512'],'0', (v)=>form
 bind_config_choice("OPT_FAST_RAM", "fast ram",['0', '256', '512','1024', '2048', '8192'],'2048', (v)=>format_ram(v), t=>parse_ram(t), null, ()=>update_model_from_hardware());
 
 $('#hardware_settings').append("<div id='divCPU' style='display:flex;flex-direction:row'></div>");
-bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2/*,4*/], 0, 
+bind_config_choice("OPT_CPU_REVISION", "CPU",[0,1,2,4], 0, 
 (v)=>{ return  v==4 ?`fake 030 for Settlers map size 8`:(68000+v*10)},
 (t)=>{
     let val = t.toString().replace("fake 030 for Settlers map size 8","68030");
@@ -4402,11 +4421,12 @@ $('.layer').change( function(event) {
          prompt_for_drive(folder=true);
     });
     
-    $('#modal_take_snapshot').on('hidden.bs.modal', function () {
-        if(is_running())
-        {
-            setTimeout(function(){try{wasm_run();} catch(e) {}},200);
-        }
+    // freeze the emulation while the dialog is open so the saved snapshot
+    // matches what the user sees. paired with the resume below.
+    $('#modal_take_snapshot').on('show.bs.modal', function () {
+        ui_suspend_emulation();
+    }).on('hidden.bs.modal', function () {
+        ui_resume_emulation();
     }).keydown(event => {
             if(event.key === "Enter")
             {
@@ -4499,7 +4519,6 @@ $('.layer').change( function(event) {
 
     add_click('button_take_snapshot', function() 
     {       
-        wasm_halt();
         $("#modal_take_snapshot").modal('show');
         $("#input_app_title").val(global_apptitle);
         $("#input_app_title").focus();
@@ -4817,11 +4836,40 @@ $('.layer').change( function(event) {
     $("#div_toast").hide();
     show_new_version_toast= ()=>{
         $("#div_toast").show();
-        $(".toast").toast({autohide: false});
-        $('.toast').toast('show');
+        //scoped to #div_toast on purpose: a plain '.toast' would also trigger
+        //the debugger toast further down
+        $("#div_toast .toast").toast({autohide: false});
+        $('#div_toast .toast').toast('show');
     }
-    $('.toast').on('hidden.bs.toast', function () {
+    $('#div_toast .toast').on('hidden.bs.toast', function () {
         $("#div_toast").hide();
+    });
+
+    //the core reports why it stopped (see the MSG_*_REACHED handlers). the
+    //emulation is already paused at this point, this only tells the user what
+    //caused it.
+    const debug_stop_reasons = {
+        MSG_BREAKPOINT_REACHED: "breakpoint",
+        MSG_WATCHPOINT_REACHED: "watchpoint",
+        MSG_CATCHPOINT_REACHED: "catchpoint",
+        MSG_SWTRAP_REACHED:     "software trap",
+        MSG_BEAMTRAP_REACHED:   "beamtrap",
+        MSG_COPPERBP_REACHED:   "copper breakpoint",
+        MSG_COPPERWP_REACHED:   "copper watchpoint"
+    };
+    $("#div_toast_debug").hide();
+    show_debug_stop_toast = (msg, addr)=>{
+        let reason = debug_stop_reasons[msg];
+        if(reason === undefined) return;
+        //beamtraps report no address (CpuMsg{0,0}), all others carry the hit address
+        let at = (typeof addr === 'number' && addr > 0) ?
+            ` at $${(addr>>>0).toString(16).padStart(6,'0')}` : '';
+        $("#toast_debug_text").text(`${reason}${at} reached, emulation paused`);
+        $("#div_toast_debug").show();
+        $("#div_toast_debug .toast").toast({autohide: true, delay: 5000}).toast('show');
+    }
+    $('#div_toast_debug .toast').on('hidden.bs.toast', function () {
+        $("#div_toast_debug").hide();
     });
 
     has_installed_version=async function (cache_name){
@@ -4987,6 +5035,16 @@ $('.layer').change( function(event) {
             document.getElementById('activate_version').onclick = function() {
                 let cache_name = document.getElementById('version_selector').value; 
                 set_settings_cache_value("active_version",cache_name);
+                let core_v = cache_name.split('@')[0];
+                if (core_v < "4.3.6" && 
+                    (load_setting("OPT_AGNUS_REVISION")==="AGA"
+                    ||
+                    load_setting("OPT_DENISE_REVISION")==="AGA"
+                    ) ) {
+                    save_setting("OPT_AGNUS_REVISION", 'ECS_2MB');
+                    save_setting("OPT_DENISE_REVISION", 'ECS');
+                    alert("downgraded chipset because non AGA vAmigaWeb version can't use AGA chipset");
+                }
                 window.location.reload();
             }
             let activate_or_install_btn = document.getElementById('activate_or_install');
@@ -5451,6 +5509,8 @@ $('.layer').change( function(event) {
         });
 
         $('#modal_custom_key').on('show.bs.modal', function () {
+            //freeze the emulation while the action button editor is open
+            ui_suspend_emulation();
             bind_custom_key();
         });
         // Prevent modal from closing when Escape is pressed while the CM6 editor has focus.
@@ -5694,11 +5754,6 @@ $('.layer').change( function(event) {
                 }
                 set_scope_label();
                 $('#check_app_scope').change( set_scope_label ); 
-            }
-
-            if(is_running())
-            {
-                wasm_halt();
             }
 
             //click function
@@ -6152,12 +6207,8 @@ release_key('ControlLeft');`;
                 editor.toTextArea();
             }
             create_new_custom_key=false;
-        
-            if(is_running())
-            {
-                wasm_run();
-            }
 
+            ui_resume_emulation();
         });
 
         $('#input_button_text').keyup( function () {
@@ -6650,7 +6701,38 @@ function setTheme() {
         return running;
         //return $('#button_run').attr('disabled')=='disabled';
     }
-        
+
+    // suspends the emulation on behalf of the UI (modal dialogs, slow motion
+    // stepping) without touching `running`, which represents what the user
+    // selected via the run/pause button. the depth counter stays raised for the
+    // whole lifetime of the reason, so a MSG_PAUSE arriving later (messages are
+    // delivered via queueMicrotask) is recognized as self-inflicted and does
+    // not clear the user's intent. every call must be paired with a call to
+    // ui_resume_emulation().
+    function ui_suspend_emulation()
+    {
+        if(ui_suspend_depth++ > 0) return; //already suspended by another reason
+        if(!running) return; //user paused it anyway -> nothing to suspend
+        wasm_halt();
+        try { audioContext.suspend(); } catch(e){ console.error(e); }
+    }
+
+    // releases one suspend reason. once the last one is gone the emulation goes
+    // back to whatever the user had selected: it resumes if the user intent is
+    // "run" and stays paused otherwise. pass restore=false to only release the
+    // reason and let the caller decide about the run state - releasing must
+    // happen in any case, otherwise the counter leaks and nothing can resume
+    // the emulation anymore.
+    function ui_resume_emulation(restore=true)
+    {
+        if(ui_suspend_depth == 0) return; //unbalanced call -> ignore
+        if(--ui_suspend_depth > 0) return; //still suspended by another reason
+        if(!restore) return; //caller handles the run state itself
+        if(!running) return; //user intent is "paused" -> stay paused
+        try { wasm_run(); } catch(e) { console.error(e); }
+        try { connect_audio_processor(); } catch(e){ console.error(e); }
+    }
+
     
 
 async function emit_string_autotype(keys_to_emit_array, type_first_key_time=0, release_delay_in_ms=100)

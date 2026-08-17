@@ -160,6 +160,12 @@ function setup_browser_interface()
     }
 
 
+    // freeze the emulation while the browser is open and restore the previous
+    // run state when it closes
+    $('#snapshotModal').on('show.bs.modal', function () {
+        ui_suspend_emulation();
+    });
+
     $('#snapshotModal').on('shown.bs.modal', function () {
         hide_all_tooltips();
 
@@ -173,10 +179,7 @@ function setup_browser_interface()
 
     $('#snapshotModal').on('hidden.bs.modal', function () {
       //  wasm_resume_auto_snapshots();
-        if(is_running())
-        {
-            try{wasm_run();} catch(e) {}
-        }
+        ui_resume_emulation();
     });
 
     //button in navbar menu
@@ -220,10 +223,10 @@ async function load_browser(datasource_name, command="feeds")
 
     internal_usersnapshots_enabled=false;
 
-    if(is_running())
-    {
-        wasm_halt();
-    }
+    // note: the emulation is suspended by the show.bs.modal handler of
+    // #snapshotModal, not here - load_browser() is also called when switching
+    // the source tab, searching or filtering, which would raise the suspend
+    // counter again and again without a matching resume.
 
   //  wasm_suspend_auto_snapshots();
 
@@ -553,10 +556,7 @@ var collectors = {
             {
                 var _id=id.substring(1);
                 var snapshot_data =auto_snaps[_id];
-                if(is_running())
-                {
-                    wasm_halt();
-                }
+                //the emulation is already suspended while the browser is open
                 wasm_loadfile(
                             global_apptitle /*snapshot.title*/+".vAmiga",
                             snapshot_data);
