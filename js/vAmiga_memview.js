@@ -526,15 +526,25 @@ function memview_step_button() {
 // (so it stays frozen between clicks) and the freshly computed frame is
 // rendered to the amiga canvas, memory view and bitplane list.
 function memview_step_frame() {
-    // pause the run loop; route through button_run_click so the toolbar's
-    // run/pause icon stays in sync with the actual state
+    // single stepping means the user really wants to be paused, so route the
+    // pause through button_run_click to update the toolbar icon and the
+    // selected run state
     if (is_running_safe() && typeof app !== "undefined" &&
         typeof app.button_run_click === "function") {
         app.button_run_click();
     }
-    // compute exactly one frame synchronously
-    if (typeof Module !== "undefined" && typeof Module._wasm_execute === "function") {
-        Module._wasm_execute();
+    memview_advance_one_frame();
+}
+
+// computes and renders exactly one frame without changing the run state.
+// returns true if the core hit a breakpoint, watchpoint or beam trap.
+function memview_advance_one_frame() {
+    // compute exactly one frame synchronously. _wasm_execute() must not be used
+    // here: it refuses to compute anything while the core is paused - which is
+    // exactly the state single stepping and slomo operate in.
+    let trapped = false;
+    if (typeof Module !== "undefined" && typeof Module._wasm_execute_one_frame === "function") {
+        trapped = Module._wasm_execute_one_frame() != 0;
     }
     // draw the new frame to the amiga canvas
     let now = (typeof performance !== "undefined") ? performance.now() : 0;
@@ -551,6 +561,7 @@ function memview_step_frame() {
     memview_refresh_bitplanes(true);
     // the activity monitor interval skips paused frames, so update it here too
     if (typeof update_activity_monitors === "function") update_activity_monitors();
+    return trapped;
 }
 
 // --- slomo: slow-motion single stepping -----------------------------------
@@ -558,12 +569,20 @@ function memview_step_frame() {
 // button is clicked again, which resumes normal running speed.
 var MEMVIEW_SLOMO_INTERVAL_MS = 500;     // one single-step every 500ms; user-adjustable
 var memview_slomo_timer = null;
-// whether the emulator was running when slomo started. if it was already
-// paused, stopping slomo must leave it paused (don't force a resume)
-var memview_slomo_was_running = false;
 
 function memview_slomo_step() {
-    memview_step_frame();   // pauses the run loop on the first call, then steps
+    if (!memview_advance_one_frame()) return;
+
+    // the core hit a breakpoint, watchpoint or beam trap. stop stepping and
+    // turn the suspend into a real pause so the toolbar shows the same state as
+    // when a trap is hit at normal speed. the run/pause click below is safe:
+    // button_run_click() calls memview_slomo_stop() again, which returns right
+    // away because the timer has already been cleared.
+    memview_slomo_stop(false);
+    if (is_running_safe() && typeof app !== "undefined" &&
+        typeof app.button_run_click === "function") {
+        app.button_run_click();
+    }
 }
 
 function memview_slomo_toggle() {
@@ -573,8 +592,9 @@ function memview_slomo_toggle() {
     let slomoBtn = document.getElementById("memview_slomo");
     if (slomoBtn) slomoBtn.classList.add("slomo_active");
 
-    // remember the pre-slomo run state so we can restore it on stop
-    memview_slomo_was_running = (typeof is_running_safe === "function") ? is_running_safe() : false;
+    // hold the emulation without changing the run state the user selected, so
+    // stopping slomo can restore exactly that state
+    if (typeof ui_suspend_emulation === "function") ui_suspend_emulation();
 
     memview_slomo_step();   // immediate first step for responsiveness
     memview_slomo_timer = setInterval(memview_slomo_step, MEMVIEW_SLOMO_INTERVAL_MS);
@@ -588,19 +608,22 @@ function memview_slomo_restart_timer() {
 }
 
 function memview_slomo_stop(resume) {
-    if (memview_slomo_timer !== null) {
+    let was_active = memview_slomo_timer !== null;
+    if (was_active) {
         clearInterval(memview_slomo_timer);
         memview_slomo_timer = null;
     }
     let slomoBtn = document.getElementById("memview_slomo");
     if (slomoBtn) slomoBtn.classList.remove("slomo_active");
-    // return to normal running speed only if the emulator was running before
-    // slomo started (memview_step_frame paused the loop). if it was already
-    // paused, stay paused.
-    if (resume && memview_slomo_was_running && !is_running_safe() &&
-        typeof app !== "undefined" && typeof app.button_run_click === "function") {
-        app.button_run_click();
-    }
+    if (!was_active) return;
+
+    // release the suspend taken in memview_slomo_toggle() - it has to happen in
+    // every case, otherwise the counter leaks and dialogs could no longer
+    // resume. with resume=true the run state the user selected before slomo is
+    // restored, so a pre-slomo pause stays paused. with resume=false the caller
+    // decides what comes next (manual single stepping or the run/pause toggle)
+    // and the run state is left untouched.
+    if (typeof ui_resume_emulation === "function") ui_resume_emulation(resume);
 }
 
 // throttled per-frame driver: refreshes the bitplane list while the panel is open

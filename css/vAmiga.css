@@ -329,6 +329,30 @@ color: #aaa !important;
     color:white;
 }
 
+/* debugger toast, anchored below the navbar at the top left edge - the right
+   edge is occupied by the memory view panel, which is exactly what is open
+   while single stepping */
+#div_toast_debug {
+    position: fixed;
+    top: 3.5rem;
+    left: calc(8px + env(safe-area-inset-left));
+    z-index: 2100;
+    max-width: min(20rem, calc(100vw - 16px));
+}
+#toast_debug_body, #toast_debug_header {
+    background-color: var(--lightbg);
+}
+#toast_debug_header {
+    color: var(--red);
+}
+[data-theme="dark"] #toast_debug_body, [data-theme="dark"] #toast_debug_header {
+    background-color: var(--dark);
+    color: white;
+}
+[data-theme="dark"] #toast_debug_header {
+    color: var(--red);
+}
+
 
 .icon {
     fill: var(--dark);
@@ -902,13 +926,13 @@ input[type="range"]::-moz-range-thumb {
     --_c: var(--c);
   }
 }
-/*
+
 #choose_OPT_CPU_REVISION a:last-child {
     font-size: x-small;
     font-style: italic;
     padding: 7px;
 }
-*/
+
 [ntsc="true"] #MOS8371, 
 [ntsc="true"] #MOS8367,
 [ntsc="false"] #MOS8361, 

@@ -67,6 +67,16 @@ self.addEventListener('activate', evt => {
       const tabs = await self.clients.matchAll({type:'window'});
       tabs.forEach((tab)=>{ tab.navigate(tab.url) });
     }
+    else if(current_version != cache_name)
+    {
+      // active version older than 4.3.6 does not support AGA
+      let core_v = current_version.split('@')[0];
+      if (core_v < "4.3.6") {
+        //when older than 436 non aga release, force potential crashed stuck install to use the new version
+        //which now has implemented some validation checks, to disable AGA which is not supported by these old versions,before switching back
+        await set_settings_cache_value("active_version", cache_name);
+      }
+    }
   }
   evt.waitUntil( check_and_update());
 

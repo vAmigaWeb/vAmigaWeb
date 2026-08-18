@@ -1413,6 +1413,22 @@ touch screen settings for virtual keyboard
 </div>
 <!-- toaster end-->
 
+<!-- debugger toast: reports why the core stopped (breakpoint, beamtrap, ...) -->
+<div id="div_toast_debug" style="display:none">
+<div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+  <div id="toast_debug_header" class="toast-header">
+    <span style="font-size: larger" class="mr-auto">debugger</span>
+    <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
+      <span aria-hidden="true">&times;</span>
+    </button>
+  </div>
+  <div id="toast_debug_body" class="toast-body">
+    <span id="toast_debug_text"></span>
+  </div>
+</div>
+</div>
+<!-- debugger toast end-->
+
     <script type='text/javascript'>
       let light_mode = false;
       if(window.location.href.indexOf('#dark=false') >=0)
