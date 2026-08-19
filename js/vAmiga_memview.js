@@ -131,7 +131,7 @@ function memview_init() {
         let rows = Math.round(e.deltaY * scale * rowsPerPixel);
         if (rows !== 0) {
             memview_set_start(memdump_start + rows * memview_row_stride);
-            if (!(live_memory_dump_enabled && is_running_safe())) memdump();
+            if (!memview_live_redraw_active()) memdump();
         }
     }, { passive: false });
 
@@ -154,12 +154,12 @@ function memview_init() {
         let rowsPerPixel = MEMVIEW_VPIXELS / canvasRect.height;
         let dyRows = Math.round((e.clientY - memview_drag_start_y) * rowsPerPixel);
         memview_set_start(memview_drag_start_addr - dyRows * memview_row_stride, true);
-        if (!(live_memory_dump_enabled && is_running_safe())) memdump();
+        if (!memview_live_redraw_active()) memdump();
     }, { passive: false });
     let end_detail_drag = function() {
         if (memview_pressed) {
             memview_pressed = false;
-            if (!(live_memory_dump_enabled && is_running_safe())) memdump();
+            if (!memview_live_redraw_active()) memdump();
         }
         memview_end_drag();
     };
@@ -173,7 +173,7 @@ function memview_init() {
             let v = parseInt(this.value.replace(/[^0-9a-fA-F]/g, ""), 16);
             if (!isNaN(v)) {
                 memview_set_start(v);
-                if (!(live_memory_dump_enabled && is_running_safe())) memdump();
+                if (!memview_live_redraw_active()) memdump();
             }
         });
     }
@@ -186,7 +186,7 @@ function memview_init() {
             if (isNaN(px) || px < 16) px = memview_words_per_row * 16;
             memview_set_width(px);
             this.value = String(memview_words_per_row * 16);
-            if (!(live_memory_dump_enabled && is_running_safe())) memdump();
+            if (!memview_live_redraw_active()) memdump();
         });
     }
 
@@ -368,6 +368,14 @@ function memview_init() {
 
 function is_running_safe() {
     return typeof running !== "undefined" && running;
+}
+
+// true only while the requestAnimationFrame loop really redraws the detail view
+// every frame - then scrolling can skip its own (expensive) memdump(). during
+// slomo the core is halted and the loop is stopped, while `running` still holds
+// the user intent "run", so the redraw has to happen in the scroll handler.
+function memview_live_redraw_active() {
+    return live_memory_dump_enabled && is_running_safe() && memview_slomo_timer === null;
 }
 
 // suppress text/canvas selection while a drag is in progress (some browsers
@@ -556,9 +564,12 @@ function memview_advance_one_frame() {
     } else if (typeof render_canvas === "function") {
         render_canvas(now);
     }
-    // refresh the memory view and detected bitplane areas for this frame
+    // refresh the memory view and detected bitplane areas for this frame.
+    // while the user drags the view, the list is only rebuilt when its payload
+    // actually changed - a forced rebuild drops and recreates every list item
+    // and makes the drag stutter.
     memdump();
-    memview_refresh_bitplanes(true);
+    memview_refresh_bitplanes(!memview_pressed && !mempreview_pressed);
     // the activity monitor interval skips paused frames, so update it here too
     if (typeof update_activity_monitors === "function") update_activity_monitors();
     return trapped;
