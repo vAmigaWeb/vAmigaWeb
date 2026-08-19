@@ -118,6 +118,9 @@ public:
                      (moira::Model)other.config.dasmRevision);
         }
 
+        // The instruction cache is not cloned. Drop stale lines.
+        flushInstructionCache();
+
         return *this;
     }
 

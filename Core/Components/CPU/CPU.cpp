@@ -675,6 +675,14 @@ CPU::_didLoad()
     // Rectify the CPU type
     setModel(cpuModel, dasmModel);
 
+    /* Because the contents of the instruction cache are not part of a snapshot,
+     * stale cache lines from the previously executed program may survive the
+     * restore operation. To prevent the CPU from fetching such lines, the cache
+     * is flushed. Note that setModel() flushes the cache only if the CPU model
+     * has changed, which is usually not the case here.
+     */
+    flushInstructionCache();
+
     /* Because we don't save breakpoints and watchpoints in a snapshot, the
      * CPU flags for checking breakpoints and watchpoints can be in a corrupt
      * state after loading. These flags need to be updated according to the

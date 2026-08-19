@@ -662,6 +662,15 @@ Moira::fullPrefetch()
 {
     assert(!misaligned<C>(reg.pc));
 
+    /* This function is called whenever the instruction pipe is refilled, i.e.
+     * on all changes of the control flow. Because the longword latch models the
+     * data in flight, it has to be invalidated here. Otherwise, the CPU would
+     * keep seeing stale opcode words even with the instruction cache switched
+     * off. Cached lines are not affected. Just as on the real machine, they
+     * remain valid until the cache is flushed via CACR.
+     */
+    flushInstructionLatch();
+
     queue.irc = readInstructionWord<C>(reg.pc);
     if (delay) SYNC(delay);
     prefetch<C, F>();
@@ -752,6 +761,7 @@ Moira::jumpToVector(int nr)
     }
 
     // Update the prefetch queue
+    flushInstructionLatch();
     queue.irc = (u16)read<C, AddrSpace::PROG, Word>(reg.pc);
     SYNC(2);
     prefetch<C, POLL>();

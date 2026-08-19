@@ -518,7 +518,7 @@ void
 Moira::setCACR(u32 val)
 {
     reg.cacr = val & cacrMask();
-    if (is68020()) flushInstructionCache();
+    if (hasICache()) flushInstructionCache();
     didChangeCACR(val);
 }
 
@@ -532,11 +532,17 @@ Moira::setCAAR(u32 val)
 void
 Moira::flushInstructionCache()
 {
-    iCacheAddr020 = 0xffffffff;
-    iCacheData020 = 0xffffffff;
+    flushInstructionLatch();
     for (int i = 0; i < ICacheLines020; i++) {
         iCache020[i].valid = false;
     }
+}
+
+void
+Moira::flushInstructionLatch()
+{
+    iCacheAddr020 = 0xffffffff;
+    iCacheData020 = 0xffffffff;
 }
 
 void
