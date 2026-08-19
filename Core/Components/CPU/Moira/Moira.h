@@ -54,6 +54,12 @@ public:
     // Checks whether the emulated CPU is a 68020 (EC or full)
     bool is68020() const { return cpuModel == Model::M68EC020 || cpuModel == Model::M68020; }
     
+    /* Checks whether the emulated CPU has an instruction cache. The condition
+     * matches the models that fetch through readInstructionCache(), i.e. all
+     * models emulated by the 68020 core.
+     */
+    bool hasICache() const { return cpuModel > Model::M68010; }
+    
     // Debugger handling breakpoints, watchpoints, catchpoints, and instruction tracing
     Debugger debugger = Debugger(*this);
     
@@ -486,6 +492,7 @@ protected:
 
     // 68020 instruction cache helpers
     void flushInstructionCache();
+    void flushInstructionLatch();
     void fillInstructionCache(u32 addr);
     u16 readInstructionCache(u32 addr);
 
