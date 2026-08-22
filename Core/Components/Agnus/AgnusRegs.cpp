@@ -406,10 +406,11 @@ Agnus::setFMODE(u16 value)
 {
     trace(DMA_DEBUG | SEQ_DEBUG, "setFMODE(%04x)\n", value);
 
-    /* Bits 0 to 3 select the bitplane and sprite fetch width, bit 15 enables
-     * sprite scan doubling (SSCAN2). All other bits are unused.
+    /* Bits 0 to 3 select the bitplane and sprite fetch width, bit 14 enables
+     * bitplane scan doubling (BSCAN2), and bit 15 sprite scan doubling
+     * (SSCAN2). All other bits are unused.
      */
-    value &= 0x800f;
+    value &= 0xc00f;
     if (fmode == value) return;
 
     fmode = value;
