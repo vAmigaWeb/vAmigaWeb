@@ -397,8 +397,13 @@ Moira::read(u32 addr)
         if constexpr (C >= Core::C68020) {
             if ((addr & 3) == 0) {
 
+                /* A 32 bit port delivers the longword in a single bus cycle,
+                 * a 16 bit port needs a second one (see has32BitPort).
+                 */
+                auto wide = has32BitPort(addr & addrMask<C>());
+
                 result = read32(addr & addrMask<C>());
-                SYNC(4);
+                if (!wide) SYNC(4);
                 if constexpr (F & POLL) POLL_IPL;
                 SYNC(2);
 
@@ -470,8 +475,11 @@ Moira::write(u32 addr, u32 val)
 
             if ((addr & 3) == 0) {
 
+                // See read(): a 16 bit port needs a second bus cycle
+                auto wide = has32BitPort(addr & addrMask<C>());
+
                 write32(addr & addrMask<C>(), val);
-                SYNC(4);
+                if (!wide) SYNC(4);
                 if constexpr (F & POLL) POLL_IPL;
                 SYNC(2);
 

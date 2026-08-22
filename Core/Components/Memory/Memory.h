@@ -535,6 +535,15 @@ public:
     template <Accessor acc> void poke16(u32 addr, u16 value);
     template <Accessor acc> void poke32(u32 addr, u32 value);
 
+    /* Checks whether the CPU sees a 32 bit data port at the given address.
+     * On AGA machines, Budgie bridges the processor bus to a 32 bit Chip RAM
+     * bus, so Chip RAM, Fast RAM, and ROM transfer a longword in a single bus
+     * cycle. The custom chip registers and Slow RAM remained 16 bit and need
+     * two. This mirrors the ce_banktype table of WinUAE/Amiberry, where Chip
+     * RAM is CE_MEMBANK_CHIP32 on AGA but the $DFxxxx range stays CHIP16.
+     */
+    bool is32BitPort(u32 addr) const;
+
 
     //
     // Tracking write owners (debug aid for the live memory view)

@@ -1674,6 +1674,27 @@ Memory::spypeek32 <Accessor::CPU> (u32 addr) const
     return HI_W_LO_W(hi, lo);
 }
 
+bool
+Memory::is32BitPort(u32 addr) const
+{
+    if (!agnus.isAGA()) return false;
+
+    switch (cpuMemSrc[(addr & 0xFFFFFF) >> 16]) {
+
+        case MemSrc::CHIP:
+        case MemSrc::CHIP_MIRROR:
+        case MemSrc::FAST:
+        case MemSrc::ROM:
+        case MemSrc::ROM_MIRROR:
+        case MemSrc::EXT:
+
+            return true;
+
+        default:
+            return false;
+    }
+}
+
 template<> u32
 Memory::peek32 <Accessor::CPU> (u32 addr)
 {
