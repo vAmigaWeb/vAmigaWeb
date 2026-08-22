@@ -398,13 +398,17 @@ Moira::read(u32 addr)
             if ((addr & 3) == 0) {
 
                 result = read32(addr & addrMask<C>());
+                SYNC(4);
                 if constexpr (F & POLL) POLL_IPL;
+                SYNC(2);
 
             } else {
 
                 result = read16(addr & addrMask<C>()) << 16;
+                SYNC(4);
                 if constexpr (F & POLL) POLL_IPL;
                 result |= read16((addr + 2) & addrMask<C>());
+                SYNC(2);
             }
         } else {
 
@@ -467,21 +471,27 @@ Moira::write(u32 addr, u32 val)
             if ((addr & 3) == 0) {
 
                 write32(addr & addrMask<C>(), val);
+                SYNC(4);
                 if constexpr (F & POLL) POLL_IPL;
+                SYNC(2);
 
             } else {
 
                 if constexpr (F & REVERSE) {
 
                     write16((addr + 2) & addrMask<C>(), u16(val & 0xFFFF));
+                    SYNC(4);
                     if constexpr (F & POLL) POLL_IPL;
                     write16(addr & addrMask<C>(), u16(val >> 16));
+                    SYNC(2);
 
                 } else {
 
                     write16(addr & addrMask<C>(), u16(val >> 16));
+                    SYNC(4);
                     if constexpr (F & POLL) POLL_IPL;
                     write16((addr + 2) & addrMask<C>(), u16(val & 0xFFFF));
+                    SYNC(2);
                 }
             }
 
