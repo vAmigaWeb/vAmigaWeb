@@ -502,8 +502,8 @@ protected:
     // 68020 instruction cache helpers
     void flushInstructionCache();
     void flushInstructionLatch();
-    void fillInstructionCache(u32 addr);
-    u16 readInstructionCache(u32 addr);
+    bool fillInstructionCache(u32 addr);
+    u16 readInstructionCache(u32 addr, bool &busAccess);
 
     //
     // Accessing the clock

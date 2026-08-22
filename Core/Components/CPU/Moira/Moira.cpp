@@ -545,17 +545,19 @@ Moira::flushInstructionLatch()
     iCacheData020 = 0xffffffff;
 }
 
-void
+bool
 Moira::fillInstructionCache(u32 addr)
 {
     u32 base = (addr & addrMask()) & ~3;
     int index = (int)((base >> 2) & (ICacheLines020 - 1));
     u32 tag = (reg.sr.s ? 1u : 0u) | (base & ~((u32)((ICacheLines020 << 2) - 1)));
+    bool busAccess = false;
 
     if (iCache020[index].valid && iCache020[index].tag == tag) {
         iCacheData020 = iCache020[index].data;
     } else {
         u32 data = read32(base);
+        busAccess = true;
         iCacheData020 = data;
         if ((reg.cacr & 1) && !(reg.cacr & 2)) {
             iCache020[index].tag = tag;
@@ -564,13 +566,22 @@ Moira::fillInstructionCache(u32 addr)
         }
     }
     iCacheAddr020 = base;
+    return busAccess;
 }
 
 u16
-Moira::readInstructionCache(u32 addr)
+Moira::readInstructionCache(u32 addr, bool &busAccess)
 {
     u32 base = addr & ~3;
-    if (iCacheAddr020 != base) fillInstructionCache(base);
+
+    /* A hit in the longword latch or in the cache is served without touching
+     * the bus. The caller uses this to skip the bus cycle penalty, which is
+     * what makes cached code outrun uncached code on the real machine. The
+     * same distinction is made in WinUAE, where only a miss in fill_icache020
+     * reaches the memory access functions.
+     */
+    busAccess = iCacheAddr020 != base && fillInstructionCache(base);
+
     return u16(iCacheData020 >> ((addr & 2) ? 0 : 16));
 }
 
