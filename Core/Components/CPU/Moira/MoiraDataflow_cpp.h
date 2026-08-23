@@ -658,7 +658,7 @@ Moira::readInstructionWord(u32 addr)
          */
         bool busAccess;
         result = readInstructionCache(addr & addrMask<C>(), busAccess);
-        if (busAccess) SYNC(has32BitPort(addr & addrMask<C>()) ? 2 : 6);
+        cp += busAccess ? (has32BitPort(addr & addrMask<C>()) ? 0 : 4) : -2;
 
     } else {
 
