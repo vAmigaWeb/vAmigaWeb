@@ -1610,6 +1610,12 @@ extern "C" void wasm_set_warp(unsigned on)
   wrapper->emu->emu->update();
 }
 
+extern "C" void wasm_set_manual_warp(unsigned on)
+{
+  on == 1 ? wrapper->emu->warpOn(1) : wrapper->emu->warpOff(1);
+  wrapper->emu->emu->update();
+}
+
 
 extern "C" bool wasm_is_warping()
 {
