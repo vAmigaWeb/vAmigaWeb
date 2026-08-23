@@ -3678,10 +3678,12 @@ function update_model_from_hardware(preset=null) {
     let clock_v = String(wasm_get_config_item('CPU.OVERCLOCKING'));
 
     // Keep the dedicated FAST RAM UI in sync with the core. In case it was altered by the Core due to AROS which needs 1MB
-    let saved_fast = load_setting('OPT_FAST_RAM', '2048');
+    // The stored setting is never touched here: during startup this runs before the
+    // fast ram binding applied it, so the core still holds its default and would
+    // otherwise overwrite the users choice.
+    let saved_fast = String(load_setting('OPT_FAST_RAM', '2048'));
     if (fast_v !== saved_fast) {
-        save_setting('OPT_FAST_RAM', fast_v);
-        $(`#button_OPT_FAST_RAM`).text(`fast ram=${format_ram(fast_v)}`);
+        update_hardware_button('OPT_FAST_RAM', fast_v);
     }
 
     for (let key in amiga_models) {

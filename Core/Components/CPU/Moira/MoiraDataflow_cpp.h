@@ -397,14 +397,23 @@ Moira::read(u32 addr)
         if constexpr (C >= Core::C68020) {
             if ((addr & 3) == 0) {
 
+                /* A 32 bit port delivers the longword in a single bus cycle,
+                 * a 16 bit port needs a second one (see has32BitPort).
+                 */
+                auto wide = has32BitPort(addr & addrMask<C>());
+
                 result = read32(addr & addrMask<C>());
+                if (!wide) SYNC(4);
                 if constexpr (F & POLL) POLL_IPL;
+                SYNC(2);
 
             } else {
 
                 result = read16(addr & addrMask<C>()) << 16;
+                SYNC(4);
                 if constexpr (F & POLL) POLL_IPL;
                 result |= read16((addr + 2) & addrMask<C>());
+                SYNC(2);
             }
         } else {
 
@@ -466,22 +475,31 @@ Moira::write(u32 addr, u32 val)
 
             if ((addr & 3) == 0) {
 
+                // See read(): a 16 bit port needs a second bus cycle
+                auto wide = has32BitPort(addr & addrMask<C>());
+
                 write32(addr & addrMask<C>(), val);
+                if (!wide) SYNC(4);
                 if constexpr (F & POLL) POLL_IPL;
+                SYNC(2);
 
             } else {
 
                 if constexpr (F & REVERSE) {
 
                     write16((addr + 2) & addrMask<C>(), u16(val & 0xFFFF));
+                    SYNC(4);
                     if constexpr (F & POLL) POLL_IPL;
                     write16(addr & addrMask<C>(), u16(val >> 16));
+                    SYNC(2);
 
                 } else {
 
                     write16(addr & addrMask<C>(), u16(val >> 16));
+                    SYNC(4);
                     if constexpr (F & POLL) POLL_IPL;
                     write16((addr + 2) & addrMask<C>(), u16(val & 0xFFFF));
+                    SYNC(2);
                 }
             }
 
@@ -633,11 +651,20 @@ Moira::readInstructionWord(u32 addr)
 
     u16 result;
     if constexpr (C == Core::C68020) {
-        result = readInstructionCache(addr & addrMask<C>());
+
+        /* A hit in the cache or in the longword latch costs no bus cycle at
+         * all. A miss reads a whole longword, which needs a second cycle
+         * behind a 16 bit port.
+         */
+        bool busAccess;
+        result = readInstructionCache(addr & addrMask<C>(), busAccess);
+        if (busAccess) SYNC(has32BitPort(addr & addrMask<C>()) ? 2 : 6);
+
     } else {
+
         result = read16(addr & addrMask<C>());
+        SYNC(2);
     }
-    SYNC(2);
 
     return result;
 }

@@ -496,12 +496,30 @@ public:
 
         u32 p = bplpt[plane];
         if (isAGA()) p = alignPtr(p, bplFetchWords());
-        U32_INC(p, (plane & 1) ? bpl2mod : bpl1mod);
+        U32_INC(p, bplMod(plane));
         bplpt[plane] = p;
+    }
+
+    /* Selects the modulo to add to a bitplane pointer. Normally, BPL1MOD
+     * belongs to the odd and BPL2MOD to the even bitplanes. The AGA bitplane
+     * scan doubling bit changes the meaning of both registers completely:
+     * the modulo is then picked by the parity of the rasterline instead, which
+     * lets a program display every line twice by cancelling out the advance on
+     * every other line (getbplmod() in WinUAE / Amiberry).
+     */
+    i16 bplMod(isize plane) const {
+
+        if (bscan2()) {
+            return ((sequencer.diwstrt >> 8) ^ (pos.v ^ 1)) & 1 ? bpl1mod : bpl2mod;
+        }
+        return (plane & 1) ? bpl2mod : bpl1mod;
     }
 
     // Returns the state of the AGA sprite scan doubling bit (FMODE bit 15)
     bool sscan2() const { return isAGA() && GET_BIT(fmode, 15); }
+
+    // Returns the state of the AGA bitplane scan doubling bit (FMODE bit 14)
+    bool bscan2() const { return isAGA() && GET_BIT(fmode, 14); }
 
     // Returns the external synchronization bit from BPLCON0
     static bool ersy(u16 value) { return GET_BIT(value, 1); }
