@@ -239,7 +239,8 @@ Emulator::shouldWarp() const
     
     switch (config.warpMode) {
             
-        case Warp::AUTO:     return main.paula.diskController.spinning();
+        case Warp::AUTO:     return main.paula.diskController.spinning() &&
+                        main.paula.diskController.getState() != DriveDmaState::OFF;
         case Warp::NEVER:    return false;
         case Warp::ALWAYS:   return true;
             
