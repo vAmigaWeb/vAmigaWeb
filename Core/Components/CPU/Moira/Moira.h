@@ -104,10 +104,12 @@ protected:
     // Cycle penalty (for 68020+ extended addressing modes)
     int cp {};
 
-    // Cycles the 68020 was advanced beyond its computed instruction time
-    // (see syncCp). Not part of the snapshot format on purpose: it is bounded
-    // by CpCarryMax and losing it costs a few CPU cycles at most.
-    int cpCarry {};
+    // Model time of the 68020 that has not been spent yet (see syncCp).
+    // Negative while the CPU runs ahead of its computed instruction time.
+    int cpAccum {};
+
+    // Number of consecutive instructions that did not advance the clock
+    int cpStall {};
     
     // Controls exact timing of instructions running in loop mode (68010 only)
     int loopModeDelay {2};
@@ -306,25 +308,31 @@ public:
 
 protected:
 
-    /* Upper bound for the carry maintained by syncCp().
-     *
-     * Code running entirely out of the instruction cache can stay below the
-     * minimum step indefinitely. Capping the carry makes the CPU settle at one
-     * bus cycle per instruction in that case instead of piling up a debt that
-     * would later be paid out as free cycles.
+    /* Maximum number of instructions that may execute without advancing the
+     * clock. WinUAE runs the same watchdog with the same value for its cycle
+     * exact 68020 (regs.ce020extracycles, see wait_memory_cycles).
      */
-    static constexpr int CpCarryMax = 4;
+    static constexpr int CpStallMax = 16;
+
+    /* Lower bound for the model time debt.
+     *
+     * A model that stays non-positive forever would otherwise pile up a debt
+     * it can never pay back and buy free cycles later on. One PAL scanline
+     * (227 bus cycles) is the point where the CPU is off by a visible amount
+     * anyway.
+     */
+    static constexpr int CpAccumMin = -454;
 
     /* Advances the clock by the cycle count computed for a 68020 instruction.
      *
      * Instruction fetches that hit the cache are modelled as a discount (see
-     * readInstructionWord), so the total can drop to zero or below. The
-     * environment steps the rest of the machine from sync(), so every call has
-     * to advance by at least one bus cycle - otherwise the emulation makes no
-     * progress at all and its main loop never terminates. Instead of clamping
-     * (which would silently throw the discount away and make the CPU too slow)
-     * the difference is carried over to the following instructions, so the
-     * discount stays effective and the average clock rate is preserved.
+     * readInstructionWord), so the total can drop to zero or below, while the
+     * environment can only be stepped in whole bus cycles. The time is
+     * therefore accumulated and spent as soon as it amounts to at least one
+     * bus cycle, which keeps the discount fully effective. Should that not
+     * happen for CpStallMax instructions in a row, one bus cycle is borrowed:
+     * the environment is stepped from here alone, so without it the emulation
+     * would make no progress and its main loop would never terminate.
      */
     void syncCp(int cycles);
 
