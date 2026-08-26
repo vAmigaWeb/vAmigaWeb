@@ -655,6 +655,13 @@ Moira::readInstructionWord(u32 addr)
         /* A hit in the cache or in the longword latch costs no bus cycle at
          * all. A miss reads a whole longword, which needs a second cycle
          * behind a 16 bit port.
+         *
+         * The base cycle counts of the instruction handlers assume a bus
+         * access, so a hit is credited back with -2. Several fetches per
+         * instruction (fullPrefetch, long extension words) can therefore push
+         * the total to zero or below. That is intentional and required to reach
+         * 68020 speed, but the clock must never stand still: syncCp() spends
+         * the minimum and carries the remainder over to the next instruction.
          */
         bool busAccess;
         result = readInstructionCache(addr & addrMask<C>(), busAccess);

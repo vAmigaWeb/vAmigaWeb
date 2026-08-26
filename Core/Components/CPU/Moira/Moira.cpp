@@ -212,6 +212,8 @@ Moira::reset()
     ipl = 0;
     fcl = 2;
     fcSource = 0;
+    cp = 0;
+    cpCarry = 0;
 
     SYNC(16);
 
@@ -236,6 +238,21 @@ Moira::reset()
 
     // Inform the delegate
     cpuDidReset();
+}
+void
+Moira::syncCp(int cycles)
+{
+    /* Two cycles are the smallest step that moves the environment forward: a
+     * bus cycle spans two CPU cycles, so anything below is rounded down to
+     * nothing by the host. Sub-minimum totals are paid with the minimum and
+     * booked as carry, which the following instructions settle.
+     */
+    int budget = cycles - cpCarry;
+    int step = budget < 2 ? 2 : (budget & ~1);
+
+    cpCarry = step - budget;
+//    if (cpCarry > CpCarryMax) cpCarry = CpCarryMax;
+    sync(step);
 }
 
 void

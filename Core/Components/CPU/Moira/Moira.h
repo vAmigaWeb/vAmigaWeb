@@ -103,6 +103,11 @@ protected:
     
     // Cycle penalty (for 68020+ extended addressing modes)
     int cp {};
+
+    // Cycles the 68020 was advanced beyond its computed instruction time
+    // (see syncCp). Not part of the snapshot format on purpose: it is bounded
+    // by CpCarryMax and losing it costs a few CPU cycles at most.
+    int cpCarry {};
     
     // Controls exact timing of instructions running in loop mode (68010 only)
     int loopModeDelay {2};
@@ -294,13 +299,40 @@ public:
     // Returns instruction metadata for a given opcode
     InstrInfo getInstrInfo(u16 op) const;
 
-    
+
+    //
+    // Advancing the clock
+    //
+
+protected:
+
+    /* Upper bound for the carry maintained by syncCp().
+     *
+     * Code running entirely out of the instruction cache can stay below the
+     * minimum step indefinitely. Capping the carry makes the CPU settle at one
+     * bus cycle per instruction in that case instead of piling up a debt that
+     * would later be paid out as free cycles.
+     */
+    static constexpr int CpCarryMax = 4;
+
+    /* Advances the clock by the cycle count computed for a 68020 instruction.
+     *
+     * Instruction fetches that hit the cache are modelled as a discount (see
+     * readInstructionWord), so the total can drop to zero or below. The
+     * environment steps the rest of the machine from sync(), so every call has
+     * to advance by at least one bus cycle - otherwise the emulation makes no
+     * progress at all and its main loop never terminates. Instead of clamping
+     * (which would silently throw the discount away and make the CPU too slow)
+     * the difference is carried over to the following instructions, so the
+     * discount stays effective and the average clock rate is preserved.
+     */
+    void syncCp(int cycles);
+
+
     //
     // Interfacing with other components
     //
-    
-protected:
-    
+
 #if MOIRA_VIRTUAL_API == true
     
     // Advances the internal clock by the specified number of cycles

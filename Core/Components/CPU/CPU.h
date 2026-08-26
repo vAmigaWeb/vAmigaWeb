@@ -105,6 +105,7 @@ public:
         CLONE(fcSource)
         CLONE(exception)
         CLONE(cp)
+        CLONE(cpCarry)
         CLONE(loopModeDelay)
         CLONE(readBuffer)
         CLONE(writeBuffer)

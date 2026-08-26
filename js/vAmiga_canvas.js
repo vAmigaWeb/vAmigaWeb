@@ -1,4 +1,4 @@
-let TPP=1;
+let TPP=2;
 let HBLANK_MIN=0x12*TPP;
 let HPIXELS=912*TPP;
 let VPIXELS=313;

@@ -35,7 +35,7 @@ static constexpr int SNP_BETA       = 0;
  * texture in super-hires resolution where every hires pixel is represented by
  * two texels.
  */
-#define TPP 1
+#define TPP 2
 
 
 //
