@@ -2,6 +2,8 @@ const sleep = (milliseconds) => {
   return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
 
+let manual_warp = false;
+
 var map_of_running_scripts = [];
 function get_running_script(id)
 {
@@ -227,11 +229,9 @@ async function execute_single_action(cmd, execute=true, execution_id=-1)
     else if(cmd == 'toggle_warp')
     {
         if(execute)
-        {//0==auto, 1==never, 2==always
-            let mode = wasm_get_config_item("WARP_MODE");
-            if(mode <= 1) auto_or_never_warp_mode = mode ==0 ?"AUTO":"NEVER";
-            else auto_or_never_warp_mode= "NEVER";
-            wasm_configure('WARP_MODE', mode<=1 ? 'ALWAYS': auto_or_never_warp_mode);
+        {
+            manual_warp = !manual_warp;
+            wasm_set_manual_warp(manual_warp ? 1 : 0);
         }
     }
     else if(cmd == 'warp_always')

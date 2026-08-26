@@ -713,9 +713,9 @@ async function fetchOpenROMS(osname='aros'){
     }
     if(osname=='aros')
     {
-        let response = await fetch("roms/aros-rom-20260727.bin");
+        let response = await fetch("roms/aros-rom-20260820.bin");
         await installer('.rom_file', response);
-        response = await fetch("roms/aros-ext-20260727.bin");
+        response = await fetch("roms/aros-ext-20260820.bin");
         await installer('.rom_ext_file', response);   
     }
     else if(osname=='emutos')
@@ -2085,6 +2085,7 @@ function InitWrappers() {
 
     wasm_create_renderer = Module.cwrap('wasm_create_renderer', 'number', ['string']);
     wasm_set_warp = Module.cwrap('wasm_set_warp', 'undefined', ['number']);
+    wasm_set_manual_warp = Module.cwrap('wasm_set_manual_warp', 'undefined', ['number']);
     wasm_sprite_info = Module.cwrap('wasm_sprite_info', 'string');
 
     wasm_cut_layers = Module.cwrap('wasm_cut_layers', 'undefined', ['number']);
