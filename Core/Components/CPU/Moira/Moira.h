@@ -312,7 +312,7 @@ protected:
      * clock. WinUAE runs the same watchdog with the same value for its cycle
      * exact 68020 (regs.ce020extracycles, see wait_memory_cycles).
      */
-    static constexpr int CpStallMax = 16;
+    static constexpr int CpStallMax = 4;
 
     /* Lower bound for the model time debt.
      *
