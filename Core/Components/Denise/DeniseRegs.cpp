@@ -145,12 +145,13 @@ Denise::setBPLCON0(u16 oldValue, u16 newValue)
     i64 pixel = std::max(agnus.pos.pixel() - 4, (isize)0);
     conChanges.insert(pixel, RegChange { .reg = Reg::BPLCON0, .value = newValue });
     
-    /* Check if the HAM bit, the SHRES bit, or one of the bits the EHB mode
-     * depends on have changed. The latter are the BPU bits (including BPU3 in
-     * AGA) and the dual-playfield bit.
+    /* Check if the HAM bit, the SHRES/HIRES resolution bits, or one of the
+     * bits the EHB mode depends on have changed. The latter are the BPU bits
+     * (including BPU3 in AGA), the dual-playfield bit, and the HIRES bit,
+     * which selects the valid HAM6/8 pixel data path.
      */
     if ((ham(oldValue) ^ ham(newValue)) || (shres(oldValue) ^ shres(newValue)) ||
-        ((oldValue ^ newValue) & 0x7410)) {
+        (hires(oldValue) ^ hires(newValue)) || ((oldValue ^ newValue) & 0xFC50)) {
         pixelEngine.colChanges.insert(pixel, RegChange { .reg = Reg::BPLCON0, .value = newValue, .accessor = Accessor::DENISE } );
     }
 

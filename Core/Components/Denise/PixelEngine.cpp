@@ -385,8 +385,8 @@ PixelEngine::applyRegisterChange(const RegChange &change)
 
         case Reg::BPLCON0:
 
-            hamMode = Denise::ham(change.value);
-            hamMode8 = denise.ham8(change.value);
+            hamMode = denise.isHAM6enabled(change.value);
+            hamMode8 = denise.isHAM8enabled(change.value);
             shresMode = Denise::shres(change.value);
             ehbCon0 = change.value;
             updateEhbPalette();
@@ -443,6 +443,8 @@ PixelEngine::colorize(isize line)
         // Colorize a chunk of pixels
         if (shresMode) {
             colorizeSHRES(dst, pixel, trigger);
+        } else if (hamMode8) {
+            colorizeHAM(dst, pixel, trigger, hold);
         } else if (hamMode) {
             colorizeHAM(dst, pixel, trigger, hold);
         } else {

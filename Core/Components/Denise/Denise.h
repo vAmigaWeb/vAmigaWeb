@@ -882,18 +882,22 @@ public:
     bool dbplf() const { return dbplf(bplcon0); }
     static bool lace(u16 v) { return GET_BIT(v, 2); }
     bool lace() const { return lace(bplcon0); }
-    static bool ham(u16 v) { return (v & 0x8800) == 0x0800; }
+    
+
+    static bool ham(u16 v) { return GET_BIT(v, 11); }
     bool ham() const { return ham(bplcon0); }
 
-    /* Returns true if the AGA variant of HAM mode is active. HAM8 requires all
-     * eight bitplanes, which are selected by setting BPU3 and clearing the
-     * three traditional BPU bits (see bpu).
+    /* HAM is valid in LORES and HIRES, but never in SHRES. On OCS/ECS the
+     * bitplane count is encoded in the BPU bits; on AGA, HAM8 additionally uses
+     * BPU3 with the three classic BPU bits cleared.
      */
-    bool ham8(u16 v) const {
-        return isAGA() && ham(v) && GET_BIT(v, 4) && !(v & 0x7000);
-    }
-    bool ham8() const { return ham8(bplcon0); }
-    static bool ecsena(u16 v) { return GET_BIT(v, 0); }
+    bool isHAM6enabled(u16 v) const { return ham(v) && (lores(v) || isAGA()) && bpuValue(v) < 7; }
+    bool isHAM6enabled() const { return isHAM6enabled(bplcon0); }
+
+    bool isHAM8enabled(u16 v) const { return ham(v) && (lores(v) || isAGA()) && bpuValue(v) >= 7; }
+    bool isHAM8enabled() const { return isHAM8enabled(bplcon0); }
+
+     static bool ecsena(u16 v) { return GET_BIT(v, 0); }
     bool ecsena() const { return ecsena(bplcon0); }
 
     // BPLCON2
@@ -923,7 +927,7 @@ public:
 
         if (ham(con0) || dbplf(con0)) return false;
 
-        u8 planes = isAGA() && GET_BIT(con0, 4) ? ((con0 & 0x7000) ? 0 : 8) : bpu(con0);
+        u8 planes = bpuValue(con0);
 
         if (isAGA()) {
             if (planes != 6) return false;
@@ -1011,21 +1015,22 @@ private:
      * differs if the BPU bits reflect an invalid bit pattern.
      */
     static u8 bpu(u16 v);
-    u8 bpu() const {
+    u8 bpuValue(u16 v) const {
 
         /* In AGA, BPLCON0 bit 4 serves as the fourth BPU bit (BPU3). Hence,
          * eight bitplanes are selected by setting bit 4 and clearing the three
-         * traditional BPU bits. Any other combination with bit 4 set would
-         * request more than eight bitplanes which disables the bitplanes.
+         * traditional BPU bits. Any other combination with bit 4 set requests
+         * more than eight bitplanes and disables the display.
          */
-        if (isAGA() && GET_BIT(bplcon0, 4)) {
-            return (bplcon0 & 0x7000) ? 0 : 8;
+        if (isAGA() && GET_BIT(v, 4)) {
+            return (v & 0x7000) ? 0 : 8;
         }
 
-        u8 b = bpu(bplcon0);
+        u8 b = bpu(v);
         if (b == 7 && !isAGA()) return 6;
         return b;
     }
+    u8 bpu() const { return bpuValue(bplcon0); }
 
     /* Distance between the two trigger positions of the horizontal sprite
      * comparator when scan doubling is active. It corresponds to bit 8 of the
