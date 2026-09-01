@@ -690,7 +690,7 @@ Denise::translate()
     state.zpf1 = zPF1(initialBplcon2);
     state.zpf2 = zPF2(initialBplcon2);
     state.prio = pf2pri(initialBplcon2);
-    state.ham = ham(initialBplcon0);
+    state.ham = isHAM6enabled(initialBplcon0) || isHAM8enabled(initialBplcon0);
 
     bool dual = dbplf(initialBplcon0);
     bool hamLine = state.ham;
@@ -718,7 +718,7 @@ Denise::translate()
             case Reg::BPLCON0:
                 
                 dual = dbplf(bplcon0);
-                state.ham = ham(change.value);
+                state.ham = isHAM6enabled(change.value) || isHAM8enabled(change.value);
                 hamLine |= state.ham;
                 break;
 
