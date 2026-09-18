@@ -34,6 +34,7 @@ let ui_suspend_depth=0;
 let on_ready_to_run=()=>{};
 let on_hdr_step=(drive_number, cylinder)=>{};
 let on_power_led_dim=()=>{};
+let settings_value_causes={};
 let df_mount_list=[];//to auto mount disks from zip e.g. ["Batman_Rises_disk1.adf","Batman_Rises_disk2.adf"];
 let hd_mount_list=[];
 
@@ -637,6 +638,13 @@ function message_handler_queue_worker(msg, data, data2)
     else if(msg == "MSG_SNAPSHOT_RESTORED" || msg == "MSG_WORKSPACE_LOADED")
     {
         let cause = msg == "MSG_SNAPSHOT_RESTORED" ? "(snapshot)":"(workspace)";
+        for(let key of [
+            'OPT_BLITTER_ACCURACY', 'OPT_DRIVE_SPEED', 'OPT_CPU_REVISION',
+            'OPT_CPU_OVERCLOCKING', 'OPT_AGNUS_REVISION', 'OPT_DENISE_REVISION',
+            'OPT_CHIP_RAM', 'OPT_SLOW_RAM', 'OPT_FAST_RAM'
+        ]) {
+            settings_value_causes[key] = cause;
+        }
 
         //override loaded warp setting
         wasm_set_warp( warp_switch.prop('checked') ? 1 : 0)
@@ -3444,6 +3452,7 @@ function bind_config_choice(key, name, values, default_value, value2text=null, t
                 updated_func(value2text(previous));
             return;
         }
+        delete settings_value_causes[key];
         show_choice(choice);
         set_active(text2value(choice));
         if(updated_func!=null)
@@ -3578,7 +3587,7 @@ function get_hardware_display(key, value) {
     return value;
 }
 
-function update_hardware_button(key, value) {
+function update_hardware_button(key, value, cause=settings_value_causes[key] || '') {
     let display = get_hardware_display(key, value);
     let names = {
         'OPT_AGNUS_REVISION': 'agnus revision',
@@ -3590,12 +3599,35 @@ function update_hardware_button(key, value) {
         'OPT_CPU_OVERCLOCKING': ''
     };
     let name = names[key] || '';
-    $(`#button_${key}`).html(`${name}${name.length > 0 ? '=' : ''}${display}`);
+    $(`#button_${key}`).html(`${name}${name.length > 0 ? '=' : ''}${display} ${cause}`.trim());
     let active_val = String(value);
     if (key === 'OPT_AGNUS_REVISION' && agnus_revs[value] !== undefined) active_val = agnus_revs[value];
     if (key === 'OPT_DENISE_REVISION' && denise_revs[value] !== undefined) active_val = denise_revs[value];
     $(`#choose_${key} a`).removeClass('active');
     $(`#choose_${key} a[data-choice="${active_val}"]`).addClass('active');
+}
+
+function sync_settings_from_core() {
+    update_hardware_button('OPT_AGNUS_REVISION',
+        agnus_revs[wasm_get_config_item('AGNUS.REVISION')]);
+    update_hardware_button('OPT_DENISE_REVISION',
+        denise_revs[wasm_get_config_item('DENISE.REVISION')]);
+    update_hardware_button('OPT_CHIP_RAM', wasm_get_config_item('CHIP_RAM'));
+    update_hardware_button('OPT_SLOW_RAM', wasm_get_config_item('SLOW_RAM'));
+    update_hardware_button('OPT_FAST_RAM', wasm_get_config_item('FAST_RAM'));
+    update_hardware_button('OPT_CPU_REVISION', wasm_get_config_item('CPU.REVISION'));
+    update_hardware_button('OPT_CPU_OVERCLOCKING', wasm_get_config_item('CPU.OVERCLOCKING'));
+
+    $('#button_game_controller_type_choice').text(`button count=${joystick_button_count}`);
+    document.querySelectorAll('.gc_choice_text').forEach(element => {
+        element.style.display = 'none';
+    });
+    let joystick_description = document.getElementById(`gc_buttons_${joystick_button_count}`);
+    if (joystick_description) {
+        joystick_description.style.display = 'inherit';
+    }
+
+    update_model_from_hardware();
 }
 
 function model_entry_html(key) {
@@ -3642,6 +3674,14 @@ function apply_model(model_key) {
     if (result.length > 0) {
         alert(result);
         return;
+    }
+
+    for(let key of [
+        'OPT_AGNUS_REVISION', 'OPT_DENISE_REVISION', 'OPT_CHIP_RAM',
+        'OPT_SLOW_RAM', 'OPT_FAST_RAM', 'OPT_CPU_REVISION',
+        'OPT_CPU_OVERCLOCKING'
+    ]) {
+        delete settings_value_causes[key];
     }
 
     save_setting('OPT_AGNUS_REVISION', preset.agnus);
@@ -4442,7 +4482,7 @@ $('.layer').change( function(event) {
 
     $('#modal_settings').on('show.bs.modal', function() 
     {    
-        update_model_from_hardware();
+        sync_settings_from_core();
         for(var dn=0; dn<4; dn++)
         {
             if(wasm_has_disk("df"+dn))
