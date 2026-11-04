@@ -2428,22 +2428,64 @@ extern "C" void wasm_cut_layers(unsigned cut_layers)
 
 
 
-char json_result[1024];
+std::string json_result;
+
+static void
+append_json_string(std::string &json, const char *value)
+{
+  static const char hex[] = "0123456789abcdef";
+
+  json += '"';
+  if (value) {
+    for (const unsigned char *p = reinterpret_cast<const unsigned char *>(value); *p; p++) {
+      switch (*p) {
+        case '"': json += "\\\""; break;
+        case '\\': json += "\\\\"; break;
+        case '\b': json += "\\b"; break;
+        case '\f': json += "\\f"; break;
+        case '\n': json += "\\n"; break;
+        case '\r': json += "\\r"; break;
+        case '\t': json += "\\t"; break;
+        default:
+          if (*p < 0x20) {
+            json += "\\u00";
+            json += hex[*p >> 4];
+            json += hex[*p & 0x0F];
+          } else {
+            json += static_cast<char>(*p);
+          }
+      }
+    }
+  }
+  json += '"';
+}
+
 extern "C" const char* wasm_rom_info()
 {
+  const auto romTraits = wrapper->emu->mem.getRomTraits();
+  const auto extTraits = wrapper->emu->mem.getExtTraits();
 
-  sprintf(json_result, "{\"hasRom\":\"%s\",\"hasExt\":\"%s\", \"romTitle\":\"%s\", \"romVersion\":\"%s\", \"romReleased\":\"%s\", \"romModel\":\"%s\", \"extTitle\":\"%s\", \"extVersion\":\"%s\", \"extReleased\":\"%s\", \"extModel\":\"%s\" }",
-    wrapper->emu->mem.mem->hasRom()?"true":"false",
-    wrapper->emu->mem.mem->hasExt()?"true":"false",
-    wrapper->emu->mem.getRomTraits().title,
-    wrapper->emu->mem.getRomTraits().revision,
-    wrapper->emu->mem.getRomTraits().released,
-    wrapper->emu->mem.getRomTraits().model,
-    wrapper->emu->mem.getExtTraits().title,
-    wrapper->emu->mem.getExtTraits().revision,
-    wrapper->emu->mem.getExtTraits().released,
-    wrapper->emu->mem.getExtTraits().model
-  );
+  json_result = "{\"hasRom\":";
+  append_json_string(json_result, wrapper->emu->mem.mem->hasRom() ? "true" : "false");
+  json_result += ",\"hasExt\":";
+  append_json_string(json_result, wrapper->emu->mem.mem->hasExt() ? "true" : "false");
+  json_result += ",\"romTitle\":";
+  append_json_string(json_result, romTraits.title);
+  json_result += ",\"romVersion\":";
+  append_json_string(json_result, romTraits.revision);
+  json_result += ",\"romReleased\":";
+  append_json_string(json_result, romTraits.released);
+  json_result += ",\"romModel\":";
+  append_json_string(json_result, romTraits.model);
+  json_result += ",\"extTitle\":";
+  append_json_string(json_result, extTraits.title);
+  json_result += ",\"extVersion\":";
+  append_json_string(json_result, extTraits.revision);
+  json_result += ",\"extReleased\":";
+  append_json_string(json_result, extTraits.released);
+  json_result += ",\"extModel\":";
+  append_json_string(json_result, extTraits.model);
+  json_result += "}";
 
   printf("rom crc=%x, ext crc=%x\n", wrapper->emu->mem.getRomTraits().crc, wrapper->emu->mem.getExtTraits().crc);
 
@@ -2455,16 +2497,13 @@ extern "C" const char* wasm_rom_info()
 //    wrapper->emu->mem.romModel()
   );
 */
-  return json_result;
+  return json_result.c_str();
 }
 
 extern "C" const char* wasm_get_core_version()
 {
-  sprintf(json_result, "%s",
-    wrapper->emu->version().c_str() 
-  );
-
-  return json_result;
+  json_result = wrapper->emu->version();
+  return json_result.c_str();
 }
 
 

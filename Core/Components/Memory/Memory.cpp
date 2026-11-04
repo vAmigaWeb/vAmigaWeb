@@ -758,7 +758,29 @@ Memory::getRomTraits(u32 crc)
 const RomTraits &
 Memory::getRomTraits() const
 {
-    return getRomTraits(util::crc32(rom, config.romSize));
+    const u32 crc = util::crc32(rom, config.romSize);
+    constexpr isize identifierOffset = 0x18;
+    constexpr isize labelOffset = 0x1C;
+    constexpr isize labelSize = 64;
+
+    if (rom && config.romSize >= labelOffset + labelSize &&
+        std::memcmp(rom + identifierOffset, "KSS!", 4) == 0) {
+        const char *label = reinterpret_cast<const char *>(rom + labelOffset);
+
+        if (std::memchr(label, '\0', labelSize)) {
+            kssRomTraits = RomTraits {
+                .crc = crc,
+                .title = "KickSlopStart",
+                .revision = label,
+                .released = "",
+                .model = "",
+                .vendor = RomVendor::OTHER
+            };
+            return kssRomTraits;
+        }
+    }
+
+    return getRomTraits(crc);
 }
 
 const RomTraits &

@@ -731,15 +731,26 @@ async function fetchOpenROMS(osname='aros'){
         let response = await fetch("roms/emutos-amiga.bin");
         await installer('.rom_file', response);
     }
+    else if(osname=='kss')
+    {
+        let response = await fetch("https://raw.githubusercontent.com/Thaolia/KickSlopStart/rom/KickSlopStart.rom");
+        await installer('.rom_file', response);
+    }
 }
 
 
 function fill_rom_icons(){
     let rom_infos=JSON.parse(wasm_rom_info());
     let icon="img/rom.png";
+    let isKickSlopStart = [rom_infos.romTitle, rom_infos.romVersion]
+        .some(value => typeof value === "string" && value.toLowerCase().includes("kickslopstart"));
     if(rom_infos.hasRom == "false")
     {
         icon="img/rom_empty.png";
+    }
+    else if(isKickSlopStart)
+    {
+        icon="img/rom_kss.png";
     }
     else if(rom_infos.romTitle.toLowerCase().indexOf("aros")>=0)
     {
@@ -766,8 +777,13 @@ function fill_rom_icons(){
         icon="img/rom_original.png";
     }
 
-    $("#rom_kickstart").attr("src", icon);
-    $("#kickstart_title").html(`${rom_infos.romTitle}<br>${rom_infos.romVersion}<br>${rom_infos.romReleased}<br>${rom_infos.romModel}`);
+    $("#rom_kickstart").attr({
+        src: icon,
+        alt: isKickSlopStart ? "KickSlopStart ROM" : "Kickstart ROM"
+    });
+    $("#kickstart_title").html([rom_infos.romTitle, rom_infos.romVersion, rom_infos.romReleased, rom_infos.romModel]
+        .map(value => $('<div>').text(value).html())
+        .join("<br>"));
 
     $("#button_delete_kickstart").show();
 }
@@ -5387,6 +5403,10 @@ $('.layer').change( function(event) {
        else if(choice.includes("emutos"))       
        {
         fetchOpenROMS("emutos");
+       }
+       else if(choice.includes("KSS"))
+       {
+        fetchOpenROMS("kss");
        }
    });
 

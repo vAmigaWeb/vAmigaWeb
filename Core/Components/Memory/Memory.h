@@ -186,6 +186,7 @@ public:
     u8 *rom;
     u8 *wom;
     u8 *ext;
+    mutable RomTraits kssRomTraits = {};
     u8 *chip;
     u8 *slow;
     u8 *fast;
