@@ -61,7 +61,7 @@ function js_set_display(_xOff, _yOff, _clipped_width,_clipped_height) {
 
 function scaleVMCanvas() {
     let the_canvas = document.getElementById("canvas");
-    var src_width=clipped_width; //Module._wasm_get_render_width();
+    var src_width=clipped_width/TPP; //Module._wasm_get_render_width();
     var src_height=clipped_height*2;//Module._wasm_get_render_height()*2; 
     if(use_ntsc_pixel)
     {
@@ -92,7 +92,7 @@ function scaleVMCanvas() {
     var topPos=0;
     if(wratio < src_ratio)
     {
-        var reducedHeight=TPP*avail_width*inv_src_ratio;
+        var reducedHeight=avail_width*inv_src_ratio;
         //all lower than 1.25
         $("#canvas").css("width", avail_width+'px')
         .css("height", Math.round(reducedHeight)+'px');
