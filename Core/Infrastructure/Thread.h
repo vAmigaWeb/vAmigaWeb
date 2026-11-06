@@ -11,9 +11,11 @@
 
 #include "ThreadTypes.h"
 #include "CoreComponent.h"
-#include "Concurrency.h"
-#include "Chrono.h"
-#include "Wakeable.h"
+#include "utl/chrono.h"
+#include "utl/concurrency.h"
+#include <thread>
+#include <atomic>
+#include <latch>
 
 namespace vamiga {
 
@@ -22,7 +24,7 @@ namespace vamiga {
  *  execution in the middle of frame. This happens when a breakpoint or
  *  watchpoint is hit, or when the CPU halts due to the execution of a jamming
  *  instruction */
-typedef AppException StateChangeException;
+typedef GenericException<i64> StateChangeException;
 
 /** Implements the emulator's state model.
  *  This class is one of the base classes of the Emulator class and provides
@@ -43,24 +45,29 @@ protected:
     std::latch initLatch {1};
 
     // Synchronization mutex
-    mutable util::ReentrantMutex lock;
-    mutable util::ReentrantMutex suspensionLock;
-    
+    mutable ReentrantMutex lock;
+    mutable ReentrantMutex suspensionLock;
+
     // Warp and track state
     u8 warp = 0;
     u8 track = 0;
 
+    // The thread that has suspended the emulator (a default id if there is none)
+    mutable std::atomic<std::thread::id> suspender { };
+
+    // The number of nested suspensions (only accessed by the suspending thread)
+    mutable isize suspendDepth = 0;
+
     // Counters
-    mutable isize suspendCounter = 0;
     isize frameCounter = 0;
     isize statsCounter = 0;
 
     // Time stamps
-    util::Time baseTime;
+    utl::Time baseTime;
     
     // Clocks for measuring the CPU load
-    util::Clock nonstopClock;
-    util::Clock loadClock;
+    utl::Clock nonstopClock;
+    utl::Clock loadClock;
 
     // Statistical information (CPU load, frames per second, thread resyncs)
     double cpuLoad = 0.0;
@@ -68,7 +75,7 @@ protected:
     isize resyncs = 0;
 
     // Debug clocks
-    util::Clock wakeupClock;
+    utl::Clock wakeupClock;
 
     
     //
@@ -83,7 +90,7 @@ public:
     const char *objectName() const override { return "Thread"; }
 
     // Checks the launch state
-    bool isLaunched() const { return true; /*thread.joinable();*/ }
+    bool isLaunched() const { return isInitialized(); }
 
 protected:
 
@@ -100,7 +107,7 @@ public:
     // Returns true if this functions is called inside or outside the emulator thread
     bool isEmulatorThread() const { return true; }
     bool isUserThread() const { return true; }
-
+    
     // Performs a state change
     void switchState(ExecState newState);
 
@@ -151,7 +158,11 @@ public:
 
     /** Returns the current suspension state.
      */
-    bool isSuspended() const { return suspendCounter > 0; }
+    bool isSuspended() const { return suspender.load() != std::thread::id(); }
+
+    /** Returns true if the calling thread has suspended the emulator.
+     */
+    bool isSuspendedByCurrentThread() const { return suspender.load() == std::this_thread::get_id(); }
     
     /** Suspends the thread.
      *  The thread is temporarily suspended
@@ -174,14 +185,14 @@ public:
 
     void powerOn();
     void powerOff();
-    void run() throws;
+    void run(); // Throws
     void pause();
     void halt();
 
-    void warpOn(isize source = 0);
-    void warpOff(isize source = 0);
-    void trackOn(isize source = 0);
-    void trackOff(isize source = 0);
+    void warpOn(isize source);
+    void warpOff(isize source);
+    void trackOn(isize source);
+    void trackOff(isize source);
 
     // Signals a state transition
     virtual void _powerOn() = 0;
@@ -197,7 +208,7 @@ public:
 private:
 
     // Returns if the emulator is ready to runs, throws an exception otherwise
-    virtual void isReady() throws = 0;
+    virtual void checkReady() = 0;
 
 
     //

@@ -7,11 +7,10 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "RegressionTester.h"
 #include "Emulator.h"
-#include "IOUtils.h"
-
+#include "utl/io.h"
 #include <fstream>
 
 namespace vamiga {
@@ -20,11 +19,11 @@ void
 RegressionTester::prepare(ConfigScheme scheme, const fs::path &rom, const fs::path &ext)
 {
     // Only proceed if the /tmp folder exisits
-    if (!util::fileExists("/tmp")) throw AppError(Fault::DIR_NOT_FOUND, "/tmp");
+    if (!utl::fileExists("/tmp")) throw IOError(IOError::DIR_NOT_FOUND, "/tmp");
 
     // Check if we've got write permissions
-    if (host.tmp() != "/tmp") throw AppError(Fault::DIR_ACCESS_DENIED, "/tmp");
-    
+    if (host.tmp() != "/tmp") throw IOError(IOError::DIR_ACCESS_DENIED, "/tmp");
+
     // Initialize the emulator according to the specified scheme
     emulator.powerOff();
     emulator.set(scheme);

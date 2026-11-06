@@ -7,11 +7,13 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "VAmiga.h"
-#include "Concurrency.h"
 #include "Emulator.h"
+#include "SVMFile.h"
+#include "Codecs.h"
 #include "GuardList.h"
+#include "utl/concurrency.h"
 
 namespace vamiga {
 
@@ -80,14 +82,14 @@ const AmigaInfo &
 AmigaAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return amiga->getInfo();
+    return amiga->info.current();
 }
 
 const AmigaInfo &
 AmigaAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return amiga->getCachedInfo();
+    return amiga->info.backed();
 }
 
 void
@@ -113,35 +115,49 @@ const LogicAnalyzerInfo &
 LogicAnalyzerAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return logicAnalyzer->getInfo();
+    return logicAnalyzer->info.current();
 }
 
 const LogicAnalyzerInfo &
 LogicAnalyzerAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return logicAnalyzer->getCachedInfo();
+    return logicAnalyzer->info.backed();
 }
 
-const DmaDebuggerConfig &
-DmaDebuggerAPI::getConfig() const
+isize
+LogicAnalyzerAPI::getTraceCount() const
 {
     VAMIGA_PUBLIC
-    return dmaDebugger->getConfig();
+    return logicAnalyzer->traceCount();
 }
 
-const DmaDebuggerInfo &
-DmaDebuggerAPI::getInfo() const
+LogicAnalyzerSample
+LogicAnalyzerAPI::getTraceSample(isize nr) const
 {
     VAMIGA_PUBLIC
-    return dmaDebugger->getInfo();
+    return logicAnalyzer->traceSample(nr);
 }
 
-const DmaDebuggerInfo &
-DmaDebuggerAPI::getCachedInfo() const
+const XRayConfig &
+XRayAPI::getConfig() const
 {
     VAMIGA_PUBLIC
-    return dmaDebugger->getCachedInfo();
+    return xray->getConfig();
+}
+
+const XRayInfo &
+XRayAPI::getInfo() const
+{
+    VAMIGA_PUBLIC
+    return xray->info.current();
+}
+
+const XRayInfo &
+XRayAPI::getCachedInfo() const
+{
+    VAMIGA_PUBLIC
+    return xray->info.backed();
 }
 
 const AgnusConfig &
@@ -155,21 +171,28 @@ const AgnusInfo &
 AgnusAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return agnus->getInfo();
+    return agnus->info.current();
 }
 
 const AgnusInfo &
 AgnusAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return agnus->getCachedInfo();
+    return agnus->info.backed();
 }
 
-const AgnusStats &
-AgnusAPI::getStats() const
+const AgnusMetrics &
+AgnusAPI::getMetrics() const
 {
     VAMIGA_PUBLIC
-    return agnus->getStats();
+    return agnus->metrics.current();
+}
+
+const AgnusMetrics &
+AgnusAPI::getCachedMetrics() const
+{
+    VAMIGA_PUBLIC
+    return agnus->metrics.backed();
 }
 
 const AgnusTraits
@@ -184,18 +207,25 @@ AgnusAPI::getTraits() const
 // Components (Blitter)
 //
 
+const BlitterConfig &
+BlitterAPI::getConfig() const
+{
+    VAMIGA_PUBLIC
+    return blitter->getConfig();
+}
+
 const BlitterInfo &
 BlitterAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return blitter->getInfo();
+    return blitter->info.current();
 }
 
 const BlitterInfo &
 BlitterAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return blitter->getCachedInfo();
+    return blitter->info.backed();
 }
 
 
@@ -214,21 +244,28 @@ const CIAInfo &
 CIAAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return cia->getInfo();
+    return cia->info.current();
 }
 
 const CIAInfo &
 CIAAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return cia->getCachedInfo();
+    return cia->info.backed();
 }
 
-CIAStats
-CIAAPI::getStats() const
+const CIAMetrics &
+CIAAPI::getMetrics() const
 {
     VAMIGA_PUBLIC
-    return cia->getStats();
+    return cia->metrics.current();
+}
+
+const CIAMetrics &
+CIAAPI::getCachedMetrics() const
+{
+    VAMIGA_PUBLIC
+    return cia->metrics.backed();
 }
 
 
@@ -240,14 +277,14 @@ const CopperInfo &
 CopperAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return copper->getInfo();
+    return copper->info.current();
 }
 
 const CopperInfo &
 CopperAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return copper->getCachedInfo();
+    return copper->info.backed();
 }
 
 string
@@ -284,7 +321,7 @@ GuardsAPI::elements() const
 }
 
 std::optional<GuardInfo>
-GuardsAPI::guardNr(long nr) const
+GuardsAPI::guardNr(isize nr) const
 {
     VAMIGA_PUBLIC
     return guards->guardNr(nr);
@@ -300,85 +337,169 @@ GuardsAPI::guardAt(u32 target) const
 void
 GuardsAPI::setAt(u32 target, isize ignores)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->put(Command(Cmd::GUARD_SET_AT, (void *)guards, target, ignores));
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::GUARD_SET_AT, GuardCmd { .list = type, .addr = target, .ignores = ignores }));
 }
 
 void
-GuardsAPI::moveTo(isize nr, u32 newTarget)
+GuardsAPI::setAtAsync(u32 target, isize ignores)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->put(Command(Cmd::GUARD_MOVE_NR, (void *)guards, nr, newTarget));
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::GUARD_SET_AT, GuardCmd { .list = type, .addr = target, .ignores = ignores }));
+}
+
+void
+GuardsAPI::moveTo(isize nr, u32 target)
+{
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::GUARD_MOVE_NR, GuardCmd { .list = type, .nr = nr, .addr = target }));
+}
+
+void
+GuardsAPI::moveToAsync(isize nr, u32 target)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::GUARD_MOVE_NR, GuardCmd { .list = type, .nr = nr, .addr = target }));
 }
 
 void
 GuardsAPI::remove(isize nr)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->put(Command(Cmd::GUARD_REMOVE_NR, (void *)guards, nr));
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::GUARD_REMOVE_NR, GuardCmd { .list = type, .nr = nr }));
+}
+
+void
+GuardsAPI::removeAsync(isize nr)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::GUARD_REMOVE_NR, GuardCmd { .list = type, .nr = nr }));
 }
 
 void
 GuardsAPI::removeAt(u32 target)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->put(Command(Cmd::GUARD_REMOVE_AT, (void *)guards, target));
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::GUARD_REMOVE_AT, GuardCmd { .list = type, .addr = target }));
+}
+
+void
+GuardsAPI::removeAtAsync(u32 target)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::GUARD_REMOVE_AT, GuardCmd { .list = type, .addr = target }));
 }
 
 void
 GuardsAPI::removeAll()
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->put(Command(Cmd::GUARD_REMOVE_ALL, (void *)guards));
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::GUARD_REMOVE_ALL, GuardCmd { .list = type }));
+}
+
+void
+GuardsAPI::removeAllAsync()
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::GUARD_REMOVE_ALL, GuardCmd { .list = type }));
 }
 
 void
 GuardsAPI::enable(isize nr)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->put(Command(Cmd::GUARD_ENABLE_NR, (void *)guards, nr));
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::GUARD_ENABLE_NR, GuardCmd { .list = type, .nr = nr }));
+}
+
+void
+GuardsAPI::enableAsync(isize nr)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::GUARD_ENABLE_NR, GuardCmd { .list = type, .nr = nr }));
 }
 
 void
 GuardsAPI::enableAt(u32 target)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->put(Command(Cmd::GUARD_ENABLE_AT, (void *)guards, target));
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::GUARD_ENABLE_AT, GuardCmd { .list = type, .addr = target }));
+}
+
+void
+GuardsAPI::enableAtAsync(u32 target)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::GUARD_ENABLE_AT, GuardCmd { .list = type, .addr = target }));
 }
 
 void
 GuardsAPI::enableAll()
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->put(Command(Cmd::GUARD_ENABLE_ALL, (void *)guards));
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::GUARD_ENABLE_ALL, GuardCmd { .list = type }));
+}
+
+void
+GuardsAPI::enableAllAsync()
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::GUARD_ENABLE_ALL, GuardCmd { .list = type }));
 }
 
 void
 GuardsAPI::disable(isize nr)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->put(Command(Cmd::GUARD_DISABLE_NR, (void *)guards, nr));
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::GUARD_DISABLE_NR, GuardCmd { .list = type, .nr = nr }));
+}
+
+void
+GuardsAPI::disableAsync(isize nr)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::GUARD_DISABLE_NR, GuardCmd { .list = type, .nr = nr }));
 }
 
 void
 GuardsAPI::disableAt(u32 target)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->put(Command(Cmd::GUARD_DISABLE_AT, (void *)guards, target));
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::GUARD_DISABLE_AT, GuardCmd { .list = type, .addr = target }));
+}
+
+void
+GuardsAPI::disableAtAsync(u32 target)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::GUARD_DISABLE_AT, GuardCmd { .list = type, .addr = target }));
 }
 
 void
 GuardsAPI::disableAll()
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->put(Command(Cmd::GUARD_DISABLE_ALL));
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::GUARD_DISABLE_ALL, GuardCmd { .list = type }));
+}
+
+void
+GuardsAPI::disableAllAsync()
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::GUARD_DISABLE_ALL, GuardCmd { .list = type }));
 }
 
 void
 GuardsAPI::toggle(isize nr)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    guards->toggle(nr);
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::GUARD_TOGGLE_NR, GuardCmd { .list = type, .nr = nr }));
+}
+
+void
+GuardsAPI::toggleAsync(isize nr)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::GUARD_TOGGLE_NR, GuardCmd { .list = type, .nr = nr }));
 }
 
 isize
@@ -391,70 +512,30 @@ CPUDebuggerAPI::loggedInstructions() const
 void
 CPUDebuggerAPI::clearLog()
 {
-    VAMIGA_PUBLIC_SUSPEND
-    return cpu->debugger.clearLog();
-}
-
-const char *
-CPUDebuggerAPI::disassembleRecordedInstr(isize i, isize *len)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    return cpu->disassembleRecordedInstr(i, len);
-}
-
-const char *
-CPUDebuggerAPI::disassembleRecordedWords(isize i, isize len)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    return cpu->disassembleRecordedWords(i, len);
-}
-
-const char *
-CPUDebuggerAPI::disassembleRecordedFlags(isize i)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    return cpu->disassembleRecordedFlags(i);
-}
-
-const char *
-CPUDebuggerAPI::disassembleRecordedPC(isize i)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    return cpu->disassembleRecordedPC(i);
-}
-
-const char *
-CPUDebuggerAPI::disassembleWord(u16 value)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    return cpu->disassembleWord(value);
-}
-
-const char *
-CPUDebuggerAPI::disassembleAddr(u32 addr)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    return cpu->disassembleAddr(addr);
-}
-
-const char *
-CPUDebuggerAPI::disassembleInstr(u32 addr, isize *len)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    return cpu->disassembleInstr(addr, len);
-}
-
-const char *
-CPUDebuggerAPI::disassembleWords(u32 addr, isize len)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    return cpu->disassembleWords(addr, len);
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        cpu->debugger.clearLog();
+    });
 }
 
 string
-CPUDebuggerAPI::vectorName(isize i)
+CPUDebuggerAPI::disassemble(u32 addr, const string &fmt, isize *len) const
 {
     VAMIGA_PUBLIC_SUSPEND
+    return cpu->disass(fmt, addr, len);
+}
+
+string
+CPUDebuggerAPI::disassembleRecorded(isize nr, const string &fmt, isize *len) const
+{
+    VAMIGA_PUBLIC_SUSPEND
+    return cpu->disassRecorded(fmt, nr, len);
+}
+
+string
+CPUDebuggerAPI::vectorName(isize i) const
+{
+    VAMIGA_PUBLIC
     return cpu->debugger.vectorName(u8(i));
 }
 
@@ -469,14 +550,14 @@ const CPUInfo &
 CPUAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return cpu->getInfo();
+    return cpu->info.current();
 }
 
 const CPUInfo &
 CPUAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return cpu->getCachedInfo();
+    return cpu->info.backed();
 }
 
 
@@ -495,14 +576,14 @@ const DeniseInfo &
 DeniseAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return denise->getInfo();
+    return denise->info.current();
 }
 
 const DeniseInfo &
 DeniseAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return denise->getCachedInfo();
+    return denise->info.backed();
 }
 
 
@@ -511,92 +592,100 @@ DeniseAPI::getCachedInfo() const
 //
 
 MemSrc
-MemoryDebuggerAPI::getMemSrc(Accessor acc, u32 addr) const
+MemoryDebuggerAPI::getMemSrc(Accessor src, u32 addr) const
 {
     VAMIGA_PUBLIC
     
-    switch (acc) {
+    switch (src) {
             
         case Accessor::CPU:      return mem->getMemSrc<Accessor::CPU>(addr);
         case Accessor::AGNUS:    return mem->getMemSrc<Accessor::AGNUS>(addr);
             
         default:
-            fatalError;
+            throw CoreError(CoreError::OPT_INV_ARG, "CPU or AGNUS");
     }
 }
 
-u8
-MemoryDebuggerAPI::spypeek8(Accessor acc, u32 addr) const
+const char *
+MemoryDebuggerAPI::regName(u32 addr) const
 {
     VAMIGA_PUBLIC
     
-    switch (acc) {
+    return MemoryDebugger::regName(addr);
+}
+
+u8
+MemoryDebuggerAPI::spypeek8(Accessor src, u32 addr) const
+{
+    VAMIGA_PUBLIC
+    
+    switch (src) {
             
         case Accessor::CPU:      return mem->spypeek8<Accessor::CPU>(addr);
         case Accessor::AGNUS:    return mem->spypeek8<Accessor::AGNUS>(addr);
             
         default:
-            fatalError;
+            throw CoreError(CoreError::OPT_INV_ARG, "CPU or AGNUS");
     }
 }
 
 u16
-MemoryDebuggerAPI::spypeek16(Accessor acc, u32 addr) const
+MemoryDebuggerAPI::spypeek16(Accessor src, u32 addr) const
 {
     VAMIGA_PUBLIC
     
-    switch (acc) {
+    switch (src) {
             
         case Accessor::CPU:      return mem->spypeek16<Accessor::CPU>(addr);
         case Accessor::AGNUS:    return mem->spypeek16<Accessor::AGNUS>(addr);
             
         default:
-            fatalError;
+            throw CoreError(CoreError::OPT_INV_ARG, "CPU or AGNUS");
     }
 }
 
 string
-MemoryDebuggerAPI::ascDump(Accessor acc, u32 addr, isize bytes) const
+MemoryDebuggerAPI::ascDump(Accessor src, u32 addr, isize bytes) const
 {
     VAMIGA_PUBLIC
     
-    switch (acc) {
+    switch (src) {
             
         case Accessor::CPU:      return mem->debugger.ascDump<Accessor::CPU>(addr, bytes);
         case Accessor::AGNUS:    return mem->debugger.ascDump<Accessor::AGNUS>(addr, bytes);
             
         default:
-            fatalError;
+            throw CoreError(CoreError::OPT_INV_ARG, "CPU or AGNUS");
     }
 }
 
 string
-MemoryDebuggerAPI::hexDump(Accessor acc, u32 addr, isize bytes, isize sz) const
+MemoryDebuggerAPI::hexDump(Accessor src, u32 addr, isize bytes, isize sz) const
 {
     VAMIGA_PUBLIC
     
-    switch (acc) {
+    switch (src) {
             
         case Accessor::CPU:      return mem->debugger.hexDump<Accessor::CPU>(addr, bytes, sz);
         case Accessor::AGNUS:    return mem->debugger.hexDump<Accessor::AGNUS>(addr, bytes, sz);
             
         default:
-            fatalError;
+            throw CoreError(CoreError::OPT_INV_ARG, "CPU or AGNUS");
     }
 }
 
 string
-MemoryDebuggerAPI::memDump(Accessor acc, u32 addr, isize bytes, isize sz) const
+MemoryDebuggerAPI::memDump(Accessor src, u32 addr, isize bytes, isize sz) const
 {
     VAMIGA_PUBLIC
     
-    switch (acc) {
+    switch (src) {
             
         case Accessor::CPU:      return mem->debugger.memDump<Accessor::CPU>(addr, bytes, sz);
         case Accessor::AGNUS:    return mem->debugger.memDump<Accessor::AGNUS>(addr, bytes, sz);
             
         default:
-            fatalError;
+            throw CoreError(CoreError::OPT_INV_ARG, "CPU or AGNUS");
     }
 }
 
@@ -611,38 +700,45 @@ const MemInfo &
 MemoryAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return mem->getInfo();
+    return mem->info.current();
 }
 
 const MemInfo &
 MemoryAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return mem->getCachedInfo();
+    return mem->info.backed();
 }
 
-const MemStats &
-MemoryAPI::getStats() const
+const MemMetrics &
+MemoryAPI::getMetrics() const
 {
     VAMIGA_PUBLIC
-    return mem->getStats();
+    return mem->metrics.current();
 }
 
-const RomTraits &
+const MemMetrics &
+MemoryAPI::getCachedMetrics() const
+{
+    VAMIGA_PUBLIC
+    return mem->metrics.backed();
+}
+
+RomTraits
 MemoryAPI::getRomTraits() const
 {
     VAMIGA_PUBLIC
     return mem->getRomTraits();
 }
 
-const RomTraits &
+RomTraits
 MemoryAPI::getWomTraits() const
 {
     VAMIGA_PUBLIC
     return mem->getWomTraits();
 }
 
-const RomTraits &
+RomTraits
 MemoryAPI::getExtTraits() const
 {
     VAMIGA_PUBLIC
@@ -650,51 +746,53 @@ MemoryAPI::getExtTraits() const
 }
 
 void
+MemoryAPI::loadRomAsync(const fs::path &path)
+{
+    VAMIGA_PUBLIC
+    emu->callAsync([this, path]{ mem->loadRom(path); });
+}
+
+void
+MemoryAPI::loadExtAsync(const fs::path &path)
+{
+    VAMIGA_PUBLIC
+    emu->callAsync([this, path]{ mem->loadExt(path); });
+}
+
+void
 MemoryAPI::loadRom(const fs::path &path)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    mem->loadRom(path);
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        mem->loadRom(path);
+    });
 }
 
 void
 MemoryAPI::loadExt(const fs::path &path)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    mem->loadExt(path);
-    emu->markAsDirty();
-}
-
-void
-MemoryAPI::loadRom(MediaFile &file)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    mem->loadRom(file);
-    emu->markAsDirty();
-}
-
-void
-MemoryAPI::loadExt(MediaFile &file)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    mem->loadExt(file);
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        mem->loadExt(path);
+    });
 }
 
 void
 MemoryAPI::loadRom(const u8 *buf, isize len)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    mem->loadRom(buf, len);
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        mem->loadRom(buf, len);
+    });
 }
 
 void
 MemoryAPI::loadExt(const u8 *buf, isize len)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    mem->loadExt(buf, len);
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        mem->loadExt(buf, len);
+    });
 }
 
 void
@@ -721,25 +819,28 @@ MemoryAPI::saveExt(const fs::path &path)
 void
 MemoryAPI::deleteRom()
 {
-    VAMIGA_PUBLIC_SUSPEND
-    mem->deleteRom();
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        mem->deleteRom();
+    });
 }
 
 void
 MemoryAPI::deleteWom()
 {
-    VAMIGA_PUBLIC_SUSPEND
-    mem->deleteWom();
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        mem->deleteWom();
+    });
 }
 
 void
 MemoryAPI::deleteExt()
 {
-    VAMIGA_PUBLIC_SUSPEND
-    mem->deleteExt();
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        mem->deleteExt();
+    });
 }
 
 
@@ -754,10 +855,10 @@ AudioChannelAPI::getInfo() const
     
     switch (channel) {
             
-        case 0:     return paula->channel0.getInfo();
-        case 1:     return paula->channel1.getInfo();
-        case 2:     return paula->channel2.getInfo();
-        default:    return paula->channel3.getInfo();
+        case 0:     return paula->channel0.info.current();
+        case 1:     return paula->channel1.info.current();
+        case 2:     return paula->channel2.info.current();
+        default:    return paula->channel3.info.current();
     }
 }
 
@@ -768,10 +869,10 @@ AudioChannelAPI::getCachedInfo() const
     
     switch (channel) {
             
-        case 0:     return paula->channel0.getCachedInfo();
-        case 1:     return paula->channel1.getCachedInfo();
-        case 2:     return paula->channel2.getCachedInfo();
-        default:    return paula->channel3.getCachedInfo();
+        case 0:     return paula->channel0.info.backed();
+        case 1:     return paula->channel1.info.backed();
+        case 2:     return paula->channel2.info.backed();
+        default:    return paula->channel3.info.backed();
     }
 }
 
@@ -786,42 +887,42 @@ const DiskControllerInfo &
 DiskControllerAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return diskController->getInfo();
+    return diskController->info.current();
 }
 
 const DiskControllerInfo &
 DiskControllerAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return diskController->getCachedInfo();
+    return diskController->info.backed();
 }
 
 const UARTInfo &
 UARTAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return uart->getInfo();
+    return uart->info.current();
 }
 
 const UARTInfo &
 UARTAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return uart->getCachedInfo();
+    return uart->info.backed();
 }
 
 const PaulaInfo &
 PaulaAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return paula->getInfo();
+    return paula->info.current();
 }
 
 const PaulaInfo &
 PaulaAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return paula->getCachedInfo();
+    return paula->info.backed();
 }
 
 
@@ -839,9 +940,10 @@ RTCAPI::getConfig() const
 void
 RTCAPI::update()
 {
-    VAMIGA_PUBLIC_SUSPEND
-    rtc->update();
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        rtc->update();
+    });
 }
 
 
@@ -865,21 +967,28 @@ const AudioPortInfo &
 AudioPortAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return port->getInfo();
+    return port->info.current();
 }
 
 const AudioPortInfo &
 AudioPortAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return port->getCachedInfo();
+    return port->info.backed();
 }
 
-const AudioPortStats &
-AudioPortAPI::getStats() const
+const AudioPortMetrics &
+AudioPortAPI::getMetrics() const
 {
     VAMIGA_PUBLIC
-    return port->getStats();
+    return port->metrics.current();
+}
+
+const AudioPortMetrics &
+AudioPortAPI::getCachedMetrics() const
+{
+    VAMIGA_PUBLIC
+    return port->metrics.backed();
 }
 
 isize
@@ -903,18 +1012,18 @@ AudioPortAPI::copyInterleaved(float *buffer, isize n)
     return port->copyInterleaved(buffer, n);
 }
 
-void
-AudioPortAPI::drawL(u32 *buffer, isize width, isize height, u32 color) const
+float
+AudioPortAPI::drawL(u32 *buffer, isize width, isize height, float maxAmp, u32 color) const
 {
     VAMIGA_PUBLIC
-    port->stream.drawL(buffer, width, height, color);
+    return port->stream.drawL(buffer, width, height, maxAmp, color);
 }
 
-void
-AudioPortAPI::drawR(u32 *buffer, isize width, isize height, u32 color) const
+float
+AudioPortAPI::drawR(u32 *buffer, isize width, isize height, float maxAmp, u32 color) const
 {
     VAMIGA_PUBLIC
-    port->stream.drawR(buffer, width, height, color);
+    return port->stream.drawR(buffer, width, height, maxAmp, color);
 }
 
 
@@ -926,14 +1035,14 @@ const ControlPortInfo &
 ControlPortAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return controlPort->getInfo();
+    return controlPort->info.current();
 }
 
 const ControlPortInfo &
 ControlPortAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return controlPort->getCachedInfo();
+    return controlPort->info.backed();
 }
 
 
@@ -952,14 +1061,14 @@ const SerialPortInfo &
 SerialPortAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return serialPort->getInfo();
+    return serialPort->info.current();
 }
 
 const SerialPortInfo &
 SerialPortAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return serialPort->getCachedInfo();
+    return serialPort->info.backed();
 }
 
 int
@@ -976,10 +1085,38 @@ SerialPortAPI::readOutgoingPrintableByte() const
     return serialPort->readOutgoingPrintableByte();
 }
 
+int
+SerialPortAPI::readOutgoingByte() const
+{
+    VAMIGA_PUBLIC
+    return serialPort->readOutgoingByte();
+}
+
 
 //
 // Ports (VideoPort)
 //
+
+const VideoPortConfig &
+VideoPortAPI::getConfig() const
+{
+    VAMIGA_PUBLIC
+    return videoPort->getConfig();
+}
+
+const VideoPortInfo &
+VideoPortAPI::getInfo() const
+{
+    VAMIGA_PUBLIC
+    return videoPort->info.current();
+}
+
+const VideoPortInfo &
+VideoPortAPI::getCachedInfo() const
+{
+    VAMIGA_PUBLIC
+    return videoPort->info.backed();
+}
 
 void
 VideoPortAPI::lockTexture()
@@ -1016,6 +1153,65 @@ VideoPortAPI::getTexture(isize *nr, bool *lof, bool *prevlof) const
     return (u32 *)frameBuffer.pixels.ptr;
 }
 
+const u32 *
+VideoPortAPI::getXrayTexture() const
+{
+    VAMIGA_PUBLIC
+    return (u32 *)emu->getXrayTexture().pixels.ptr;
+}
+
+const u32 *
+VideoPortAPI::getXrayTexture(isize *nr) const
+{
+    VAMIGA_PUBLIC
+
+    auto &texture = emu->getXrayTexture();
+
+    *nr = isize(texture.nr);
+
+    return (u32 *)texture.pixels.ptr;
+}
+
+void
+VideoPortAPI::saveTexture(const fs::path &path) const
+{
+    VAMIGA_PUBLIC
+    emu->lockTexture();
+    try { videoPort->saveTexture(path); }
+    catch (...) { emu->unlockTexture(); throw; }
+    emu->unlockTexture();
+}
+
+void
+VideoPortAPI::saveTexture(const fs::path &path, isize x1, isize x2, isize y1, isize y2) const
+{
+    VAMIGA_PUBLIC
+    emu->lockTexture();
+    try { videoPort->saveTexture(path, x1, x2, y1, y2); }
+    catch (...) { emu->unlockTexture(); throw; }
+    emu->unlockTexture();
+}
+
+void
+VideoPortAPI::saveXrayTexture(const fs::path &path) const
+{
+    VAMIGA_PUBLIC
+    emu->lockTexture();
+    try { videoPort->saveXrayTexture(path); }
+    catch (...) { emu->unlockTexture(); throw; }
+    emu->unlockTexture();
+}
+
+void
+VideoPortAPI::saveXrayTexture(const fs::path &path, isize x1, isize x2, isize y1, isize y2) const
+{
+    VAMIGA_PUBLIC
+    emu->lockTexture();
+    try { videoPort->saveXrayTexture(path, x1, x2, y1, y2); }
+    catch (...) { emu->unlockTexture(); throw; }
+    emu->unlockTexture();
+}
+
 void
 VideoPortAPI::findInnerArea(isize &x1, isize &x2, isize &y1, isize &y2) const
 {
@@ -1038,18 +1234,25 @@ VideoPortAPI::findInnerAreaNormalized(double &x1, double &x2, double &y1, double
 // Peripherals (Keyboard)
 //
 
+const KeyboardConfig &
+KeyboardAPI::getConfig() const
+{
+    VAMIGA_PUBLIC
+    return keyboard->getConfig();
+}
+
 const KeyboardInfo &
 KeyboardAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return keyboard->getInfo();
+    return keyboard->info.current();
 }
 
 const KeyboardInfo &
 KeyboardAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return keyboard->getCachedInfo();
+    return keyboard->info.backed();
 }
 
 bool
@@ -1092,16 +1295,39 @@ KeyboardAPI::release(KeyCode key, double delay)
 }
 
 void
-KeyboardAPI::releaseAll()
+KeyboardAPI::releaseAll(double delay)
 {
     VAMIGA_PUBLIC
-    emu->put(Command(Cmd::KEY_RELEASE_ALL));
+    emu->put(Command(Cmd::KEY_RELEASE_ALL, KeyCmd { .delay = delay }));
+}
+
+bool
+KeyboardAPI::isLocked(KeyCode key) const
+{
+    VAMIGA_PUBLIC
+    return keyboard->isLocked(key);
+}
+
+void
+KeyboardAPI::lock(KeyCode key, double delay)
+{
+    VAMIGA_PUBLIC
+
+    emu->put(Command(Cmd::KEY_LOCK, KeyCmd { .keycode = key, .delay = delay }));
+}
+
+void
+KeyboardAPI::unlock(KeyCode key, double delay)
+{
+    VAMIGA_PUBLIC
+
+    emu->put(Command(Cmd::KEY_UNLOCK, KeyCmd { .keycode = key, .delay = delay }));
 }
 
 void KeyboardAPI::abortTyping()
 {
     VAMIGA_PUBLIC
-    keyboard->abortTyping();
+    emu->put(Cmd::KEY_ABORT_TYPING);
 }
 
 
@@ -1120,21 +1346,14 @@ const FloppyDriveInfo &
 FloppyDriveAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return drive->getInfo();
+    return drive->info.current();
 }
 
 const FloppyDriveInfo &
 FloppyDriveAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return drive->getCachedInfo();
-}
-
-FloppyDisk &
-FloppyDriveAPI::getDisk() const
-{
-    VAMIGA_PUBLIC_SUSPEND
-    return *(drive->disk);
+    return drive->info.backed();
 }
 
 bool
@@ -1147,9 +1366,10 @@ FloppyDriveAPI::getFlag(DiskFlags mask) const
 void
 FloppyDriveAPI::setFlag(DiskFlags mask, bool value)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    drive->setFlag(mask, value);
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->setFlag(mask, value);
+    });
 }
 
 bool 
@@ -1160,42 +1380,87 @@ FloppyDriveAPI::isInsertable(Diameter t, Density d) const
 }
 
 void
-FloppyDriveAPI::insertBlankDisk(FSFormat fstype, BootBlockId bb, string name, const std::filesystem::path &path)
+FloppyDriveAPI::insertBlankDisk(amiga::FSFormat fstype, amiga::BootBlockId bb,
+                                string name, const std::filesystem::path &path)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    drive->insertNew(fstype, bb, name, path);
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->insertNew(fstype, bb, name, path);
+    });
 }
 
 void
-FloppyDriveAPI::insertMedia(MediaFile &file, bool wp)
+FloppyDriveAPI::insertBlankDiskAsync(amiga::FSFormat fstype, amiga::BootBlockId bb,
+                                     string name, const std::filesystem::path &path)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    drive->insertMediaFile(file, wp);
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->callAsync([this, fstype, bb, name, path]{ drive->insertNew(fstype, bb, name, path); });
 }
 
 void
 FloppyDriveAPI::insert(const fs::path &path, bool wp)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    drive->swapDisk(path);
-    if (drive->disk) drive->disk->setWriteProtection(wp);
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->swapDisk(path);
+        if (drive->disk) drive->disk->setWriteProtection(wp);
+    });
+}
+
+void
+FloppyDriveAPI::insertAsync(const fs::path &path, bool wp)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::DSK_INSERT, i64(drive->objid), i64(wp)), path.string());
+}
+
+void
+FloppyDriveAPI::insert(std::span<const u8> buffer, ImageFormat fmt, bool wp)
+{
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->swapDisk(buffer.data(), isize(buffer.size()), fmt);
+        if (drive->disk) drive->disk->setWriteProtection(wp);
+    });
 }
 
 void
 FloppyDriveAPI::ejectDisk()
 {
-    VAMIGA_PUBLIC_SUSPEND
-    drive->ejectDisk();
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->ejectDisk();
+    });
 }
 
-class MediaFile *
-FloppyDriveAPI::exportDisk(FileType type)
+void
+FloppyDriveAPI::writeToFile(const std::filesystem::path& path)
 {
     VAMIGA_PUBLIC_SUSPEND
-    return drive->exportDisk(type);
+    drive->writeToFile(path);
+}
+
+fs::path
+FloppyDriveAPI::path() const
+{
+    VAMIGA_PUBLIC
+    return drive->getPath();
+}
+
+bool
+FloppyDriveAPI::needsPersisting() const
+{
+    VAMIGA_PUBLIC
+    return drive->needsPersisting();
+}
+
+void
+FloppyDriveAPI::persist()
+{
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->persist();
+    });
 }
 
 string
@@ -1228,14 +1493,14 @@ const HardDriveInfo &
 HardDriveAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return drive->getInfo();
+    return drive->info.current();
 }
 
 const HardDriveInfo &
 HardDriveAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return drive->getCachedInfo();
+    return drive->info.backed();
 }
 
 const HardDriveTraits &
@@ -1262,58 +1527,139 @@ HardDriveAPI::getFlag(DiskFlags mask)
 void
 HardDriveAPI::setFlag(DiskFlags mask, bool value)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    drive->setFlag(mask, value);
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->setFlag(mask, value);
+    });
 }
 
 std::vector<std::tuple<isize,isize,isize>>
 HardDriveAPI::geometries(isize numBlocks) const
 {
-    VAMIGA_PUBLIC_SUSPEND
+    VAMIGA_PUBLIC
     return GeometryDescriptor::driveGeometries(numBlocks);
 }
 
 void 
 HardDriveAPI::changeGeometry(isize c, isize h, isize s, isize b)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    return drive->changeGeometry(c, h, s, b);
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->changeGeometry(c, h, s, b);
+    });
 }
 
 void
 HardDriveAPI::attach(const fs::path &path)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    drive->init(path.string());
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->init(path);
+    });
 }
 
-void 
-HardDriveAPI::attach(const MediaFile &file)
+void
+HardDriveAPI::attach(const fs::path &path, retro::vault::SVMFile &svm)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    drive->init(file);
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->init(path, svm);
+    });
+}
+
+void
+HardDriveAPI::create(retro::vault::SVMFile &svm, isize megabytes, amiga::FSFormat fs,
+                     const string &name)
+{
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->create(svm, megabytes, fs, name);
+    });
+}
+
+void
+HardDriveAPI::attachAsync(const fs::path &path, retro::vault::SVMFile &svm)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::HDR_ATTACH, i64(drive->objid), i64(&svm)), path.string());
 }
 
 void
 HardDriveAPI::attach(isize c, isize h, isize s, isize b)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    auto geometry = GeometryDescriptor(c, h, s, b);
-    drive->init(geometry);
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        auto geometry = GeometryDescriptor(c, h, s, b);
+        drive->init(geometry);
+    });
 }
 
 void 
-HardDriveAPI::format(FSFormat fs, const string &name)
+HardDriveAPI::format(amiga::FSFormat fs, const string &name)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    drive->format(fs, name);
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->format(fs, FSName(name));
+    });
 }
 
 void
-HardDriveAPI::importFiles(const fs::path &path)
+HardDriveAPI::detach()
 {
-    VAMIGA_PUBLIC_SUSPEND
-    drive->importFolder(path);
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->detach();
+    });
+}
+
+void
+HardDriveAPI::importFolder(const fs::path &path)
+{
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->importFolder(path);
+    });
+}
+
+void
+HardDriveAPI::importFolderAsync(const fs::path &path)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::HDR_IMPORT, i64(drive->objid)), path.string());
+}
+
+fs::path
+HardDriveAPI::path() const
+{
+    VAMIGA_PUBLIC
+    return drive->getPath();
+}
+
+void
+HardDriveAPI::loadIntoMemory()
+{
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->loadIntoMemory();
+    });
+}
+
+void
+HardDriveAPI::saveAs(const fs::path &path)
+{
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->saveAs(path);
+    });
+}
+
+void
+HardDriveAPI::persist()
+{
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        drive->persist();
+    });
 }
 
 void
@@ -1321,13 +1667,6 @@ HardDriveAPI::writeToFile(const fs::path &path)
 {
     VAMIGA_PUBLIC_SUSPEND
     drive->writeToFile(path);
-}
-
-MediaFile *
-HardDriveAPI::createHDF()
-{
-    VAMIGA_PUBLIC_SUSPEND
-    return new HDFFile(*drive);
 }
 
 
@@ -1339,21 +1678,28 @@ const HdcInfo &
 HdControllerAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return controller->getInfo();
+    return controller->info.current();
 }
 
 const HdcInfo &
 HdControllerAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return controller->getCachedInfo();
+    return controller->info.backed();
 }
 
-const HdcStats &
-HdControllerAPI::getStats() const
+const HdcMetrics &
+HdControllerAPI::getMetrics() const
 {
     VAMIGA_PUBLIC
-    return controller->getStats();
+    return controller->metrics.current();
+}
+
+const HdcMetrics &
+HdControllerAPI::getCachedMetrics() const
+{
+    VAMIGA_PUBLIC
+    return controller->metrics.backed();
 }
 
 
@@ -1361,18 +1707,25 @@ HdControllerAPI::getStats() const
 // Peripherals (Joystick)
 //
 
+const JoystickConfig &
+JoystickAPI::getConfig() const
+{
+    VAMIGA_PUBLIC
+    return joystick->getConfig();
+}
+
 const JoystickInfo &
 JoystickAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return joystick->getInfo();
+    return joystick->info.current();
 }
 
 const JoystickInfo &
 JoystickAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return joystick->getCachedInfo();
+    return joystick->info.backed();
 }
 
 void 
@@ -1382,12 +1735,55 @@ JoystickAPI::trigger(GamePadAction event)
     emu->put(Cmd::JOY_EVENT, GamePadCmd { .port = joystick->objid, .action = event });
 }
 
+void
+JoystickAPI::trigger(const std::array<bool, 5> &state, const std::array<bool, 5> &previous)
+{
+    VAMIGA_PUBLIC
+
+    u32 mask = 0;
+    for (usize i = 0; i < 5; i++) {
+
+        if (state[i]) mask |= 1u << i;
+        if (previous[i]) mask |= 1u << (i + 8);
+    }
+
+    emu->put(Command(Cmd::JOY_STATE, JoyStateCmd { .port = joystick->objid, .state = mask }));
+}
+
 
 //
 // Peripherals (Mouse)
 //
 
-bool 
+const MouseConfig &
+MouseAPI::getConfig() const
+{
+    VAMIGA_PUBLIC
+    return mouse->getConfig();
+}
+
+void
+MouseAPI::setXY(double x, double y)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::MOUSE_MOVE_ABS, CoordCmd { .port = mouse->objid, .x = x, .y = y }));
+}
+
+void
+MouseAPI::setDxDy(double dx, double dy)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::MOUSE_MOVE_REL, CoordCmd { .port = mouse->objid, .x = dx, .y = dy }));
+}
+
+void
+MouseAPI::trigger(GamePadAction action)
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::MOUSE_BUTTON, GamePadCmd { .port = mouse->objid, .action = action }));
+}
+
+bool
 MouseAPI::detectShakeXY(double x, double y)
 {
     VAMIGA_PUBLIC
@@ -1401,59 +1797,31 @@ MouseAPI::detectShakeDxDy(double dx, double dy)
     return mouse->detectShakeDxDy(dx, dy);
 }
 
-void 
-MouseAPI::setXY(double x, double y)
-{
-    VAMIGA_PUBLIC
-    emu->put(Command(Cmd::MOUSE_MOVE_ABS, CoordCmd { .port = mouse->objid, .x = x, .y = y }));
-}
-
-void 
-MouseAPI::setDxDy(double dx, double dy)
-{
-    VAMIGA_PUBLIC
-    emu->put(Command(Cmd::MOUSE_MOVE_REL, CoordCmd { .port = mouse->objid, .x = dx, .y = dy }));
-}
-
-void 
-MouseAPI::trigger(GamePadAction action)
-{
-    VAMIGA_PUBLIC
-    emu->put(Command(Cmd::MOUSE_BUTTON, GamePadCmd { .port = mouse->objid, .action = action }));
-}
 
 //
 // Misc (MsgQueue)
 //
 
 bool
-MsgQueueAPI::getMsg(Message &msg)
+MsgQueueAPI::getMsg(Message &msg, std::exception_ptr &exception)
 {
     VAMIGA_PUBLIC
-    return msgQueue->get(msg);
+    return msgQueue->get(msg, exception);
 }
 
 void
 MsgQueueAPI::lockMsgQueue()
 {
     VAMIGA_PUBLIC
-    return msgQueue->lock();
+    msgQueue->lock();
 }
 
 void
 MsgQueueAPI::unlockMsgQueue()
 {
     VAMIGA_PUBLIC
-    return msgQueue->unlock();
+    msgQueue->unlock();
 }
-
-string
-MsgQueueAPI::getPayload(isize index)
-{
-    VAMIGA_PUBLIC
-    return msgQueue->getPayload(index);
-}
-
 
 //
 // DefaultsAPI
@@ -1516,10 +1884,10 @@ DefaultsAPI::get(const string &key) const
 }
 
 i64
-DefaultsAPI::get(Opt option, isize nr) const
+DefaultsAPI::get(Opt opt, isize nr) const
 {
     VAMIGA_PUBLIC
-    return defaults->get(option, nr);
+    return defaults->get(opt, nr);
 }
 
 string
@@ -1537,10 +1905,10 @@ DefaultsAPI::getFallback(const string &key) const
 }
 
 i64
-DefaultsAPI::getFallback(Opt option, isize nr) const
+DefaultsAPI::getFallback(Opt opt, isize nr) const
 {
     VAMIGA_PUBLIC
-    return defaults->getFallback(option, nr);
+    return defaults->getFallback(opt, nr);
 }
 
 void
@@ -1628,103 +1996,17 @@ DefaultsAPI::remove(const string &key)
 }
 
 void
-DefaultsAPI::remove(Opt option)
+DefaultsAPI::remove(Opt opt)
 {
     VAMIGA_PUBLIC
-    defaults->remove(option);
+    defaults->remove(opt);
 }
 
 void
-DefaultsAPI::remove(Opt option, std::vector <isize> objids)
+DefaultsAPI::remove(Opt opt, std::vector <isize> objids)
 {
     VAMIGA_PUBLIC
-    defaults->remove(option, objids);
-}
-
-
-//
-// RecorderAPI
-//
-
-const RecorderConfig &
-RecorderAPI::getConfig() const
-{
-    VAMIGA_PUBLIC
-    return recorder->getConfig();
-}
-
-/*
-const RecorderInfo &
-RecorderAPI::getInfo() const
-{
-    VAMIGA_PUBLIC
-    return recorder->getInfo();
-}
-
-const RecorderInfo &
-RecorderAPI::getCachedInfo() const
-{
-    VAMIGA_PUBLIC
-    return recorder->getCachedInfo();
-}
-*/
-
-double RecorderAPI::getDuration() const { VAMIGA_PUBLIC_SUSPEND return recorder->getDuration().asSeconds(); }
-/*
-isize RecorderAPI::getFrameRate() const { VAMIGA_PUBLIC VAMIGA_SUSPEND return recorder->getFrameRate(); }
-isize RecorderAPI::getBitRate() const { VAMIGA_PUBLIC VAMIGA_SUSPEND return recorder->getBitRate(); }
-isize RecorderAPI::getSampleRate() const { VAMIGA_PUBLIC VAMIGA_SUSPEND return recorder->getSampleRate(); }
-*/
-bool RecorderAPI::isRecording() const { VAMIGA_PUBLIC_SUSPEND return recorder->isRecording(); }
-
-const std::vector<fs::path> &
-RecorderAPI::paths() const
-{
-    VAMIGA_PUBLIC
-    return FFmpeg::paths;
-}
-
-bool 
-RecorderAPI::hasFFmpeg() const
-{
-    VAMIGA_PUBLIC
-    return FFmpeg::available();
-}
-
-const fs::path
-RecorderAPI::getExecPath() const
-{
-    VAMIGA_PUBLIC
-    return FFmpeg::getExecPath();
-}
-
-void RecorderAPI::setExecPath(const fs::path &path)
-{
-    VAMIGA_PUBLIC
-    FFmpeg::setExecPath(path);
-}
-
-void
-RecorderAPI::startRecording(isize x1, isize y1, isize x2, isize y2,
-                            isize bitRate,
-                            isize aspectX, isize aspectY)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    recorder->startRecording(x1, y1, x2, y2, bitRate, aspectX, aspectY);
-}
-
-void
-RecorderAPI::stopRecording()
-{
-    VAMIGA_PUBLIC_SUSPEND
-    recorder->stopRecording();
-}
-
-bool
-RecorderAPI::exportAs(const fs::path &path)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    return recorder->exportAs(path);
+    defaults->remove(opt, objids);
 }
 
 
@@ -1736,17 +2018,25 @@ const RemoteManagerInfo &
 RemoteManagerAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return remoteManager->getInfo();
+    return remoteManager->info.current();
 }
 
 const RemoteManagerInfo &
 RemoteManagerAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return remoteManager->getCachedInfo();
+    return remoteManager->info.backed();
+}
+
+void
+RemoteManagerAPI::send(ServerType server, const string &payload)
+{
+    VAMIGA_PUBLIC
+    remoteManager->send(server, payload);
 }
 
 
+//
 // RetroShellAPI
 //
 
@@ -1754,72 +2044,73 @@ const RetroShellInfo &
 RetroShellAPI::getInfo() const
 {
     VAMIGA_PUBLIC
-    return retroShell->getInfo();
+    return retroShell->info.current();
 }
 
 const RetroShellInfo &
 RetroShellAPI::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return retroShell->getCachedInfo();
+    return retroShell->info.backed();
 }
 
-const char *
-RetroShellAPI::text()
+string
+RetroShellAPI::text() const
 {
     VAMIGA_PUBLIC_SUSPEND
-    return retroShell->text();
+    return string(retroShell->text());
 }
 
 void
 RetroShellAPI::press(RSKey key, bool shift)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    retroShell->press(key, shift);
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::RSH_PRESS_KEY, i64(key), i64(shift)));
 }
 
 void
 RetroShellAPI::press(char c)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    retroShell->press(c);
+    VAMIGA_PUBLIC
+    emu->put(Cmd::RSH_PRESS_CHAR, i64(c));
 }
 
 void
 RetroShellAPI::press(const string &s)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    retroShell->press(s);
+    VAMIGA_PUBLIC
+    emu->put(Cmd::RSH_PRESS_TEXT, s);
 }
 
 void
-RetroShellAPI::execScript(std::stringstream &ss)
+RetroShellAPI::execScriptAsync(const fs::path &path)
 {
-    VAMIGA_PUBLIC_SUSPEND
+    VAMIGA_PUBLIC
+    retroShell->asyncExecScript(path);
+}
+
+void
+RetroShellAPI::execScriptAsync(std::stringstream &ss)
+{
+    VAMIGA_PUBLIC
     retroShell->asyncExecScript(ss);
 }
 
 void
-RetroShellAPI::execScript(const std::ifstream &fs)
+RetroShellAPI::execScriptAsync(const std::ifstream &fs)
 {
-    VAMIGA_PUBLIC_SUSPEND
+    VAMIGA_PUBLIC
     retroShell->asyncExecScript(fs);
 }
 
 void
-RetroShellAPI::execScript(const string &contents)
+RetroShellAPI::execScriptAsync(const string &contents)
 {
-    VAMIGA_PUBLIC_SUSPEND
+    VAMIGA_PUBLIC
     retroShell->asyncExecScript(contents);
 }
 
-void
-RetroShellAPI::execScript(const MediaFile &file)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    retroShell->asyncExecScript(file);
-}
-
+/*
 void
 RetroShellAPI::import(const FloppyDrive &dfn)
 {
@@ -1852,21 +2143,24 @@ void
 RetroShellAPI::import(const fs::path &path, bool recursive, bool contents)
 {
     VAMIGA_PUBLIC_SUSPEND
-    retroShell->navigator.import(path, recursive, contents);
+    retroShell->console.navImport(path, recursive, contents);
 }
+*/
 
 void
 RetroShellAPI::exportBlocks(const std::filesystem::path &path)
 {
     VAMIGA_PUBLIC_SUSPEND
-    retroShell->navigator.exportBlocks(path);
+    retroShell->console.exportBlocks(path);
 }
 
 void
 RetroShellAPI::setStream(std::ostream &os)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    retroShell->setStream(os);
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        retroShell->setStream(os);
+    });
 }
 
 
@@ -1888,10 +2182,19 @@ VAmiga::VAmiga() {
     agnus.agnus = &emu->main.agnus;
     agnus.logicAnalyzer.emu = emu;
     agnus.logicAnalyzer.logicAnalyzer = &emu->main.logicAnalyzer;
-    agnus.dmaDebugger.emu = emu;
-    agnus.dmaDebugger.dmaDebugger = &emu->main.agnus.dmaDebugger;
+    agnus.xray.emu = emu;
+    agnus.xray.xray = &emu->main.agnus.xray;
     agnus.copper.emu = emu;
     agnus.copper.copper = &emu->main.agnus.copper;
+    agnus.copper.breakpoints.emu = emu;
+    agnus.copper.breakpoints.guards = &emu->main.agnus.copper.debugger.breakpoints;
+    agnus.copper.breakpoints.type = GuardType::COPPER_BREAKPOINT;
+    agnus.copper.watchpoints.emu = emu;
+    agnus.copper.watchpoints.guards = &emu->main.agnus.copper.debugger.watchpoints;
+    agnus.copper.watchpoints.type = GuardType::COPPER_WATCHPOINT;
+    agnus.beamtraps.emu = emu;
+    agnus.beamtraps.guards = &emu->main.agnus.debugger.beamtraps;
+    agnus.beamtraps.type = GuardType::BEAMTRAP;
     agnus.blitter.emu = emu;
     agnus.blitter.blitter = &emu->main.agnus.blitter;
 
@@ -1907,8 +2210,13 @@ VAmiga::VAmiga() {
     cpu.debugger.cpu = &emu->main.cpu;
     cpu.breakpoints.emu = emu;
     cpu.breakpoints.guards = &emu->main.cpu.breakpoints;
+    cpu.breakpoints.type = GuardType::BREAKPOINT;
     cpu.watchpoints.emu = emu;
     cpu.watchpoints.guards = &emu->main.cpu.watchpoints;
+    cpu.watchpoints.type = GuardType::WATCHPOINT;
+    cpu.catchpoints.emu = emu;
+    cpu.catchpoints.guards = &emu->main.cpu.catchpoints;
+    cpu.catchpoints.type = GuardType::CATCHPOINT;
 
     denise.emu = emu;
     denise.denise = &emu->main.denise;
@@ -1997,14 +2305,9 @@ VAmiga::VAmiga() {
     keyboard.keyboard = &emu->main.keyboard;
 
     // Misc
-    copperBreakpoints.emu = emu;
-    copperBreakpoints.guards = &emu->main.agnus.copper.debugger.breakpoints;
 
     msgQueue.emu = emu;
     msgQueue.msgQueue = &emu->main.msgQueue;
-
-    recorder.emu = emu;
-    recorder.recorder = &emu->main.denise.screenRecorder;
 
     remoteManager.emu = emu;
     remoteManager.remoteManager = &emu->main.remoteManager;
@@ -2016,6 +2319,10 @@ VAmiga::VAmiga() {
 VAmiga::~VAmiga()
 {
     VAMIGA_PUBLIC
+
+    // A suspended emulator thread cannot be halted, so give up forgotten suspensions
+    while (emu->isSuspendedByCurrentThread()) emu->resume();
+
     halt();
     delete emu;
 }
@@ -2032,25 +2339,38 @@ VAmiga::build()
     return Amiga::build();
 }
 
+string
+VAmiga::snapshotVersion()
+{
+    return Amiga::snapshotVersion();
+}
+
 const EmulatorInfo &
 VAmiga::getInfo() const
 {
     VAMIGA_PUBLIC
-    return emu->getInfo();
+    return emu->info.current();
 }
 
 const EmulatorInfo &
 VAmiga::getCachedInfo() const
 {
     VAMIGA_PUBLIC
-    return emu->getCachedInfo();
+    return emu->info.backed();
 }
 
-const EmulatorStats &
-VAmiga::getStats() const
+const EmulatorMetrics &
+VAmiga::getMetrics() const
 {
     VAMIGA_PUBLIC
-    return emu->getStats();
+    return emu->metrics.current();
+}
+
+const EmulatorMetrics &
+VAmiga::getCachedMetrics() const
+{
+    VAMIGA_PUBLIC
+    return emu->metrics.backed();
 }
 
 bool
@@ -2110,14 +2430,21 @@ VAmiga::isTracking() const
 }
 
 void
-VAmiga::isReady() const
+VAmiga::checkReady() const
 {
     VAMIGA_PUBLIC
-    return emu->isReady();
+    emu->checkReady();
 }
 
 void
 VAmiga::powerOn()
+{
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::POWER_ON));
+}
+
+void
+VAmiga::powerOnAsync()
 {
     VAMIGA_PUBLIC
     emu->put(Cmd::POWER_ON);
@@ -2125,6 +2452,13 @@ VAmiga::powerOn()
 
 void
 VAmiga::powerOff()
+{
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::POWER_OFF));
+}
+
+void
+VAmiga::powerOffAsync()
 {
     VAMIGA_PUBLIC
     emu->put(Cmd::POWER_OFF);
@@ -2136,7 +2470,18 @@ VAmiga::run()
     VAMIGA_PUBLIC
     
     // Throw an exception if the emulator is not ready to run
-    isReady();
+    checkReady();
+    
+    emu->sendAndWait(Command(Cmd::RUN));
+}
+
+void
+VAmiga::runAsync()
+{
+    VAMIGA_PUBLIC
+    
+    // Throw an exception if the emulator is not ready to run
+    checkReady();
     
     emu->put(Cmd::RUN);
 }
@@ -2145,11 +2490,25 @@ void
 VAmiga::pause()
 {
     VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::PAUSE));
+}
+
+void
+VAmiga::pauseAsync()
+{
+    VAMIGA_PUBLIC
     emu->put(Cmd::PAUSE);
 }
 
-void 
+void
 VAmiga::hardReset()
+{
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::HARD_RESET));
+}
+
+void 
+VAmiga::hardResetAsync()
 {
     VAMIGA_PUBLIC
     emu->put(Cmd::HARD_RESET);
@@ -2157,6 +2516,13 @@ VAmiga::hardReset()
 
 void
 VAmiga::softReset()
+{
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::SOFT_RESET));
+}
+
+void
+VAmiga::softResetAsync()
 {
     VAMIGA_PUBLIC
     emu->put(Cmd::SOFT_RESET);
@@ -2167,6 +2533,12 @@ VAmiga::halt()
 {
     VAMIGA_PUBLIC
     
+    // Nothing to do without a running emulator thread
+    if (!emu->isLaunched()) return;
+
+    // A suspended thread cannot process the halt command, so waiting for it would never end
+    if (emu->isSuspendedByCurrentThread()) throw CoreError(CoreError::NOT_LAUNCHED, "The emulator thread is suspended by the calling thread.");
+
     // Signal the emulator to halt
     emu->put(Cmd::HALT);
     
@@ -2178,6 +2550,15 @@ void
 VAmiga::warpOn(isize source)
 {
     VAMIGA_PUBLIC
+    if (source < 0 || source > 6) throw CoreError(CoreError::OPT_INV_ARG, "0...6");
+    emu->sendAndWait(Command(Cmd::WARP_ON, source));
+}
+
+void
+VAmiga::warpOnAsync(isize source)
+{
+    VAMIGA_PUBLIC
+    if (source < 0 || source > 6) throw CoreError(CoreError::OPT_INV_ARG, "0...6");
     emu->put(Cmd::WARP_ON, source);
 }
 
@@ -2185,49 +2566,80 @@ void
 VAmiga::warpOff(isize source)
 {
     VAMIGA_PUBLIC
+    if (source < 0 || source > 6) throw CoreError(CoreError::OPT_INV_ARG, "0...6");
+    emu->sendAndWait(Command(Cmd::WARP_OFF, source));
+}
+
+void
+VAmiga::warpOffAsync(isize source)
+{
+    VAMIGA_PUBLIC
+    if (source < 0 || source > 6) throw CoreError(CoreError::OPT_INV_ARG, "0...6");
     emu->put(Cmd::WARP_OFF, source);
 }
 
 void
 VAmiga::trackOn(isize source)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->trackOn(source);
+    VAMIGA_PUBLIC
+    if (source < 0 || source > 6) throw CoreError(CoreError::OPT_INV_ARG, "0...6");
+    emu->sendAndWait(Command(Cmd::TRACK_ON, source));
+}
+
+void
+VAmiga::trackOnAsync(isize source)
+{
+    VAMIGA_PUBLIC
+    if (source < 0 || source > 6) throw CoreError(CoreError::OPT_INV_ARG, "0...6");
+    emu->put(Cmd::TRACK_ON, source);
 }
 
 void
 VAmiga::trackOff(isize source)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    emu->trackOff(source);
+    VAMIGA_PUBLIC
+    if (source < 0 || source > 6) throw CoreError(CoreError::OPT_INV_ARG, "0...6");
+    emu->sendAndWait(Command(Cmd::TRACK_OFF, source));
+}
+
+void
+VAmiga::trackOffAsync(isize source)
+{
+    VAMIGA_PUBLIC
+    if (source < 0 || source > 6) throw CoreError(CoreError::OPT_INV_ARG, "0...6");
+    emu->put(Cmd::TRACK_OFF, source);
 }
 
 void
 VAmiga::stepInto()
 {
     VAMIGA_PUBLIC
-    emu->stepInto();
+    checkReady();
+    emu->sendAndWait(Command(Cmd::STEP_INTO));
 }
 
 void
 VAmiga::stepOver()
 {
     VAMIGA_PUBLIC
-    emu->stepOver();
+    checkReady();
+    emu->sendAndWait(Command(Cmd::STEP_OVER));
 }
 
 void
 VAmiga::finishLine()
 {
     VAMIGA_PUBLIC
-    emu->finishLine();
+    checkReady();
+    emu->sendAndWait(Command(Cmd::FINISH_LINE));
 }
 
 void
 VAmiga::finishFrame()
 {
     VAMIGA_PUBLIC
-    emu->finishFrame();
+    checkReady();
+    emu->sendAndWait(Command(Cmd::FINISH_FRAME));
 }
 
 void
@@ -2244,6 +2656,13 @@ VAmiga::launch(const void *listener, Callback *func)
     emu->launch(listener, func);
 }
 
+void
+VAmiga::removeListener()
+{
+    VAMIGA_PUBLIC
+    emu->main.msgQueue.setListener(nullptr, nullptr);
+}
+
 bool
 VAmiga::isLaunched() const
 {
@@ -2252,43 +2671,82 @@ VAmiga::isLaunched() const
 }
 
 i64
-VAmiga::get(Opt option) const
+VAmiga::get(Opt opt) const
 {
     VAMIGA_PUBLIC
-    return emu->get(option);
+    return emu->get(opt);
 }
 
 i64
-VAmiga::get(Opt option, long id) const
+VAmiga::get(Opt opt, isize id) const
 {
     VAMIGA_PUBLIC
-    return emu->get(option, id);
+    return emu->get(opt, id);
+}
+
+void
+VAmiga::setAsync(ConfigScheme model)
+{
+    VAMIGA_PUBLIC
+    putAsync(Cmd::CONFIG_SCHEME, (i64)model);
+}
+
+void
+VAmiga::setAsync(Opt opt, i64 value)
+{
+    VAMIGA_PUBLIC
+    putAsync(Cmd::CONFIG_ALL, ConfigCmd { .option = opt, .value = value });
 }
 
 void
 VAmiga::set(ConfigScheme model)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    put(Cmd::CONFIG_SCHEME, (i64)model);
-    emu->markAsDirty();
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::CONFIG_SCHEME, (i64)model));
 }
 
 void
 VAmiga::set(Opt opt, i64 value)
 {
     VAMIGA_PUBLIC
-    emu->check(opt, value);
-    put(Cmd::CONFIG_ALL, ConfigCmd { .option = opt, .value = value });
-    emu->markAsDirty();
+    emu->sendAndWait(Command(Cmd::CONFIG_ALL, ConfigCmd { .option = opt, .value = value }));
 }
 
 void
-VAmiga::set(Opt opt, i64 value, long id)
+VAmiga::set(Opt opt, i64 value, isize id)
+{
+    VAMIGA_PUBLIC
+    emu->sendAndWait(Command(Cmd::CONFIG, ConfigCmd { .option = opt, .value = value, .id = id }));
+}
+
+void
+VAmiga::check(Opt opt, i64 value)
+{
+    VAMIGA_PUBLIC
+    emu->check(opt, value);
+}
+
+void
+VAmiga::check(Opt opt, i64 value, isize id)
 {
     VAMIGA_PUBLIC
     emu->check(opt, value, { id });
-    put(Cmd::CONFIG, ConfigCmd { .option = opt, .value = value, .id = id });
-    emu->markAsDirty();
+}
+
+void
+VAmiga::setAsync(Opt opt, i64 value, isize id)
+{
+    VAMIGA_PUBLIC
+    putAsync(Cmd::CONFIG, ConfigCmd { .option = opt, .value = value, .id = id });
+}
+
+void
+VAmiga::sync()
+{
+    VAMIGA_PUBLIC
+
+    // A command that does nothing: once it has been carried out, so has everything before it
+    emu->sendAndWait(Command(Cmd::NONE));
 }
 
 void
@@ -2306,10 +2764,31 @@ VAmiga::exportConfig(std::ostream &stream, bool diff) const
 }
 
 void
-VAmiga::put(const Command &cmd)
+VAmiga::call(const std::function<void()> &fn)
 {
     VAMIGA_PUBLIC
-    emu->put(cmd);
+    emu->call(fn);
+}
+
+void
+VAmiga::callAsync(std::function<void()> fn, std::function<void(std::exception_ptr)> done)
+{
+    VAMIGA_PUBLIC
+    emu->callAsync(std::move(fn), std::move(done));
+}
+
+void
+VAmiga::put(const Command &cmd, const std::string &str)
+{
+    VAMIGA_PUBLIC
+    emu->sendAndWait(cmd, str);
+}
+
+void
+VAmiga::putAsync(const Command &cmd, const std::string &str)
+{
+    VAMIGA_PUBLIC
+    emu->put(cmd, str);
 }
 
 
@@ -2317,58 +2796,23 @@ VAmiga::put(const Command &cmd)
 // AmigaAPI
 //
 
-MediaFile *
-AmigaAPI::takeSnapshot()
+std::unique_ptr<Snapshot>
+AmigaAPI::takeSnapshot(Compressor compressor, isize delay, bool repeat)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    return amiga->takeSnapshot();
-}
+    VAMIGA_PUBLIC
 
-void 
-AmigaAPI::loadSnapshot(const MediaFile &snapshot)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    
-    emu->markAsDirty();
-    
-    try {
-        
-        // Restore the saved state
-        amiga->loadSnapshot(snapshot);
-        
-    } catch (AppError &) {
-        
-        /* If we reach this point, the emulator has been put into an
-         * inconsistent state due to corrupted snapshot data. We cannot
-         * continue emulation, because it would likely crash the
-         * application. Because we cannot revert to the old state either,
-         * we perform a hard reset to eliminate the inconsistency.
-         */
-        emu->put(Cmd::HARD_RESET);
-        throw;
-    }
-}
- 
-void
-AmigaAPI::loadSnapshot(const fs::path &path)
-{
-    VAMIGA_PUBLIC_SUSPEND
-    amiga->loadSnapshot(path);
-}
-
-void
-AmigaAPI::saveSnapshot(const fs::path &path) const
-{
-    VAMIGA_PUBLIC_SUSPEND
-    amiga->saveSnapshot(path);
-    
+    std::unique_ptr<Snapshot> result;
+    emu->call([&]{ result = amiga->takeSnapshot(compressor, delay, repeat); });
+    return result;
 }
 
 void
 AmigaAPI::loadWorkspace(const fs::path &path)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    amiga->loadWorkspace(path);
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        amiga->loadWorkspace(path);
+    });
 }
 
 void
@@ -2376,6 +2820,115 @@ AmigaAPI::saveWorkspace(const fs::path &path) const
 {
     VAMIGA_PUBLIC_SUSPEND
     amiga->saveWorkspace(path);
+}
+
+void
+AmigaAPI::saveWorkspaceAsync(const fs::path &path) const
+{
+    VAMIGA_PUBLIC
+    emu->put(Cmd::SAVE_WORKSPACE, path.string());
+}
+
+void
+AmigaAPI::loadWorkspace(retro::vault::SVMFile &svm)
+{
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        amiga->loadWorkspace(svm);
+    });
+}
+
+void
+AmigaAPI::saveWorkspace(retro::vault::SVMFile &svm) const
+{
+    VAMIGA_PUBLIC_SUSPEND
+    amiga->saveWorkspace(svm);
+}
+
+void
+AmigaAPI::saveWorkspaceAsync(retro::vault::SVMFile &svm) const
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::SAVE_WORKSPACE, i64(0), i64(&svm)));
+}
+
+void
+AmigaAPI::loadSnapshot(const Snapshot &snapshot)
+{
+    VAMIGA_PUBLIC
+    emu->call([&]{ amiga->loadSnapshot(snapshot); });
+}
+
+void
+AmigaAPI::loadSnapshotAsync(const fs::path &path)
+{
+    VAMIGA_PUBLIC
+    emu->callAsync([this, path]{ amiga->loadSnapshot(path); });
+}
+
+void
+AmigaAPI::loadSnapshot(const fs::path &path)
+{
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        amiga->loadSnapshot(path);
+    });
+}
+
+void
+AmigaAPI::saveSnapshot(const fs::path &path, Compressor compressor) const
+{
+    VAMIGA_PUBLIC_SUSPEND
+    amiga->saveSnapshot(path, compressor);
+}
+
+void
+AmigaAPI::saveSnapshotAsync(const fs::path &path, Compressor compressor) const
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::SAVE_SNAPSHOT, i64(compressor)), path.string());
+}
+
+void
+AmigaAPI::saveSnapshot(retro::vault::SVMFile &svm, Compressor compressor) const
+{
+    VAMIGA_PUBLIC_SUSPEND
+    amiga->saveSnapshot(svm, compressor);
+}
+
+void
+AmigaAPI::saveSnapshotAsync(retro::vault::SVMFile &svm, Compressor compressor) const
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::SAVE_SNAPSHOT, i64(compressor), i64(&svm)));
+}
+
+void
+AmigaAPI::hibernate(const fs::path &path, bool snapshot, bool workspace) const
+{
+    VAMIGA_PUBLIC_SUSPEND
+    amiga->hibernate(path, snapshot, workspace);
+}
+
+void
+AmigaAPI::hibernateAsync(const fs::path &path, bool snapshot, bool workspace) const
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::HIBERNATE, i64(snapshot) | i64(workspace) << 1), path.string());
+}
+
+void
+AmigaAPI::hibernate(retro::vault::SVMFile &svm, bool snapshot, bool workspace) const
+{
+    VAMIGA_PUBLIC_SUSPEND
+    amiga->hibernate(svm, snapshot, workspace);
+}
+
+void
+AmigaAPI::hibernateAsync(retro::vault::SVMFile &svm, bool snapshot, bool workspace) const
+{
+    VAMIGA_PUBLIC
+    emu->put(Command(Cmd::HIBERNATE, i64(snapshot) | i64(workspace) << 1, i64(&svm)));
 }
 
 u64
@@ -2388,15 +2941,217 @@ AmigaAPI::getAutoInspectionMask() const
 void
 AmigaAPI::setAutoInspectionMask(u64 mask)
 {
-    VAMIGA_PUBLIC_SUSPEND
-    amiga->setAutoInspectionMask(mask);
+    VAMIGA_PUBLIC
+    emu->call([&]{
+        amiga->setAutoInspectionMask(mask);
+    });
+}
+
+void
+AmigaAPI::setAutoInspectionMaskAsync(u64 mask)
+{
+    VAMIGA_PUBLIC
+    emu->put(Cmd::INSPECTION_TARGET, i64(mask));
 }
 
 bool
-AmigaAPI::getMsg(Message &msg)
+AmigaAPI::getMsg(Message &msg, std::exception_ptr &exception)
 {
     VAMIGA_PUBLIC
-    return amiga->msgQueue.get(msg);
+    return amiga->msgQueue.get(msg, exception);
+}
+
+
+//
+// Danger zone: raw access to the components
+//
+
+Emulator &
+VAmiga::getEmulator()
+{
+    return *emu;
+}
+
+Amiga &
+VAmiga::getAmiga()
+{
+    return *amiga.amiga;
+}
+
+Agnus &
+VAmiga::getAgnus()
+{
+    return *agnus.agnus;
+}
+
+LogicAnalyzer &
+VAmiga::getLogicAnalyzer()
+{
+    return *agnus.logicAnalyzer.logicAnalyzer;
+}
+
+XRay &
+VAmiga::getXRay()
+{
+    return *agnus.xray.xray;
+}
+
+Copper &
+VAmiga::getCopper()
+{
+    return *agnus.copper.copper;
+}
+
+Blitter &
+VAmiga::getBlitter()
+{
+    return *agnus.blitter.blitter;
+}
+
+CIA &
+VAmiga::getCIA(isize nr)
+{
+    if (nr < 0 || nr > 1) throw CoreError(CoreError::OPT_INV_ARG, "0...1");
+
+    return nr == 0 ? *ciaA.cia : *ciaB.cia;
+}
+
+CPU &
+VAmiga::getCPU()
+{
+    return *cpu.cpu;
+}
+
+Denise &
+VAmiga::getDenise()
+{
+    return *denise.denise;
+}
+
+Memory &
+VAmiga::getMemory()
+{
+    return *mem.mem;
+}
+
+Paula &
+VAmiga::getPaula()
+{
+    return *paula.paula;
+}
+
+DiskController &
+VAmiga::getDiskController()
+{
+    return *paula.diskController.diskController;
+}
+
+UART &
+VAmiga::getUART()
+{
+    return *paula.uart.uart;
+}
+
+RTC &
+VAmiga::getRTC()
+{
+    return *rtc.rtc;
+}
+
+AudioPort &
+VAmiga::getAudioPort()
+{
+    return *audioPort.port;
+}
+
+ControlPort &
+VAmiga::getControlPort(isize nr)
+{
+    if (nr < 0 || nr > 1) throw CoreError(CoreError::OPT_INV_ARG, "0...1");
+
+    return nr == 0 ? *controlPort1.controlPort : *controlPort2.controlPort;
+}
+
+Joystick &
+VAmiga::getJoystick(isize port)
+{
+    if (port < 0 || port > 1) throw CoreError(CoreError::OPT_INV_ARG, "0...1");
+
+    return port == 0 ? *controlPort1.joystick.joystick : *controlPort2.joystick.joystick;
+}
+
+Mouse &
+VAmiga::getMouse(isize port)
+{
+    if (port < 0 || port > 1) throw CoreError(CoreError::OPT_INV_ARG, "0...1");
+
+    return port == 0 ? *controlPort1.mouse.mouse : *controlPort2.mouse.mouse;
+}
+
+SerialPort &
+VAmiga::getSerialPort()
+{
+    return *serialPort.serialPort;
+}
+
+VideoPort &
+VAmiga::getVideoPort()
+{
+    return *videoPort.videoPort;
+}
+
+FloppyDrive &
+VAmiga::getFloppyDrive(isize nr)
+{
+    if (nr < 0 || nr > 3) throw CoreError(CoreError::OPT_INV_ARG, "0...3");
+
+    return *df[nr]->drive;
+}
+
+HardDrive &
+VAmiga::getHardDrive(isize nr)
+{
+    if (nr < 0 || nr > 3) throw CoreError(CoreError::OPT_INV_ARG, "0...3");
+
+    return *hd[nr]->drive;
+}
+
+HdController &
+VAmiga::getHdController(isize nr)
+{
+    if (nr < 0 || nr > 3) throw CoreError(CoreError::OPT_INV_ARG, "0...3");
+
+    return *hd[nr]->controller.controller;
+}
+
+Keyboard &
+VAmiga::getKeyboard()
+{
+    return *keyboard.keyboard;
+}
+
+MsgQueue &
+VAmiga::getMsgQueue()
+{
+    return *msgQueue.msgQueue;
+}
+
+RemoteManager &
+VAmiga::getRemoteManager()
+{
+    return *remoteManager.remoteManager;
+}
+
+RetroShell &
+VAmiga::getRetroShell()
+{
+    return *retroShell.retroShell;
+}
+
+Defaults &
+VAmiga::getDefaults()
+{
+    return *defaults.defaults;
 }
 
 }

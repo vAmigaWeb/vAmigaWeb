@@ -7,7 +7,7 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Paula.h"
 #include "ControlPort.h"
 #include "CPU.h"
@@ -61,7 +61,7 @@ Paula::serviceIplEvent()
 void
 Paula::servicePotEvent(EventID id)
 {
-    trace(POT_DEBUG, "servicePotEvent(%hhd)\n", id);
+    logmsg(LOG_POT, "servicePotEvent(%d)\n", id);
 
     bool outry = potgo & 0x8000;
     bool outrx = potgo & 0x2000;

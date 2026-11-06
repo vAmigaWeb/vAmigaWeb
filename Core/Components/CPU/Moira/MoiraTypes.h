@@ -4,10 +4,12 @@
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
 // Published under the terms of the MIT License
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <string>
 #include <optional>
 
@@ -25,19 +27,55 @@ using u8  = uint8_t;
 using u16 = uint16_t;
 using u32 = uint32_t;
 using u64 = unsigned long long;
+using isize = std::ptrdiff_t;
 
 
 //
 // Address sizes for various instructions.
 //
 
-using Size = int;
-static constexpr int Unsized     = 0;  // No specific size.
-static constexpr int Byte        = 1;  // Byte addressing (.b)
-static constexpr int Word        = 2;  // Word addressing (.w)
-static constexpr int Long        = 4;  // Long word addressing (.l)
-static constexpr int Quad        = 8;  // Quad word (FPU)
-static constexpr int Extended    = 12; // Extended precision (FPU)
+using Size = u8;
+static constexpr Size Unsized    = 0;  // No specific size.
+static constexpr Size Byte       = 1;  // Byte addressing (.b)
+static constexpr Size Word       = 2;  // Word addressing (.w)
+static constexpr Size Long       = 4;  // Long word addressing (.l)
+static constexpr Size Quad       = 8;  // Quad word (FPU)
+static constexpr Size Extended   = 12; // Extended precision (FPU)
+
+
+//
+// Port sizes, as reported by the DSACK pins (68020)
+//
+
+/* A slave device tells the CPU how wide its data port is by asserting DSACK0
+ * and DSACK1. Both signals are active low, which gives the following encoding
+ * (68020 User's Manual, table 5-2):
+ *
+ *     DSACK1  DSACK0
+ *        1       1     No acknowledge yet, wait states are inserted
+ *        1       0     8 bit port
+ *        0       1     16 bit port
+ *        0       0     32 bit port
+ *
+ * Bit 1 of a DSACK value holds DSACK1, bit 0 holds DSACK0. The CPU splits
+ * every memory access into as many bus cycles as the reported port width
+ * requires.
+ */
+static constexpr u8 DSACK_32   = 0b00;   // Both DSACK lines asserted
+static constexpr u8 DSACK_16   = 0b01;   // DSACK1 asserted
+static constexpr u8 DSACK_8    = 0b10;   // DSACK0 asserted
+static constexpr u8 DSACK_WAIT = 0b11;   // Neither line asserted
+
+/* Returns the width of the addressed port in bytes.
+ *
+ * DSACK_WAIT means the device has not acknowledged yet. Moira does not model
+ * wait states, so it is treated like the narrowest port, which is the most
+ * conservative assumption in terms of bus cycles.
+ */
+static constexpr int portSize(u8 dsack)
+{
+    return dsack == DSACK_32 ? 4 : dsack == DSACK_16 ? 2 : 1;
+}
 
 
 //
@@ -45,6 +83,7 @@ static constexpr int Extended    = 12; // Extended precision (FPU)
 //
 
 // CPU variants
+/// CPU model.
 enum class Model
 {
     M68000,                 // Cycle-exact emulation
@@ -59,6 +98,7 @@ enum class Model
 };
 
 // Execution cores
+/// CPU core type.
 enum class Core
 {
     C68000,                 // Used by M68000
@@ -67,6 +107,7 @@ enum class Core
 };
 
 // Syntax styles for disassembly output
+/// Syntax style of the disassembler.
 enum class Syntax
 {
     MOIRA,                  // My personal favorite
@@ -77,6 +118,7 @@ enum class Syntax
 };
 
 // Letter case preferences for disassembly output
+/// Letter case of the disassembler output.
 enum class LetterCase
 {
     MIXED_CASE,             // Determined by the selected syntax
@@ -85,7 +127,8 @@ enum class LetterCase
 };
 
 // Processor instructions
-enum class Instr
+/// CPU instruction.
+enum class Instr : u16
 {
     // 68000 instructions
     ABCD,       ADD,        ADDA,       ADDI,       ADDQ,       ADDX,
@@ -159,7 +202,8 @@ enum class Instr
 };
 
 // Addressing modes
-enum class Mode
+/// Addressing mode of a CPU instruction.
+enum class Mode : u8
 {
     DN,                 //  0: Dn, Data register direct.
     AN,                 //  1: An, Address register direct.
@@ -185,6 +229,7 @@ constexpr bool isDspMode(Mode M) { return M == Mode::DI || M == Mode::IX || M ==
 constexpr bool isImmMode(Mode M) { return M == Mode::IM; }
 
 // Condition codes used in conditional instructions
+/// Condition code of a CPU instruction.
 enum class Cond
 {
     BT,                     // Always true
@@ -206,6 +251,7 @@ enum class Cond
 };
 
 // Enumeration of Motorola 68k CPU exceptions
+/// CPU exception.
 enum class M68kException
 {
     RESET             = 1,    // CPU reset exception
@@ -228,6 +274,7 @@ enum class M68kException
 };
 
 // M68k interrupt modes
+/// How an interrupt is delivered to the CPU.
 enum class IrqMode
 {
     AUTO,                       // Automatic IRQ handling
@@ -237,6 +284,7 @@ enum class IrqMode
 };
 
 // Address spaces
+/// Address space of a CPU access.
 enum class AddrSpace
 {
     DATA = 1,                   // Data space
@@ -248,6 +296,7 @@ enum class AddrSpace
 // Structures
 //
 
+/// Stack frame of an exception.
 struct StackFrame
 {
     u16 code;
@@ -260,6 +309,7 @@ struct StackFrame
     u16 ssw;                    // Special status word (68010)
 };
 
+/// Status register of the CPU.
 struct StatusRegister {
     
     bool t1;                    // Trace flag
@@ -275,6 +325,7 @@ struct StatusRegister {
     u8 ipl;                     // Required Interrupt Priority Level
 };
 
+/// Register file of the CPU.
 struct Registers {
     
     u32 pc;                     // Program counter
@@ -310,12 +361,53 @@ struct Registers {
     u32 caar;                   // Cache Address Register           (68020+)
 };
 
+/// Prefetch queue of the CPU.
 struct PrefetchQueue {
     
     u16 irc;                    // The most recent word prefetched from memory
     u16 ird;                    // The instruction currently being executed
 };
 
+/// Line of the instruction cache.
+struct CacheLine {
+    
+    u32 data;
+    u32 tag;
+    bool valid;
+};
+
+/// Latch of the instruction cache.
+struct CacheLatch {
+    
+    u32 addr;
+    u32 data;
+};
+
+/// Instruction cache of the CPU.
+struct InstructionCache {
+    
+    static constexpr int lineCnt = 64;
+    static constexpr u32 idxMask = 0x000000FC;
+    static constexpr u32 tagMask = 0xFFFFFF00;
+    
+    CacheLine cache[lineCnt];
+    CacheLatch latch;
+};
+
+/// Cycle budget of the CPU.
+struct CycleBudget { // 68020 only
+    
+    // Cycle penalty
+    int cp {};
+    
+    // Cycles that have not been spent yet
+    int accumulated {};
+    
+    // Number of consecutive instructions that did not advance the clock
+    int stalled {};
+};
+
+/// Information about a decoded instruction.
 struct InstrInfo
 {
     Instr I;
@@ -323,6 +415,7 @@ struct InstrInfo
     Size  S;
 };
 
+/// Number format of the disassembler.
 struct DasmNumberFormat
 {
     const char *prefix;         // Prefix for hexidecimal numbers
@@ -331,6 +424,7 @@ struct DasmNumberFormat
     bool plainZero;             // Determines whether 0 is printed with a prefix
 };
 
+/// Output style of the disassembler.
 struct DasmStyle
 {
     Syntax syntax;
@@ -461,12 +555,14 @@ static constexpr u64 IMPL_DEC       = (1 << 14);  // Omit 2 cycle delay in -(An)
 struct IllegalInstruction : public std::exception { };
 struct DoubleFault : public std::exception { };
 
+/// Exception thrown on an address error.
 struct AddressError : public std::exception {
     
     StackFrame stackFrame;
     AddressError(const StackFrame frame) { stackFrame = frame; }
 };
 
+/// Exception thrown on a bus error.
 struct BusError : public std::exception {
     
     StackFrame stackFrame;

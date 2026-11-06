@@ -6,6 +6,7 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
@@ -17,12 +18,14 @@ namespace vamiga {
 // Enumerations
 //
 
+/// Class of an emulator component.
 enum class Class : long
 {
     Generic,
     
     // Internal components
     Agnus,
+    AgnusDebugger,
     Amiga,
     AudioFilter,
     Blitter,
@@ -34,7 +37,8 @@ enum class Class : long
     Denise,
     DeniseDebugger,
     DiskController,
-    DmaDebugger,
+    Emulator,
+    XRay,
     HdController,
     Host,
     LogicAnalyzer,
@@ -45,6 +49,7 @@ enum class Class : long
     PixelEngine,
     Recorder,
     RegressionTester,
+    RemoteManager,
     RetroShell,
     Sequencer,
     StateMachine,
@@ -57,6 +62,7 @@ enum class Class : long
     // Ports
     AudioPort,
     ControlPort,
+    MidiManager,
     SerialPort,
     VideoPort,
     SampleRateDetector,

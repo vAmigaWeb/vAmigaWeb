@@ -7,17 +7,17 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "CIA.h"
 #include "Amiga.h"
 #include "Agnus.h"
 #include "ControlPort.h"
 #include "DiskController.h"
-#include "IOUtils.h"
 #include "Memory.h"
 #include "MsgQueue.h"
 #include "Paula.h"
 #include "SerialPort.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
@@ -27,6 +27,9 @@ CIA::CIA(Amiga& ref, isize objid) : SubComponent(ref, objid)
 
         &tod
     };
+
+    info.bind([this] { return cacheInfo(); } );
+    metrics.bind([this] { return cacheMetrics(); } );
 }
 
 void
@@ -62,7 +65,7 @@ CIA::operator << (SerResetter &worker)
     latchB = 0xFFFF;
 
     // UAE initializes CRB with 4 (which I think is wrong)
-    if (MIMIC_UAE) crb = 0x4;
+    if CONSTEXPR (MIMIC_UAE) crb = 0x4;
 
     updatePA();
     updatePB();
@@ -91,7 +94,7 @@ CIA::checkOption(Opt opt, i64 value)
         case Opt::CIA_REVISION:
 
             if (!CIARevEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, CIARevEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, CIARevEnum::keyList());
             }
             return;
 
@@ -102,7 +105,7 @@ CIA::checkOption(Opt opt, i64 value)
             return;
 
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -136,68 +139,73 @@ CIA::setOption(Opt option, i64 value)
     }
 }
 
-void 
-CIA::cacheInfo(CIAInfo &info) const
+CIAInfo
+CIA::cacheInfo() const
 {
-    {   SYNCHRONIZED
-        
-        info.portA.port = computePA();
-        info.portA.reg = pra;
-        info.portA.dir = ddra;
-        
-        info.portB.port = computePB();
-        info.portB.reg = prb;
-        info.portB.dir = ddrb;
-        
-        info.timerA.count = LO_HI(spypeek(0x04), spypeek(0x05));
-        info.timerA.latch = latchA;
-        info.timerA.running = (delay & CIACountA3);
-        info.timerA.toggle = cra & 0x04;
-        info.timerA.pbout = cra & 0x02;
-        info.timerA.oneShot = cra & 0x08;
-        
-        info.timerB.count = LO_HI(spypeek(0x06), spypeek(0x07));
-        info.timerB.latch = latchB;
-        info.timerB.running = (delay & CIACountB3);
-        info.timerB.toggle = crb & 0x04;
-        info.timerB.pbout = crb & 0x02;
-        info.timerB.oneShot = crb & 0x08;
-        
-        info.sdr = sdr;
-        info.ssr = ssr;
-        info.icr = icr;
-        info.imr = imr;
-        info.irq = irq;
-        
-        info.tod = tod.info;
-        info.todIrqEnable = imr & 0x04;        
-    }
+    CIAInfo info;
+
+    info.portA.port = computePA();
+    info.portA.reg = pra;
+    info.portA.dir = ddra;
+
+    info.portB.port = computePB();
+    info.portB.reg = prb;
+    info.portB.dir = ddrb;
+
+    info.timerA.count = LO_HI(spypeek(0x04), spypeek(0x05));
+    info.timerA.latch = latchA;
+    info.timerA.running = (delay & CIACountA3);
+    info.timerA.toggle = cra & 0x04;
+    info.timerA.pbout = cra & 0x02;
+    info.timerA.oneShot = cra & 0x08;
+
+    info.timerB.count = LO_HI(spypeek(0x06), spypeek(0x07));
+    info.timerB.latch = latchB;
+    info.timerB.running = (delay & CIACountB3);
+    info.timerB.toggle = crb & 0x04;
+    info.timerB.pbout = crb & 0x02;
+    info.timerB.oneShot = crb & 0x08;
+
+    info.sdr = sdr;
+    info.ssr = ssr;
+    info.icr = icr;
+    info.imr = imr;
+    info.irq = irq;
+
+    info.tod = tod.cacheInfo();
+    info.todIrqEnable = imr & 0x04;
+
+    return info;
 }
 
-
-void 
-CIA::cacheStats(CIAStats &result) const
+CIAMetrics
+CIA::cacheMetrics() const
 {
-    {   SYNCHRONIZED
+    CIAMetrics stats;
 
-        auto total = AS_CIA_CYCLES(agnus.clock);
-        auto idle = idleTotal() + idleSince();
-        
-        auto totalDiff = total - result.totalCycles;
-        auto idleDiff = idle - result.idleCycles;
-        
-        result.totalCycles = total;
-        result.idleCycles = idle;
+    auto total = AS_CIA_CYCLES(agnus.clock);
+    auto idle = idleTotal() + idleSince();
 
-        // debug(true, "totalDiff: %lld idleDiff: %lld\n", totalDiff, idleDiff);
-        result.idlePercentage =  totalDiff ? double(idleDiff) / double(totalDiff) : 1.0;
-    }
+    auto totalDiff = total - prevTotalCycles;
+    auto idleDiff = idle - prevIdleCycles;
+
+    if (totalDiff < 0 || idleDiff < 0) { totalDiff = 0; idleDiff = 0; }
+
+    prevTotalCycles = total;
+    prevIdleCycles = idle;
+
+    stats.totalCycles = total;
+    stats.idleCycles = idle;
+
+    stats.idlePercentage = totalDiff ? double(idleDiff) / double(totalDiff) : 1.0;
+
+    return stats;
 }
 
 void
 CIA::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
     
     if (category == Category::Config) {
         
@@ -266,7 +274,7 @@ CIA::emulateFallingEdgeOnFlagPin()
 void
 CIA::emulateRisingEdgeOnCntPin()
 {
-    trace(CIASER_DEBUG, "emulateRisingEdgeOnCntPin\n");
+    logmsg(LOG_CIASER, "emulateRisingEdgeOnCntPin\n");
     
     wakeUp();
     cnt = 1;
@@ -280,9 +288,9 @@ CIA::emulateRisingEdgeOnCntPin()
     // Serial register
     if (!(cra & 0x40) /* input mode */ ) {
         
-        // debug("rising CNT: serCounter %d\n", serCounter);
+        // logmsg("rising CNT: serCounter %d\n", serCounter);
         if (serCounter == 0) serCounter = 8;
-        trace(CIASER_DEBUG, "Clocking in bit %d [%d]\n", sp, serCounter);
+        logmsg(LOG_CIASER, "Clocking in bit %d [%d]\n", sp, serCounter);
         
         // Shift in a bit from the SP line
         ssr = (u8)(ssr << 1) | (u8)sp;
@@ -291,7 +299,7 @@ CIA::emulateRisingEdgeOnCntPin()
         if (--serCounter == 0) {
             
             // Load the data register (SDR) with the shift register (SSR)
-            trace(CIASER_DEBUG, "Loading %x into sdr\n", sdr);
+            logmsg(LOG_CIASER, "Loading %x into sdr\n", sdr);
             delay |= CIASsrToSdr0; // sdr = ssr;
             
             // Trigger interrupt
@@ -303,7 +311,7 @@ CIA::emulateRisingEdgeOnCntPin()
 void
 CIA::emulateFallingEdgeOnCntPin()
 {
-    trace(CIASER_DEBUG, "emulateFallingEdgeOnCntPin\n");
+    logmsg(LOG_CIASER, "emulateFallingEdgeOnCntPin\n");
 
     wakeUp();
     cnt = 0;
@@ -330,7 +338,7 @@ CIA::reloadTimerB(u64 *delay)
 void
 CIA::triggerTimerIrq(u64 *delay)
 {
-    trace(CIA_DEBUG, "triggerTimerIrq()\n");
+    logmsg(LOG_CIA, "triggerTimerIrq()\n");
     *delay |= (*delay & CIAReadIcr0) ? CIASetInt0 : CIASetInt1;
     *delay |= (*delay & CIAReadIcr0) ? CIASetIcr0 : CIASetIcr1;
 }
@@ -338,7 +346,7 @@ CIA::triggerTimerIrq(u64 *delay)
 void
 CIA::triggerTodIrq(u64 *delay)
 {
-    trace(CIA_DEBUG, "triggerTodIrq()\n");
+    logmsg(LOG_CIA, "triggerTodIrq()\n");
     *delay |= CIASetInt0;
     *delay |= CIASetIcr0;
 }
@@ -346,7 +354,7 @@ CIA::triggerTodIrq(u64 *delay)
 void
 CIA::triggerFlagPinIrq(u64 *delay)
 {
-    trace(CIA_DEBUG, "triggerFlagPinIrq()\n");
+    logmsg(LOG_CIA, "triggerFlagPinIrq()\n");
     *delay |= CIASetInt0;
     *delay |= CIASetIcr0;
 }
@@ -354,7 +362,7 @@ CIA::triggerFlagPinIrq(u64 *delay)
 void
 CIA::triggerSerialIrq(u64 *delay)
 {
-    trace(CIA_DEBUG, "triggerSerialIrq()\n");
+    logmsg(LOG_CIA, "triggerSerialIrq()\n");
     *delay |= CIASetInt0;
     *delay |= CIASetIcr0;
 }
@@ -805,14 +813,14 @@ CIAA::_powerOff()
 void 
 CIAA::pullDownInterruptLine()
 {
-    trace(CIA_DEBUG, "Pulling down IRQ line\n");
+    logmsg(LOG_CIA, "Pulling down IRQ line\n");
     paula.raiseIrq(IrqSource::PORTS);
 }
 
 void 
 CIAA::releaseInterruptLine()
 {
-    trace(CIA_DEBUG, "Releasing IRQ line\n");
+    logmsg(LOG_CIA, "Releasing IRQ line\n");
 }
 
 //              -------
@@ -834,7 +842,7 @@ CIAA::updatePA()
     
     if (oldpa ^ pa) {
         
-        trace(DSKREG_DEBUG,
+        logmsg(LOG_DSKREG,
               "/FIR1: %d /FIR0: %d /RDY: %d /TK0: %d "
               "/WPRO: %d /CHNG: %d /LED: %d OVL: %d\n",
               !!(pa & 0x80), !!(pa & 0x40), !!(pa & 0x20), !!(pa & 0x10),
@@ -945,7 +953,7 @@ CIAA::portBexternal() const
 void
 CIAA::setKeyCode(u8 keyCode)
 {
-    trace(KBD_DEBUG, "setKeyCode: %x\n", keyCode);
+    logmsg(LOG_KBD, "setKeyCode: %x\n", keyCode);
     
     // Put the key code into the serial data register
     sdr = keyCode;
@@ -964,14 +972,14 @@ CIAA::setKeyCode(u8 keyCode)
 void 
 CIAB::pullDownInterruptLine()
 {
-    trace(CIA_DEBUG, "Pulling down IRQ line\n");
+    logmsg(LOG_CIA, "Pulling down IRQ line\n");
     paula.raiseIrq(IrqSource::EXTER);
 }
 
 void 
 CIAB::releaseInterruptLine()
 {
-    trace(CIA_DEBUG, "Releasing IRQ line\n");
+    logmsg(LOG_CIA, "Releasing IRQ line\n");
 }
 
 //                                 -------
@@ -1090,7 +1098,7 @@ CIAB::updatePB()
     // Notify the disk controller about the changed bits
     if (oldPB ^ pb) {
         
-        trace(DSKREG_DEBUG,
+        logmsg(LOG_DSKREG,
               "MTR: %d SEL3: %d SEL2: %d SEL1: %d "
               "SEL0: %d SIDE: %d DIR: %d STEP: %d\n",
               !!(pb & 0x80), !!(pb & 0x40), !!(pb & 0x20), !!(pb & 0x10),

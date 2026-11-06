@@ -7,11 +7,11 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Option.h"
 #include "VAmigaTypes.h"
-#include "Error.h"
-#include "IOUtils.h"
+#include "CoreError.h"
+#include <sstream>
 
 namespace vamiga {
 
@@ -27,6 +27,7 @@ OptionParser::create(Opt opt, i64 arg)
 
         case Opt::HOST_SAMPLE_RATE:          return numParser(" Hz");
         case Opt::HOST_REFRESH_RATE:         return numParser(" fps");
+        case Opt::HOST_TEX_FORMAT:           return enumParser.template operator()<TexFormatEnum,TexFormat>();
         case Opt::HOST_FRAMEBUF_WIDTH:       return numParser(" pixels");
         case Opt::HOST_FRAMEBUF_HEIGHT:      return numParser(" pixels");
 
@@ -36,10 +37,6 @@ OptionParser::create(Opt opt, i64 arg)
         case Opt::AMIGA_VSYNC:               return boolParser();
         case Opt::AMIGA_SPEED_BOOST:         return numParser("%");
         case Opt::AMIGA_RUN_AHEAD:           return numParser(" frames");
-        case Opt::AMIGA_SNAP_AUTO:           return boolParser();
-        case Opt::AMIGA_SNAP_DELAY:          return numParser(" sec");
-        case Opt::AMIGA_SNAP_COMPRESSOR:     return enumParser.template operator()<CompressorEnum,Compressor>();
-        case Opt::AMIGA_WS_COMPRESSION:      return boolParser();
 
         case Opt::AGNUS_REVISION:            return enumParser.template operator()<AgnusRevisionEnum,AgnusRevision>();
         case Opt::AGNUS_PTR_DROPS:           return boolParser();
@@ -50,7 +47,7 @@ OptionParser::create(Opt opt, i64 arg)
         case Opt::DENISE_HIDDEN_BITPLANES:   return numParser();
         case Opt::DENISE_HIDDEN_SPRITES:     return numParser();
         case Opt::DENISE_HIDDEN_LAYERS:      return numParser();
-        case Opt::DENISE_HIDDEN_LAYER_ALPHA: return numParser();
+        case Opt::DENISE_SHRES_BLEND:        return boolParser();
         case Opt::DENISE_CLX_SPR_SPR:        return boolParser();
         case Opt::DENISE_CLX_SPR_PLF:        return boolParser();
         case Opt::DENISE_CLX_PLF_PLF:        return boolParser();
@@ -81,29 +78,34 @@ OptionParser::create(Opt opt, i64 arg)
         case Opt::MON_DISALIGNMENT:          return boolParser();
         case Opt::MON_DISALIGNMENT_H:        return numParser();
         case Opt::MON_DISALIGNMENT_V:        return numParser();
-        case Opt::MON_FLICKER:               return boolParser();
-        case Opt::MON_FLICKER_WEIGHT:        return numParser();
+        case Opt::MON_FLICKER_FIXER:         return boolParser();
+        case Opt::MON_FLICKER_JITTER:        return numParser();
 
-        case Opt::DMA_DEBUG_ENABLE:          return boolParser();
-        case Opt::DMA_DEBUG_MODE:            return enumParser.template operator()<DmaDisplayModeEnum,DmaDisplayMode>();
-        case Opt::DMA_DEBUG_OPACITY:         return numParser("%");
-        case Opt::DMA_DEBUG_CHANNEL0:        return boolParser();
-        case Opt::DMA_DEBUG_CHANNEL1:        return boolParser();
-        case Opt::DMA_DEBUG_CHANNEL2:        return boolParser();
-        case Opt::DMA_DEBUG_CHANNEL3:        return boolParser();
-        case Opt::DMA_DEBUG_CHANNEL4:        return boolParser();
-        case Opt::DMA_DEBUG_CHANNEL5:        return boolParser();
-        case Opt::DMA_DEBUG_CHANNEL6:        return boolParser();
-        case Opt::DMA_DEBUG_CHANNEL7:        return boolParser();
-        case Opt::DMA_DEBUG_COLOR0:          return numParser();
-        case Opt::DMA_DEBUG_COLOR1:          return numParser();
-        case Opt::DMA_DEBUG_COLOR2:          return numParser();
-        case Opt::DMA_DEBUG_COLOR3:          return numParser();
-        case Opt::DMA_DEBUG_COLOR4:          return numParser();
-        case Opt::DMA_DEBUG_COLOR5:          return numParser();
-        case Opt::DMA_DEBUG_COLOR6:          return numParser();
-        case Opt::DMA_DEBUG_COLOR7:          return numParser();
+        case Opt::XRAY_MODE:            return enumParser.template operator()<XRayModeEnum,XRayMode>();
+        case Opt::XRAY_OVERLAY:         return boolParser();
+        case Opt::XRAY_OVERLAY_STYLE: return enumParser.template operator()<DmaDisplayModeEnum,DmaDisplayMode>();
+        case Opt::XRAY_OVERLAY_OPACITY: return numParser("%");
+        case Opt::XRAY_DMA_CHANNEL0:        return boolParser();
+        case Opt::XRAY_DMA_CHANNEL1:        return boolParser();
+        case Opt::XRAY_DMA_CHANNEL2:        return boolParser();
+        case Opt::XRAY_DMA_CHANNEL3:        return boolParser();
+        case Opt::XRAY_DMA_CHANNEL4:        return boolParser();
+        case Opt::XRAY_DMA_CHANNEL5:        return boolParser();
+        case Opt::XRAY_DMA_CHANNEL6:        return boolParser();
+        case Opt::XRAY_DMA_CHANNEL7:        return boolParser();
+        case Opt::XRAY_COLOR0:          return numParser();
+        case Opt::XRAY_COLOR1:          return numParser();
+        case Opt::XRAY_COLOR2:          return numParser();
+        case Opt::XRAY_COLOR3:          return numParser();
+        case Opt::XRAY_COLOR4:          return numParser();
+        case Opt::XRAY_COLOR5:          return numParser();
+        case Opt::XRAY_COLOR6:          return numParser();
+        case Opt::XRAY_COLOR7:          return numParser();
+        case Opt::XRAY_COLOR8:          return numParser();
+        case Opt::XRAY_COLOR9:          return numParser();
+        case Opt::XRAY_COMPOSITOR:      return enumParser.template operator()<XRayCompositorEnum,XRayCompositor>();
 
+        case Opt::LA_CONNECT:                return boolParser();
         case Opt::LA_PROBE0:                 return enumParser.template operator()<ProbeEnum,Probe>();
         case Opt::LA_PROBE1:                 return enumParser.template operator()<ProbeEnum,Probe>();
         case Opt::LA_PROBE2:                 return enumParser.template operator()<ProbeEnum,Probe>();
@@ -121,19 +123,21 @@ OptionParser::create(Opt opt, i64 arg)
         case Opt::CPU_DASM_NUMBERS:          return enumParser.template operator()<DasmNumbersEnum,DasmNumbers>();
         case Opt::CPU_OVERCLOCKING:          return numParser("x");
         case Opt::CPU_RESET_VAL:             return numParser();
+        case Opt::CPU_START_DELAY:           return numParser();
 
         case Opt::RTC_MODEL:                 return enumParser.template operator()<RTCRevisionEnum,RTCRevision>();
 
+        case Opt::MEM_BUS_WIDTH:             return numParser();
         case Opt::MEM_CHIP_RAM:              return numParser();
         case Opt::MEM_SLOW_RAM:              return numParser();
         case Opt::MEM_FAST_RAM:              return numParser();
         case Opt::MEM_EXT_START:             return numParser();
-        case Opt::MEM_SAVE_ROMS:             return boolParser();
         case Opt::MEM_SLOW_RAM_DELAY:        return boolParser();
         case Opt::MEM_SLOW_RAM_MIRROR:       return boolParser();
         case Opt::MEM_BANKMAP:               return enumParser.template operator()<BankMapEnum,BankMap>();
         case Opt::MEM_UNMAPPING_TYPE:        return enumParser.template operator()<UnmappedMemoryEnum,UnmappedMemory>();
         case Opt::MEM_RAM_INIT_PATTERN:      return enumParser.template operator()<RamInitPatternEnum,RamInitPattern>();
+        case Opt::MEM_SAVE_ROMS:             return boolParser();
 
         case Opt::DC_SPEED:                  return numParser();
         case Opt::DC_LOCK_DSKSYNC:           return boolParser();
@@ -151,13 +155,18 @@ OptionParser::create(Opt opt, i64 arg)
         case Opt::DRIVE_EJECT_VOLUME:        return numParser("%");
 
         case Opt::HDC_CONNECT:               return boolParser();
+        case Opt::HDC_MB_LIMIT:              return numParser(" MB");
 
         case Opt::HDR_TYPE:                  return enumParser.template operator()<HardDriveTypeEnum,HardDriveType>();
         case Opt::HDR_PAN:                   return numParser();
         case Opt::HDR_STEP_VOLUME:           return numParser("%");
+        case Opt::HDR_WRITE_THROUGH:         return enumParser.template operator()<WriteThroughModeEnum,WriteThroughMode>();
+        case Opt::HDR_SNAPSHOT:              return boolParser();
+        case Opt::HDR_MEM_LIMIT:             return numParser(" MB");
 
         case Opt::SER_DEVICE:                return enumParser.template operator()<SerialPortDeviceEnum,SerialPortDevice>();
         case Opt::SER_VERBOSE:               return boolParser();
+        case Opt::SER_HANDSHAKE:             return boolParser();
 
         case Opt::BLITTER_ACCURACY:          return numParser();
 
@@ -195,9 +204,9 @@ OptionParser::create(Opt opt, i64 arg)
 
         case Opt::DIAG_BOARD:                return boolParser();
 
+        case Opt::SRV_ENABLE:                return boolParser();
         case Opt::SRV_PORT:                  return numParser();
-        case Opt::SRV_PROTOCOL:              return enumParser.template operator()<ServerProtocolEnum,ServerProtocol>();
-        case Opt::SRV_AUTORUN:               return boolParser();
+        case Opt::SRV_TRANSPORT:             return enumParser.template operator()<TransportProtocolEnum,TransportProtocol>();
         case Opt::SRV_VERBOSE:               return boolParser();
 
         default:

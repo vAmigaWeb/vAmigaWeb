@@ -1,0 +1,160 @@
+// -----------------------------------------------------------------------------
+// This file is part of RetroVault
+//
+// Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
+// Licensed under the Mozilla Public License v2
+//
+// See https://mozilla.org/MPL/2.0 for license information
+// -----------------------------------------------------------------------------
+/// @file
+
+#pragma once
+
+#include "utl/abilities/Reflectable.h"
+
+namespace retro::vault {
+
+using utl::i8;
+using utl::i16;
+using utl::i32;
+using utl::i64;
+using utl::isize;
+
+using utl::u8;
+using utl::u16;
+using utl::u32;
+using utl::u64;
+using utl::usize;
+
+//
+// Aliases
+//
+
+/// Track devices
+using BlockNr  = isize;
+using CylNr    = isize;                 ///< Cylinder number
+using HeadNr   = isize;                 ///< Head number
+using SectorNr = isize;                 ///< Sector number
+using TrackNr  = isize;                 ///< Track number
+
+
+//
+// Structures
+//
+
+/// A track/sector link of a disk image.
+struct TSLink
+{
+    TrackNr t;                          ///< Track number
+    SectorNr s;                         ///< Sector number
+};
+
+/// Returns true if both links point to the same track and sector.
+constexpr bool operator==(const TSLink &a, const TSLink &b) noexcept {
+    return a.t == b.t && a.s == b.s;
+}
+/// Returns true if the links point to different tracks or sectors.
+constexpr bool operator!=(const TSLink &a, const TSLink &b) noexcept {
+    return !(a == b);
+}
+
+
+//
+// Constants
+//
+
+/** Hard drive geometry limits
+ *
+ * What a drive geometry may look like (see
+ * GeometryDescriptor::checkCompatibility). A geometry beyond these values
+ * cannot be described by the CHS fields it has to pass through.
+ */
+static const isize HDR_C_MAX =  32768;
+static const isize HDR_H_MAX =  16;     ///< Maximum number of heads
+static const isize HDR_S_MAX =  256;    ///< Maximum number of sectors per track
+
+/** Bounds for proposing a geometry
+ *
+ * Geometries this small are legal, but nothing to offer a user who is about
+ * to create a drive (see GeometryDescriptor::driveGeometries).
+ */
+static const isize HDR_C_MIN =  16;
+static const isize HDR_H_MIN =  1;      ///< Minimum number of heads
+static const isize HDR_S_MIN =  16;     ///< Minimum number of sectors per track
+
+
+//
+// Enumerations
+//
+
+/// Diameter of a disk.
+enum class Diameter : long
+{
+    INCH_35,
+    INCH_525,
+    INCH_8
+};
+
+struct DiameterEnum : utl::Reflectable<DiameterEnum, Diameter>
+{
+    static constexpr long minVal = 0;
+    static constexpr long maxVal = long(Diameter::INCH_8);
+
+    static const char *_key(Diameter value)
+    {
+        switch (value) {
+
+            case Diameter::INCH_35:     return "INCH_35";
+            case Diameter::INCH_525:    return "INCH_525";
+            case Diameter::INCH_8:      return "INCH_8";
+        }
+        return "???";
+    }
+    static const char *help(Diameter value)
+    {
+        switch (value) {
+
+            case Diameter::INCH_35:     return "3.5\" floppy disk";
+            case Diameter::INCH_525:    return "5.25\" floppy disk";
+            case Diameter::INCH_8:      return "8\" floppy disk";
+        }
+        return "???";
+    }
+};
+
+/// Density of a disk.
+enum class Density
+{
+    SD,
+    DD,
+    HD
+};
+
+struct DensityEnum : utl::Reflectable<DensityEnum, Density>
+{
+    static constexpr long minVal = 0;
+    static constexpr long maxVal = long(Density::HD);
+
+    static const char *_key(Density value)
+    {
+        switch (value) {
+
+            case Density::SD:     return "SD";
+            case Density::DD:     return "DD";
+            case Density::HD:     return "HD";
+        }
+        return "???";
+    }
+    static const char *help(Density value)
+    {
+        switch (value) {
+
+            case Density::SD:     return "Single Density";
+            case Density::DD:     return "Double Density";
+            case Density::HD:     return "High Density";
+        }
+        return "???";
+    }
+};
+
+}

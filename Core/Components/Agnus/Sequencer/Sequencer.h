@@ -143,30 +143,13 @@ private:
     // Offset into the DAS lookup table
     u16 dmaDAS;
 
-    /* Current layout of a fetch unit. A fetch unit is the indivisible block of
-     * DMA cycles during which the display data fetch is active. Its length
-     * depends on the resolution and the width of the bitplane bus (FMODE) and
-     * ranges from 8 to 32 cycles (see fetchUnits[] in computeFetchUnit).
-     */
+    // Current layout of a fetch unit
     EventID fetch[2][32];
 
-    // Bit mask for wrapping the fetch unit counter (fetchUnit / 2 - 1)
-    u8 cntMask = 3;
-
-public:
-
-    // Length of a fetch unit in DMA cycles
-    u8 fetchUnit = 8;
-
-public:
-
-    /* Number of words read in a single bitplane DMA cycle. This value is
-     * determined together with the fetch unit layout to make sure that Agnus
-     * reads exactly as much data as the layout expects (see computeFetchUnit).
-     */
-    u8 fetchWords = 1;
-
-public:
+    // Size of a single fetch unit in words
+    u8 fetchUnitSize = 1;
+  
+ public:
 
     // Currently scheduled events
     EventID bplEvent[HPOS_CNT];
@@ -244,6 +227,7 @@ public:
         CLONE(dmaDAS)
         CLONE_ARRAY(fetch[0])
         CLONE_ARRAY(fetch[1])
+        CLONE(fetchUnitSize)
         CLONE_ARRAY(bplEvent)
         CLONE_ARRAY(dasEvent)
         CLONE_ARRAY(nextBplEvent)
@@ -286,6 +270,7 @@ private:
 
         << dmaDAS
         << fetch
+        << fetchUnitSize
         << bplEvent
         << dasEvent
         << nextBplEvent
@@ -363,6 +348,9 @@ public:
     
 public:
 
+    // Returns the fetch unit size in words
+    isize getFetchUnitSize() const { return fetchUnitSize; }
+    
     // Recomputes the BPL event table
     void computeBplEventTable(const SigRecorder &sr);
 
@@ -387,8 +375,14 @@ private:
     void updateBplJumpTable(i16 end = HPOS_MAX);
 
     // Computes the layout of a single fetch unit
-    void computeFetchUnit(u16 bplcon0);
-
+    void computeFetchUnit(u16 bplcon0, u16 fmode);
+    template <u8 channels> void computeLoresFetchUnit(u16 fmode = 0);
+    template <u8 channels> void computeHiresFetchUnit(u16 fmode = 0);
+    template <u8 channels> void computeShresFetchUnit(u16 fmode = 0);
+    
+    // Returns the bit mask for wrapping the fetch unit counter
+    u8 cntMask() const { return fetchUnitSize * 4 - 1; }
+    
     
     //
     // Managing the disk, audio, sprite time slot table (SequencerDas.cpp)

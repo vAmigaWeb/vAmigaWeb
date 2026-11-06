@@ -7,7 +7,7 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Sequencer.h"
 #include "Agnus.h"
 
@@ -31,6 +31,7 @@ Sequencer::operator << (SerResetter &worker)
 
     initBplEvents();
     initDasEvents();
+    initSigRecorder();
 }
 
 void
@@ -41,7 +42,7 @@ Sequencer::eolHandler()
     // Renew the signal recorder if it has been modified
     if (sigRecorder.modified) {
 
-        trace(SEQ_DEBUG, "eolHandler: sigRecorder.modified\n");
+        logmsg(LOG_SEQ, "eolHandler: sigRecorder.modified\n");
         hsyncActions |= UPDATE_SIG_RECORDER;
     }
 
@@ -49,13 +50,13 @@ Sequencer::eolHandler()
     // if (agnus.pos.v == vstop || agnus.inLastRasterline()) {
     if (agnus.pos.v == vstop || agnus.pos.v == (agnus.isPAL() ? 312 : 262)) {
         
-        trace(SEQ_DEBUG, "eolHandler: Vertical flipflop off\n");
+        logmsg(LOG_SEQ, "eolHandler: Vertical flipflop off\n");
         ddfInitial.bpv = ddf.bpv = false;
         hsyncActions |= UPDATE_SIG_RECORDER;
 
     } else if (agnus.pos.v == vstrt) {
 
-        trace(SEQ_DEBUG, "eolHandler: Vertical flipflop on\n");
+        logmsg(LOG_SEQ, "eolHandler: Vertical flipflop on\n");
         ddfInitial.bpv = ddf.bpv = true;
         hsyncActions |= UPDATE_SIG_RECORDER;
     }

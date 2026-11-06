@@ -6,28 +6,115 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
 #include "VAmigaTypes.h"
-#include "Error.h"
+#include "CoreError.h"
+#include "Snapshot.h"
+#include <array>
+#include <functional>
+#include <span>
+
+namespace retro::vault::amiga { class FileSystem; }
+namespace retro::vault { class SVMFile; }
 
 namespace vamiga {
+
+
+
+/* Thread safety
+ *
+ * The functions of this API must be called from a user thread, i.e., from any
+ * thread except the emulator thread. Simple queries (get(), isRunning(),
+ * isPoweredOn(), isWarping(), ...) read the current value without
+ * synchronizing with the emulator thread, so a value that is read while the
+ * emulator runs may be outdated at once. The functions that return the state
+ * of a component come in two flavors: getInfo() (and getMetrics())
+ * reads the live state and is only consistent while the emulator is paused or
+ * suspended. getCachedInfo() (and getCachedMetrics())
+ * returns the most recent snapshot recorded by the emulator thread and is the
+ * one to use while the emulator runs.
+ */
+
+/* Error handling
+ *
+ * Functions of this API report failures by throwing exceptions that are
+ * derived from class Error:
+ *
+ *   CoreError  : The request does not match the state of the emulator, e.g.,
+ *                an invalid option value, a missing ROM, or an emulator thread
+ *                that cannot carry out the request (see CoreError).
+ *   IOError    : A file could not be accessed.
+ *   MediaError : A ROM, snapshot, disk image or similar file is invalid or
+ *                not supported.
+ *
+ * Functions that hand a request to the emulator thread asynchronously (the
+ * ones with the suffix "Async" and the input events) cannot report failures
+ * that occur later on the emulator thread. Use the blocking counterpart if
+ * the result matters.
+ */
+
+/* Threading
+ *
+ * Functions of this API are called from threads other than the emulator
+ * thread. Requests that change the state of the emulator are carried out on
+ * the emulator thread, in the order in which they arrive:
+ *
+ *   plain name : The function waits until the emulator thread has carried
+ *                out the request and passes on failures as exceptions. It
+ *                throws a CoreError if the emulator thread has not been
+ *                launched (see launch()).
+ *   "Async"    : The function queues the request and returns at once.
+ *   input      : Keyboard, mouse, joystick and RetroShell input is queued.
+ *
+ * Functions that only read the state of the emulator or export it to a file
+ * (e.g., dump, disassemble, saveSnapshot) suspend the emulator thread for the
+ * duration of the call instead. A thread can also suspend the emulator
+ * itself with suspend() and resume().
+ */
 
 //
 // Base class for all APIs
 //
 
+/// Base class of all APIs.
 class API {
+
+    friend class VAmiga;
+    friend struct SuspendResume;
+
+protected:
+
+    /// Pointer to the emulator instance this API object operates on.
+    class Emulator *emu = nullptr;
 
 public:
 
-    class Emulator *emu = nullptr;
-
     API() { }
+    /// Creates an API object that operates on the given emulator.
     API(Emulator *emu) : emu(emu) { }
 
+    /** @brief  Suspends the emulator thread
+     *
+     *  Blocks until the emulator thread has stopped at a safe point, i.e.,
+     *  it is neither computing a frame nor processing its command queue. The
+     *  call can be nested: the thread continues once resume() has been called
+     *  as often as suspend(). Use it to read or modify the state of a
+     *  component that is not protected by the API itself.
+     *
+     *  Only one thread can hold a suspension at a time. Another thread that
+     *  calls suspend(), or a blocking API function that waits for the
+     *  emulator thread, waits until the holder has resumed the emulator.
+     *  The holder itself must not call such a function, because it would wait
+     *  for itself: they throw a CoreError, and so does halt(). Do not call
+     *  suspend() from the emulator thread.
+     */
     void suspend() const;
+
+    /** @brief  Resumes the emulator thread after a call to suspend()
+     */
     void resume() const;
 };
 
@@ -35,12 +122,14 @@ public:
 // Components
 //
 
+/// API of the Amiga as a whole.
 class AmigaAPI : public API {
 
     friend class VAmiga;
     
+    class Amiga *amiga = nullptr;
+
 public:
-class Amiga *amiga = nullptr;
     
     /// @name Analyzing the emulator
     /// @{
@@ -50,8 +139,16 @@ class Amiga *amiga = nullptr;
     const AmigaConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const AmigaInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const AmigaInfo &getCachedInfo() const;
     
     /** @brief  Prints debug information about the component
@@ -61,37 +158,170 @@ class Amiga *amiga = nullptr;
      */
     void dump(Category category, std::ostream &os) const;
 
+
     /// @}
-    /// @name Managing workspaces and snapshots
+    /// @name Accessing the message queue
     /// @{
 
+    /** @brief  Reads a message from the message queue
+     *
+     *  @param  msg         The returned message (if any)
+     *  @param  exception   The exception the message reports (null if none)
+     *  @return True if a message could be read, false if the queue was empty
+     */
+    bool getMsg(Message &msg, std::exception_ptr &exception);
+
+
+    /// @}
+    /// @name Working with workspaces and snapshots
+    /// @{
+
+    /** @brief  Loads a workspace.
+     *
+     *  @param  path    Path to a workspace folder
+     *
+     *  @throw Error if the file cannot be read or does not contain valid data.
+     */
+    void loadWorkspace(const std::filesystem::path &path);
+
+    /** @brief  Saves a workspace to disk.
+     *
+     *  @param  path    Destination path
+     *
+     *  @throw Error if the file cannot be written.
+     */
+    void saveWorkspace(const std::filesystem::path &path) const;
+
+    /** @brief  Saves a workspace to disk asynchronously.
+     *
+     *  The request is handed to the emulator thread, which carries it out
+     *  when it processes its command queue. The function returns immediately.
+     *  The GUI is informed by a WORKSPACE_SAVED message.
+     *
+     *  @param  path    Destination path
+     */
+    void saveWorkspaceAsync(const std::filesystem::path &path) const;
+
+    /** @brief  Loads, saves, or asynchronously saves the workspace of an SVM
+     *
+     *  These work on the workspace folder of an SVM that is already open.
+     *  Saving replaces the workspace, notes its preview image in the manifest
+     *  and persists the SVM. The asynchronous version uses the object on the
+     *  emulator thread: it must stay alive, and untouched, until the
+     *  WORKSPACE_SAVED message has arrived.
+     *
+     *  @throw Error if the SVM file cannot be read or written, or if its content
+     *  is invalid (synchronous versions).
+     */
+    void loadWorkspace(retro::vault::SVMFile &svm);
+    /// Saves the workspace into an SVM that is already open.
+    void saveWorkspace(retro::vault::SVMFile &svm) const;
+    /// Asynchronous version of saveWorkspace(): queues the request and returns at once.
+    void saveWorkspaceAsync(retro::vault::SVMFile &svm) const;
+
     /** @brief  Takes a snapshot
+     *
+     *  @param  compressor   The snapshot compression method
+     *  @param  delay              Optional delay in seconds
+     *  @param  repeat            if true, snapshots are taken continuously
      *
      *  @return A pointer to the created Snapshot object.
      *
      *  @note   The function transfers the ownership to the caller. It is
      *          his responsibility of the caller to free the object.
      */
-    class MediaFile *takeSnapshot();
+    std::unique_ptr<Snapshot> takeSnapshot(utl::Compressor compressor, isize delay = 0, bool repeat = false);
 
-    /** @brief  Loads a snapshot into the emulator.
+    /** @brief  Loads a snapshot.
      *
-     *  @param  snapshot    Reference to a snapshot.
+     *  @param  snapshot    Reference to a snapshot
      */
-    void loadSnapshot(const MediaFile &snapshot);
-    void loadSnapshot(const fs::path &path);
-    
+    void loadSnapshot(const Snapshot &snapshot);
+
+    /** @brief  Loads a snapshot
+     *
+     *  @param  path    Source path
+     *
+     *  @throw Error if the file cannot be read or does not contain valid data.
+     */
+    void loadSnapshot(const std::filesystem::path &path);
+    /** @brief  Asynchronous version of loadSnapshot(): queues the request and returns at once.
+     *
+     *  Success and failure are both reported by the usual message
+     *  (SNAPSHOT_RESTORED). If the request failed, the message carries the exception.
+     */
+    void loadSnapshotAsync(const std::filesystem::path &path);
+
     /** @brief  Saves a snapshot to disk.
      *
-     *  @param  path    Destination path
+     *  @param  path        Destination path
+     *  @param  compressor  Compression method
+     *
+     *  @throw Error if the file cannot be written.
      */
-    void saveSnapshot(const fs::path &path) const;
-    
-    /** @brief  Experimental
+    void saveSnapshot(const std::filesystem::path &path, utl::Compressor compressor) const;
+
+    /** @brief  Saves a snapshot to disk asynchronously.
+     *
+     *  The request is handed to the emulator thread, which carries it out
+     *  when it processes its command queue. The function returns immediately.
+     *  The GUI is informed by a SNAPSHOT_SAVED message.
+     *
+     *  @param  path        Destination path
+     *  @param  compressor  Compression method
      */
-    void loadWorkspace(const fs::path &path);
-    void saveWorkspace(const fs::path &path) const;
-    
+    void saveSnapshotAsync(const std::filesystem::path &path, utl::Compressor compressor) const;
+
+    /** @brief  Saves a snapshot, including a screenshot, into an SVM
+     *
+     *  Works on an SVM that is already open: the snapshot is added to its
+     *  manifest, and the SVM is persisted. The asynchronous version uses the
+     *  object on the emulator thread: it must stay alive, and untouched,
+     *  until the SNAPSHOT_SAVED message has arrived.
+     *
+     *  @throw Error if the SVM file cannot be read or written, or if its content
+     *  is invalid (synchronous versions).
+     */
+    void saveSnapshot(retro::vault::SVMFile &svm, utl::Compressor compressor) const;
+    /// Asynchronous version of saveSnapshot(): queues the request and returns at once.
+    void saveSnapshotAsync(retro::vault::SVMFile &svm, utl::Compressor compressor) const;
+
+    /** @brief  Hibernates the machine into a virtual machine bundle
+     *
+     *  Saves the workspace (if workspace is true) and a snapshot including a
+     *  screenshot (if snapshot is true) into the SVM, and updates its
+     *  manifest. The GUI is told with a WORKSPACE_SAVED and a SNAPSHOT_SAVED
+     *  message as soon as the respective part is done.
+     *
+     *  @param  path        Path of the SVM
+     *  @param  snapshot    Save a snapshot
+     *  @param  workspace   Save the workspace
+     */
+    void hibernate(const std::filesystem::path &path, bool snapshot, bool workspace) const;
+
+    /** @brief  Hibernates the machine asynchronously.
+     *
+     *  The request is handed to the emulator thread, which carries it out
+     *  when it processes its command queue. The function returns immediately.
+     *  The GUI is informed by a HIBERNATED message at the end, which carries
+     *  the exception if the operation failed.
+     */
+    void hibernateAsync(const std::filesystem::path &path, bool snapshot, bool workspace) const;
+
+    /** @brief  Hibernates the machine into an SVM that is already open
+     *
+     *  Works like the versions that take a path, but updates and persists the
+     *  given object. The asynchronous version uses it on the emulator thread:
+     *  it must stay alive, and untouched, until the HIBERNATED message has
+     *  arrived.
+     *
+     *  @throw Error if the SVM file cannot be read or written, or if its content
+     *  is invalid (synchronous versions).
+     */
+    void hibernate(retro::vault::SVMFile &svm, bool snapshot, bool workspace) const;
+    /// Asynchronous version of hibernate(): queues the request and returns at once.
+    void hibernateAsync(retro::vault::SVMFile &svm, bool snapshot, bool workspace) const;
+
     
     /// @}
     /// @name Auto-inspecting components
@@ -110,16 +340,23 @@ class Amiga *amiga = nullptr;
 
     /** @brief  Sets the current auto-inspection mask
      *
-     *  @example The following call enables auto-inspections for the CIA chips
-     *  and Paula: setAutoInspectionMask(1 << COMP_CIA | 1 << COMP_PAULA);
+     *  Each bit selects one component class (the bit position is the numeric
+     *  value of the Class entry). A component's getCachedInfo() and
+     *  getCachedMetrics() only return up-to-date snapshots while its class is
+     *  selected.
+     *
+     *  Example: The following call enables auto-inspections for the CIA chips
+     *  and Paula:
+     *  setAutoInspectionMask(1LL << long(Class::CIA) | 1LL << long(Class::Paula));
      *
      *  @param  mask A bit mask indicating the components under inspection
      */
     void setAutoInspectionMask(u64 mask);
+
+    /// Asynchronous version of setAutoInspectionMask(): queues the request and returns at once.
+    void setAutoInspectionMaskAsync(u64 mask);
     
     /// @}
-    
-    bool getMsg(Message &msg);
 };
 
 
@@ -127,26 +364,38 @@ class Amiga *amiga = nullptr;
 // Agnus
 //
 
-class DmaDebuggerAPI : public API {
+/// API of the X-Ray visualizer.
+class XRayAPI : public API {
 
     friend class VAmiga;
-    class DmaDebugger *dmaDebugger = nullptr;
+    
+    class XRay *xray = nullptr;
 
 public:
     
     /** @brief  Returns the component's current configuration.
      */
-    const DmaDebuggerConfig &getConfig() const;
+    const XRayConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
-    const DmaDebuggerInfo &getInfo() const;
-    const DmaDebuggerInfo &getCachedInfo() const;
+    const XRayInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
+    const XRayInfo &getCachedInfo() const;
 };
 
+/// API of the logic analyzer.
 class LogicAnalyzerAPI : public API {
 
     friend class VAmiga;
+    
     class LogicAnalyzer *logicAnalyzer = nullptr;
 
 public:
@@ -156,14 +405,33 @@ public:
     const LogicAnalyzerConfig &getConfig() const;
     
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const LogicAnalyzerInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const LogicAnalyzerInfo &getCachedInfo() const;
+
+    /** @brief  Returns the number of samples held in the signal trace.
+     */
+    isize getTraceCount() const;
+
+    /** @brief  Returns a sample from the signal trace.
+     *  @param  nr  Sample number (0 = most recent sample).
+     */
+    LogicAnalyzerSample getTraceSample(isize nr) const;
 };
 
+/// API of the Blitter.
 class BlitterAPI : public API {
 
     friend class VAmiga;
+    
     class Blitter *blitter = nullptr;
 
 public:
@@ -173,21 +441,188 @@ public:
     const BlitterConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const BlitterInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const BlitterInfo &getCachedInfo() const;
 };
 
+//
+// Guards (breakpoints, watchpoints, ...)
+//
+
+/** Guards API
+ *
+ *  Gives access to one list of guards (breakpoints, watchpoints, catchpoints, or beamtraps). The functions that modify the
+ *  list come in two flavors, following the usual scheme of the API:
+ *
+ *  - The plain functions (e.g., setAt()) return when the emulator thread has
+ *    carried out the request. A failure throws the corresponding exception
+ *    (e.g., if a guard to remove does not exist). They throw
+ *    CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot carry
+ *    out the request, because it has not been launched yet, is halted or
+ *    suspended, or if they are called from the emulator thread itself.
+ *  - The functions with the Async suffix (e.g., setAtAsync()) queue the
+ *    request and return at once. A failure is not reported to the caller.
+ *    The change shows up in the query functions only after the emulator
+ *    thread has carried it out (see sync()).
+ */
+class GuardsAPI : public API {
+
+    friend class VAmiga;
+    
+    // The guard list this API operates on
+    GuardType type = GuardType::BREAKPOINT;
+
+    class GuardList *guards = nullptr;
+
+public:
+
+    /** @brief  Returns the number of guards in the guard list.
+     */
+    isize elements() const;
+
+    /** @brief  Returns information about a guard.
+     *  @param  nr      Number of the guard in the guard list
+     *  @return A copy of the guard's state, or nothing if it does not exist.
+     */
+    std::optional<GuardInfo> guardNr(isize nr) const;
+
+    /** @brief  Returns information about a guard.
+     *  @param  target  The target of the guard to query
+     *  @return A copy of the guard's state, or nothing if the target is not guarded.
+     */
+    std::optional<GuardInfo> guardAt(u32 target) const;
+
+    /** @brief  Sets a guard.
+     *  @param  target  The observed target. For breakpoints and watchpoints, the target is a memory address. For catchpoints, the target is a vector number (interrupts or traps).
+     *  @param  ignores If a value greater zero is given, the guard has to be hit the specified number of times until program execution is paused.
+     */
+    void setAt(u32 target, isize ignores = 0);
+
+    /// Asynchronous version of setAt(): queues the request and returns at once.
+    void setAtAsync(u32 target, isize ignores = 0);
+
+    /** @brief  Relocates a guard.
+     *  @param  nr      Number of the guard in the guard list
+     *  @param  target  New target
+     */
+    void moveTo(isize nr, u32 target);
+
+    /// Asynchronous version of moveTo(): queues the request and returns at once.
+    void moveToAsync(isize nr, u32 target);
+
+    /** @brief  Deletes a guard.
+     *  @param  nr      Number of the guard in the guard list
+     */
+    void remove(isize nr);
+
+    /// Asynchronous version of remove(): queues the request and returns at once.
+    void removeAsync(isize nr);
+
+    /** @brief  Deletes a guard.
+     *  @param  target  The target of the guard to be deleted.
+     */
+    void removeAt(u32 target);
+
+    /// Asynchronous version of removeAt(): queues the request and returns at once.
+    void removeAtAsync(u32 target);
+
+    /** @brief  Deletes all guards.
+     */
+    void removeAll();
+
+    /// Asynchronous version of removeAll(): queues the request and returns at once.
+    void removeAllAsync();
+
+    /** @brief  Enables a guard.
+     *  @param  nr      Number of the guard in the guard list
+     */
+    void enable(isize nr);
+
+    /// Asynchronous version of enable(): queues the request and returns at once.
+    void enableAsync(isize nr);
+
+    /** @brief  Enables a guard.
+     *  @param  target  The target of the guard to be enabled
+     */
+    void enableAt(u32 target);
+
+    /// Asynchronous version of enableAt(): queues the request and returns at once.
+    void enableAtAsync(u32 target);
+
+    /** @brief  Enables all guards.
+     */
+    void enableAll();
+
+    /// Asynchronous version of enableAll(): queues the request and returns at once.
+    void enableAllAsync();
+
+    /** @brief  Disables a guard.
+     *  @param  nr      Number of the guard in the guard list
+     */
+    void disable(isize nr);
+
+    /// Asynchronous version of disable(): queues the request and returns at once.
+    void disableAsync(isize nr);
+
+    /** @brief  Disables a guard.
+     *  @param  target  The target of the guard to be disabled
+     */
+    void disableAt(u32 target);
+
+    /// Asynchronous version of disableAt(): queues the request and returns at once.
+    void disableAtAsync(u32 target);
+
+    /** @brief  Disables all guards.
+     */
+    void disableAll();
+
+    /// Asynchronous version of disableAll(): queues the request and returns at once.
+    void disableAllAsync();
+
+    /** @brief  Enables a disabled guard and disables an enabled one.
+     *  @param  nr      Number of the guard in the guard list
+     */
+    void toggle(isize nr);
+
+    /// Asynchronous version of toggle(): queues the request and returns at once.
+    void toggleAsync(isize nr);
+
+};
+
+/// API of the Copper.
 class CopperAPI : public API {
 
     friend class VAmiga;
+    
     class Copper *copper = nullptr;
 
 public:
 
+    /// The Copper breakpoints
+    GuardsAPI breakpoints;
+    /// The Copper watchpoints
+    GuardsAPI watchpoints;
+
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const CopperInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const CopperInfo &getCachedInfo() const;
 
     /** @brief  Disassembles a Copper instruction.
@@ -215,31 +650,55 @@ public:
     bool isIllegalInstr(u32 addr) const;
 };
 
+/// API of the Agnus chip.
 class AgnusAPI : public API {
 
     friend class VAmiga;
-    public:
-
+    
     class Agnus *agnus = nullptr;
 
+public:
     
+    /// The Copper coprocessor
     CopperAPI copper;
+    /// The Blitter
     BlitterAPI blitter;
-    DmaDebuggerAPI dmaDebugger;
+    /// X-Ray (debug visualization of the bus activity)
+    XRayAPI xray;
+    /// Logic analyzer
     LogicAnalyzerAPI logicAnalyzer;
+    /// Beam traps (halt the emulator at a specific beam position)
+    GuardsAPI beamtraps;
     
     /** @brief  Returns the component's current configuration.
      */
     const AgnusConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const AgnusInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const AgnusInfo &getCachedInfo() const;
 
     /** @brief  Returns statistical information about the components.
+     *
+     *  getMetrics() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedMetrics()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
-    const AgnusStats &getStats() const;
+    const AgnusMetrics &getMetrics() const;
+    /// Returns the most recent metrics snapshot recorded by the emulator thread (see getMetrics()).
+    const AgnusMetrics &getCachedMetrics() const;
 
     /** @brief  Provides details about the currently selected chip revision.
      */
@@ -251,9 +710,11 @@ class AgnusAPI : public API {
 // CIA
 //
 
+/// API of a CIA chip.
 class CIAAPI : public API {
 
     friend class VAmiga;
+    
     class CIA *cia = nullptr;
 
 public:
@@ -263,13 +724,23 @@ public:
     const CIAConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const CIAInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const CIAInfo &getCachedInfo() const;
 
     /** @brief  Returns statistical information about the components.
      */
-    CIAStats getStats() const;
+    const CIAMetrics &getMetrics() const;
+    /// Returns the most recent metrics snapshot recorded by the emulator thread (see getMetrics()).
+    const CIAMetrics &getCachedMetrics() const;
 };
 
 
@@ -279,91 +750,11 @@ public:
 
 namespace moira { class Guards; class Debugger; }
 
-class GuardsAPI : public API {
-
-    friend class VAmiga;
-    class GuardList *guards = nullptr;
-
-public:
-    
-    /** @brief  Returns the number of guards in the guard list.
-     */
-    isize elements() const;
-
-    /** @brief  Returns information about a guard.
-     *  @param  nr      Number of the guard in the guard list
-     */
-    std::optional<GuardInfo> guardNr(long nr) const;
-
-    /** @brief  Returns information about a guard.
-     *  @param  target  The target of the guard to query
-     */
-    std::optional<GuardInfo> guardAt(u32 target) const;
-
-    /** @brief  Sets a guard.
-     *  @param  target  The observed target. For breakpoints and watchpoints,
-     *                  the target is a memory address. For catchpoints, the
-     *                  target is a vector number (interrupts or traps).
-     *  @param  ignores If a value greater zero is given, the guard has to
-     *                  to be hit the specified number of times until program
-     *                  execution is paused.
-     */
-    void setAt(u32 target, isize ignores = 0);
-
-    /** @brief  Relocates a guard.
-     *  @param  nr      Number of the guard in the guard list
-     *  @param  target  New target
-     */
-    void moveTo(isize nr, u32 target);
-
-    /** @brief  Deletes a guard.
-     *  @param  nr      Number of the guard in the guard list
-     */
-    void remove(isize nr);
-
-    /** @brief  Deletes a guard.
-     *  @param  target  The target of the guard to be deleted.
-     */
-    void removeAt(u32 target);
-
-    /** @brief  Deletes all guards.
-     */
-    void removeAll();
-
-    /** @brief  Enables a guard.
-     *  @param  nr      Number of the guard in the guard list
-     */
-    void enable(isize nr);
-
-    /** @brief  Enables a guard.
-     *  @param  target  The target of the guard to be deleted
-     */
-    void enableAt(u32 target);
-
-    /** @brief  Enables all guards.
-     */
-    void enableAll();
-
-    /** @brief  Disables a guard.
-     *  @param  nr      Number of the guard in the guard list
-     */
-    void disable(isize nr);
-
-    /** @brief  Disables a guard.
-     *  @param  target  The target of the guard to be deleted
-     */
-    void disableAt(u32 target);
-
-    /** @brief  Disables all guards.
-     */
-    void disableAll();
-    void toggle(isize nr);
-
-};
-
+/// API of the CPU debugger (disassembler and dumps).
 class CPUDebuggerAPI : public API {
 
     friend class VAmiga;
+    
     class CPU *cpu = nullptr;
 
 public:
@@ -380,60 +771,100 @@ public:
      */
     void clearLog();
 
-    /** @brief  Disassembles a recorded instruction from the log buffer
+    /** @brief  Disassembles an instruction.
+     *  @param  addr    Address of the instruction to disassemble
+     *  @param  fmt     String defining the output format. The directives are
+     *                  %p (address), %b (instruction words), %i (instruction),
+     *                  %f (status register flags), %Nd (data register DN) and
+     *                  %Na (address register AN, N = 0 ... 7). A number in
+     *                  front of %p, %b, %i, or %f pads the output with spaces
+     *                  to the given width. The register directives show the
+     *                  current register contents.
+     *  @param  len     If given, receives the length of the instruction in bytes.
+     *  @return The disassembled text.
+     *  @throw  CoreError (CoreError::OPT_INV_ARG) if the format string is invalid.
      */
-    const char *disassembleRecordedInstr(isize i, isize *len);
-    const char *disassembleRecordedWords(isize i, isize len);
-    const char *disassembleRecordedFlags(isize i);
-    const char *disassembleRecordedPC(isize i);
+    string disassemble(u32 addr, const string &fmt, isize *len = nullptr) const;
 
-    /** @brief  Disassembles the instruction at the specified address
+    /** @brief  Disassembles an instruction from the log buffer.
+     *  @param  nr      Index of the instruction in the record buffer
+     *  @param  fmt     String defining the output format (see disassemble()).
+     *                  The register directives show the register contents at
+     *                  the time the instruction was recorded.
+     *  @param  len     If given, receives the length of the instruction in bytes.
+     *  @return The disassembled text.
+     *  @throw  CoreError (CoreError::OPT_INV_ARG) if the format string is invalid.
      */
-    const char *disassembleWord(u16 value);
-    const char *disassembleAddr(u32 addr);
-    const char *disassembleInstr(u32 addr, isize *len);
-    const char *disassembleWords(u32 addr, isize len);
+    string disassembleRecorded(isize nr, const string &fmt, isize *len = nullptr) const;
 
-    string vectorName(isize i);
+    /** @brief  Returns the name of an exception vector
+     *  @param  i       Vector number (0 ... 255)
+     *  @return A readable name (e.g., "Bus error"), or "Reserved" or a
+     *          generic name for vectors without a fixed meaning.
+     */
+    string vectorName(isize i) const;
 };
 
+/// API of the CPU.
 class CPUAPI : public API {
 
     friend class VAmiga;
-    public:
-
+    
     class CPU *cpu = nullptr;
 
+public:
 
+    /// The CPU debugger
     CPUDebuggerAPI debugger;
+    /// The CPU breakpoints
     GuardsAPI breakpoints;
+    /// The CPU watchpoints
     GuardsAPI watchpoints;
+    /// The CPU catchpoints
+    GuardsAPI catchpoints;
 
     /** @brief  Returns the component's current configuration.
      */
     const CPUConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const CPUInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const CPUInfo &getCachedInfo() const;
 };
 
+/// API of the Denise chip.
 class DeniseAPI : public API {
 
     friend class VAmiga;
-    public:
-
+    
     class Denise *denise = nullptr;
 
+public:
     
     /** @brief  Returns the component's current configuration.
      */
     const DeniseConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const DeniseInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const DeniseInfo &getCachedInfo() const;
 };
 
@@ -442,9 +873,11 @@ class DeniseAPI : public API {
 // Memory
 //
 
+/// API of the memory debugger (dumps and searches).
 class MemoryDebuggerAPI : public API {
 
     friend class VAmiga;
+    
     class Memory *mem = nullptr;
 
 public:
@@ -453,31 +886,62 @@ public:
     /// @{
 
     /**  @brief  Returns the memory source for a given address
+     *  @throw  CoreError (CoreError::OPT_INV_ARG) if the accessor is invalid.
      */
-    MemSrc getMemSrc(Accessor acc, u32 addr) const;
+    MemSrc getMemSrc(Accessor src, u32 addr) const;
     
-    /** @brief  Reads a value from memory without causing side effects.
+    /** @brief  Returns the name of the custom chip register an address selects
+     *
+     *  The address is decoded whether or not it names a register, so this is
+     *  only meaningful for an address getMemSrc() reports as CUSTOM.
      */
-    u8 spypeek8(Accessor acc, u32 addr) const;
-    u16 spypeek16(Accessor acc, u32 addr) const;
+    const char *regName(u32 addr) const;
 
-    /** @brief  Returns a string representations for a portion of memory.
+    /** @brief  Reads a value from memory without causing side effects.
+     *  @throw  CoreError (CoreError::OPT_INV_ARG) if the accessor is invalid.
      */
-    string ascDump(Accessor acc, u32 addr, isize bytes) const;
-    string hexDump(Accessor acc, u32 addr, isize bytes, isize sz = 1) const;
-    string memDump(Accessor acc, u32 addr, isize bytes, isize sz = 1) const;
+    u8 spypeek8(Accessor src, u32 addr) const;
+    /// Reads a 16 bit value from memory without causing side effects (see spypeek8()).
+    u16 spypeek16(Accessor src, u32 addr) const;
+
+    /** @brief  Returns a string of characters for a portion of memory.
+     *
+     *  @param  src     The accessor used to read the bytes.
+     *  @param  addr    First address to dump.
+     *  @param  bytes   Number of bytes to dump.
+     *  @throw  CoreError (CoreError::OPT_INV_ARG) if the accessor is invalid.
+     */
+    string ascDump(Accessor src, u32 addr, isize bytes) const;
+
+    /** @brief  Returns a string of numbers for a portion of memory.
+     *
+     *  hexDump() shows the bytes as hexadecimal numbers, memDump() as
+     *  hexadecimal numbers followed by characters. Each group of 'sz' bytes
+     *  forms one number and is followed by a space.
+     *
+     *  @param  src     The accessor used to read the bytes.
+     *  @param  addr    First address to dump.
+     *  @param  bytes   Number of bytes to dump.
+     *  @param  sz      Group size in bytes (1, 2, or 4).
+     *  @throw  CoreError (CoreError::OPT_INV_ARG) if the accessor is invalid.
+     */
+    string hexDump(Accessor src, u32 addr, isize bytes, isize sz = 1) const;
+    /// Returns a memory dump that includes a text column (see hexDump()).
+    string memDump(Accessor src, u32 addr, isize bytes, isize sz = 1) const;
 
     /// @}
 };
 
+/// API of the memory.
 class MemoryAPI : public API {
 
     friend class VAmiga;
-    public:
-
+    
     class Memory *mem = nullptr;
 
+public:
     
+    /// The memory debugger
     MemoryDebuggerAPI debugger;
 
     /// @name Analying the component
@@ -488,19 +952,38 @@ class MemoryAPI : public API {
     const MemConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const MemInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const MemInfo &getCachedInfo() const;
 
     /** @brief  Returns statistical information about the components.
+     *
+     *  getMetrics() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedMetrics()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
-    const MemStats &getStats() const;
+    const MemMetrics &getMetrics() const;
+    /// Returns the most recent metrics snapshot recorded by the emulator thread (see getMetrics()).
+    const MemMetrics &getCachedMetrics() const;
 
     /** @brief  Provides details about the installed ROM, WOM, or ROM extension.
      */
-    const RomTraits &getRomTraits() const;
-    const RomTraits &getWomTraits() const;
-    const RomTraits &getExtTraits() const;
+    retro::vault::RomTraits getRomTraits() const;
+    /// Returns the traits of the installed WOM (see getRomTraits()).
+    retro::vault::RomTraits getWomTraits() const;
+    /// Returns the traits of the installed ROM extension (see getRomTraits()).
+    retro::vault::RomTraits getExtTraits() const;
 
     /// @}
     /// @name Handling ROMs
@@ -508,30 +991,45 @@ class MemoryAPI : public API {
 
     /** @brief  Loads a ROM from a file
      *          The ROM type is determined automatically.
+     *
+     *  @throw Error if the file cannot be read or does not contain valid data.
      */
-    void loadRom(const fs::path &path);
-    void loadExt(const fs::path &path);
-
-    /** @brief  Loads a ROM provided by a RomFile
+    void loadRom(const std::filesystem::path &path);
+    /// Loads a ROM extension from a file (see loadRom()).
+    void loadExt(const std::filesystem::path &path);
+    /** @brief  Asynchronous version of loadRom() and loadExt(): queues the request and returns at once.
+     *
+     *  Success and failure are both reported by a ROM_LOADED message. If the
+     *  request failed, the message carries the exception.
      */
-    void loadRom(MediaFile &file);
-    void loadExt(MediaFile &file);
+    void loadRomAsync(const std::filesystem::path &path);
+    /// Asynchronous version of loadExt(): queues the request and returns at once.
+    void loadExtAsync(const std::filesystem::path &path);
 
     /** @brief  Loads a ROM provided by a memory buffer
+     *
+     *  @throw Error if the data is not valid.
      */
     void loadRom(const u8 *buf, isize len);
+    /// Loads a ROM extension from a memory buffer (see loadRom()).
     void loadExt(const u8 *buf, isize len);
 
     /** @brief  Saves a Rom to disk
+     *
+     *  @throw Error if the file cannot be written.
      */
-    void saveRom(const fs::path &path);
-    void saveWom(const fs::path &path);
-    void saveExt(const fs::path &path);
+    void saveRom(const std::filesystem::path &path);
+    /// Saves the WOM to disk (see saveRom()).
+    void saveWom(const std::filesystem::path &path);
+    /// Saves the ROM extension to disk (see saveRom()).
+    void saveExt(const std::filesystem::path &path);
 
     /** @brief  Removes a ROM
      */
     void deleteRom();
+    /// Removes the WOM (see deleteRom()).
     void deleteWom();
+    /// Removes the ROM extension (see deleteRom()).
     void deleteExt();
 
     /// @}
@@ -541,25 +1039,38 @@ class MemoryAPI : public API {
 // Paula
 //
 
+/// API of an audio channel of Paula.
 class AudioChannelAPI : public API {
 
     friend class VAmiga;
-    class Paula *paula = nullptr;
     isize channel = 0;
+    
+    class Paula *paula = nullptr;
 
 public:
     
+    /// Creates the API object for the given audio channel (0 ... 3).
     AudioChannelAPI(isize channel) : API(), channel(channel) { }
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const StateMachineInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const StateMachineInfo &getCachedInfo() const;
 };
 
+/// API of the disk controller.
 class DiskControllerAPI : public API {
 
     friend class VAmiga;
+    
     class DiskController *diskController = nullptr;
 
 public:
@@ -569,36 +1080,62 @@ public:
     const DiskControllerConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const DiskControllerInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const DiskControllerInfo &getCachedInfo() const;
 };
 
+/// API of the UART.
 class UARTAPI : public API {
 
     friend class VAmiga;
+    
     class UART *uart = nullptr;
 
 public:
     
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const UARTInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const UARTInfo &getCachedInfo() const;
 };
 
+/// API of the Paula chip.
 class PaulaAPI : public API {
 
     friend class VAmiga;
+    
     class Paula *paula = nullptr;
 
 public:
     
+    /// Audio channel 0
     AudioChannelAPI audioChannel0 = AudioChannelAPI(0);
+    /// Audio channel 1
     AudioChannelAPI audioChannel1 = AudioChannelAPI(1);
+    /// Audio channel 2
     AudioChannelAPI audioChannel2 = AudioChannelAPI(2);
+    /// Audio channel 3
     AudioChannelAPI audioChannel3 = AudioChannelAPI(3);
+    /// The disk controller
     DiskControllerAPI diskController;
+    /// The UART
     UARTAPI uart;
 
     /** @brief  Returns the component's current configuration.
@@ -606,14 +1143,24 @@ public:
     // const PaulaConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const PaulaInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const PaulaInfo &getCachedInfo() const;
 };
 
+/// API of the real-time clock.
 class RTCAPI : public API {
 
     friend class VAmiga;
+    
     class RTC *rtc = nullptr;
 
 public:
@@ -638,27 +1185,31 @@ public:
 // Peripherals (FloppyDrive)
 //
 
+/// API of a floppy drive.
 class FloppyDriveAPI : public API {
 
     friend class VAmiga;
-
-    public:
+    
     class FloppyDrive *drive = nullptr;
 
+public:
     
     /** @brief  Returns the component's current configuration.
      */
     const FloppyDriveConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const FloppyDriveInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const FloppyDriveInfo &getCachedInfo() const;
-
-    /** @brief  Getter for the raw disk object
-     *  @return A pointer to the disk object or nullptr if no disk is present.
-     */
-    class FloppyDisk &getDisk() const;
 
     /** @brief Queries a disk flag
      */
@@ -678,27 +1229,69 @@ class FloppyDriveAPI : public API {
      *  @param  id  Boot block identifier
      *  @param  name  Name of the disk
      *  @param  path Optional folder to import
+     *
+     *  @throw Error if the file cannot be read or does not contain valid data.
      */
-    void insertBlankDisk(FSFormat fstype, BootBlockId id, string name, const std::filesystem::path &path = {});
+    void insertBlankDisk(retro::vault::amiga::FSFormat fstype, retro::vault::amiga::BootBlockId id,
+                         string name, const std::filesystem::path &path = {});
+    /** @brief  Asynchronous version of insertBlankDisk(): queues the request and returns at once.
+     *
+     *  Success and failure are both reported by the usual message
+     *  (DISK_INSERT). If the request failed, the message carries the exception.
+     */
+    void insertBlankDiskAsync(retro::vault::amiga::FSFormat fstype, retro::vault::amiga::BootBlockId id,
+                              string name, const std::filesystem::path &path = {});
 
-    /** @brief  Inserts a disk created from a media file.
-     *  @param  file    A media file wrapper object.
+    /** @brief  Inserts a disk created from an image file.
+     *  @param  path   Path to the disk image.
      *  @param  wp      Write-protection status of the disk.
+     *
+     *  @throw Error if the file cannot be read or does not contain valid data.
      */
-    void insertMedia(MediaFile &file, bool wp);
-    void insert(const fs::path &path, bool wp);
-    
-    /** @brief  Inserts a disk created from a file system.
-     *  @param  fs      A file system wrapper object.
+    void insert(const std::filesystem::path& path, bool wp);
+    /** @brief  Asynchronous version of insert(): queues the request and returns at once.
+     *
+     *  The file is read on the emulator thread. Success and failure are both
+     *  reported by the usual message (e.g., CRT_ATTACHED). If the request
+     *  failed, the message carries the exception.
+     */
+    void insertAsync(const std::filesystem::path& path, bool wp);
+
+    /** @brief  Inserts a disk created from an image stored in memory.
+     *  @param  buffer  Buffer holding the raw image data.
+     *  @param  fmt     Format of the supplied image data.
      *  @param  wp      Write-protection status of the disk.
+     *
+     *  @throw Error if the data is not valid.
      */
-    void insertFileSystem(const class MutableFileSystem &fs, bool wp);
+    void insert(std::span<const u8> buffer, retro::vault::ImageFormat fmt, bool wp);
 
     /** @brief  Ejects the current disk.
      */
     void ejectDisk();
 
-    MediaFile *exportDisk(FileType type);
+    /** @brief  Exports the current disk to a file.
+     *  @param  path   Path to the destination file.
+     */
+    void writeToFile(const std::filesystem::path& path);
+
+    /** @brief  Returns the file the disk lives in
+     *  @note   Always empty, since floppy disks always live in memory.
+     */
+    std::filesystem::path path() const;
+
+    /** @brief  Indicates whether the disk holds changes its file does not
+     *          have yet
+     *  @note   Always false for a floppy disk, which has no file. Whether the
+     *          disk has been modified since it was inserted is reported by
+     *          FloppyDriveInfo::hasModifiedDisk.
+     */
+    bool needsPersisting() const;
+
+    /** @brief  Writes all changes back to the file the disk lives in
+     *  @note   Does nothing for a floppy disk, which has no file.
+     */
+    void persist();
 
     /** @brief  Creates a textual bit representation of a track's data
      */
@@ -710,9 +1303,11 @@ class FloppyDriveAPI : public API {
 // Peripherals (HardDrive)
 //
 
+/// API of a hard drive controller.
 class HdControllerAPI : public API {
 
     friend class VAmiga;
+    
     class HdController *controller = nullptr;
 
 public:
@@ -722,23 +1317,42 @@ public:
     // const HdcTraits &getTraits() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const HdcInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const HdcInfo &getCachedInfo() const;
 
     /** @brief  Returns statistical information about the components.
+     *
+     *  getMetrics() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedMetrics()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
-    const HdcStats &getStats() const;
+    const HdcMetrics &getMetrics() const;
+    /// Returns the most recent metrics snapshot recorded by the emulator thread (see getMetrics()).
+    const HdcMetrics &getCachedMetrics() const;
 };
 
+/// API of a hard drive.
 class HardDriveAPI : public API {
 
     friend class VAmiga;
-
-public:
+    
     class HardDrive *drive = nullptr;
 
+public:
     
+    /// The hard drive controller (Zorro board)
     HdControllerAPI controller;
 
     /** @brief  Getter for the raw disk object
@@ -750,13 +1364,22 @@ public:
     const HardDriveConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const HardDriveInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const HardDriveInfo &getCachedInfo() const;
 
     /** @brief  Provides details about the hard drive and its partitions
      */
     const HardDriveTraits &getTraits() const;
+    /// Returns the traits of a partition (see getTraits()).
     const PartitionTraits &getPartitionTraits(isize nr) const;
 
     /** @brief Queries a disk flag
@@ -783,17 +1406,65 @@ public:
 
     /** @brief  Formats the hard drive
      */
-    void format(FSFormat fs, const string &name);
-    
+    void format(retro::vault::amiga::FSFormat fs, const string &name);
+
     /** @brief  Attaches a hard drive provided by an URL to a media file.
      *  @param  path    Path to the media file.
+     *  @note   The disk stays on top of the file (see loadIntoMemory()).
+     *
+     *  @throw Error if the file cannot be read or does not contain valid data.
      */
-    void attach(const fs::path &path);
+    void attach(const std::filesystem::path &path);
 
-    /** @brief  Attaches a hard drive provided by a media file.
-     *  @param  file    A media file wrapper object.
+    /** @brief  Attaches a hard drive provided by a media file and makes it
+     *          part of the workspace of an SVM.
+     *
+     *  The file is copied into the workspace folder of the SVM, under the name
+     *  of the drive (hd0.hdf for drive 0, and so on), and the drive is attached
+     *  to the copy. A compressed file (.hdz) is uncompressed on the way. A
+     *  folder is imported as it is.
+     *
+     *  @param  path    Path to the media file.
+     *  @param  svm     The SVM whose workspace takes the file
+     *  @note   Saving the workspace afterwards makes the drive part of its
+     *          configuration.
+     *
+     *  @throw Error if the SVM file cannot be read or written, or if its content
+     *  is invalid (synchronous versions).
      */
-    void attach(const MediaFile &file);
+    void attach(const std::filesystem::path &path, retro::vault::SVMFile &svm);
+
+    /** @brief  Attaches a hard drive asynchronously and makes it part of the
+     *          workspace of an SVM (see the version of attach() above).
+     *
+     *  The request is handed to the emulator thread, which carries it out
+     *  when it processes its command queue. The function returns immediately.
+     *  The GUI is informed by an HDR_ATTACH message, which carries the number
+     *  of the drive and, if the operation failed, the exception. The SVM is
+     *  used on the emulator thread: it must stay alive, and untouched, until
+     *  the message has arrived.
+     *
+     *  @param  path    Path to the media file.
+     *  @param  svm     The SVM whose workspace takes the file
+     */
+    void attachAsync(const std::filesystem::path &path, retro::vault::SVMFile &svm);
+
+    /** @brief  Creates a new hard drive in the workspace of an SVM
+     *
+     *  An empty image of the given size is created as hdN.hdf, attached, and
+     *  formatted. This is quick, even for a large drive. Use importFolder()
+     *  to fill it.
+     *
+     *  @param  svm         The SVM whose workspace takes the image
+     *  @param  megabytes   Size of the drive
+     *  @param  fs          File system to install (NODOS leaves the drive blank)
+     *  @param  name        Name of the volume
+     *
+     *  @throw Error if the SVM file cannot be read or written, or if its content
+     *  is invalid (synchronous versions).
+     */
+    void create(retro::vault::SVMFile &svm, isize megabytes, retro::vault::amiga::FSFormat fs,
+                const string &name);
 
     /** @brief  Attaches a hard drive with a particular geometry.
      *  @param  c       Number of cylinders
@@ -803,18 +1474,62 @@ public:
      */
     void attach(isize c, isize h, isize s, isize b = 512);
 
+    /** @brief  Takes the disk out of the drive.
+     *  @note   The counterpart of attach(). The drive is left as it was
+     *          before anything was attached.
+     */
+    void detach();
+
     /** @brief  Imports files from a folder
      *  @note   All existing files are deleted prior to importing the folder.
+     *
+     *  @throw Error if the file cannot be read or does not contain valid data.
      */
-    void importFiles(const fs::path &path);
-    
+    void importFolder(const std::filesystem::path &path);
+
+    /** @brief  Imports files from a folder asynchronously
+     *
+     *  The request is handed to the emulator thread, which carries it out
+     *  when it processes its command queue. The function returns immediately.
+     *  The GUI is informed by an HDR_IMPORTED message, which carries the
+     *  number of the drive and, if the operation failed, the exception. When
+     *  it succeeds, the changes have been written to the image file.
+     */
+    void importFolderAsync(const std::filesystem::path &path);
+
+    /** @brief  Returns the file the disk lives in
+     *  @note   The path is empty for a drive that was built in memory.
+     */
+    std::filesystem::path path() const;
+
+    /** @brief  Loads the disk into memory and lets go of its image file
+     *  @note   A disk in memory becomes part of every snapshot, so the call
+     *          throws for a drive larger than Opt::HDR_MEM_LIMIT allows. A
+     *          drive that is in memory already is left alone.
+     */
+    void loadIntoMemory();
+
+    /** @brief  Writes the disk to a file and continues on top of it
+     *  @param  path    Path of the file to create
+     *  @note   Unlike writeToFile(), which exports a copy and leaves the
+     *          drive where it is. A compressed file name (.hdz) is refused,
+     *          because the drive cannot live in a compressed file; use
+     *          writeToFile() to export one.
+     *
+     *  @throw Error if the file cannot be written.
+     */
+    void saveAs(const std::filesystem::path &path);
+
+    /** @brief  Writes all changes back to the file the disk lives in
+     *  @note   Only what has changed is written. For a drive that was built
+     *          in memory, the call has no effect. Opt::HDR_WRITE_THROUGH
+     *          performs this call on its own (see WriteThroughMode).
+     */
+    void persist();
+
     /** @brief  Exports the hard drive to an HDF file on disk
      */
-    void writeToFile(const fs::path &path);
-
-    /** @brief  Converts the hard drive to an HDF media file
-     */
-    MediaFile *createHDF();
+    void writeToFile(const std::filesystem::path &path);
 };
 
 
@@ -822,9 +1537,11 @@ public:
 // Peripherals (Joystick)
 //
 
+/// API of a joystick.
 class JoystickAPI : public API {
 
     friend class VAmiga;
+    
     class Joystick *joystick = nullptr;
 
 public:
@@ -834,13 +1551,33 @@ public:
     const JoystickConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const JoystickInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const JoystickInfo &getCachedInfo() const;
 
     /** @brief  Triggers a joystick action.
      */
     void trigger(GamePadAction event);
+
+    /** @brief  Sets the complete joystick state.
+     *
+     *  The states are ordered up, down, left, right, fire. The directions are
+     *  applied as given, which is harmless to repeat. The fire button is only
+     *  forwarded if it differs in 'previous', because pressing it again would
+     *  toggle autofire. Pass the state that was reported by the previous call.
+     *
+     *  @param  state       The new states of up, down, left, right, and fire.
+     *  @param  previous    The previous states.
+     */
+    void trigger(const std::array<bool, 5> &state, const std::array<bool, 5> &previous);
 };
 
 
@@ -848,21 +1585,30 @@ public:
 // Peripherals (Keyboard)
 //
 
+/// API of the keyboard.
 class KeyboardAPI : public API {
 
     friend class VAmiga;
-
-    public:
+    
     class Keyboard *keyboard = nullptr;
 
+public:
     
     /** @brief  Returns the component's current configuration.
      */
     const KeyboardConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const KeyboardInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const KeyboardInfo &getCachedInfo() const;
 
     /** @brief  Checks if a key is currently pressed.
@@ -891,8 +1637,27 @@ class KeyboardAPI : public API {
     void release(KeyCode key, double delay = 0.0);
 
     /** @brief  Releases all currently pressed keys
+     *  @param  delay   An optional delay in seconds.
      */
-    void releaseAll();
+    void releaseAll(double delay = 0.0);
+
+    /** @brief  Checks if a key is currently locked.
+     *  @param  key     The key to check.
+     */
+    bool isLocked(KeyCode key) const;
+
+    /** @brief  Locks a key. A locked key stays down until it is unlocked,
+     *          even if release() is called on it.
+     *  @param  key     The key to lock.
+     *  @param  delay   An optional delay in seconds until the key is locked.
+     */
+    void lock(KeyCode key, double delay = 0.0);
+
+    /** @brief  Unlocks a previously locked key.
+     *  @param  key     The key to unlock.
+     *  @param  delay   An optional delay in seconds until the key is unlocked.
+     */
+    void unlock(KeyCode key, double delay = 0.0);
 
     /** @brief  Deletes all pending keyboard events
      */
@@ -904,9 +1669,11 @@ class KeyboardAPI : public API {
 // Peripherals (Mouse)
 //
 
+/// API of a mouse.
 class MouseAPI : public API {
 
     friend class VAmiga;
+    
     class Mouse *mouse = nullptr;
 
 public:
@@ -915,10 +1682,22 @@ public:
      */
     const MouseConfig &getConfig() const;
 
-    /** @brief  Returns the component's current state.
+    /** Moves the mouse
+     *  @param x    New absolute horizontal coordinate
+     *  @param y    New absolute vertical coordinate
      */
-    // const MouseInfo &getInfo() const;
-    // const MouseInfo &getCachedInfo() const;
+    void setXY(double x, double y);
+
+    /** Moves the mouse
+     *  @param dx       Relative horizontal mouse movement
+     *  @param dy       Relative vertical mouse movement
+     */
+    void setDxDy(double dx, double dy);
+
+    /** Triggers a mouse button event
+     *  @param action   The triggered event
+     */
+    void trigger(GamePadAction action);
 
     /** Feeds a coordinate into the shake detector.
      *
@@ -943,23 +1722,6 @@ public:
      *  @return     true iff a shaking mouse has been detected.
      */
     bool detectShakeDxDy(double dx, double dy);
-
-    /** Moves the mouse
-     *  @param x    New absolute horizontal coordinate
-     *  @param y    New absolute vertical coordinate
-     */
-    void setXY(double x, double y);
-
-    /** Moves the mouse
-     *  @param dx       Relative horizontal mouse movement
-     *  @param dy       Relative vertical mouse movement
-     */
-    void setDxDy(double dx, double dy);
-
-    /** Triggers a mouse button event
-     *  @param action   The triggered event
-     */
-    void trigger(GamePadAction action);
 };
 
 
@@ -972,26 +1734,45 @@ public:
 // Ports (AudioPort)
 //
 
+/// API of the audio port.
 class AudioPortAPI : public API {
 
     friend class VAmiga;
-    public:
+    
     class AudioPort *port = nullptr;
+
+public:
     
     /** @brief  Returns the component's current configuration.
      */
     const AudioPortConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const AudioPortInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const AudioPortInfo &getCachedInfo() const;
 
     /** @brief  Returns statistical information about the components.
+     *
+     *  getMetrics() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedMetrics()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
-    const AudioPortStats &getStats() const;
+    const AudioPortMetrics &getMetrics() const;
+    /// Returns the most recent metrics snapshot recorded by the emulator thread (see getMetrics()).
+    const AudioPortMetrics &getCachedMetrics() const;
 
-    /// @}
     /// @name Retrieving audio data
     /// @{
 
@@ -1028,13 +1809,26 @@ class AudioPortAPI : public API {
     /// @name Visualizing waveforms
     /// @{
 
-    /** @brief  Draws a visual representation of the waveform.
-     *  The Mac app uses this function to visualize the contents of the
-     *  audio buffer in one of it's inspector panels. */
-    void drawL(u32 *buffer, isize width, isize height, u32 color) const;
-    void drawR(u32 *buffer, isize width, isize height, u32 color) const;
+    /** @brief  Draws the waveform of the left or the right audio channel.
+     *
+     *  The waveform is plotted into a texture buffer. The functions return the
+     *  highest amplitude found in the audio buffer. To implement auto-scaling,
+     *  pass the returned value as parameter 'maxAmp' in the next call. The
+     *  Mac app uses these functions to visualize the contents of the audio
+     *  buffer in one of its inspector panels.
+     *
+     *  @param  buffer  Texture buffer of size width * height
+     *  @param  width   Width of the texture in pixels
+     *  @param  height  Height of the texture in pixels
+     *  @param  maxAmp  Amplitude that is mapped to the full height
+     *  @param  color   Color of the waveform
+     *  @return The highest amplitude that was found.
+     */
+    float drawL(u32 *buffer, isize width, isize height, float maxAmp, u32 color) const;
+    /// Draws the waveform of the right channel (see drawL()).
+    float drawR(u32 *buffer, isize width, isize height, float maxAmp, u32 color) const;
 
-    /// @}};
+    /// @}
 };
 
 
@@ -1042,19 +1836,31 @@ class AudioPortAPI : public API {
 // Ports (ControlPort)
 //
 
+/// API of a control port.
 class ControlPortAPI : public API {
 
     friend class VAmiga;
+    
     class ControlPort *controlPort = nullptr;
 
 public:
     
+    /// The joystick connected to the port
     JoystickAPI joystick;
+    /// The mouse connected to the port
     MouseAPI mouse;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const ControlPortInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const ControlPortInfo &getCachedInfo() const;
 };
 
@@ -1063,23 +1869,46 @@ public:
 // Ports (SerialPort)
 //
 
+/// API of the serial port.
 class SerialPortAPI : public API {
-    friend class VAmiga;
 
-    public:
+    friend class VAmiga;
+    
     class SerialPort *serialPort = nullptr;
 
+public:
+    
     /** @brief  Returns the component's current configuration.
      */
     const SerialPortConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const SerialPortInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const SerialPortInfo &getCachedInfo() const;
 
+    /** @brief  Reads a printable character from the serial port buffers
+     *
+     *  readIncomingPrintableByte() reads from the data the port has received,
+     *  readOutgoingPrintableByte() from the data it has sent. The byte is
+     *  removed from the buffer. Characters that are neither printable nor a
+     *  line feed are skipped.
+     *
+     *  @return The character, or -1 if the buffer is empty.
+     */
     int readIncomingPrintableByte() const;
+    /// Reads a character from the data the port has sent (see readIncomingPrintableByte()).
     int readOutgoingPrintableByte() const;
+    /// Reads and removes the next byte sent by the serial port, or returns -1.
+    int readOutgoingByte() const;
 };
 
 
@@ -1087,9 +1916,11 @@ class SerialPortAPI : public API {
 // Ports (VideoPort)
 //
 
+/// API of the video port.
 class VideoPortAPI : public API {
 
     friend class VAmiga;
+    
     class VideoPort *videoPort = nullptr;
 
 public:
@@ -1099,11 +1930,18 @@ public:
     const VideoPortConfig &getConfig() const;
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const VideoPortInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const VideoPortInfo &getCachedInfo() const;
 
-    /// @}
     /// @name Retrieving video data
     /// @{
 
@@ -1123,16 +1961,72 @@ public:
 
     /** @brief  Returns a pointer to the most recent stable texture
      *
-     * The texture dimensions are given by constants vamiga::Texture::width
-     * and vamiga::Texture::height texels. Each texel is represented by a
+     * The texture dimensions are given by constants vamiga::Tex::width
+     * and vamiga::Tex::height texels. Each texel is represented by a
      * 32 bit color value.
+     *
+     * The second version also returns the frame number (nr) and the
+     * long-frame flags of the frame and its predecessor (lof, prevlof), which
+     * are needed to weave the fields of an interlaced picture.
      */
     const u32 *getTexture() const;
+    /// Returns the most recent stable texture together with its frame number and long-frame flags.
     const u32 *getTexture(isize *nr, bool *lof, bool *prevlof) const;
 
-    /** @brief Experimental
+    /** @brief  Returns a pointer to the most recent stable X-Ray texture
+     *
+     * The texture dimensions are given by constants vamiga::Tex::width
+     * and vamiga::Tex::height texels. Each texel is represented by a
+     * 32 bit color value. The second version also returns the frame number
+     * (nr), which matches the number of the regular texture of the same frame.
+     */
+    const u32 *getXrayTexture() const;
+    /// Returns the most recent stable X-Ray texture together with its frame number.
+    const u32 *getXrayTexture(isize *nr) const;
+
+    /** @brief  Saves the most recent stable texture as a PNG file
+     *
+     * The cutout is given in texels of the texture (x: super-hires pixels,
+     * y: lines). The upper bounds x2 and y2 are exclusive. Without a cutout,
+     * the entire texture is saved.
+     *
+     *  @throw Error if the file cannot be written.
+     */
+    void saveTexture(const std::filesystem::path &path) const;
+    /// Saves a cutout of the most recent stable texture as a PNG file.
+    void saveTexture(const std::filesystem::path &path,
+                     isize x1, isize x2, isize y1, isize y2) const;
+
+    /** @brief  Saves the most recent stable X-Ray texture as a PNG file
+     *
+     *  @throw Error if the file cannot be written.
+     */
+    void saveXrayTexture(const std::filesystem::path &path) const;
+    /// Saves a cutout of the most recent stable X-Ray texture as a PNG file.
+    void saveXrayTexture(const std::filesystem::path &path,
+                         isize x1, isize x2, isize y1, isize y2) const;
+
+    /** @brief  Determines the area of the texture that contains picture data.
+     *
+     *  The function analyzes the current stable texture. It starts with a large
+     *  box and shrinks it from all four sides as long as the outermost row or
+     *  column only consists of pixels in the border color (the color of the
+     *  pixel in the upper left corner of the box). The result can be used to
+     *  crop the border of the picture. The emulator thread is suspended while
+     *  the texture is analyzed. If the texture contains no picture data, all
+     *  coordinates are 0.
+     *
+     *  findInnerArea() returns the coordinates in texture pixels,
+     *  findInnerAreaNormalized() returns them relative to the size of the
+     *  texture (0.0 ... 1.0).
+     *
+     *  @param  x1      Left edge of the picture area
+     *  @param  x2      Right edge of the picture area
+     *  @param  y1      Top edge of the picture area
+     *  @param  y2      Bottom edge of the picture area
      */
     void findInnerArea(isize &x1, isize &x2, isize &y1, isize &y2) const;
+    /// Determines the picture area relative to the texture size (see findInnerArea()).
     void findInnerAreaNormalized(double &x1, double &x2, double &y1, double &y2) const;
 };
 
@@ -1146,9 +2040,11 @@ public:
 // Misc (MsgQueue)
 //
 
+/// API of the message queue.
 class MsgQueueAPI : public API {
 
     friend class VAmiga;
+    
     class MsgQueue *msgQueue = nullptr;
 
 public:
@@ -1163,37 +2059,12 @@ public:
 
     /** @brief  Reads a message from the message queue
      */
-    bool getMsg(Message &msg);
-
-    /** @brief  Used by the WASM builds to pass additional data
-     */
-    string getPayload(isize index);
+    bool getMsg(Message &msg, std::exception_ptr &exception);
 
     /** @brief  Reads multiple messages from the message queue
      */
     // isize getMsg(isize count, Message *buffer);
 };
-
-//
-// Misc (Debugger)
-//
-
-class DebuggerAPI : public API {
-
-    friend class VAmiga;
-    class Debugger *debugger = nullptr;
-
-public:
-    
-    /** @brief  Returns a string representations for a portion of memory.
-     */
-    /*
-    string ascDump(Accessor acc, u32 addr, isize bytes) const;
-    string hexDump(Accessor acc, u32 addr, isize bytes, isize sz = 1) const;
-    string memDump(Accessor acc, u32 addr, isize bytes, isize sz = 1) const;
-     */
-};
-
 
 //
 // Misc (Defaults)
@@ -1227,10 +2098,12 @@ public:
 class DefaultsAPI : public API {
 
     friend class VAmiga;
-    public:
+    
     class Defaults *defaults = nullptr;
 
+public:
     
+    /// Creates an API object that operates on the given defaults storage.
     DefaultsAPI(Defaults *defaults) : defaults(defaults) { }
 
     ///
@@ -1238,31 +2111,35 @@ class DefaultsAPI : public API {
     /// @name Loading and saving the key-value storage
 
     /** @brief  Loads a storage file from disk
-     *  @throw  AppError (#Fault::FILE_NOT_FOUND)
-     *  @throw  AppError (#Fault::SYNTAX)
+     *  @throw  IOError (IOError::FILE_NOT_FOUND)
+     *  @throw  CoreError (CoreError::SYNTAX)
      */
-    void load(const fs::path &path);
+    void load(const std::filesystem::path &path);
 
     /** @brief  Loads a storage file from a stream
-     *  @throw  AppError (#Fault::SYNTAX)
+     *  @throw  CoreError (CoreError::SYNTAX)
      */
     void load(std::ifstream &stream);
 
     /** @brief  Loads a storage file from a string stream
-     *  @throw  AppError (#Fault::SYNTAX)
+     *  @throw  CoreError (CoreError::SYNTAX)
      */
     void load(std::stringstream &stream);
 
     /** @brief  Saves a storage file to disk
-     *  @throw  AppError (#Fault::FILE_CANT_WRITE)
+     *  @throw  IOError (IOError::FILE_CANT_WRITE)
      */
-    void save(const fs::path &path);
+    void save(const std::filesystem::path &path);
 
     /** @brief  Saves a storage file to stream
+     *
+     *  @throw Error if the file cannot be written.
      */
     void save(std::ofstream &stream);
 
     /** @brief  Saves a storage file to a string stream
+     *
+     *  @throw Error if the file cannot be written.
      */
     void save(std::stringstream &stream);
 
@@ -1274,46 +2151,46 @@ class DefaultsAPI : public API {
     /** @brief  Queries a key-value pair.
      *  @param  key     The key.
      *  @result The value as a string.
-     *  @throw  AppError (#ERROR\_INVALID\_KEY)
+     *  @throw  CoreError (CoreError::INVALID\_KEY)
      */
     string getRaw(const string &key) const;
 
     /** @brief  Queries a key-value pair.
      *  @param  key     The key.
      *  @result The value as an integer. 0 if the value cannot not be parsed.
-     *  @throw  AppError (#ERROR\_INVALID\_KEY)
+     *  @throw  CoreError (CoreError::INVALID\_KEY)
      */
     i64 get(const string &key) const;
 
     /** @brief  Queries a key-value pair.
-     *  @param  option  A config option whose name is used as the prefix of the key.
+     *  @param  opt     A config option whose name is used as the prefix of the key.
      *  @param  nr      Optional number that is appened to the key as suffix.
      *  @result The value as an integer.
-     *  @throw  AppError (#ERROR\_INVALID\_KEY)
+     *  @throw  CoreError (CoreError::INVALID\_KEY)
      */
-    i64 get(Opt option, isize nr = 0) const;
+    i64 get(Opt opt, isize nr = 0) const;
 
     /** @brief  Queries a fallback key-value pair.
      *  @param  key     The key.
      *  @result The value as a string.
-     *  @throw  AppError (#ERROR\_INVALID\_KEY)
+     *  @throw  CoreError (CoreError::INVALID\_KEY)
      */
     string getFallbackRaw(const string &key) const;
 
     /** @brief  Queries a fallback key-value pair.
      *  @param  key     The key.
      *  @result The value as an integer. 0 if the value cannot not be parsed.
-     *  @throw  AppError (#ERROR\_INVALID\_KEY)
+     *  @throw  CoreError (CoreError::INVALID\_KEY)
      */
     i64 getFallback(const string &key) const;
 
     /** @brief  Queries a fallback key-value pair.
-     *  @param  option  A config option whose name is used as the key.
+     *  @param  opt     A config option whose name is used as the key.
      *  @param  nr      Optional number that is appened to the key as suffix.
      *  @result The value as an integer.
-     *  @throw  AppError (#ERROR\_INVALID\_KEY)
+     *  @throw  CoreError (CoreError::INVALID\_KEY)
      */
-    i64 getFallback(Opt option, isize nr = 0) const;
+    i64 getFallback(Opt opt, isize nr = 0) const;
 
 
     /// @}
@@ -1323,14 +2200,14 @@ class DefaultsAPI : public API {
     /** @brief  Writes a key-value pair into the user storage.
      *  @param  key     The key, given as a string.
      *  @param  value   The value, given as a string.
-     *  @throw  AppError (#Fault::INVALID_KEY)
+     *  @throw  CoreError (CoreError::INVALID_KEY)
      */
     void set(const string &key, const string &value);
 
     /** @brief  Writes a key-value pair into the user storage.
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The value, given as a string.
-     *  @throw  AppError (#Fault::INVALID_KEY)
+     *  @throw  CoreError (CoreError::INVALID_KEY)
      */
     void set(Opt opt, const string &value);
 
@@ -1338,14 +2215,14 @@ class DefaultsAPI : public API {
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The value for all pairs, given as a string.
      *  @param  objids  The keys are parameterized by adding the vector values as suffixes.
-     *  @throw  AppError (#Fault::INVALID_KEY)
+     *  @throw  CoreError (CoreError::INVALID_KEY)
      */
     void set(Opt opt, const string &value, std::vector<isize> objids);
 
     /** @brief  Writes a key-value pair into the user storage.
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The value, given as an integer.
-     *  @throw  AppError (#Fault::INVALID_KEY)
+     *  @throw  CoreError (CoreError::INVALID_KEY)
      */
     void set(Opt opt, i64 value);
 
@@ -1353,7 +2230,7 @@ class DefaultsAPI : public API {
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The value for all pairs, given as an integer.
      *  @param  objids  The keys are parameterized by adding the vector values as suffixes.
-     *  @throw  AppError (#Fault::INVALID_KEY)
+     *  @throw  CoreError (CoreError::INVALID_KEY)
      */
     void set(Opt opt, i64 value, std::vector<isize> objids);
 
@@ -1366,7 +2243,7 @@ class DefaultsAPI : public API {
     /** @brief  Writes a key-value pair into the fallback storage.
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The value, given as an integer.
-     *  @throw  AppError (#Fault::INVALID_KEY)
+     *  @throw  CoreError (CoreError::INVALID_KEY)
      */
     void setFallback(Opt opt, const string &value);
 
@@ -1380,7 +2257,7 @@ class DefaultsAPI : public API {
     /** @brief  Writes a key-value pair into the fallback storage.
      *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  value   The value, given as an integer.
-     *  @throw  AppError (#Fault::INVALID_KEY)
+     *  @throw  CoreError (CoreError::INVALID_KEY)
      */
     void setFallback(Opt opt, i64 value);
 
@@ -1402,22 +2279,22 @@ class DefaultsAPI : public API {
 
     /** @brief  Deletes a key-value pair
      *  @param  key     The key of the key-value pair.
-     *  @throw  AppError (#Fault::INVALID_KEY)
+     *  @throw  CoreError (CoreError::INVALID_KEY)
      */
     void remove(const string &key);
 
     /** @brief  Deletes a key-value pair
-     *  @param  option  The option's name forms the key.
-     *  @throw  AppError (#Fault::INVALID_KEY)
+     *  @param  opt     The option's name forms the key.
+     *  @throw  CoreError (CoreError::INVALID_KEY)
      */
-    void remove(Opt option);
+    void remove(Opt opt);
 
     /** @brief  Deletes multiple key-value pairs.
-     *  @param  option  The option's name forms the prefix of the keys.
+     *  @param  opt     The option's name forms the prefix of the keys.
      *  @param  objids  The keys are parameterized by adding the vector values as suffixes.
-     *  @throw  AppError (#Fault::INVALID_KEY)
+     *  @throw  CoreError (CoreError::INVALID_KEY)
      */
-    void remove(Opt option, std::vector <isize> objids);
+    void remove(Opt opt, std::vector <isize> objids);
 
     /// @}
 };
@@ -1432,6 +2309,7 @@ class DefaultsAPI : public API {
 class RetroShellAPI : public API {
 
     friend class VAmiga;
+    
     class RetroShell *retroShell = nullptr;
 
 public:
@@ -1441,16 +2319,24 @@ public:
     ///
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const RetroShellInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const RetroShellInfo &getCachedInfo() const;
 
-    /** @brief  Returns a pointer to the text buffer.
+    /** @brief  Returns a copy of the text buffer.
      *  The text buffer contains the complete contents of the console. It
      *  will be expanded when new output is generated. When the buffer
      *  grows too large, old contents is cropped.
      */
-    const char *text();
+    string text() const;
 
     /// @}
     /// @name Typing characters and strings
@@ -1487,31 +2373,41 @@ public:
     /// @{
 
     /** @brief  Executes a script.
-     *  The script is executes asynchroneously. However, RetroShell will
+     *  The script is executed asynchronously. However, RetroShell will
      *  send messages back to the GUI thread to inform about the execution
-     *  state. After the last script command has been executed,
-     *  MSG\_SCRIPT\_DONE is sent. If shell execution has been aborted due
-     *  to an error, MSG\_SCRIPT\_ABORT is sent.
+     *  state. After the last pending command has been executed,
+     *  Msg::RSH_DONE is sent. If a command fails, the remaining commands are
+     *  dropped and Msg::RSH_ERROR is sent instead. A 'wait' command postpones
+     *  the rest of the script and sends Msg::RSH_WAIT.
+     *
+     *  @throw Error if the file cannot be opened.
      */
-    void execScript(std::stringstream &ss);
-    void execScript(const std::ifstream &fs);
-    void execScript(const string &contents);
-    void execScript(const MediaFile &file);
+    void execScriptAsync(const std::filesystem::path &path);
+    /// Executes a script provided by a string stream (see execScriptAsync()).
+    void execScriptAsync(std::stringstream &ss);
+    /// Executes a script provided by a file stream (see execScriptAsync()).
+    void execScriptAsync(const std::ifstream &fs);
+    /// Executes a script provided as a string (see execScriptAsync()).
+    void execScriptAsync(const string &contents);
 
+    
     /// @}
     /// @name Misc
     /// @{
 
     /** @brief  Installs a file system in the file system navigator
      */
+    /*
     void import(const FloppyDrive &dfn);
     void import(const HardDrive &hdn, isize part);
     void importDf(isize n);
     void importHd(isize n, isize part);
-    void import(const fs::path &path, bool recursive = true, bool contents = false);
-
+    void import(const std::filesystem::path &path, bool recursive = true, bool contents = false);
+    */
 
     /** @brief  Exports the file system in the file system navigator
+     *
+     *  @throw Error if the file cannot be written.
      */
     void exportBlocks(const std::filesystem::path &path);
 
@@ -1520,89 +2416,45 @@ public:
 
 
 //
-// Misc (Recorder)
-//
-
-class RecorderAPI : public API {
-
-    friend class VAmiga;
-    class Recorder *recorder = nullptr;
-
-public:
-    
-    /** @brief  Returns the component's configuration.
-     */
-    const RecorderConfig &getConfig() const;
-
-    /** @brief  Returns the component's current state.
-     */
-    // const RecorderInfo &getInfo() const;
-    // const RecorderInfo &getCachedInfo() const;
-
-    const std::vector<fs::path> &paths() const;
-    bool hasFFmpeg() const;
-
-    /** @brief  Returns the path to the FFmpeg executable.
-     */
-    const fs::path getExecPath() const;
-
-    /** @brief  Sets the path to the FFmpeg executable.
-     */
-    void setExecPath(const fs::path &path);
-
-    // INTEGRATE INTO RecorderInfo, RecorderConfig
-    double getDuration() const;
-    /*
-    isize getFrameRate() const;
-    isize getBitRate() const;
-    isize getSampleRate() const;
-    */
-    bool isRecording() const;
-
-    /** @brief  Starts the recorder.
-     *  @param  x1      Horizontal start coordinate of the recorded area
-     *  @param  y1      Vertical start coordinate of the recorded area
-     *  @param  x2      Horizontal end coordinate of the recorded area
-     *  @param  y2      Vertical stop coordinate of the recorded area
-     *  @param  bitRate To be removed
-     *  @param  aspectX To be removed
-     *  @param  aspectY To be removed
-     */
-    void startRecording(isize x1, isize y1, isize x2, isize y2,
-                        isize bitRate,
-                        isize aspectX, isize aspectY);
-
-    /** @brief  Interrupts a recording in progress.
-     */
-    void stopRecording();
-
-    /** @brief  Exports the recorded video to a file.
-     *  @param  path    The export destination.
-     *  @return true on success.
-     */
-    bool exportAs(const fs::path &path);
-};
-
-
-//
 // Misc (RemoteManager)
 //
 
+/// API of the remote manager.
 class RemoteManagerAPI : public API {
 
     friend class VAmiga;
-    public:
-
+    
     class RemoteManager *remoteManager = nullptr;
 
+public:
     
     /// @name Analyzing the emulator
     /// @{
 
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const RemoteManagerInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const RemoteManagerInfo &getCachedInfo() const;
+
+    /// @}
+    /// @name Sending packets
+    /// @{
+
+    /** @brief  Sends a raw payload through the specified remote server.
+     *  It is delivered through the server's currently configured transport and
+     *  silently dropped if no client is connected.
+     *  @param  server   The server to send through.
+     *  @param  payload  The raw payload to send.
+     */
+    void send(ServerType server, const string &payload);
 
     /// @}
 };
@@ -1612,44 +2464,78 @@ class RemoteManagerAPI : public API {
 // Top-level API
 //
 
+/// The emulator. Entry point of the API.
 class VAmiga : public API {
     
 public:
     
+    /// The user defaults storage, shared by all emulator instances.
     static DefaultsAPI defaults;
     
     // Components
+    /// The Amiga (state, snapshots, media, execution control)
     AmigaAPI amiga;
+    /// Agnus (DMA, beam position, sub-components)
     AgnusAPI agnus;
-    CIAAPI ciaA, ciaB;
+    /// CIA A
+    CIAAPI ciaA;
+    /// CIA B
+    CIAAPI ciaB;
+    /// The Motorola 68000 CPU
     CPUAPI cpu;
+    /// Denise (video output)
     DeniseAPI denise;
+    /// Memory (ROMs, RAM, access)
     MemoryAPI mem;
+    /// Paula (audio, disk controller, UART, interrupts)
     PaulaAPI paula;
+    /// The real-time clock
     RTCAPI rtc;
     
     // Ports
+    /// Audio port
     AudioPortAPI audioPort;
+    /// Control port 1
     ControlPortAPI controlPort1;
+    /// Control port 2
     ControlPortAPI controlPort2;
+    /// Serial port
     SerialPortAPI serialPort;
+    /// Video port
     VideoPortAPI videoPort;
 
     // Peripherals
-    FloppyDriveAPI df0, df1, df2, df3;
-    HardDriveAPI hd0, hd1, hd2, hd3;
+    /// Floppy drive 0 (DF0)
+    FloppyDriveAPI df0;
+    /// Floppy drive 1 (DF1)
+    FloppyDriveAPI df1;
+    /// Floppy drive 2 (DF2)
+    FloppyDriveAPI df2;
+    /// Floppy drive 3 (DF3)
+    FloppyDriveAPI df3;
+    /// Hard drive 0 (DH0)
+    HardDriveAPI hd0;
+    /// Hard drive 1 (DH1)
+    HardDriveAPI hd1;
+    /// Hard drive 2 (DH2)
+    HardDriveAPI hd2;
+    /// Hard drive 3 (DH3)
+    HardDriveAPI hd3;
+    /// Keyboard
     KeyboardAPI keyboard;
     
     // Misc
-    GuardsAPI copperBreakpoints; // TODO: Move inside AgnusAPI
+    /// Message queue
     MsgQueueAPI msgQueue;
-    DebuggerAPI debugger; // TODO: No longer needed? It's not 'wired'
-    RecorderAPI recorder;
+    /// Remote servers
     RemoteManagerAPI remoteManager;
+    /// RetroShell command interpreter
     RetroShellAPI retroShell;
 
     // Shortcuts
+    /// Array view of the floppy drives, indexed by drive number.
     FloppyDriveAPI *df[4] = { &df0, &df1, &df2, &df3 };
+    /// Array view of the hard drives, indexed by drive number.
     HardDriveAPI *hd[4] = { &hd0, &hd1, &hd2, &hd3 };
 
 
@@ -1660,10 +2546,14 @@ public:
     /** @brief  Returns a version string for this release.
      */
     static string version();
-    
+
     /** @brief  Returns a build-number string for this release.
      */
     static string build();
+
+    /** @brief  Returns a version string for the snapshot file format.
+     */
+    static string snapshotVersion();
     
     
     //
@@ -1671,23 +2561,53 @@ public:
     //
     
     VAmiga();
+    /** @brief  Halts the emulator thread and destroys the emulator
+     *
+     *  A suspension that the calling thread still holds is released first,
+     *  because a suspended emulator thread cannot be halted.
+     */
     ~VAmiga();
+
+    VAmiga(const VAmiga &) = delete;
+    VAmiga &operator=(const VAmiga &) = delete;
     
     /// @name Analyzing the emulator
     /// @{
     
     /** @brief  Returns the component's current state.
+     *
+     *  getInfo() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedInfo()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
     const EmulatorInfo &getInfo() const;
+    /// Returns the most recent state snapshot recorded by the emulator thread (see getInfo()).
     const EmulatorInfo &getCachedInfo() const;
     
     /** @brief  Returns statistical information about the components.
+     *
+     *  getMetrics() reads the live state on the calling thread. The result is only
+     *  consistent if the emulator is paused or suspended. getCachedMetrics()
+     *  returns the snapshot the emulator thread has recorded most recently,
+     *  which is the one to use while the emulator runs. Both return references
+     *  that can be overwritten by a later call or by the emulator thread, so
+     *  copy the data if you need to keep it.
      */
-    const EmulatorStats &getStats() const;
+    const EmulatorMetrics &getMetrics() const;
+    /// Returns the most recent metrics snapshot recorded by the emulator thread (see getMetrics()).
+    const EmulatorMetrics &getCachedMetrics() const;
 
     /// @}
     /// @name Querying the emulator state
     /// @{
+
+    /* A word on thread safety: The functions below return the value at the time
+     * of the call without synchronizing with the emulator thread. A result
+     * obtained while the emulator is running may be outdated immediately.
+     */
     
     /** @brief  Returns true iff the emulator if the emulator is powered on.
      */
@@ -1722,11 +2642,11 @@ public:
     bool isTracking() const;
     
     /** @brief  Checks if the emulator is runnable.
-     *  The function checks if the necessary ROMs are installed to lauch the
+     *  The function checks if the necessary ROMs are installed to launch the
      *  emulator. On success, the functions returns. Otherwise, an exception
      *  is thrown.
      */
-    void isReady() const;
+    void checkReady() const;
     
     
     /// @}
@@ -1735,73 +2655,267 @@ public:
     
     /** @brief  Switches the emulator on
      *
-     *  Powering on the emulator changes the interal state to #STATE\_PAUSED,
+     *  Powering on the emulator changes the internal state to ExecState::PAUSED,
      *  the same state that is entered when the user hits the pause button.
      *  Calling this function on an already powered-on emulator has no effect.
-     *  */
+     *
+     *  The function returns when the emulator thread has carried out the
+     *  request. A failure throws the corresponding exception.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread. Use powerOnAsync() in these situations.
+     */
     void powerOn();
+
+    /** @brief  Switches the emulator on without waiting for the result
+     *
+     *  This is the asynchronous counterpart of powerOn(). The request is queued and
+     *  carried out by the emulator thread at some later time (see sync()).
+     */
+    void powerOnAsync();
     
     /** @brief  Switches the emulator off
      *
-     *  Powering off the emulator changes the interal state of #STATE\_OFF.
+     *  Powering off the emulator changes the internal state to ExecState::OFF.
      *  Calling this function on an already powered-off emulator has no effect.
+     *
+     *  The function returns when the emulator thread has carried out the
+     *  request. A failure throws the corresponding exception.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread. Use powerOffAsync() in these situations.
      */
     void powerOff();
+
+    /** @brief  Switches the emulator off without waiting for the result
+     *
+     *  This is the asynchronous counterpart of powerOff(). The request is queued and
+     *  carried out by the emulator thread at some later time (see sync()).
+     */
+    void powerOffAsync();
     
     /** @brief  Starts emulation
      *
-     *  Running the emulator changes the internal state to #STATE\_RUNNING,
+     *  Running the emulator changes the internal state to ExecState::RUNNING,
      *  which is the normal operation state. Frames are computed at normal
      *  pace, if warp mode is switched off, or as fast as possible, if warp
-     *  mode is switched on. If this function is called for a powere-off
+     *  mode is switched on. If this function is called for a powered-off
      *  emulator, an implicit call to powerOn() will be performed.
+     *
+     *  @throw CoreError if the emulator is not ready to run (see checkReady()).
+     *
+     *  The function returns when the emulator has been started.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread. Use runAsync() in these situations.
      */
     void run();
+
+    /** @brief  Starts emulation without waiting for the result
+     *
+     *  This is the asynchronous counterpart of run(). The request is queued and
+     *  carried out by the emulator thread at some later time (see sync()).
+     *
+     *  @throw CoreError if the emulator is not ready to run (see checkReady()).
+     */
+    void runAsync();
     
     /** @brief   Pauses emulation
      *
-     * Pausing the emulator changes the interal state from #STATE\_RUNNING
-     * to #STATE\_PAUSED after completing the curent frame. The emulator
-     * enteres a frozes state where no more frames are computed.
+     * Pausing the emulator changes the internal state from ExecState::RUNNING
+     * to ExecState::PAUSED after completing the current frame. The emulator
+     * enters a frozen state where no more frames are computed.
+     *
+     *  The function returns when the emulator thread has carried out the
+     *  request. A failure throws the corresponding exception.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread. Use pauseAsync() in these situations.
      */
     void pause();
+
+    /** @brief  Pauses emulation without waiting for the result
+     *
+     *  This is the asynchronous counterpart of pause(). The request is queued and
+     *  carried out by the emulator thread at some later time (see sync()).
+     */
+    void pauseAsync();
     
     /** @brief   Performs a hard reset
      *
      *  A hard reset affects all components. The effect is similar to
      *  switching power off and on.
+     *
+     *  The function returns when the emulator thread has carried out the
+     *  request. A failure throws the corresponding exception.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread. Use hardResetAsync() in these situations.
      */
     void hardReset();
+
+    /** @brief  Performs a hard reset without waiting for the result
+     *
+     *  This is the asynchronous counterpart of hardReset(). The request is queued and
+     *  carried out by the emulator thread at some later time (see sync()).
+     */
+    void hardResetAsync();
     
     /** @brief   Performs a soft reset
      *
      *  A soft reset is similar to executing the CPU's reset instruction.
+     *
+     *  The function returns when the emulator thread has carried out the
+     *  request. A failure throws the corresponding exception.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread. Use softResetAsync() in these situations.
      */
     void softReset();
+
+    /** @brief  Performs a soft reset without waiting for the result
+     *
+     *  This is the asynchronous counterpart of softReset(). The request is queued and
+     *  carried out by the emulator thread at some later time (see sync()).
+     */
+    void softResetAsync();
     
     /** @brief   Terminates the emulator thread
      *
-     *  Halting the emulator changes the internal state to #STATE\_HALTED.
+     *  Halting the emulator changes the internal state to ExecState::HALTED.
      *  This state is part of the shutdown procedure and never entered during
      *  normal operation.
+     *
+     *  @note The function blocks until the emulator thread has terminated. It
+     *  does nothing if there is no running emulator thread (e.g., if the
+     *  thread has already been halted), so it is safe to call it more than
+     *  once. It throws a CoreError if the calling thread has suspended the
+     *  emulator thread, because a suspended thread cannot terminate.
      */
     void halt();
     
     /** @brief  Enables warp mode.
+     *
+     *  Several clients can request the mode independently. Each client uses its
+     *  own source, and the mode stays on as long as at least one source has
+     *  requested it. Valid sources are 0 to 6.
+     *
+     *  @param  source      The client requesting the change.
+     *  @throw CoreError (CoreError::OPT_INV_ARG) if the source is out of range.
+     *
+     *  The function returns when the emulator thread has carried out the
+     *  request. A failure throws the corresponding exception.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread. Use warpOnAsync() in these situations.
      */
-    void warpOn(isize source = 0);
+    void warpOn(isize source);
+
+    /** @brief  Enables warp mode without waiting for the result
+     *
+     *  This is the asynchronous counterpart of warpOn(). The request is queued and
+     *  carried out by the emulator thread at some later time (see sync()).
+     *
+     *  @throw CoreError (CoreError::OPT_INV_ARG) if the source is out of range.
+     */
+    void warpOnAsync(isize source);
     
     /** @brief  Disables warp mode.
+     *
+     *  Withdraws the request made by the given source. The mode is switched off
+     *  when no other source requests it (the emulator itself may keep warp mode
+     *  on to implement the warp mode option). Valid sources are 0 to 6.
+     *
+     *  @param  source      The client requesting the change.
+     *  @throw CoreError (CoreError::OPT_INV_ARG) if the source is out of range.
+     *
+     *  The function returns when the emulator thread has carried out the
+     *  request. A failure throws the corresponding exception.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread. Use warpOffAsync() in these situations.
      */
-    void warpOff(isize source = 0);
+    void warpOff(isize source);
+
+    /** @brief  Disables warp mode without waiting for the result
+     *
+     *  This is the asynchronous counterpart of warpOff(). The request is queued and
+     *  carried out by the emulator thread at some later time (see sync()).
+     *
+     *  @throw CoreError (CoreError::OPT_INV_ARG) if the source is out of range.
+     */
+    void warpOffAsync(isize source);
     
     /** @brief  Enables track mode.
+     *
+     *  Several clients can request the mode independently. Each client uses its
+     *  own source, and the mode stays on as long as at least one source has
+     *  requested it. Valid sources are 0 to 6.
+     *
+     *  @param  source      The client requesting the change.
+     *  @throw CoreError (CoreError::OPT_INV_ARG) if the source is out of range.
+     *
+     *  The function returns when the emulator thread has carried out the
+     *  request. A failure throws the corresponding exception.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread. Use trackOnAsync() in these situations.
      */
-    void trackOn(isize source = 0);
+    void trackOn(isize source);
+
+    /** @brief  Enables track mode without waiting for the result
+     *
+     *  This is the asynchronous counterpart of trackOn(). The request is queued and
+     *  carried out by the emulator thread at some later time (see sync()).
+     *
+     *  @throw CoreError (CoreError::OPT_INV_ARG) if the source is out of range.
+     */
+    void trackOnAsync(isize source);
     
     /** @brief  Disables track mode.
+     *
+     *  Withdraws the request made by the given source. The mode is switched off
+     *  when no other source requests it. Valid sources are 0 to 6.
+     *
+     *  @param  source      The client requesting the change.
+     *  @throw CoreError (CoreError::OPT_INV_ARG) if the source is out of range.
+     *
+     *  The function returns when the emulator thread has carried out the
+     *  request. A failure throws the corresponding exception.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread. Use trackOffAsync() in these situations.
      */
-    void trackOff(isize source = 0);
+    void trackOff(isize source);
+
+    /** @brief  Disables track mode without waiting for the result
+     *
+     *  This is the asynchronous counterpart of trackOff(). The request is queued and
+     *  carried out by the emulator thread at some later time (see sync()).
+     *
+     *  @throw CoreError (CoreError::OPT_INV_ARG) if the source is out of range.
+     */
+    void trackOffAsync(isize source);
     
     
     /// @}
@@ -1810,20 +2924,25 @@ public:
     
     /** @brief  Steps a single instruction
      *
-     *  If the emulator is paused, calling this functions steps the CPU for
-     *  a single instruction. Otherwise, calling this function
-     *  has no effect. The CPU debugger utilizes this function to implement single
+     *  Steps the CPU for a single instruction. The emulator must not be
+     *  running. The CPU debugger utilizes this function to implement single
      *  stepping.
+     *
+     *  The function returns when the emulator has been started for the step. It
+     *  is paused again when the step is done.
+     *
+     *  @throw CoreError (CoreError::RUNNING) if the emulator is already running.
+     *  @throw CoreError if the emulator is not ready to run (see checkReady()).
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request (see put()).
      */
     void stepInto();
     
     /** @brief  Steps over the current instruction
      *
-     *  If the emulator is paused, calling this functions runs the emulator
-     *  until the instruction following the current
-     *  instruction has been reached. Otherwise, calling this function
-     *  has no effect. The CPU debugger utilizes this function to implement single
-     *  stepping.
+     *  Runs the emulator until the instruction following the current
+     *  instruction has been reached. The emulator must not be running. The CPU
+     *  debugger utilizes this function to implement single stepping.
      *
      *  stepOver() acts like stepInto() except for branching instructions.
      *  For instance, if the current instruction is a `JSR` instruction, the
@@ -1833,20 +2952,44 @@ public:
      *  returns, the emulator will remain in running state. Calling this
      *  function will then be equivalent to a calling run(), with the exception
      *  of a small runtime overhead since the emulator will check after the
-     *  each instruction if the program counter has reached it's target
+     *  each instruction if the program counter has reached its target
      *  location.
+     *
+     *  The function returns when the emulator has been started for the step. It
+     *  is paused again when the step is done.
+     *
+     *  @throw CoreError (CoreError::RUNNING) if the emulator is already running.
+     *  @throw CoreError if the emulator is not ready to run (see checkReady()).
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request (see put()).
      */
     void stepOver();
     
-    /** @brief  Fnishes the current rasterline
+    /** @brief  Finishes the current rasterline
      *
-     *  Calling this functions runs the CPU until the end of the current rasterline.
+     *  Calling this function runs the CPU until the end of the current rasterline.
+     *
+     *  The function returns when the emulator has been started for the step. It
+     *  is paused again when the step is done.
+     *
+     *  @throw CoreError (CoreError::RUNNING) if the emulator is already running.
+     *  @throw CoreError if the emulator is not ready to run (see checkReady()).
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request (see put()).
      */
     void finishLine();
     
-    /** @brief  Fnishes the current frame
+    /** @brief  Finishes the current frame
      *
-     *  Calling this functions runs the CPU until the end of the current frame.
+     *  Calling this function runs the CPU until the end of the current frame.
+     *
+     *  The function returns when the emulator has been started for the step. It
+     *  is paused again when the step is done.
+     *
+     *  @throw CoreError (CoreError::RUNNING) if the emulator is already running.
+     *  @throw CoreError if the emulator is not ready to run (see checkReady()).
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request (see put()).
      */
     void finishFrame();
     
@@ -1864,6 +3007,20 @@ public:
      *  current texture has been handed over to the GPU.
      */
     void wakeUp();
+
+    /** @brief  Waits until every command sent so far has been carried out.
+     *
+     *  Most calls on this API hand the emulator thread a command and return
+     *  at once, so a caller that reads back what it just changed, or exports
+     *  the configuration, can still see the old state. Calling this
+     *  afterwards closes that gap.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out commands, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread.
+     */
+    void sync();
     
     
     /// @}
@@ -1883,8 +3040,28 @@ public:
      *  callback you can utilize the pointer to invoke a message processing
      *  function on that object.
      *  @param  func        The callback function.
+     *
+     *  @note All functions of this API must be called from a user thread, i.e.,
+     *  from any thread except the emulator thread. In particular, the callback
+     *  registered here is invoked on the emulator thread and must not call into
+     *  the API. Forward the message to a user thread instead.
+     *
+     *  @throw CoreError (CoreError::ALREADY_LAUNCHED) if the emulator thread has
+     *  already been launched.
+     *  @throw CoreError (CoreError::LAUNCH_FAILED) if the emulator thread could not
+     *  be launched.
      */
     void launch(const void *listener = nullptr, Callback *func = nullptr);
+
+    /** @brief  Stops delivering messages to the listener registered by launch()
+     *
+     *  The emulator outlives its client whenever the client is a stack or
+     *  static object torn down at exit: the core keeps running, keeps
+     *  posting, and calls into whatever the listener pointer used to be.
+     *  Call this before the client becomes unusable. It is synchronised
+     *  against message delivery, so it is safe while the emulator runs.
+     */
+    void removeListener();
     
     /** @brief  Returns true if the emulator has been launched.
      */
@@ -1894,84 +3071,325 @@ public:
      *
      *  This is the main function to query a configuration option.
      *
-     *  @param option   The option to query
+     *  @param opt      The option to query
      *
      *  @note Some options require an additional parameter to uniquely
      *  determine the configured component. For those options, this function
      *  must not be called.
+     *
+     *  @note The value is read without synchronizing with the emulator thread.
+     *  A change requested by setAsync() shows up once the emulator thread has
+     *  carried it out (see sync()).
      */
-    i64 get(Opt option) const;
+    i64 get(Opt opt) const;
     
     /** @brief  Queries a configuration option.
      *
      *  This is the main function to query a configuration option.
      *
-     *  @param option   The option to query
+     *  @param opt      The option to query
      *  @param id       The component to query
      *
      *  @note This function must only be called for those options that require
      *  an additional parameter to uniquely determine the configured component.
-     */
-    i64 get(Opt option, long id) const;
-    
-    /** Configures the emulator to match a specific Amiga model
      *
-     *  @param model    The Amiga model to emulate
+     *  @note The value is read without synchronizing with the emulator thread.
+     *  A change requested by setAsync() shows up once the emulator thread has
+     *  carried it out (see sync()).
      */
-    void set(ConfigScheme model);
+    i64 get(Opt opt, isize id) const;
     
     /** @brief  Configures a component.
      *
-     *  This is the main function to set an configuration option.
+     *  This is the main function to set a configuration option. It returns
+     *  when the change has been made, so the new value is visible to get()
+     *  right away. Because the command queue is processed in order, all
+     *  requests issued earlier (e.g., via setAsync()) have been carried out as
+     *  well. A rejected value throws the corresponding exception.
      *
      *  @param opt      The option to set
      *  @param value    The option's value
      *
      *  @note If this function is called for an options that applies to multiple
      *  components, all components are configured with the specified value.
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread. Use setAsync() in these situations (it can also be called before
+     *  the emulator thread is launched, in which case the request is carried out
+     *  at launch).
      */
     void set(Opt opt, i64 value);
-    
+
     /** @brief  Configures a component.
      *
-     *  This is the main function to set an configuration option.
-     *
      *  @param opt      The option to set
-     *  @param id       The component to configure
      *  @param value    The option's value
+     *  @param id       The component to configure
      *
      *  @note This function must only be called for those options that require
      *  an additional parameter to uniquely determine the configured component.
+     *  @see set(Opt, i64)
      */
-    void set(Opt opt, i64 value, long id);
+    void set(Opt opt, i64 value, isize id);
+
+    /** Configures the emulator to match a specific Amiga model
+     *
+     *  @param model    The Amiga model to emulate
+     *  @see set(Opt, i64)
+     */
+    void set(ConfigScheme model);
+
+    /** @brief  Configures a component without waiting for the result.
+     *
+     *  These functions hand the request to the emulator thread and return at
+     *  once. They are the asynchronous counterparts of set(). Use them if
+     *  waiting is impossible or undesirable, e.g., when many options are
+     *  changed in a row (follow up with sync() if needed), before the emulator
+     *  thread has been launched (the request is carried out at launch), or
+     *  while the emulator thread is suspended (it is carried out when the thread
+     *  resumes).
+     *
+     *  The value is validated when the emulator thread carries out the
+     *  command. A rejected value is reported by Msg::CONFIG, which then carries the exception.
+     *
+     *  @param opt      The option to set
+     *  @param value    The option's value
+     */
+    void setAsync(Opt opt, i64 value);
+
+    /** @brief  Configures a component without waiting for the result.
+     *
+     *  Same as above, for options that require an additional parameter to
+     *  determine the component.
+     *
+     *  @param opt      The option to set
+     *  @param value    The option's value
+     *  @param id       The component to configure
+     */
+    void setAsync(Opt opt, i64 value, isize id);
+    /// Asynchronous version of set(ConfigScheme): queues the request and returns at once.
+    void setAsync(ConfigScheme model);
+
+    /** @brief  Checks if a configuration option would be accepted.
+     *
+     *  The check is performed in the calling thread and does not change the
+     *  configuration. It is not needed before set(), which validates the value
+     *  itself, but it lets a caller skip a request that is known to fail.
+     *
+     *  @param opt      The option to check
+     *  @param value    The option's value
+     *  @throw CoreError if the value would be rejected
+     */
+    void check(Opt opt, i64 value);
+
+    /** @brief  Checks if a configuration option would be accepted.
+     *  @param opt      The option to check
+     *  @param value    The option's value
+     *  @param id       The component to configure
+     *  @throw CoreError if the value would be rejected
+     */
+    void check(Opt opt, i64 value, isize id);
 
     /** @brief  Exports the current configuration.
      *
      *  The current configuration is exported in form of a RetroShell script.
      *  Reading in the script at a later point will restore the configuration.
      *
+     *  @param path The path of the script file.
      *  @param diff When set to true, the script will only contains settings
      *              for items that differ from the default configuration.
      *              This feature is useful for debugging to compare two virtual
      *              machine configurations.
      */
-    void exportConfig(const fs::path &path, bool diff = false) const;
+    void exportConfig(const std::filesystem::path &path, bool diff = false) const;
+    /// Writes the configuration into a stream (see exportConfig()).
     void exportConfig(std::ostream &stream, bool diff = false) const;
     
     
     /// @}
-    /// @name Using the command queue
+    /// @name Danger zone
     /// @{
-    
-    /** @brief  Feeds a command into the command queue.
+
+    /* DANGER ZONE
+     *
+     * The functions below bypass the dedicated functions of this API. Almost
+     * all functionality is available through the dedicated functions, which
+     * should be preferred.
+     *
+     *   put(), putAsync() : Feed raw commands into the command queue. The set
+     *                       of commands, their payload layout and their
+     *                       lifetime requirements (some commands carry
+     *                       pointers to objects owned by the caller) are
+     *                       internal to the emulator and may change between
+     *                       versions.
+     *   call(), callAsync() : Run an arbitrary function on the emulator
+     *                       thread. The function can reach all internals of
+     *                       the emulator and is responsible for keeping them
+     *                       consistent. What it touches is not covered by any
+     *                       compatibility promise.
      */
-    void put(const Command &cmd);
+
+    /** @brief  Runs a function on the emulator thread and waits until it is done.
+     *
+     *  @warning This is an advanced interface, see above.
+     *
+     *  The function is carried out in the order of the commands that have been
+     *  queued before, and never while a frame is computed or while another
+     *  thread has suspended the emulator. An exception thrown by the function
+     *  is passed on to the caller.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the request (see put()).
+     */
+    void call(const std::function<void()> &fn);
+
+    /** @brief  Queues a function for the emulator thread without waiting for it.
+     *
+     *  @warning This is an advanced interface, see above.
+     *
+     *  This is the asynchronous counterpart of call(). The function is carried
+     *  out by the emulator thread at some later time, so everything it refers
+     *  to must stay valid until then. A failure of the function cannot be
+     *  passed on to the caller. If 'done' is given, it is called on the
+     *  emulator thread when the function has been carried out, with the
+     *  exception it threw (or null). It is also called, on the calling thread,
+     *  if the command queue is full and the request is dropped. Nothing is
+     *  carried out as long as the emulator thread has not been launched.
+     */
+    void callAsync(std::function<void()> fn,
+                   std::function<void(std::exception_ptr)> done = nullptr);
+
+    /** @brief  Feeds a command into the command queue and waits for the result.
+     *
+     *  @warning This is an advanced interface, see above.
+     *
+     *  The function returns when the emulator thread has carried out the
+     *  command. A command that fails throws the corresponding exception.
+     *
+     *  Because the queue is processed in order, all commands issued earlier
+     *  (e.g., via putAsync()) have been carried out when the call returns.
+     *  Commands that carry a pointer to an object of the caller can rely on
+     *  that object being alive for the whole duration of the command.
+     *
+     *  @throw CoreError (CoreError::NOT_LAUNCHED) if the emulator thread cannot
+     *  carry out the command, because it has not been launched yet, is halted or
+     *  suspended. The same applies if the function is called from the emulator
+     *  thread. Use putAsync() in these situations (it can also be called before
+     *  the emulator thread is launched, in which case the command is carried out
+     *  at launch), and for events that occur at a high rate (e.g., key presses
+     *  or mouse movements).
+     */
+    void put(const Command &cmd, const std::string &str = "");
+    /// Shorthand for put(Command(type, payload)).
+    void put(Cmd type, const std::string &str) { put(Command(type), str); }
+    /// Shorthand for put(Command(type, payload)).
     void put(Cmd type, i64 payload = 0, i64 payload2 = 0) { put(Command(type, payload, payload2)); }
+    /// Shorthand for put(Command(type, payload)).
     void put(Cmd type, ConfigCmd payload)  { put(Command(type, payload)); }
+    /// Shorthand for put(Command(type, payload)).
     void put(Cmd type, KeyCmd payload)  { put(Command(type, payload)); }
+    /// Shorthand for put(Command(type, payload)).
     void put(Cmd type, GamePadCmd payload)  { put(Command(type, payload)); }
+    /// Shorthand for put(Command(type, payload)).
     void put(Cmd type, CoordCmd payload)  { put(Command(type, payload)); }
+    /// Shorthand for put(Command(type, payload)).
     void put(Cmd type, AlarmCmd payload)  { put(Command(type, payload)); }
+
+    /** @brief  Feeds a command into the command queue without waiting for the result.
+     *
+     *  @warning This is an advanced interface, see put().
+     *
+     *  This is the asynchronous counterpart of put(). The command is carried out
+     *  by the emulator thread at some later time. The caller must keep objects
+     *  referenced by the command alive until it has been carried out (see sync()).
+     */
+    void putAsync(const Command &cmd, const std::string &str = "");
+    /// Shorthand for putAsync(Command(type, payload)).
+    void putAsync(Cmd type, const std::string &str) { putAsync(Command(type), str); }
+    /// Shorthand for putAsync(Command(type, payload)).
+    void putAsync(Cmd type, i64 payload = 0, i64 payload2 = 0) { putAsync(Command(type, payload, payload2)); }
+    /// Shorthand for putAsync(Command(type, payload)).
+    void putAsync(Cmd type, ConfigCmd payload)  { putAsync(Command(type, payload)); }
+    /// Shorthand for putAsync(Command(type, payload)).
+    void putAsync(Cmd type, KeyCmd payload)  { putAsync(Command(type, payload)); }
+    /// Shorthand for putAsync(Command(type, payload)).
+    void putAsync(Cmd type, GamePadCmd payload)  { putAsync(Command(type, payload)); }
+    /// Shorthand for putAsync(Command(type, payload)).
+    void putAsync(Cmd type, CoordCmd payload)  { putAsync(Command(type, payload)); }
+    /// Shorthand for putAsync(Command(type, payload)).
+    void putAsync(Cmd type, AlarmCmd payload)  { putAsync(Command(type, payload)); }
+
+    /** @brief  Gives access to the internal components
+     *
+     *  @warning These are advanced interfaces. They return the internal objects
+     *  the APIs operate on, bypassing all synchronization the dedicated API
+     *  functions provide. Use them only while the emulator is suspended or from
+     *  within a function passed to call(). To make use of the objects, include
+     *  the corresponding internal headers. What they offer is not covered by
+     *  any compatibility promise.
+     *
+     *  The getters that take a number throw a CoreError
+     *  (CoreError::OPT_INV_ARG) if the number is out of range.
+     */
+    class Emulator &getEmulator();
+    /// Returns the Amiga.
+    class Amiga &getAmiga();
+    /// Returns Agnus.
+    class Agnus &getAgnus();
+    /// Returns the logic analyzer.
+    class LogicAnalyzer &getLogicAnalyzer();
+    /// Returns the X-Ray visualizer.
+    class XRay &getXRay();
+    /// Returns the Copper.
+    class Copper &getCopper();
+    /// Returns the Blitter.
+    class Blitter &getBlitter();
+    /// Returns a CIA chip (nr = 0 for CIA A, 1 for CIA B).
+    class CIA &getCIA(isize nr);
+    /// Returns the CPU.
+    class CPU &getCPU();
+    /// Returns Denise.
+    class Denise &getDenise();
+    /// Returns the memory.
+    class Memory &getMemory();
+    /// Returns Paula.
+    class Paula &getPaula();
+    /// Returns the disk controller.
+    class DiskController &getDiskController();
+    /// Returns the UART.
+    class UART &getUART();
+    /// Returns the real-time clock.
+    class RTC &getRTC();
+    /// Returns the audio port.
+    class AudioPort &getAudioPort();
+    /// Returns a control port (nr = 0 or 1).
+    class ControlPort &getControlPort(isize nr);
+    /// Returns the joystick of a control port (port = 0 or 1).
+    class Joystick &getJoystick(isize port);
+    /// Returns the mouse of a control port (port = 0 or 1).
+    class Mouse &getMouse(isize port);
+    /// Returns the serial port.
+    class SerialPort &getSerialPort();
+    /// Returns the video port.
+    class VideoPort &getVideoPort();
+    /// Returns a floppy drive (nr = 0 ... 3).
+    class FloppyDrive &getFloppyDrive(isize nr);
+    /// Returns a hard drive (nr = 0 ... 3).
+    class HardDrive &getHardDrive(isize nr);
+    /// Returns the controller of a hard drive (nr = 0 ... 3).
+    class HdController &getHdController(isize nr);
+    /// Returns the keyboard.
+    class Keyboard &getKeyboard();
+    /// Returns the message queue.
+    class MsgQueue &getMsgQueue();
+    /// Returns the remote server manager.
+    class RemoteManager &getRemoteManager();
+    /// Returns RetroShell.
+    class RetroShell &getRetroShell();
+    /// Returns the user defaults storage.
+    class Defaults &getDefaults();
+    
     
     /// @}
 };

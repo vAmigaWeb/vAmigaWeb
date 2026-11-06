@@ -6,10 +6,12 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
+#include "RemoteServerTypes.h"
 
 namespace vamiga {
 
@@ -17,27 +19,30 @@ namespace vamiga {
 // Enumerations
 //
 
+/// Type of a remote server.
 enum class ServerType : long
 {
-    SER,
     RSH,
+    RPC,
+    GDB,
     PROM,
-    GDB
+    SER
 };
 
-struct ServerTypeEnum : Reflection<ServerTypeEnum, ServerType>
+struct ServerTypeEnum : utl::Reflectable<ServerTypeEnum, ServerType>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = long(ServerType::GDB);
-    
+    static constexpr long maxVal = long(ServerType::SER);
+
     static const char *_key(ServerType value)
     {
         switch (value) {
                 
-            case ServerType::SER:    return "SER";
             case ServerType::RSH:    return "RSH";
-            case ServerType::PROM:   return "PROM";
+            case ServerType::RPC:    return "RPC";
             case ServerType::GDB:    return "GDB";
+            case ServerType::PROM:   return "PROM";
+            case ServerType::SER:    return "SER";
         }
         return "???";
     }
@@ -45,10 +50,44 @@ struct ServerTypeEnum : Reflection<ServerTypeEnum, ServerType>
     {
         switch (value) {
                 
-            case ServerType::SER:    return "Serial port server";
             case ServerType::RSH:    return "Remote shell server";
-            case ServerType::PROM:   return "Prometheus server";
+            case ServerType::RPC:    return "JSON RPC server";
             case ServerType::GDB:    return "Debug server";
+            case ServerType::PROM:   return "Prometheus server";
+            case ServerType::SER:    return "Serial port server";
+        }
+        return "???";
+    }
+};
+
+
+/// Direction of a network packet.
+enum class TrafficDirection : long
+{
+    RECEIVED,       // The packet was received from a client
+    SENT            // The packet was sent to a client
+};
+
+struct TrafficDirectionEnum : utl::Reflectable<TrafficDirectionEnum, TrafficDirection>
+{
+    static constexpr long minVal = 0;
+    static constexpr long maxVal = long(TrafficDirection::SENT);
+
+    static const char *_key(TrafficDirection value)
+    {
+        switch (value) {
+
+            case TrafficDirection::RECEIVED:    return "RECEIVED";
+            case TrafficDirection::SENT:        return "SENT";
+        }
+        return "???";
+    }
+    static const char *help(TrafficDirection value)
+    {
+        switch (value) {
+
+            case TrafficDirection::RECEIVED:    return "Received from a client";
+            case TrafficDirection::SENT:        return "Sent to a client";
         }
         return "???";
     }
@@ -59,13 +98,40 @@ struct ServerTypeEnum : Reflection<ServerTypeEnum, ServerType>
 // Structures
 //
 
+/// State of the remote manager.
 typedef struct
 {
-    isize numLaunching;
-    isize numListening;
-    isize numConnected;
-    isize numErroneous;
+    RemoteServerInfo rshInfo;               ///< State of the RetroShell server
+    RemoteServerInfo rpcInfo;               ///< State of the RPC server
+    RemoteServerInfo gdbInfo;               ///< State of the GDB server
+    RemoteServerInfo promInfo;              ///< State of the Prometheus server
+    RemoteServerInfo serInfo;               ///< State of the serial port server
 }
 RemoteManagerInfo;
+
+/* A single entry of the traffic log. The remote servers record all transmitted
+ * packets in a bounded log inside the RemoteManager. Each recorded packet is
+ * assigned a monotonically increasing sequence number which is passed to the
+ * GUI in the Msg::SRV_RECEIVE and Msg::SRV_SEND notification messages.
+ */
+/// A packet recorded by a remote server.
+typedef struct
+{
+    /// Sequence number (unique, monotonically increasing)
+    isize nr;
+
+    /// The server that received or sent the packet
+    ServerType server;
+
+    /// Tells whether the packet was received or sent
+    TrafficDirection direction;
+
+    /// Host time stamp (milliseconds since epoch)
+    i64 time;
+
+    /// Packet contents
+    string payload;
+}
+TrafficEntry;
 
 }

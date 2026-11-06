@@ -7,7 +7,7 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "TextStorage.h"
 #include "Amiga.h"
 
@@ -17,11 +17,11 @@ isize
 TextStorage::trailingEmptyLines() const
 {
     isize result = 0;
-
+    
     for (auto it = storage.rbegin(); it != storage.rend() && it->empty(); it++) {
         result++;
     }
-
+    
     return result;
 }
 
@@ -75,7 +75,7 @@ void
 TextStorage::append(const string &line)
 {
     storage.push_back(line);
-
+    
     // Remove old entries if the storage grows too large
     while (storage.size() > capacity) storage.erase(storage.begin());
 }
@@ -84,18 +84,18 @@ TextStorage&
 TextStorage::operator<<(char c)
 {
     assert(!storage.empty());
-
+    
     switch (c) {
             
         case '\n':
             
             if (ostream) *ostream << storage.back() << std::endl;
-
+            
             append("");
             break;
             
         case '\r':
-
+            
             storage.back() = "";
             break;
             

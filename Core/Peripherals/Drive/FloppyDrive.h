@@ -11,17 +11,22 @@
 
 #include "FloppyDriveTypes.h"
 #include "AgnusTypes.h"
-#include "BootBlockImageTypes.h"
-#include "FSTypes.h"
+#include "ImageTypes.h"
+#include "FileSystems/Amiga/FSTypes.h"
 #include "Drive.h"
 #include "FloppyDisk.h"
 #include "DiskController.h"
 #include "Thread.h"
 #include "CmdQueueTypes.h"
+#include "utl/wrappers.h"
 
 namespace vamiga {
 
-class FloppyDrive final : public Drive, public Inspectable<FloppyDriveInfo> {
+using namespace retro::vault;
+
+class FloppyDrive final : public Drive, public TrackDevice {
+
+    friend class DiskController;
 
     Descriptions descriptions = {
         {
@@ -64,7 +69,12 @@ class FloppyDrive final : public Drive, public Inspectable<FloppyDriveInfo> {
         Opt::DRIVE_EJECT_VOLUME
     };
 
-    friend class DiskController;
+public:
+
+    // Result of the latest inspection
+    utl::Backed<FloppyDriveInfo> info;
+
+private:
 
     // Current configuration
     FloppyDriveConfig config = {};
@@ -130,7 +140,7 @@ private:
 
 public:
 
-    using Drive::Drive;
+    FloppyDrive(Amiga& ref, isize nr);
 
     FloppyDrive& operator= (const FloppyDrive& other);
 
@@ -200,6 +210,23 @@ public:
 
 
     //
+    // Methods from Configurable
+    //
+
+public:
+
+    const FloppyDriveConfig &getConfig() const { return config; }
+    const Options &getOptions() const override { return options; }
+    i64 getOption(Opt option) const override;
+    void checkOption(Opt opt, i64 value) override;
+    void setOption(Opt option, i64 value) override;
+
+    // Queries disk type parameters
+    Diameter diameter() const;
+    Density density() const;
+
+
+    //
     // Methods from Drive
     //
     
@@ -207,8 +234,8 @@ public:
     
     bool isConnected() const override;
     
-    Cylinder currentCyl() const override { return head.cylinder; }
-    Head currentHead() const override { return head.head; }
+    CylNr currentCyl() const override { return head.cylinder; }
+    HeadNr currentHead() const override { return head.head; }
     isize currentOffset() const override { return head.offset; }
 
     bool hasDisk() const override;
@@ -221,24 +248,48 @@ public:
     void setModificationFlag(bool value) override;
     void setProtectionFlag(bool value) override;
 
-    
+    // Floppy disks always live in memory, so there is no file to go back to
+    fs::path getPath() const override { return {}; }
+    bool needsPersisting() const override { return false; }
+    void persist() override { }
+
+
     //
-    // Methods from Configurable
+    // Methods from LinearDevice
     //
 
 public:
-    
-    const FloppyDriveConfig &getConfig() const { return config; }
-    const Options &getOptions() const override { return options; }
-    i64 getOption(Opt option) const override;
-    void checkOption(Opt opt, i64 value) override;
-    void setOption(Opt option, i64 value) override;
-    
-    // Queries disk type parameters
-    Diameter diameter() const;
-    Density density() const;
 
-    
+    isize size() const override;
+    void read(u8 *dst, isize offset, isize count) const override;
+    void write(const u8 *src, isize offset, isize count) override;
+
+
+    //
+    // Methods from BlockDevice
+    //
+
+public:
+
+    isize capacity() const override;
+    isize bsize() const override;
+    void readBlocks(u8 *dst, Range<isize> range) const override;
+    void writeBlocks(const  u8 *src, Range<isize> range) override;
+
+
+    //
+    // Methods from TrackDevice
+    //
+
+public:
+
+    isize numCyls() const override;
+    isize numHeads() const override;
+    isize numSectors(isize t) const override;
+    void readTrack(u8 *dst, isize nr) const override;
+    void writeTrack(const u8 *src, isize nr) override;
+
+
     //
     // Analyzing
     //
@@ -246,7 +297,7 @@ public:
 public:
     
     // Returns the result of the latest inspection
-    void cacheInfo(FloppyDriveInfo &info) const override;
+    FloppyDriveInfo cacheInfo() const;
 
     // Returns the identification pattern of this drive
     u32 getDriveId() const;
@@ -316,17 +367,17 @@ public:
     //
 
     // Selects the active drive head (0 = lower, 1 = upper)
-    void selectSide(Head h);
+    void selectSide(HeadNr h);
 
     // Reads a value from the drive head and optionally rotates the disk
-    u8 readByte() const;
-    u8 readByteAndRotate();
-    u16 readWordAndRotate();
+    u8 read8() const;
+    u8 read8AndRotate();
+    u16 read16AndRotate();
 
     // Writes a value to the drive head and optionally rotates the disk
-    void writeByte(u8 value);
-    void writeByteAndRotate(u8 value);
-    void writeWordAndRotate(u16 value);
+    void write8(u8 value);
+    void write8AndRotate(u8 value);
+    void write16AndRotate(u16 value);
 
     // Emulate a disk rotation (moves head to the next byte)
     void rotate();
@@ -349,7 +400,7 @@ public:
     void step(isize dir);
 
     // Records a cylinder change (needed for diskPollingMode() to work)
-    void recordCylinder(Cylinder cylinder);
+    void recordCylinder(CylNr cylinder);
 
     // Returns true if the drive is in disk polling mode
     bool pollsForDisk() const;
@@ -362,33 +413,47 @@ public:
 public:
 
     bool isInsertable(Diameter t, Density d) const;
-    bool isInsertable(const FloppyFile &file) const;
+    bool isInsertable(const FloppyDiskImage &file) const;
     bool isInsertable(const FloppyDisk &disk) const;
 
     // Inserts a new disk with an optional delay
-    void insertDisk(std::unique_ptr<FloppyDisk> disk, Cycle delay = 0) throws;
-    void insertMediaFile(const class MediaFile &file, bool wp);
+    void insertDisk(std::unique_ptr<FloppyDisk> disk, Cycle delay = 0);
+    void insertImage(const class FloppyDiskImage& image, bool wp);
 
     // Ejects the current disk with an optional delay
     void ejectDisk(Cycle delay = 0);
 
-    // Exports the current disk
-    MediaFile *exportDisk(FileType type);
-
     // Replaces the current disk (recommended way to insert disks)
-    void swapDisk(std::unique_ptr<FloppyDisk> disk) throws;
-    void swapDisk(class FloppyFile &file) throws;
-    void swapDisk(const fs::path &path) throws;
+    void swapDisk(std::unique_ptr<FloppyDisk> disk);
+    void swapDisk(class FloppyDiskImage &file);
+    void swapDisk(const fs::path &path);
+    void swapDisk(const u8 *buf, isize len, ImageFormat fmt);
 
     // Replaces the current disk with a factory-fresh disk
-    void insertNew(FSFormat fs, BootBlockId bb, string name, const fs::path &path = {}) throws;
-    
+    void insertNew(amiga::FSFormat fs, amiga::BootBlockId bb,
+                   string name, const fs::path &path = {});
+
+    // Same as insertNew(), but a failure is only thrown, not sent to the GUI
+    void insertNewUnreported(amiga::FSFormat fs, amiga::BootBlockId bb,
+                             string name, const fs::path &path = {});
+
 private:
     
     template <EventSlot s> void ejectDisk(Cycle delay);
-    template <EventSlot s> void insertDisk(std::unique_ptr<FloppyDisk> disk, Cycle delay) throws;
+    template <EventSlot s> void insertDisk(std::unique_ptr<FloppyDisk> disk, Cycle delay);
 
- 
+
+    //
+    // Exporting data
+    //
+
+public:
+    
+    void writeToFile(const fs::path& path) const;
+    void writeToFile(const fs::path& path, ImageFormat fmt) const;
+
+    std::unique_ptr<FloppyDiskImage> exportDisk(ImageFormat fmt) const;
+
     //
     // Debugging
     //
@@ -396,7 +461,7 @@ private:
 public:
     
     // Sets a catchpoint on the specified file
-    void catchFile(const fs::path &path) throws;
+    void catchFile(const fs::path &path);
     
     
     //

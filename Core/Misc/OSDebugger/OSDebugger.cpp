@@ -7,9 +7,8 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "OSDebugger.h"
-#include "IOUtils.h"
 #include "Memory.h"
 #include <sstream>
 
@@ -180,7 +179,7 @@ bool
 OSDebugger::isRamPtr(u32 addr) const
 {
     if (!mem.inRam(addr)) {
-        warn("Pointer outside RAM: %x\n", addr);
+        logmsg(LOG_WARN, "Pointer outside RAM: %x\n", addr);
     }
 
     return addr && mem.inRam(addr);
@@ -190,7 +189,7 @@ bool
 OSDebugger::isRamOrRomPtr(u32 addr) const
 {
     if (!mem.inRam(addr) && !mem.inRom(addr)) {
-        warn("Pointer outside RAM and ROM: %x\n", addr);
+        logmsg(LOG_WARN, "Pointer outside RAM and ROM: %x\n", addr);
     }
     
     return addr && (mem.inRam(addr) || mem.inRom(addr));
@@ -200,10 +199,10 @@ bool
 OSDebugger::isValidPtr(u32 addr) const
 {
     if (!IS_EVEN(addr)) {
-        warn("Odd pointer: %x\n", addr);
+        logmsg(LOG_WARN, "Odd pointer: %x\n", addr);
     }
     if (!mem.inRam(addr) && !mem.inRom(addr)) {
-        warn("Pointer outside RAM and ROM: %x\n", addr);
+        logmsg(LOG_WARN, "Pointer outside RAM and ROM: %x\n", addr);
     }
 
     return addr && IS_EVEN(addr) && (mem.inRam(addr) || mem.inRom(addr));
@@ -432,12 +431,12 @@ OSDebugger::checkExecBase(const os::ExecBase &execBase) const
 {
     // Check if the struct resides at an even location in RAM
     if (!(IS_EVEN(execBase.addr) && mem.inRam(execBase.addr))) {
-        throw AppError(Fault::OSDB, "ExecBase: Invalid address");
+        throw CoreError(CoreError::OSDB, "ExecBase: Invalid address");
     }
 
     // Check if ChkBase is the bitwise complement of SysBase
     if (!(execBase.ChkBase == ~execBase.addr)) {
-        throw AppError(Fault::OSDB, "ExecBase: Invalid ChkSum");
+        throw CoreError(CoreError::OSDB, "ExecBase: Invalid ChkSum");
     }
     
     // Check if words in the range [0x22 ; 0x52] sum up to 0xFFFF
@@ -446,15 +445,15 @@ OSDebugger::checkExecBase(const os::ExecBase &execBase) const
         checksum += mem.spypeek16 <Accessor::CPU> (execBase.addr + offset);
     }
     if (!(checksum == 0xFFFF)) {
-        throw AppError(Fault::OSDB, "ExecBase: Checksum mismatch");
+        throw CoreError(CoreError::OSDB, "ExecBase: Checksum mismatch");
     }
     
     // Check if MaxLocMem complies to the bank map
     if (execBase.MaxLocMem & 0xFF000000) {
-        throw AppError(Fault::OSDB, "ExecBase: MaxLocMem is too large");
+        throw CoreError(CoreError::OSDB, "ExecBase: MaxLocMem is too large");
     }
     if (execBase.MaxLocMem & 0x3FFFF) {
-        throw AppError(Fault::OSDB, "ExecBase: MaxLocMem is not aligned");
+        throw CoreError(CoreError::OSDB, "ExecBase: MaxLocMem is not aligned");
     }
     if (auto bank = execBase.MaxLocMem >> 16) {
         
@@ -462,16 +461,16 @@ OSDebugger::checkExecBase(const os::ExecBase &execBase) const
         auto src2 =mem.cpuMemSrc[bank];
         
         if (!(src1 == MemSrc::CHIP && src2 != MemSrc::CHIP)) {
-            throw AppError(Fault::OSDB, "ExecBase: MaxLocMem doesn't match bank map");
+            throw CoreError(CoreError::OSDB, "ExecBase: MaxLocMem doesn't match bank map");
         }
     }
 
     // Check if MaxExtMem complies to the bank map
     if (execBase.MaxExtMem & 0xFF000000) {
-        throw AppError(Fault::OSDB, "ExecBase: MaxExtMem is too large");
+        throw CoreError(CoreError::OSDB, "ExecBase: MaxExtMem is too large");
     }
     if (execBase.MaxExtMem & 0x3FFFF) {
-        throw AppError(Fault::OSDB, "ExecBase: MaxExtMem is not aligned");
+        throw CoreError(CoreError::OSDB, "ExecBase: MaxExtMem is not aligned");
     }
     if (auto bank = execBase.MaxExtMem >> 16) {
         
@@ -479,7 +478,7 @@ OSDebugger::checkExecBase(const os::ExecBase &execBase) const
         auto src2 =mem.cpuMemSrc[bank];
         
         if (!(src1 == MemSrc::SLOW && src2 != MemSrc::SLOW)) {
-            throw AppError(Fault::OSDB, "ExecBase: MaxExtMem doesn't match bank map");
+            throw CoreError(CoreError::OSDB, "ExecBase: MaxExtMem doesn't match bank map");
         }
     }
 }

@@ -45,10 +45,17 @@
 #include "RetroShell.h"
 #include "RshServer.h"
 #include "SerialPort.h"
+#include "MidiManager.h"
+#include "Snapshot.h"
+
+// Utilities
+#include "utl/wrappers.h"
+
+namespace retro::vault { class SVMFile; }
 
 namespace vamiga {
 
-class Amiga final : public CoreComponent, public Inspectable<AmigaInfo> {
+class Amiga final : public CoreComponent {
 
     friend class Emulator;
 
@@ -75,14 +82,15 @@ class Amiga final : public CoreComponent, public Inspectable<AmigaInfo> {
         Opt::AMIGA_VSYNC,
         Opt::AMIGA_SPEED_BOOST,
         Opt::AMIGA_RUN_AHEAD,
-        Opt::AMIGA_SNAP_AUTO,
-        Opt::AMIGA_SNAP_DELAY,
-        Opt::AMIGA_SNAP_COMPRESSOR,
-        Opt::AMIGA_WS_COMPRESSION,
     };
     
     // The current configuration
     AmigaConfig config = {};
+
+public:
+    
+    // Result of the latest inspection
+    utl::Backed<AmigaInfo> info;
 
 
     //
@@ -111,6 +119,7 @@ public:
     ControlPort controlPort1 = ControlPort(*this, 0);
     ControlPort controlPort2 = ControlPort(*this, 1);
     SerialPort serialPort = SerialPort(*this);
+    MidiManager midiManager = MidiManager(*this);
     ZorroManager zorro = ZorroManager(*this);
 
     // Floppy drives
@@ -141,7 +150,9 @@ public:
 
     // Misc
     LogicAnalyzer logicAnalyzer = LogicAnalyzer(*this);
-    RetroShell retroShell = RetroShell(*this);
+    RetroShell retroShell = RetroShell(*this, 0);
+    RetroShell rshShell = RetroShell(*this, 1);
+    RetroShell rpcShell = RetroShell(*this, 2);
     RemoteManager remoteManager = RemoteManager(*this);
     OSDebugger osDebugger = OSDebugger(*this);
     RegressionTester regressionTester = RegressionTester(*this);
@@ -189,6 +200,9 @@ public:
     // Returns a build number string for this release
     static string build();
 
+    // Returns a version string for the snapshot file format
+    static string snapshotVersion();
+
     // Converts a time span to the (approximate) number of master cycles
     static Cycle usec(i64 delay) { return Cycle(delay * 28LL); }
     static Cycle msec(i64 delay) { return Cycle(delay * 28000LL); }
@@ -197,7 +211,7 @@ public:
     // Converts a number of master cycles to the (approximate) time span
     static i64 asUsec(Cycle count) { return count / 28LL; }
     static i64 asMsec(Cycle count) { return count / 28000LL; }
-    static double asSec(Cycle count) { return count / 28000000.0; }
+    static double asSec(Cycle count) { return double(count) / 28000000.0; }
 
 
     //
@@ -252,6 +266,8 @@ public:
         CLONE(cpu)
         CLONE(remoteManager)
         CLONE(retroShell)
+        CLONE(rshShell)
+        CLONE(rpcShell)
         CLONE(osDebugger)
         CLONE(regressionTester)
 
@@ -289,7 +305,8 @@ public:
 public:
 
     const Descriptions &getDescriptions() const override { return descriptions; }
-    void prefix(isize level, const char *component, isize line) const override;
+    string prefix(long, const std::source_location &) const override;
+    void report(std::ostream &os, isize category) const override;
 
 private:
 
@@ -309,12 +326,12 @@ private:
 
 
     //
-    // Methods from Inspectable
+    // Analyzing
     //
 
 public:
 
-    void cacheInfo(AmigaInfo &result) const override;
+    AmigaInfo cacheInfo() const;
 
     u64 getAutoInspectionMask() const;
     void setAutoInspectionMask(u64 mask);
@@ -344,17 +361,17 @@ public:
 public:
 
     // Queries an option
-    i64 get(Opt opt, isize id = 0) const throws;
+    i64 get(Opt opt, isize id = 0) const;
 
     // Checks an option
-    void check(Opt opt, i64 value, const std::vector<isize> objids = { }) throws;
+    void check(Opt opt, i64 value, const std::vector<isize> objids = { });
 
     // Sets an option
-    void set(Opt opt, i64 value, const std::vector<isize> objids = { }) throws;
+    void set(Opt opt, i64 value, const std::vector<isize> objids = { });
 
     // Convenience wrappers
-    void set(Opt opt, const string &value, const std::vector<isize> objids = { }) throws;
-    void set(const string &opt, const string &value, const std::vector<isize> objids = { }) throws;
+    void set(Opt opt, const string &value, const std::vector<isize> objids = { });
+    void set(const string &opt, const string &value, const std::vector<isize> objids = { });
 
     // Configures the emulator to match a specific Amiga model
     void set(ConfigScheme model);
@@ -423,11 +440,37 @@ public:
     
 public:
     
-    // Loads a workspace from a file
-    void loadWorkspace(const fs::path &path) throws;
+    // Loads a workspace from a file, or the workspace of an SVM
+    void loadWorkspace(const fs::path &path);
+    void loadWorkspace(retro::vault::SVMFile &svm);
 
-    // Saves the current workspace to a file
+    // Saves the current workspace to a file, or into an SVM (see hibernate)
     void saveWorkspace(const fs::path &path);
+    void saveWorkspace(retro::vault::SVMFile &svm);
+
+    /* Hibernates the machine: saves the workspace and/or a snapshot
+     * (including a screenshot) into an SVM and updates its manifest. The GUI
+     * is told with a WORKSPACE_SAVED and a SNAPSHOT_SAVED message as soon as
+     * the respective part is done, and with a HIBERNATED message at the end.
+     */
+    void hibernate(const fs::path &path, bool snapshot, bool workspace);
+    void hibernate(retro::vault::SVMFile &svm, bool snapshot, bool workspace);
+
+private:
+
+    // Writes the workspace into a folder
+    void writeWorkspace(const fs::path &path);
+
+    // Saves the most recent frame, cropped to the largest visible area
+    void savePreview(const fs::path &path);
+
+    // Replaces the workspace of an SVM and notes it in the manifest
+    void updateWorkspace(retro::vault::SVMFile &svm);
+
+    // Adds a snapshot, including a screenshot, to an SVM and notes it in the manifest
+    void updateSnapshot(retro::vault::SVMFile &svm, Compressor compressor);
+
+public:
     
     // Called by (hidden) RetroShell 'workspace' commands
     void initWorkspace();
@@ -441,15 +484,15 @@ public:
 public:
 
     // Takes a snapshot
-    MediaFile *takeSnapshot();
+    std::unique_ptr<Snapshot> takeSnapshot(Compressor compressor, isize delay = 0, bool repeat = false);
 
     // Loads a snapshot from a file
-    void loadSnapshot(const fs::path &path) throws;
-    void loadSnapshot(const MediaFile &file) throws;
-    void loadSnapshot(const class Snapshot &snapshot) throws;
+    void loadSnapshot(const fs::path &path);
+    void loadSnapshot(const Snapshot &file);
 
-    // Saves a snapshot to a file
-    void saveSnapshot(const fs::path &path) throws;
+    // Saves a snapshot to a file, or into an SVM (see hibernate)
+    void saveSnapshot(const fs::path &path, Compressor compressor);
+    void saveSnapshot(retro::vault::SVMFile &svm, Compressor compressor);
 
     // Services a snapshot event
     void serviceSnpEvent(EventID id);
@@ -468,6 +511,9 @@ public:
 
     // Processes a command from the command queue
     void processCommand(const Command &cmd);
+
+    // Returns the guard list identified by an ID
+    class GuardList &guardList(GuardType type);
 
     // End-of-line handler
     void eolHandler();
@@ -502,3 +548,4 @@ public:
 };
 
 }
+

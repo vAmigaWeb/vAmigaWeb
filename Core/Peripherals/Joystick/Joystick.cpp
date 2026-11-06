@@ -7,27 +7,30 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Joystick.h"
 #include "Amiga.h"
-#include "IOUtils.h"
+#include "utl/io.h"
+#include <climits>
+#include <sstream>
 
 namespace vamiga {
 
 Joystick::Joystick(Amiga& ref, ControlPort& pref) : SubComponent(ref, pref.objid), port(pref)
 {
-
+    info.bind([this] { return cacheInfo(); } );
 };
 
-void
-Joystick::cacheInfo(JoystickInfo &result) const
+JoystickInfo
+Joystick::cacheInfo() const
 {
-    {   SYNCHRONIZED
+    JoystickInfo info;
 
-        result.button = button;
-        result.axisX = axisX;
-        result.axisY = axisY;
-    }
+    info.button = button;
+    info.axisX  = axisX;
+    info.axisY  = axisY;
+
+    return info;
 }
 
 i64
@@ -58,7 +61,7 @@ Joystick::checkOption(Opt opt, i64 value)
             return;
 
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -95,7 +98,7 @@ Joystick::setOption(Opt option, i64 value)
 void
 Joystick::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
 
     if (category == Category::Config) {
 
@@ -124,7 +127,7 @@ Joystick::_didLoad()
 void
 Joystick::setButton(bool value)
 {
-    trace(PRT_DEBUG, "Button = %d\n", value);
+    logmsg(LOG_PRT, "Button = %d\n", value);
     button = value;
 }
 
@@ -137,7 +140,7 @@ Joystick::isAutofiring()
 void
 Joystick::startAutofire()
 {
-    trace(PRT_DEBUG, "startAutofire()\n");
+    logmsg(LOG_PRT, "startAutofire()\n");
 
     // Load magazine
     reload(config.autofireBursts ? config.autofireBullets : INT_MAX);
@@ -152,7 +155,7 @@ Joystick::startAutofire()
 void
 Joystick::stopAutofire()
 {
-    trace(PRT_DEBUG, "stopAutofire()\n");
+    logmsg(LOG_PRT, "stopAutofire()\n");
 
     // Release button and empty the bullet counter
     setButton(false);
@@ -198,7 +201,7 @@ Joystick::changePra(u8 &pra) const
 u16
 Joystick::joydat() const
 {
-    // debug("joydat\n");
+    // logmsg("joydat\n");
 
     u16 result = 0;
 
@@ -229,9 +232,9 @@ Joystick::ciapa() const
 void
 Joystick::trigger(GamePadAction event)
 {
-    assert_enum(GamePadAction, event);
+    GamePadActionEnum::validate(event);
 
-    debug(PRT_DEBUG, "trigger(%s)\n", GamePadActionEnum::key(event));
+    logmsg(LOG_PRT, "trigger(%s)\n", GamePadActionEnum::key(event));
 
     switch (event) {
 
@@ -288,6 +291,19 @@ Joystick::trigger(GamePadAction event)
             break;
     }
     port.setDevice(ControlPortDevice::JOYSTICK);
+}
+
+void
+Joystick::trigger(const std::array<bool, 5> &state, const std::array<bool, 5> &previous)
+{
+    trigger(state[0] ? GamePadAction::PULL_UP : state[1] ? GamePadAction::PULL_DOWN : GamePadAction::RELEASE_Y);
+    trigger(state[2] ? GamePadAction::PULL_LEFT : state[3] ? GamePadAction::PULL_RIGHT : GamePadAction::RELEASE_X);
+
+    // Forward the fire button only if it has changed (a repeated press would toggle autofire)
+    if (state[4] != previous[4]) {
+
+        trigger(state[4] ? GamePadAction::PRESS_FIRE : GamePadAction::RELEASE_FIRE);
+    }
 }
 
 void

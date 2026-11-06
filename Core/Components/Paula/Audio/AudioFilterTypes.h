@@ -2,14 +2,15 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,6 +18,7 @@ namespace vamiga {
 // Enumerations
 //
 
+/// Type of an audio filter.
 enum class FilterType : long
 {
     NONE,
@@ -28,7 +30,7 @@ enum class FilterType : long
     HIGH
 };
 
-struct FilterTypeEnum : Reflection<FilterTypeEnum, FilterType>
+struct FilterTypeEnum : utl::Reflectable<FilterTypeEnum, FilterType>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(FilterType::HIGH);
@@ -68,9 +70,10 @@ struct FilterTypeEnum : Reflection<FilterTypeEnum, FilterType>
 // Structures
 //
 
+/// Configuration options of the audio filters.
 typedef struct
 {
-    // The selected audio filter type
+    /// The selected audio filter type
     FilterType filterType;
 }
 AudioFilterConfig;

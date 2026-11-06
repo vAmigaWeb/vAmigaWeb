@@ -7,11 +7,11 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "RTC.h"
-#include "Chrono.h"
 #include "Amiga.h"
-#include "IOUtils.h"
+#include "utl/chrono.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
@@ -35,15 +35,15 @@ RTC::checkOption(Opt option, i64 value)
         case Opt::RTC_MODEL:
 
             if (!isPoweredOff()) {
-                throw AppError(Fault::OPT_LOCKED);
+                throw CoreError(CoreError::OPT_LOCKED);
             }
             if (!RTCRevisionEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, RTCRevisionEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, RTCRevisionEnum::keyList());
             }
             return;
 
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -95,8 +95,8 @@ RTC::operator << (SerResetter &worker)
 void
 RTC::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-    
+    using namespace utl;
+
     if (category == Category::Config) {
         
         dumpConfig(os);
@@ -199,7 +199,7 @@ RTC::spypeek(isize nr) const
             result = reg[bank()][nr];
     }
 
-    trace(RTC_DEBUG, "peek(%ld) = $%X [bank %ld]\n", nr, result, bank());
+    logmsg(LOG_RTC, "peek(%td) = $%X [bank %td]\n", nr, result, bank());
     return result;
 }
 
@@ -208,7 +208,7 @@ RTC::poke(isize nr, u8 value)
 {
     assert(nr < 16);
 
-    trace(RTC_DEBUG, "poke(%ld, $%02X) [bank %ld]\n", nr, value, bank());
+    logmsg(LOG_RTC, "poke(%td, $%02X) [bank %td]\n", nr, value, bank());
 
     // Ony proceed if a real-time clock is installed
     if (config.model == RTCRevision::NONE) return;
@@ -234,7 +234,7 @@ RTC::time2registers()
     time_t rtcTime = getTime();
     
     // Convert the time_t value to a tm struct
-    auto t = util::Time::local(rtcTime);
+    auto t = utl::Time::local(rtcTime);
     
     // Write the registers
     config.model == RTCRevision::RICOH ? time2registersRicoh(&t) : time2registersOki(&t);

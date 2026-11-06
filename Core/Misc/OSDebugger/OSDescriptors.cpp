@@ -7,13 +7,13 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "OSDescriptors.h"
 #include "CoreObject.h"
-#include "MemUtils.h"
-#include "IOUtils.h"
-#include "Error.h"
 #include "Macros.h"
+#include "utl/support.h"
+#include "utl/io.h"
+#include <iostream>
 
 namespace vamiga {
 
@@ -85,8 +85,8 @@ HunkDescriptor::dump(Category category) const
 void
 HunkDescriptor::dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-    
+    using namespace utl;
+
     if (category == Category::Sections) {
         
         for (usize s = 0; s < sections.size(); s++) {
@@ -118,7 +118,7 @@ ProgramUnitDescriptor::init(const u8 *buf, isize len)
     
     auto read = [&]() {
         
-        if (offset + 4 > len) throw AppError(Fault::HUNK_CORRUPTED);
+        if (offset + 4 > len) throw CoreError(CoreError::HUNK_CORRUPTED);
         auto result = R32BE(buf + offset);
         offset += 4;
         return result;
@@ -127,7 +127,7 @@ ProgramUnitDescriptor::init(const u8 *buf, isize len)
     auto cookie = read();
     
     // Check magic cookie
-    if (cookie != HUNK_HEADER) throw AppError(Fault::HUNK_BAD_COOKIE);
+    if (cookie != HUNK_HEADER) throw CoreError(CoreError::HUNK_BAD_COOKIE);
     
     // Skip strings
     for (auto count = read(); count != 0; count = read()) {
@@ -137,11 +137,11 @@ ProgramUnitDescriptor::init(const u8 *buf, isize len)
 
     // Read block count and range
     auto numHunks = isize(read());
-    if (numHunks == 0) throw AppError(Fault::HUNK_NO_SECTIONS);
+    if (numHunks == 0) throw CoreError(CoreError::HUNK_NO_SECTIONS);
     auto first = isize(read());
-    if (first != 0) throw AppError(Fault::HUNK_BAD_HEADER);
+    if (first != 0) throw CoreError(CoreError::HUNK_BAD_HEADER);
     auto last = isize(read());
-    if (last != numHunks - 1) throw AppError(Fault::HUNK_BAD_HEADER);
+    if (last != numHunks - 1) throw CoreError(CoreError::HUNK_BAD_HEADER);
 
     // Read hunk sizes
     for (isize i = 0; i < numHunks; i++) {
@@ -193,8 +193,8 @@ ProgramUnitDescriptor::init(const u8 *buf, isize len)
                 for (auto count = read(); count; count = read()) {
 
                     if (count > KB(64)) {
-                        warn("Relocation section too large (%d)\n", count);
-                        throw AppError(Fault::HUNK_CORRUPTED);
+                        // warn("Relocation section too large (%d)\n", count);
+                        throw CoreError(CoreError::HUNK_CORRUPTED);
                     }
 
                     section.size += 4 * count;
@@ -231,7 +231,7 @@ ProgramUnitDescriptor::init(const u8 *buf, isize len)
             case HUNK_HEADER:
                 
                 // There cannot be a second header section
-                throw AppError(Fault::HUNK_CORRUPTED);
+                throw CoreError(CoreError::HUNK_CORRUPTED);
                 break;
                 
             case HUNK_OVERLAY:
@@ -248,7 +248,7 @@ ProgramUnitDescriptor::init(const u8 *buf, isize len)
 
             default:
                 
-                throw AppError(Fault::HUNK_UNSUPPORTED, HunkTypeEnum::key(type));
+                throw CoreError(CoreError::HUNK_UNSUPPORTED, HunkTypeEnum::key(type));
         }
     }
 }
@@ -278,7 +278,7 @@ ProgramUnitDescriptor::dump(Category category) const
 void
 ProgramUnitDescriptor::dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
 
     if (category == Category::Hunks || category == Category::Sections) {
         

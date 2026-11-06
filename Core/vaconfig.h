@@ -1,0 +1,84 @@
+// -----------------------------------------------------------------------------
+// This file is part of vAmiga
+//
+// Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
+// Licensed under the Mozilla Public License v2
+//
+// See https://mozilla.org/MPL/2.0 for license information
+// -----------------------------------------------------------------------------
+
+#pragma once
+
+#include "vadebug.h"
+#include "utl/support/Bits.h"
+#include "utl/hints.h"
+#include "utl/abilities/LogMacros.h"
+
+/* Internal code uses the names of utlib and rvlib without qualification. The
+ * directives live here and not in the public headers, so that they do not
+ * leak into the code of API clients.
+ */
+#include "utl/common.h"
+namespace retro::vault { }
+namespace vamiga { using namespace utl; using namespace retro::vault; }
+
+//
+// Release settings
+//
+
+// Version number
+static constexpr int VER_MAJOR      = 5;
+static constexpr int VER_MINOR      = 0;
+static constexpr int VER_SUBMINOR   = 0;
+static constexpr int VER_BETA       = 0;
+
+// Snapshot version number
+static constexpr int SNP_MAJOR      = 5;
+static constexpr int SNP_MINOR      = 0;
+static constexpr int SNP_SUBMINOR   = 0;
+static constexpr int SNP_BETA       = 0;
+
+
+//
+// Execution settings
+//
+
+static constexpr int RUN_AHEAD_FRAMES   = 7; // Maximum number of run-ahead frames
+static constexpr int RUN_BEHIND_FRAMES  = 6; // Maximum number of run-behind frames
+static constexpr int DIAG_BOARD         = 0; // Plug in the diagnose board
+static constexpr int ALLOW_ALL_ROMS     = 1; // Disable the magic bytes check
+
+
+//
+// Debug settings
+//
+
+static constexpr bool betaRelease = VER_BETA != 0;
+
+#ifdef NDEBUG
+static constexpr bool releaseBuild = 1;
+static constexpr bool debugBuild = 0;
+// typedef const long debugflag;
+#else
+static constexpr bool releaseBuild = 0;
+static constexpr bool debugBuild = 1;
+// typedef long debugflag;
+#endif
+
+#ifdef __APPLE__
+static constexpr bool macOS = 1;
+#else
+static constexpr bool macOS = 0;
+#endif
+
+#ifdef __EMSCRIPTEN__
+static constexpr bool wasmBuild = 1;
+#else
+static constexpr bool wasmBuild = 0;
+#endif
+
+#ifdef VAMIGA_DOS
+static constexpr bool vAmigaDOS = 1;
+#else
+static constexpr bool vAmigaDOS = 0;
+#endif

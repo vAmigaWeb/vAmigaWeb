@@ -7,13 +7,18 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Amiga.h"
+#include "Codecs.h"
 #include "Emulator.h"
 #include "Option.h"
 #include "Media.h"
-#include "Chrono.h"
+#include "SVMFile.h"
+#include "utl/chrono.h"
+#include "utl/gfx/Images.h"
+#include "utl/io.h"
 #include <algorithm>
+#include <format>
 
 namespace vamiga {
 
@@ -22,8 +27,9 @@ Amiga::version()
 {
     string result;
     
-    result = std::to_string(VER_MAJOR) + "." + std::to_string(VER_MINOR);
-    if constexpr (VER_SUBMINOR > 0) result += "." + std::to_string(VER_SUBMINOR);
+    result = std::to_string(VER_MAJOR) + "." +
+             std::to_string(VER_MINOR) + "." +
+             std::to_string(VER_SUBMINOR);
     if constexpr (VER_BETA > 0) result += 'b' + std::to_string(VER_BETA);
     
     return result;
@@ -33,8 +39,20 @@ string
 Amiga::build()
 {
     string db = debugBuild ? " [DEBUG BUILD]" : "";
-    
+
     return version() + db + " (" + __DATE__ + " " + __TIME__ + ")";
+}
+
+string
+Amiga::snapshotVersion()
+{
+    string result;
+
+    result = std::to_string(SNP_MAJOR) + "." + std::to_string(SNP_MINOR);
+    if constexpr (SNP_SUBMINOR > 0) result += "." + std::to_string(SNP_SUBMINOR);
+    if constexpr (SNP_BETA > 0) result += 'b' + std::to_string(SNP_BETA);
+
+    return result;
 }
 
 Amiga::Amiga(class Emulator& ref, isize id) : CoreComponent(ref, id)
@@ -75,53 +93,74 @@ Amiga::Amiga(class Emulator& ref, isize id) : CoreComponent(ref, id)
         &logicAnalyzer,
         &remoteManager,
         &retroShell,
+        &rshShell,
+        &rpcShell,
         &osDebugger,
         &regressionTester
     };
+
+    info.bind([this] { return cacheInfo(); } );
 }
 
 Amiga::~Amiga()
 {
-    debug(RUN_DEBUG, "Destroying emulator instance\n");
+    logmsg(LOG_RUN, "Destroying emulator instance\n");
 }
 
-void
-Amiga::prefix(isize level, const char *component, isize line) const
+string
+Amiga::prefix(long level, const std::source_location &loc) const
 {
-    if (level) {
-        
-        if (isRunAheadInstance()) fprintf(stderr, "[Run-ahead] ");
+    constexpr isize verbosity = 5;
 
-        if (level >= 3) {
-            
-            fprintf(stderr, "[%lld] (%3ld,%3ld) ", agnus.pos.frame, agnus.pos.v, agnus.pos.h);
+    std::string result;
+    result.reserve(256);
+
+    if (level == LOG_TRACE && verbosity) {
+
+        // Run-ahead prefix
+        if (isRunAheadInstance()) {
+            result += "[Run-ahead] ";
         }
-        if (level >= 4) {
-            
-            fprintf(stderr, "%06X ", cpu.getPC0());
+
+        // verbosity >= 3: frame & position
+        if constexpr (verbosity >= 3) {
+            std::format_to(std::back_inserter(result),
+                           "[{}] ({:3},{:3}) ",
+                           agnus.pos.frame, agnus.pos.v, agnus.pos.h);
+        }
+
+        // verbosity >= 4: CPU PC, Copper, IPL
+        if constexpr (verbosity >= 4) {
+            std::format_to(std::back_inserter(result), "{:06X} ", cpu.getPC0());
             if (agnus.copper.servicing) {
-                fprintf(stderr, "[%06X] ", agnus.copper.getCopPC0());
+                std::format_to(std::back_inserter(result), "[{:06X}] ", agnus.copper.getCopPC0());
             }
-            fprintf(stderr, "%2X ", cpu.getIPL());
+            std::format_to(std::back_inserter(result), "{:02X} ", cpu.getIPL());
         }
-        if (level >= 5) {
-            
+
+        // verbosity >= 5: DMACON, intena, intreq
+        if constexpr (verbosity >= 5) {
             u16 dmacon = agnus.dmacon;
             bool dmaen = dmacon & DMAEN;
-            fprintf(stderr, "%c%c%c%c%c%c ",
-                    (dmacon & BPLEN) ? (dmaen ? 'B' : 'B') : '-',
-                    (dmacon & COPEN) ? (dmaen ? 'C' : 'c') : '-',
-                    (dmacon & BLTEN) ? (dmaen ? 'B' : 'b') : '-',
-                    (dmacon & SPREN) ? (dmaen ? 'S' : 's') : '-',
-                    (dmacon & DSKEN) ? (dmaen ? 'D' : 'd') : '-',
-                    (dmacon & AUDEN) ? (dmaen ? 'A' : 'a') : '-');
-            
-            fprintf(stderr, "%04X %04X ", paula.intena, paula.intreq);
+
+            // DMACON bitfield characters
+            std::format_to(std::back_inserter(result),
+                           "{}{}{}{}{}{} ",
+                           (dmacon & BPLEN) ? (dmaen ? 'B' : 'b') : '-',
+                           (dmacon & COPEN) ? (dmaen ? 'C' : 'c') : '-',
+                           (dmacon & BLTEN) ? (dmaen ? 'B' : 'b') : '-',
+                           (dmacon & SPREN) ? (dmaen ? 'S' : 's') : '-',
+                           (dmacon & DSKEN) ? (dmaen ? 'D' : 'd') : '-',
+                           (dmacon & AUDEN) ? (dmaen ? 'A' : 'a') : '-');
+
+            std::format_to(std::back_inserter(result),
+                           "{:04X} {:04X} ", paula.intena, paula.intreq);
         }
-        if (level >= 2) {
-            
-            fprintf(stderr, "%s:%ld ", component, line);
-        }
+
+        return result;
+
+    } else {
+        return CoreObject::prefix(level, loc);
     }
 }
 
@@ -138,6 +177,22 @@ Amiga::_willReset(bool hard)
 void
 Amiga::_didReset(bool hard)
 {
+    if (hard) {
+
+        // On a real Amiga, the beam counters run freely while the CPU is held
+        // in reset. When the CPU is released, the beam is therefore at an
+        // arbitrary position relative to the CPU. The emulator, in contrast,
+        // would always start the CPU at the same beam position, which makes
+        // timing coincidences in software (e.g., the PAL/NTSC detection race
+        // in Kickstart 1.3) either always or never occur for a given machine
+        // configuration. To avoid hitting such a coincidence by default, we
+        // let the CPU start a few cycles late.
+        
+        auto delay = cpu.getConfig().startDelay;
+        agnus.execute(CPU_AS_DMA_CYCLES(delay));
+        cpu.addWaitStates(CPU_CYCLES(delay));
+    }
+
     // Schedule initial events
     scheduleNextSnpEvent();
     
@@ -159,10 +214,6 @@ Amiga::getOption(Opt option) const
         case Opt::AMIGA_VSYNC:           return (i64)config.vsync;
         case Opt::AMIGA_SPEED_BOOST:     return (i64)config.speedBoost;
         case Opt::AMIGA_RUN_AHEAD:       return (i64)config.runAhead;
-        case Opt::AMIGA_SNAP_AUTO:       return (i64)config.autoSnapshots;
-        case Opt::AMIGA_SNAP_DELAY:      return (i64)config.snapshotDelay;
-        case Opt::AMIGA_SNAP_COMPRESSOR: return (i64)config.snapshotCompressor;
-        case Opt::AMIGA_WS_COMPRESSION:  return (i64)config.compressWorkspaces;
 
         default:
             fatalError;
@@ -177,7 +228,7 @@ Amiga::checkOption(Opt opt, i64 value)
         case Opt::AMIGA_VIDEO_FORMAT:
             
             if (!TVEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, TVEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, TVEnum::keyList());
             }
             return;
             
@@ -188,7 +239,7 @@ Amiga::checkOption(Opt opt, i64 value)
         case Opt::AMIGA_WARP_MODE:
             
             if (!WarpEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, WarpEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, WarpEnum::keyList());
             }
             return;
             
@@ -197,44 +248,22 @@ Amiga::checkOption(Opt opt, i64 value)
             return;
             
         case Opt::AMIGA_SPEED_BOOST:
-/*vAmigaWeb            
+            
             if (value < 50 || value > 200) {
-                throw AppError(Fault::OPT_INV_ARG, "50...200");
+                throw CoreError(CoreError::OPT_INV_ARG, "50...200");
             }
-*/
             return;
             
         case Opt::AMIGA_RUN_AHEAD:
             
-            if (value < -7 || value > 7) {
-                throw AppError(Fault::OPT_INV_ARG, "-7...7");
+            if (value < -RUN_BEHIND_FRAMES || value > RUN_AHEAD_FRAMES) {
+                throw CoreError(CoreError::OPT_INV_ARG,
+                                std::to_string(-RUN_BEHIND_FRAMES) + "..." + std::to_string(RUN_AHEAD_FRAMES));
             }
             return;
-            
-        case Opt::AMIGA_SNAP_AUTO:
-            
-            return;
-            
-        case Opt::AMIGA_SNAP_DELAY:
-            
-            if (value < 10 || value > 3600) {
-                throw AppError(Fault::OPT_INV_ARG, "10...3600");
-            }
-            return;
-            
-        case Opt::AMIGA_SNAP_COMPRESSOR:
-            
-            if (!CompressorEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, CompressorEnum::keyList());
-            }
-            return;
-            
-        case Opt::AMIGA_WS_COMPRESSION:
 
-            return;
-            
         default:
-            throw AppError(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -276,28 +305,6 @@ Amiga::setOption(Opt option, i64 value)
             
             config.runAhead = isize(value);
             return;
-            
-        case Opt::AMIGA_SNAP_AUTO:
-            
-            config.autoSnapshots = bool(value);
-            scheduleNextSnpEvent();
-            return;
-            
-        case Opt::AMIGA_SNAP_DELAY:
-            
-            config.snapshotDelay = isize(value);
-            scheduleNextSnpEvent();
-            return;
-            
-        case Opt::AMIGA_SNAP_COMPRESSOR:
-            
-            config.snapshotCompressor = Compressor(value);
-            return;
-
-        case Opt::AMIGA_WS_COMPRESSION:
-            
-            config.compressWorkspaces = bool(value);
-            return;
 
         default:
             fatalError;
@@ -331,7 +338,7 @@ Amiga::loadWorkspace(const fs::path &path)
         ss << "\n";
         ss << "try workspace activate";
         
-    } catch (AppError &exc) {
+    } catch(Error &exc) {
         
         printf("Error: %s\n", exc.what());
         throw;
@@ -345,22 +352,140 @@ Amiga::loadWorkspace(const fs::path &path)
 void
 Amiga::saveWorkspace(const fs::path &path)
 {
+    writeWorkspace(path);
+
+    // Inform the GUI
+    msgQueue.put(Msg::WORKSPACE_SAVED);
+}
+
+void
+Amiga::loadWorkspace(retro::vault::SVMFile &svm)
+{
+    loadWorkspace(svm.root() / retro::vault::SVMFile::workspaceDir);
+}
+
+void
+Amiga::saveWorkspace(retro::vault::SVMFile &svm)
+{
+    updateWorkspace(svm);
+    svm.persist();
+
+    // Inform the GUI
+    msgQueue.put(Msg::WORKSPACE_SAVED);
+}
+
+void
+Amiga::saveSnapshot(retro::vault::SVMFile &svm, Compressor compressor)
+{
+    updateSnapshot(svm, compressor);
+    svm.persist();
+
+    // Inform the GUI
+    msgQueue.put(Msg::SNAPSHOT_SAVED);
+}
+
+void
+Amiga::hibernate(const fs::path &path, bool snapshot, bool workspace)
+{
+    retro::vault::SVMFile svm(retro::vault::SVMFile::Open, path);
+    hibernate(svm, snapshot, workspace);
+}
+
+void
+Amiga::hibernate(retro::vault::SVMFile &svm, bool snapshot, bool workspace)
+{
+    // Refuse before anything is done
+    if (snapshot && svm.isReadOnly()) throw Error(0, "The virtual machine is read-only.");
+
+    // Each part is persisted and reported when it is done
+    if (workspace) {
+
+        updateWorkspace(svm);
+        svm.persist();
+        msgQueue.put(Msg::WORKSPACE_SAVED);
+    }
+
+    if (snapshot) {
+
+        updateSnapshot(svm, Compressor::LZ4);
+        svm.persist();
+        msgQueue.put(Msg::SNAPSHOT_SAVED);
+    }
+
+    // Inform the GUI
+    msgQueue.put(Msg::HIBERNATED);
+}
+
+void
+Amiga::updateWorkspace(retro::vault::SVMFile &svm)
+{
+    using namespace retro::vault;
+
+    /* No need to clear the folder. writeWorkspace() removes old files itself,
+     * but spares the images the hard drives are sitting on.
+     */
+    writeWorkspace(svm.root() / SVMFile::workspaceDir);
+
+    // The preview image has been written along with the workspace
+    svm.getManifest().screenshot = "preview.png";
+}
+
+void
+Amiga::updateSnapshot(retro::vault::SVMFile &svm, Compressor compressor)
+{
+    using namespace retro::vault;
+
+    if (svm.isReadOnly()) throw Error(0, "The virtual machine is read-only.");
+
+    /* Bring the snapshot folder into being. Nothing else creates it, and the
+     * first snapshot of an SVM is exactly the case where it is not there yet.
+     */
+    auto folder = svm.root() / SVMFile::snapshotDir;
+    fs::create_directories(folder);
+
+    SnapshotInfo info {};
+    info.version    = snapshotVersion();
+    info.uuid       = utl::UUID::v4();
+    info.platform   = Platform::AMIGA;
+    info.created    = time(nullptr);
+    info.modified   = info.created;
+    info.screenshot = fs::path(info.uuid.toString() + ".png");
+    info.binary     = fs::path(info.uuid.toString() + ".vasnap");
+
+    // Take the screenshot and the snapshot, both of the same moment
+    savePreview(folder / info.screenshot);
+    Snapshot(*this, compressor).writeToFile(folder / info.binary);
+
+    svm.getManifest().appendSnapshot(info);
+}
+
+void
+Amiga::savePreview(const fs::path &path)
+{
+    // Save the most recent frame, cropped to the largest visible area
+    // (no HBLANK, no VBLANK)
+    auto pal = agnus.isPAL();
+    videoPort.saveTexture(path,
+                          8 * HBLANK_CNT, 8 * HPOS_CNT,
+                          pal ? PAL::VBLANK_CNT : NTSC::VBLANK_CNT,
+                          (pal ? PAL::VPOS_CNT : NTSC::VPOS_CNT) - 1);
+}
+
+void
+Amiga::writeWorkspace(const fs::path &path)
+{
     std::stringstream ss, df, hd;
 
     auto exportADF = [&](FloppyDrive& drive, string name) {
         
         if (drive.hasDisk()) {
             
-            string file = name + (config.compressWorkspaces ? ".adz" : ".adf");
+            string file = name + ".adf";
             
             try {
-                
-                if (config.compressWorkspaces) {
-                    
-                    ADZFile(ADFFile(drive)).writeToFile(path / file);
-                } else {
-                    ADFFile(drive).writeToFile(path / file);
-                }
+
+                auto adf = Codec::makeADF(drive);
+                adf->copy(path / file);
                 drive.markDiskAsUnmodified();
                 
                 df << "try " << name << " insert " << file << "\n";
@@ -378,17 +503,13 @@ Amiga::saveWorkspace(const fs::path &path)
         
         if (drive.hasDisk()) {
 
-            string file = name + (config.compressWorkspaces ? ".hdz" : ".hdf");
-            
+            string file = name + ".hdf";
+
             try {
                 
-                if (config.compressWorkspaces) {
-                    HDZFile(HDFFile(drive)).writeToFile(path / file);
-                } else {
-                    HDFFile(drive).writeToFile(path / file);
-                }
+                drive.writeToFile(path / file);
                 drive.markDiskAsUnmodified();
-                
+                                
                 hd << "try " << name << " attach " << file << "\n";
                 hd << "try " << name << (drive.hasProtectedDisk() ? " protect\n" : " unprotect\n");
                 
@@ -400,24 +521,43 @@ Amiga::saveWorkspace(const fs::path &path)
         }
     };
 
+    auto exportPreview = [&]() { savePreview(path / "preview.png"); };
+
+    auto isLiveDriveImage = [&](const fs::path &file) {
+
+        for (auto *drive : { &hd0, &hd1, &hd2, &hd3 }) {
+
+            if (!drive->hasDisk()) continue;
+
+            std::error_code ec;
+            auto own = drive->getPath();
+            if (!own.empty() && fs::equivalent(own, file, ec)) return true;
+        }
+        return false;
+    };
+
     // If a file with the specified name exists, delete it
     if (fs::exists(path) && !fs::is_directory(path)) fs::remove(path);
     
     // Create the directory if necessary
     if (!fs::exists(path)) fs::create_directories(path);
         
-    // Remove old files
-    for (const auto& entry : fs::directory_iterator(path)) fs::remove_all(entry.path());
+    // Remove old files, except the images the hard drives are sitting on
+    std::vector<fs::path> obsolete;
+    for (const auto &entry : fs::directory_iterator(path)) {
+        if (!isLiveDriveImage(entry.path())) obsolete.push_back(entry.path());
+    }
+    for (const auto &entry : obsolete) fs::remove_all(entry);
         
     // Prepare the config script
     auto now = std::time(nullptr);
-    auto local = util::Time::local(now);
+    auto local = utl::Time::local(now);
     ss << "# Workspace setup (" << std::put_time(&local, "%c") << ")\n";
     ss << "# Generated with vAmiga " << Amiga::build() << "\n";
     ss << "\n";
 
     // Dump the current config
-    exportConfig(ss, false, { Class::Host} );
+    exportConfig(ss, false, { Class::Host } );
 
     // Export ROMs
     ss << "\n# ROMs\n\n";
@@ -447,12 +587,12 @@ Amiga::saveWorkspace(const fs::path &path)
         ss << hd.str();
     }
 
+    // Add a preview image to the workspace bundle
+    try { exportPreview(); } catch (...) { }
+
     // Write the script into the workspace bundle
     std::ofstream file(path / "config.retrosh");
     file << ss.str();
-    
-    // Inform the GUI
-    msgQueue.put(Msg::WORKSPACE_SAVED);
 }
 
 void
@@ -460,7 +600,6 @@ Amiga::initWorkspace()
 {
     /* This function is called at the beginning of a workspace script */
     
-    // Power off the Amiga to make it configurable
     emulator.powerOff();
 }
 
@@ -468,11 +607,8 @@ void
 Amiga::activateWorkspace()
 {
     /* This function is called at the end of a workspace script */
-     
-    // Power on the Amiga
+
     emulator.run();
-    
-    // Inform the GUI
     msgQueue.put(Msg::WORKSPACE_LOADED);
 }
 
@@ -489,10 +625,10 @@ Amiga::revertToFactorySettings()
 i64
 Amiga::get(Opt opt, isize objid) const
 {
-    debug(CNF_DEBUG, "get(%s, %ld)\n", OptEnum::key(opt), objid);
+    logmsg(LOG_CNF, "get(%s, %td)\n", OptEnum::key(opt), objid);
 
     auto target = routeOption(opt, objid);
-    if (target == nullptr) throw AppError(Fault::OPT_INV_ID);
+    if (target == nullptr) throw CoreError(CoreError::OPT_INV_ID);
     return target->getOption(opt);
 }
 
@@ -506,16 +642,16 @@ Amiga::check(Opt opt, i64 value, const std::vector<isize> objids)
             auto target = routeOption(opt, objid);
             if (target == nullptr) break;
 
-            debug(CNF_DEBUG, "check(%s, %lld, %ld)\n", OptEnum::key(opt), value, objid);
+            logmsg(LOG_CNF, "check(%s, %lld, %td)\n", OptEnum::key(opt), value, objid);
             target->checkOption(opt, value);
         }
     }
     for (auto &objid : objids) {
 
-        debug(CNF_DEBUG, "check(%s, %lld, %ld)\n", OptEnum::key(opt), value, objid);
+        logmsg(LOG_CNF, "check(%s, %lld, %td)\n", OptEnum::key(opt), value, objid);
 
         auto target = routeOption(opt, objid);
-        if (target == nullptr) throw AppError(Fault::OPT_INV_ID);
+        if (target == nullptr) throw CoreError(CoreError::OPT_INV_ID);
 
         target->checkOption(opt, value);
     }
@@ -524,6 +660,12 @@ Amiga::check(Opt opt, i64 value, const std::vector<isize> objids)
 void
 Amiga::set(Opt opt, i64 value, const std::vector<isize> objids)
 {
+    /* Validate first: either all targets accept the value or none of them is
+     * changed. A rejected value is reported by throwing; for a queued command,
+     * the exception is caught in update() and sent to the GUI (Msg::CONFIG with the exception attached).
+     */
+    check(opt, value, objids);
+
     if (objids.empty()) {
 
         for (isize objid = 0;; objid++) {
@@ -531,16 +673,16 @@ Amiga::set(Opt opt, i64 value, const std::vector<isize> objids)
             auto target = routeOption(opt, objid);
             if (target == nullptr) break;
 
-            debug(CNF_DEBUG, "set(%s, %lld, %ld)\n", OptEnum::key(opt), value, objid);
+            logmsg(LOG_CNF, "set(%s, %lld, %td)\n", OptEnum::key(opt), value, objid);
             target->setOption(opt, value);
         }
     }
     for (auto &objid : objids) {
 
-        debug(CNF_DEBUG, "set(%s, %lld, %ld)\n", OptEnum::key(opt), value, objid);
+        logmsg(LOG_CNF, "set(%s, %lld, %td)\n", OptEnum::key(opt), value, objid);
 
         auto target = routeOption(opt, objid);
-        if (target == nullptr) throw AppError(Fault::OPT_INV_ID);
+        if (target == nullptr) throw CoreError(CoreError::OPT_INV_ID);
 
         target->setOption(opt, value);
     }
@@ -555,13 +697,13 @@ Amiga::set(Opt opt, const string &value, const std::vector<isize> objids)
 void
 Amiga::set(const string &opt, const string &value, const std::vector<isize> objids)
 {
-    set(Opt(util::parseEnum<OptEnum>(opt)), value, objids);
+    set(Opt(utl::parseEnum<OptEnum>(opt)), value, objids);
 }
 
 void
 Amiga::set(ConfigScheme scheme)
 {
-    assert_enum(ConfigScheme, scheme);
+    ConfigSchemeEnum::validate(scheme);
 
     emulator.revertToDefaultConfig();
 
@@ -570,9 +712,11 @@ Amiga::set(ConfigScheme scheme)
         case ConfigScheme::A1000_OCS_1MB:
             
             set(Opt::CPU_REVISION, (i64)CPURev::CPU_68000);
+            set(Opt::CPU_OVERCLOCKING, 0);
             set(Opt::AGNUS_REVISION, (i64)AgnusRevision::OCS_OLD);
             set(Opt::DENISE_REVISION, (i64)DeniseRev::OCS);
             set(Opt::AMIGA_VIDEO_FORMAT, (i64)TV::PAL);
+            set(Opt::MEM_BUS_WIDTH, 16);
             set(Opt::MEM_CHIP_RAM, 512);
             set(Opt::MEM_SLOW_RAM, 512);
             break;
@@ -580,9 +724,11 @@ Amiga::set(ConfigScheme scheme)
         case ConfigScheme::A500_OCS_1MB:
             
             set(Opt::CPU_REVISION, (i64)CPURev::CPU_68000);
+            set(Opt::CPU_OVERCLOCKING, 0);
             set(Opt::AGNUS_REVISION, (i64)AgnusRevision::OCS);
             set(Opt::DENISE_REVISION, (i64)DeniseRev::OCS);
             set(Opt::AMIGA_VIDEO_FORMAT, (i64)TV::PAL);
+            set(Opt::MEM_BUS_WIDTH, 16);
             set(Opt::MEM_CHIP_RAM, 512);
             set(Opt::MEM_SLOW_RAM, 512);
             break;
@@ -590,9 +736,11 @@ Amiga::set(ConfigScheme scheme)
         case ConfigScheme::A500_ECS_1MB:
             
             set(Opt::CPU_REVISION, (i64)CPURev::CPU_68000);
+            set(Opt::CPU_OVERCLOCKING, 0);
             set(Opt::AGNUS_REVISION, (i64)AgnusRevision::ECS_1MB);
             set(Opt::DENISE_REVISION, (i64)DeniseRev::OCS);
             set(Opt::AMIGA_VIDEO_FORMAT, (i64)TV::PAL);
+            set(Opt::MEM_BUS_WIDTH, 16);
             set(Opt::MEM_CHIP_RAM, 512);
             set(Opt::MEM_SLOW_RAM, 512);
             break;
@@ -600,11 +748,25 @@ Amiga::set(ConfigScheme scheme)
         case ConfigScheme::A500_PLUS_1MB:
             
             set(Opt::CPU_REVISION, (i64)CPURev::CPU_68000);
+            set(Opt::CPU_OVERCLOCKING, 0);
             set(Opt::AGNUS_REVISION, (i64)AgnusRevision::ECS_2MB);
             set(Opt::DENISE_REVISION, (i64)DeniseRev::ECS);
             set(Opt::AMIGA_VIDEO_FORMAT, (i64)TV::PAL);
+            set(Opt::MEM_BUS_WIDTH, 16);
             set(Opt::MEM_CHIP_RAM, 512);
             set(Opt::MEM_SLOW_RAM, 512);
+            break;
+ 
+        case ConfigScheme::A1200_2MB:
+            
+            set(Opt::CPU_REVISION, (i64)CPURev::CPU_68EC020);
+            set(Opt::CPU_OVERCLOCKING, 2);
+            set(Opt::AGNUS_REVISION, (i64)AgnusRevision::AGA);
+            set(Opt::DENISE_REVISION, (i64)DeniseRev::AGA);
+            set(Opt::AMIGA_VIDEO_FORMAT, (i64)TV::PAL);
+            set(Opt::MEM_BUS_WIDTH, 32);
+            set(Opt::MEM_CHIP_RAM, 2048);
+            set(Opt::MEM_SLOW_RAM, 0);
             break;
             
         default:
@@ -682,7 +844,7 @@ Amiga::refreshRate() const
     } else {
 
         auto boost = config.speedBoost ? config.speedBoost : 100;
-        return nativeRefreshRate() * boost / 100.0;
+        return nativeRefreshRate() * double(boost) / 100.0;
     }
 }
 
@@ -694,9 +856,15 @@ Amiga::masterClockFrequency() const
 }
 
 void
+Amiga::report(std::ostream &os, isize category) const
+{
+    _dump(Category(category), os);
+}
+
+void
 Amiga::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
 
     if (category == Category::Config) {
         
@@ -708,9 +876,9 @@ Amiga::_dump(Category category, std::ostream &os) const
         os << tab("Refresh rate");
         os << dec(isize(refreshRate())) << " Fps" << std::endl;
         os << tab("Native master clock");
-        os << flt(nativeMasterClockFrequency() / float(1000000.0)) << " MHz" << std::endl;
+        os << flt(float(nativeMasterClockFrequency()) / float(1000000.0)) << " MHz" << std::endl;
         os << tab("Emulated master clock");
-        os << flt(masterClockFrequency() / float(1000000.0)) << " MHz" << std::endl;
+        os << flt(float(masterClockFrequency()) / float(1000000.0)) << " MHz" << std::endl;
         os << tab("Native refresh rate");
         os << flt(nativeRefreshRate()) << " Fps" << std::endl;
         os << tab("Emulated refresh rate");
@@ -734,6 +902,23 @@ Amiga::_dump(Category category, std::ostream &os) const
         os << std::endl;
     }
 
+    if (category == Category::Checksums) {
+
+        for (auto &c : subComponents) {
+
+            os << tab(c->objectName());
+            os << hex(c->checksum(false))  << "  " << dec(c->size()) << " bytes";
+            os << std::endl;
+
+            for (auto &cc : c->subComponents) {
+
+                os << tab(cc->objectName());
+                os << hex(cc->checksum(true)) << "  " << dec(cc->size()) << " bytes";
+                os << std::endl;
+            }
+        }
+    }
+    
     if (category == Category::Current) {
 
         auto dmacon = agnus.dmacon;
@@ -803,7 +988,7 @@ Amiga::_dump(Category category, std::ostream &os) const
 void
 Amiga::_powerOn()
 {
-    debug(RUN_DEBUG, "_powerOn\n");
+    logmsg(LOG_RUN, "_powerOn\n");
 
     hardReset();
     msgQueue.put(Msg::POWER, 1);
@@ -812,7 +997,7 @@ Amiga::_powerOn()
 void
 Amiga::_powerOff()
 {
-    debug(RUN_DEBUG, "_powerOff\n");
+    logmsg(LOG_RUN, "_powerOff\n");
 
     hardReset();
     msgQueue.put(Msg::POWER, 0);
@@ -821,7 +1006,7 @@ Amiga::_powerOff()
 void
 Amiga::_run()
 {
-    debug(RUN_DEBUG, "_run\n");
+    logmsg(LOG_RUN, "_run\n");
 
     msgQueue.put(Msg::RUN);
 }
@@ -829,7 +1014,7 @@ Amiga::_run()
 void
 Amiga::_pause()
 {
-    debug(RUN_DEBUG, "_pause\n");
+    logmsg(LOG_RUN, "_pause\n");
 
     remoteManager.gdbServer.breakpointReached();
     msgQueue.put(Msg::PAUSE);
@@ -838,7 +1023,7 @@ Amiga::_pause()
 void
 Amiga::_halt()
 {
-    debug(RUN_DEBUG, "_halt\n");
+    logmsg(LOG_RUN, "_halt\n");
 
     msgQueue.put(Msg::SHUTDOWN);
 }
@@ -846,7 +1031,7 @@ Amiga::_halt()
 void
 Amiga::_warpOn()
 {
-    debug(RUN_DEBUG, "_warpOn\n");
+    logmsg(LOG_RUN, "_warpOn\n");
 
     msgQueue.put(Msg::WARP, 1);
 }
@@ -854,7 +1039,7 @@ Amiga::_warpOn()
 void
 Amiga::_warpOff()
 {
-    debug(RUN_DEBUG, "_warpOff\n");
+    logmsg(LOG_RUN, "_warpOff\n");
 
     msgQueue.put(Msg::WARP, 0);
 }
@@ -862,7 +1047,7 @@ Amiga::_warpOff()
 void
 Amiga::_trackOn()
 {
-    debug(RUN_DEBUG, "_trackOn\n");
+    logmsg(LOG_RUN, "_trackOn\n");
 
     msgQueue.put(Msg::TRACK, 1);
 }
@@ -870,7 +1055,7 @@ Amiga::_trackOn()
 void
 Amiga::_trackOff()
 {
-    debug(RUN_DEBUG, "_trackOff\n");
+    logmsg(LOG_RUN, "_trackOff\n");
 
     msgQueue.put(Msg::TRACK, 0);
 }
@@ -879,117 +1064,202 @@ void
 Amiga::update(CmdQueue &queue)
 {
     Command cmd;
-    bool cmdConfig = false;
+    CmdQueue::Completion completion;
 
     auto dfn = [&]() -> FloppyDrive& { return *df[cmd.value]; };
 
     // Process all commands
-    while (queue.poll(cmd)) {
+    while (queue.poll(cmd, completion)) {
 
-        switch (cmd.type) {
+        std::exception_ptr error;
 
-            case Cmd::CONFIG:
+        // Every command may change the state, so the run-ahead instance is outdated
+        emulator.markAsDirty();
 
-                cmdConfig = true;
-                set(cmd.config.option, cmd.config.value, { cmd.config.id });
-                break;
+        try {
 
-            case Cmd::CONFIG_ALL:
+            switch (cmd.type) {
 
-                cmdConfig = true;
-                set(cmd.config.option, cmd.config.value, { });
-                break;
+                case Cmd::CONFIG:
 
-            case Cmd::CONFIG_SCHEME:
+                    set(cmd.config.option, cmd.config.value, { cmd.config.id });
+                    break;
 
-                cmdConfig = true;
-                set(ConfigScheme(cmd.value));
-                break;
+                case Cmd::CONFIG_ALL:
 
-            case Cmd::HARD_RESET:
-            case Cmd::SOFT_RESET:
-            case Cmd::POWER_ON:
-            case Cmd::POWER_OFF:
-            case Cmd::RUN:
-            case Cmd::PAUSE:
-            case Cmd::WARP_ON:
-            case Cmd::WARP_OFF:
-            case Cmd::HALT:
-            case Cmd::ALARM_ABS:
-            case Cmd::ALARM_REL:
-            case Cmd::INSPECTION_TARGET:
+                    set(cmd.config.option, cmd.config.value, { });
+                    break;
 
-                processCommand(cmd);
-                break;
+                case Cmd::CONFIG_SCHEME:
 
-            case Cmd::GUARD_SET_AT:
-            case Cmd::GUARD_MOVE_NR:
-            case Cmd::GUARD_IGNORE_NR:
-            case Cmd::GUARD_REMOVE_NR:
-            case Cmd::GUARD_REMOVE_AT:
-            case Cmd::GUARD_REMOVE_ALL:
-            case Cmd::GUARD_ENABLE_NR:
-            case Cmd::GUARD_ENABLE_AT:
-            case Cmd::GUARD_ENABLE_ALL:
-            case Cmd::GUARD_DISABLE_NR:
-            case Cmd::GUARD_DISABLE_AT:
-            case Cmd::GUARD_DISABLE_ALL:
+                    set(ConfigScheme(cmd.value));
+                    break;
 
-                cpu.processCommand(cmd);
-                break;
+                case Cmd::NONE:
 
-            case Cmd::KEY_PRESS:
-            case Cmd::KEY_RELEASE:
-            case Cmd::KEY_RELEASE_ALL:
-            case Cmd::KEY_TOGGLE:
+                    // Does nothing (used as a barrier, see VAmiga::sync())
+                    break;
 
-                keyboard.processCommand(cmd);
-                break;
+                case Cmd::HARD_RESET:
+                case Cmd::SOFT_RESET:
+                case Cmd::POWER_ON:
+                case Cmd::POWER_OFF:
+                case Cmd::RUN:
+                case Cmd::PAUSE:
+                case Cmd::WARP_ON:
+                case Cmd::WARP_OFF:
+                case Cmd::TRACK_ON:
+                case Cmd::TRACK_OFF:
+                case Cmd::STEP_INTO:
+                case Cmd::STEP_OVER:
+                case Cmd::FINISH_LINE:
+                case Cmd::FINISH_FRAME:
+                case Cmd::HALT:
+                case Cmd::ALARM_ABS:
+                case Cmd::ALARM_REL:
+                case Cmd::INSPECTION_TARGET:
+                case Cmd::SAVE_WORKSPACE:
+                case Cmd::SAVE_SNAPSHOT:
+                case Cmd::HIBERNATE:
+                case Cmd::HDR_ATTACH:
+                case Cmd::HDR_IMPORT:
 
-            case Cmd::MOUSE_MOVE_ABS:
-            case Cmd::MOUSE_MOVE_REL:
-            {
-                auto &port = cmd.coord.port ? controlPort2 : controlPort1;
-                port.processCommand(cmd); break;
-                break;
-            }
-            case Cmd::MOUSE_BUTTON:
-            case Cmd::JOY_EVENT:
-            {
-                auto &port = cmd.action.port ? controlPort2 : controlPort1;
-                port.processCommand(cmd); break;
-                break;
-            }
-            case Cmd::DSK_TOGGLE_WP:
-            case Cmd::DSK_MODIFIED:
-            case Cmd::DSK_UNMODIFIED:
+                    processCommand(cmd);
+                    break;
 
-                dfn().processCommand(cmd);
-                break;
+                case Cmd::GUARD_SET_AT:
+                case Cmd::GUARD_MOVE_NR:
+                case Cmd::GUARD_IGNORE_NR:
+                case Cmd::GUARD_REMOVE_NR:
+                case Cmd::GUARD_REMOVE_AT:
+                case Cmd::GUARD_REMOVE_ALL:
+                case Cmd::GUARD_ENABLE_NR:
+                case Cmd::GUARD_ENABLE_AT:
+                case Cmd::GUARD_ENABLE_ALL:
+                case Cmd::GUARD_DISABLE_NR:
+                case Cmd::GUARD_DISABLE_AT:
+                case Cmd::GUARD_DISABLE_ALL:
+                case Cmd::GUARD_TOGGLE_NR:
+
+                    guardList(cmd.guard.list).processCommand(cmd);
+                    break;
+
+                case Cmd::KEY_PRESS:
+                case Cmd::KEY_RELEASE:
+                case Cmd::KEY_RELEASE_ALL:
+                case Cmd::KEY_TOGGLE:
+                case Cmd::KEY_LOCK:
+                case Cmd::KEY_UNLOCK:
+
+                    keyboard.processCommand(cmd);
+                    break;
+
+                case Cmd::MOUSE_MOVE_ABS:
+                case Cmd::MOUSE_MOVE_REL:
+                {
+                    auto &port = cmd.coord.port ? controlPort2 : controlPort1;
+                    port.processCommand(cmd); break;
+                    break;
+                }
+                case Cmd::MOUSE_BUTTON:
+                case Cmd::JOY_EVENT:
+                {
+                    auto &port = cmd.action.port ? controlPort2 : controlPort1;
+                    port.processCommand(cmd); break;
+                    break;
+                }
+                case Cmd::JOY_STATE:
+                {
+                    auto &port = cmd.joyState.port ? controlPort2 : controlPort1;
+                    port.processCommand(cmd);
+                    break;
+                }
+                case Cmd::DSK_TOGGLE_WP:
+                case Cmd::DSK_MODIFIED:
+                case Cmd::DSK_UNMODIFIED:
+
+                    dfn().processCommand(cmd);
+                    break;
+
+                case Cmd::DSK_INSERT:
+
+                    dfn().swapDisk(cmd.str);
+                    if (dfn().disk) dfn().disk->setWriteProtection(cmd.value2);
+                    break;
 
                 
-            case Cmd::RSH_EXECUTE:
+                case Cmd::KEY_ABORT_TYPING:
 
-                retroShell.exec();
-                break;
+                    keyboard.abortTyping();
+                    break;
 
-            case Cmd::FOCUS:
+                case Cmd::RSH_PRESS_KEY:
 
-                cmd.value ? focus() : unfocus();
-                break;
+                    retroShell.press(RSKey(cmd.value), cmd.value2);
+                    break;
 
-            default:
-                fatal("Unhandled command: %s\n", CmdEnum::key(cmd.type));
+                case Cmd::RSH_PRESS_CHAR:
+
+                    retroShell.press(char(cmd.value));
+                    break;
+
+                case Cmd::RSH_PRESS_TEXT:
+
+                    retroShell.press(cmd.str);
+                    break;
+
+                case Cmd::CALL:
+
+                    // The sender waits for the function (see Emulator::call)
+                    (*reinterpret_cast<const std::function<void()> *>(cmd.value2))();
+                    break;
+
+                case Cmd::RSH_EXECUTE:
+
+                    retroShell.exec();
+                    rshShell.exec();
+                    rpcShell.exec();
+                    break;
+
+                case Cmd::FOCUS:
+
+                    cmd.value ? focus() : unfocus();
+                    break;
+
+                default:
+                    logmsg(LOG_FATAL, "Unhandled command: %s\n", CmdEnum::key(cmd.type));
+            }
+
+        } catch (std::exception &e) {
+
+            logmsg(LOG_WARN, "Command: %s Exception: %s\n", CmdEnum::key(cmd.type), e.what());
+            error = std::current_exception();
+
         }
+
+        // Tell the GUI about a configuration request (a sender that waits for
+        // the outcome gets the exception from its completion handler instead)
+        if (cmd.type == Cmd::CONFIG || cmd.type == Cmd::CONFIG_ALL || cmd.type == Cmd::CONFIG_SCHEME) {
+
+            ConfigMsg cfg = cmd.type == Cmd::CONFIG_SCHEME ?
+                ConfigMsg { .option = -1, .id = -1, .value = cmd.value } :
+                ConfigMsg { .option = i32(cmd.config.option),
+                            .id = cmd.type == Cmd::CONFIG ? i32(cmd.config.id) : -1,
+                            .value = cmd.config.value };
+
+            msgQueue.put(Msg::CONFIG, cfg, "", completion ? nullptr : error);
+        }
+
+        // Tell the sender that the command has been carried out
+        if (completion) { try { completion(error); } catch (...) { } completion = nullptr; }
     }
 
-    // Inform the GUI about a changed machine configuration
-    if (cmdConfig) { msgQueue.put(Msg::CONFIG, isize(cmd.type)); }
-
     // Inform the GUI about new RetroShell content
-    if (retroShell.isDirty) { retroShell.isDirty = false; msgQueue.put(Msg::RSH_UPDATE); }
+    if (retroShell.isDirty) { retroShell.isDirty = false; msgQueue.put(Msg::RSH_UPDATE, 0); }
+    if (rshShell.isDirty)   { rshShell.isDirty = false;   msgQueue.put(Msg::RSH_UPDATE, 1); }
+    if (rpcShell.isDirty)   { rpcShell.isDirty = false;   msgQueue.put(Msg::RSH_UPDATE, 2); }
 
-    // Run the launch daemon of the remote servers
+    // Update subcomponents
     remoteManager.update();
 }
 
@@ -1015,21 +1285,21 @@ Amiga::computeFrame()
             // Did we reach a soft breakpoint?
             if (flags & RL::SOFTSTOP_REACHED) {
 
-                msgQueue.put(Msg::STEP);
+                msgQueue.put(Msg::STEP, "Step completed");
                 action = pause;
             }
 
             // Shall we stop at the end of the current line?
             if (flags & RL::EOL_REACHED) {
 
-                msgQueue.put(Msg::EOL_REACHED);
+                msgQueue.put(Msg::EOL_REACHED, "End of line reached");
                 action = pause;
             }
   
             // Shall we stop at the end of the current frame?
             if (flags & RL::EOF_REACHED) {
 
-                msgQueue.put(Msg::EOF_REACHED);
+                msgQueue.put(Msg::EOF_REACHED, "End of frame reached");
                 action = pause;
             }
 
@@ -1037,7 +1307,8 @@ Amiga::computeFrame()
             if (flags & RL::BREAKPOINT_REACHED) {
 
                 auto addr = cpu.debugger.breakpoints.hit->addr;
-                msgQueue.put(Msg::BREAKPOINT_REACHED, CpuMsg { addr, 0 });
+                msgQueue.put(Msg::BREAKPOINT_REACHED, CpuMsg { addr, 0 },
+                             std::format("Breakpoint reached at ${:06X}", addr));
                 action = pause;
             }
 
@@ -1045,7 +1316,8 @@ Amiga::computeFrame()
             if (flags & RL::WATCHPOINT_REACHED) {
 
                 auto addr = cpu.debugger.watchpoints.hit->addr;
-                msgQueue.put(Msg::WATCHPOINT_REACHED, CpuMsg { addr, 0 });
+                msgQueue.put(Msg::WATCHPOINT_REACHED, CpuMsg { addr, 0 },
+                             std::format("Watchpoint reached at ${:06X}", addr));
                 action = pause;
             }
 
@@ -1053,49 +1325,59 @@ Amiga::computeFrame()
             if (flags & RL::CATCHPOINT_REACHED) {
 
                 auto vector = u8(cpu.debugger.catchpoints.hit->addr);
-                msgQueue.put(Msg::CATCHPOINT_REACHED, CpuMsg { cpu.getPC0(), vector });
+                auto pc = cpu.getPC0();
+                msgQueue.put(Msg::CATCHPOINT_REACHED, CpuMsg { pc, vector },
+                             std::format("Exception vector {} caught at ${:06X}", int(vector), pc));
                 action = pause;
             }
 
             // Did we reach a software trap?
             if (flags & RL::SWTRAP_REACHED) {
 
-                msgQueue.put(Msg::SWTRAP_REACHED, CpuMsg { cpu.getPC0(), 0 });
+                auto pc = cpu.getPC0();
+                msgQueue.put(Msg::SWTRAP_REACHED, CpuMsg { pc, 0 },
+                             std::format("Software trap reached at ${:06X}", pc));
                 action = pause;
             }
 
             // Did we reach a beam trap?
             if (flags & RL::BEAMTRAP_REACHED) {
 
-                msgQueue.put(Msg::BEAMTRAP_REACHED, CpuMsg { 0, 0 });
+                auto v = agnus.debugger.beamtraps.hitV;
+                auto h = agnus.debugger.beamtraps.hitH;
+                msgQueue.put(Msg::BEAMTRAP_REACHED, BeamMsg { v, h },
+                             std::format("Beam trap reached at ({},{})", v, h));
                 action = pause;
             }
 
             // Did we reach a Copper breakpoint?
             if (flags & RL::COPPERBP_REACHED) {
 
-                auto addr = u8(agnus.copper.debugger.breakpoints.hit()->addr);
-                msgQueue.put(Msg::COPPERBP_REACHED, CpuMsg { addr, 0 });
+                auto addr = agnus.copper.debugger.breakpoints.hit()->addr;
+                msgQueue.put(Msg::COPPERBP_REACHED, CpuMsg { addr, 0 },
+                             std::format("Copper breakpoint reached at ${:06X}", addr));
                 action = pause;
             }
 
             // Did we reach a Copper watchpoint?
             if (flags & RL::COPPERWP_REACHED) {
 
-                auto addr = u8(agnus.copper.debugger.watchpoints.hit()->addr);
-                msgQueue.put(Msg::COPPERWP_REACHED, CpuMsg { addr, 0 });
+                auto addr = agnus.copper.debugger.watchpoints.hit()->addr;
+                msgQueue.put(Msg::COPPERWP_REACHED, CpuMsg { addr, 0 },
+                             std::format("Copper watchpoint reached at ${:06X}", addr));
                 action = pause;
             }
 
             // Are we requested to pause the emulator?
             if (flags & RL::STOP) {
 
+                msgQueue.put(Msg::STOP, "Stopped by the debugger");
                 action = pause;
             }
             
             flags = 0;
             
-            if (action == pause) { throw StateChangeException((long)ExecState::PAUSED); }
+            if (action == pause) { throw StateChangeException(i64(ExecState::PAUSED)); }
             if (action == leave) { break; }
         }
     }
@@ -1110,19 +1392,28 @@ Amiga::fastForward(isize frames)
     while (agnus.pos.frame < target) computeFrame();
 }
 
+/*
 void
 Amiga::cacheInfo(AmigaInfo &result) const
 {
-    {   SYNCHRONIZED
+    result = cacheInfo();
+}
+*/
 
-        info.cpuClock = cpu.getMasterClock();
-        info.dmaClock = agnus.clock;
-        info.ciaAClock = ciaA.getClock();
-        info.ciaBClock = ciaB.getClock();
-        info.frame = agnus.pos.frame;
-        info.vpos = agnus.pos.v;
-        info.hpos = agnus.pos.h;
-    }
+AmigaInfo
+Amiga::cacheInfo() const
+{
+    AmigaInfo info;
+
+    info.cpuClock = cpu.getMasterClock();
+    info.dmaClock = agnus.clock;
+    info.ciaAClock = ciaA.getClock();
+    info.ciaBClock = ciaB.getClock();
+    info.frame = agnus.pos.frame;
+    info.vpos = agnus.pos.v;
+    info.hpos = agnus.pos.h;
+
+    return info;
 }
 
 void
@@ -1139,29 +1430,34 @@ Amiga::clearFlag(u32 flag)
     flags &= ~flag;
 }
 
-MediaFile *
-Amiga::takeSnapshot()
+unique_ptr<Snapshot>
+Amiga::takeSnapshot(Compressor compressor, isize delay, bool repeat)
 {
-    Snapshot *result;
-    
+    if (delay != 0) {
+
+        i64 payload = (i64)compressor << 24 | repeat << 16 | delay;
+        agnus.scheduleRel<SLOT_SNP>(Amiga::sec(double(delay)), SNP_TAKE, payload);
+        return nullptr;
+    }
+
     // Take the snapshot
-   result = new Snapshot(*this);
-    
+    auto result = make_unique<Snapshot>(*this);
+
     // Compress the snapshot if requested
-    result->compress(config.snapshotCompressor);
-    
+    result->compress(compressor);
+
     return result;
 }
 
 void
 Amiga::serviceSnpEvent(EventID eventId)
 {
-    // Check for the main instance (ignore the run-ahead instance)
-    if (objid == 0) {
+    // Ignore the run-ahead instance
+    if (objid != 0) { agnus.cancel<SLOT_SNP>(); return; }
 
-        // Take snapshot and hand it over to GUI
-        msgQueue.put(Msg::SNAPSHOT_TAKEN, SnapshotMsg { .snapshot = new Snapshot(*this) } );
-    }
+    // Take snapshot and hand it over to the GUI
+    auto snapshot = takeSnapshot(Compressor(agnus.data[SLOT_SNP] >> 24));
+    msgQueue.put( Message { .type = Msg::SNAPSHOT_TAKEN, .snapshot = { snapshot.release() } } );
 
     // Schedule the next event
     scheduleNextSnpEvent();
@@ -1170,11 +1466,11 @@ Amiga::serviceSnpEvent(EventID eventId)
 void
 Amiga::scheduleNextSnpEvent()
 {
-    auto snapshots = emulator.get(Opt::AMIGA_SNAP_AUTO);
-    auto delay = emulator.get(Opt::AMIGA_SNAP_DELAY);
+    auto repeat = bool(agnus.data[SLOT_SNP] >> 16 & 0xFF);
+    auto delay = double(agnus.data[SLOT_SNP] & 0xFFFF);
 
-    if (snapshots) {
-        agnus.scheduleRel<SLOT_SNP>(SEC(double(delay)), SNP_TAKE);
+    if (repeat) {
+        agnus.scheduleRel<SLOT_SNP>(Amiga::sec(delay), SNP_TAKE, agnus.data[SLOT_SNP]);
     } else {
         agnus.cancel<SLOT_SNP>();
     }
@@ -1183,37 +1479,73 @@ Amiga::scheduleNextSnpEvent()
 void
 Amiga::loadSnapshot(const fs::path &path)
 {
-    loadSnapshot(Snapshot(path));
+    try {
+
+        loadSnapshot(Snapshot(path));
+
+    } catch (...) {
+
+        // Inform the GUI (the exception is also passed on to the caller)
+        msgQueue.put(Msg::SNAPSHOT_RESTORED, std::current_exception());
+        throw;
+    }
 }
 
 void
-Amiga::loadSnapshot(const MediaFile &file)
-{
-    const Snapshot &snapshot = dynamic_cast<const Snapshot &>(file);
-    loadSnapshot(snapshot);
-}
-
-void
-Amiga::loadSnapshot(const Snapshot &snap)
+Amiga::loadSnapshot(const Snapshot &snapshot)
 {
     // Make a copy so we can modify the snapshot
-    Snapshot snapshot(snap);
+    Snapshot snap(snapshot);
     
     // Uncompress the snapshot
-    snapshot.uncompress();
+    snap.uncompress();
     
-    // Restore the saved state (may throw)
-    load(snapshot.getData());
-        
+    try {
+
+        // Restore the saved state (may throw)
+        load(snap.getData() + sizeof(SnapshotHeader));
+
+    } catch (...) {
+
+        /* If we reach this point, the emulator has been put into an
+         * inconsistent state due to corrupted snapshot data. We cannot
+         * continue emulation, because it would likely crash the
+         * application. Because we cannot revert to the old state either,
+         * we perform a hard reset to eliminate the inconsistency.
+         */
+        emulator.put(Command(Cmd::HARD_RESET));
+        throw;
+    }
+    
     // Inform the GUI
     msgQueue.put(Msg::SNAPSHOT_RESTORED);
     msgQueue.put(Msg::VIDEO_FORMAT, agnus.isPAL() ? (i64)TV::PAL : (i64)TV::NTSC);
 }
 
 void
-Amiga::saveSnapshot(const fs::path &path)
+Amiga::saveSnapshot(const fs::path &path, Compressor compressor)
 {
-    Snapshot(*this, config.snapshotCompressor).writeToFile(path);
+    Snapshot(*this, compressor).writeToFile(path);
+
+    // Inform the GUI
+    msgQueue.put(Msg::SNAPSHOT_SAVED);
+}
+
+GuardList &
+Amiga::guardList(GuardType type)
+{
+    switch (type) {
+
+        case GuardType::BREAKPOINT:      return cpu.breakpoints;
+        case GuardType::WATCHPOINT:      return cpu.watchpoints;
+        case GuardType::CATCHPOINT:      return cpu.catchpoints;
+        case GuardType::COPPER_BREAKPOINT:   return agnus.copper.debugger.breakpoints;
+        case GuardType::COPPER_WATCHPOINT:   return agnus.copper.debugger.watchpoints;
+        case GuardType::BEAMTRAP:            return agnus.debugger.beamtraps;
+
+        default:
+            fatalError;
+    }
 }
 
 void
@@ -1236,6 +1568,70 @@ Amiga::processCommand(const Command &cmd)
             setAutoInspectionMask(cmd.value);
             break;
 
+        // An SVM that is already open travels as a pointer, otherwise as a path
+        case Cmd::SAVE_WORKSPACE:
+            
+            try {
+                if (cmd.value2) {
+                    saveWorkspace(*reinterpret_cast<retro::vault::SVMFile *>(cmd.value2));
+                } else {
+                    saveWorkspace(cmd.str);
+                }
+            } catch (...) {
+                msgQueue.put(Msg::WORKSPACE_SAVED, std::current_exception());
+            }
+            break;
+        
+    
+        case Cmd::SAVE_SNAPSHOT:
+            
+            try {
+                if (cmd.value2) {
+                    saveSnapshot(*reinterpret_cast<retro::vault::SVMFile *>(cmd.value2), Compressor(cmd.value));
+                } else {
+                    saveSnapshot(cmd.str, Compressor(cmd.value));
+                }
+            } catch (...) {
+                msgQueue.put(Msg::SNAPSHOT_SAVED, std::current_exception());
+            }
+            break;
+
+        case Cmd::HDR_ATTACH:
+
+            // Success is reported by the drive itself, a failure with the same message
+            try {
+                hd[cmd.value]->init(cmd.str, *reinterpret_cast<retro::vault::SVMFile *>(cmd.value2));
+            } catch (...) {
+                msgQueue.put(Msg::HDR_ATTACH, cmd.value, 0, "", std::current_exception());
+            }
+            break;
+
+        case Cmd::HDR_IMPORT:
+
+            // Reports the result to the GUI, together with the drive's number
+            try {
+                hd[cmd.value]->importFolder(cmd.str);
+                hd[cmd.value]->persist();
+                msgQueue.put(Msg::HDR_IMPORTED, cmd.value);
+            } catch (...) {
+                msgQueue.put(Msg::HDR_IMPORTED, cmd.value, 0, "", std::current_exception());
+            }
+            break;
+
+        case Cmd::HIBERNATE:
+
+            // Reports success to the GUI itself, a failure with the same message
+            try {
+                if (cmd.value2) {
+                    hibernate(*reinterpret_cast<retro::vault::SVMFile *>(cmd.value2), cmd.value & 1, cmd.value & 2);
+                } else {
+                    hibernate(cmd.str, cmd.value & 1, cmd.value & 2);
+                }
+            } catch (...) {
+                msgQueue.put(Msg::HIBERNATED, std::current_exception());
+            }
+            break;
+        
         case Cmd::HARD_RESET:
             
             emulator.hardReset();
@@ -1268,18 +1664,54 @@ Amiga::processCommand(const Command &cmd)
             
         case Cmd::WARP_ON:
             
-            if (cmd.value == 0) {
-                throw std::runtime_error("Source 0 is reserved for implementing config.warpMode.");
+            if (cmd.value < 0 || cmd.value > 6) {
+                throw CoreError(CoreError::OPT_INV_ARG, "0...6");
             }
             emulator.warpOn(isize(cmd.value));
             break;
             
         case Cmd::WARP_OFF:
 
-            if (cmd.value == 0) {
-                throw std::runtime_error("Source 0 is reserved for implementing config.warpMode.");
+            if (cmd.value < 0 || cmd.value > 6) {
+                throw CoreError(CoreError::OPT_INV_ARG, "0...6");
             }
             emulator.warpOff(isize(cmd.value));
+            break;
+
+        case Cmd::TRACK_ON:
+
+            if (cmd.value < 0 || cmd.value > 6) {
+                throw CoreError(CoreError::OPT_INV_ARG, "0...6");
+            }
+            emulator.trackOn(isize(cmd.value));
+            break;
+
+        case Cmd::TRACK_OFF:
+
+            if (cmd.value < 0 || cmd.value > 6) {
+                throw CoreError(CoreError::OPT_INV_ARG, "0...6");
+            }
+            emulator.trackOff(isize(cmd.value));
+            break;
+
+        case Cmd::STEP_INTO:
+
+            emulator.stepInto();
+            break;
+
+        case Cmd::STEP_OVER:
+
+            emulator.stepOver();
+            break;
+
+        case Cmd::FINISH_LINE:
+
+            emulator.finishLine();
+            break;
+
+        case Cmd::FINISH_FRAME:
+
+            emulator.finishFrame();
             break;
 
         case Cmd::HALT:

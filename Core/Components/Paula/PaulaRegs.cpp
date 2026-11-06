@@ -7,7 +7,7 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Paula.h"
 #include "CIA.h"
 #include "ControlPort.h"
@@ -17,7 +17,7 @@ namespace vamiga {
 u16
 Paula::peekADKCONR() const
 {
-    debug(AUDREG_DEBUG || DSKREG_DEBUG, "peekADKCON() = %x\n", adkcon);
+    logmsg(LOG_AUDREG, "peekADKCON() = %x\n", adkcon);
     
     return adkcon;
 }
@@ -25,7 +25,7 @@ Paula::peekADKCONR() const
 void
 Paula::pokeADKCON(u16 value)
 {
-    debug(AUDREG_DEBUG || DSKREG_DEBUG, "pokeADKCON(%x)\n", value);
+    logmsg(LOG_AUDREG, "pokeADKCON(%x)\n", value);
 
     bool set = value & 0x8000;
     bool clr = !set;
@@ -50,14 +50,14 @@ Paula::pokeADKCON(u16 value)
     uart.updateTXD();
 
     if (adkcon & 0b1110111) {
-        trace(AUDREG_DEBUG, "ADKCON MODULATION: %x\n", adkcon);
+        logmsg(LOG_AUDREG, "ADKCON MODULATION: %x\n", adkcon);
     }
 }
 
 u16
 Paula::peekINTREQR() const
 {
-    trace(INTREG_DEBUG, "peekINTREQR(): %x (INTENA = %x)\n", intreq, intena);
+    logmsg(LOG_INTREG, "peekINTREQR(): %x (INTENA = %x)\n", intreq, intena);
 
     return intreq;
 }
@@ -65,7 +65,7 @@ Paula::peekINTREQR() const
 template <Accessor s> void
 Paula::pokeINTREQ(u16 value)
 {
-    trace(INTREG_DEBUG, "pokeINTREQ(%x) (INTENA = %x INTREQ = %x)\n", value, intena, intreq);
+    logmsg(LOG_INTREG, "pokeINTREQ(%x) (INTENA = %x INTREQ = %x)\n", value, intena, intreq);
 
     switch (cpu.getConfig().revision) {
             
@@ -87,7 +87,7 @@ Paula::setINTREQ(bool setclr, u16 value)
 {
     assert(!(value & 0x8000));
 
-    trace(INTREG_DEBUG, "setINTREQ(%d,%x)\n", setclr, value);
+    logmsg(LOG_INTREG, "setINTREQ(%d,%x)\n", setclr, value);
 
     if (setclr) {
         intreq |= value;
@@ -104,7 +104,7 @@ Paula::setINTREQ(bool setclr, u16 value)
 u16
 Paula::peekINTENAR() const
 {
-    trace(INTREG_DEBUG, "peekINTENAR(): %x (INTREQ = %x)\n", intena, intreq);
+    logmsg(LOG_INTREG, "peekINTENAR(): %x (INTREQ = %x)\n", intena, intreq);
 
     return intena;
 }
@@ -112,7 +112,7 @@ Paula::peekINTENAR() const
 template <Accessor s> void
 Paula::pokeINTENA(u16 value)
 {
-    trace(INTREG_DEBUG, "pokeINTENA(%x)\n", value);
+    logmsg(LOG_INTREG, "pokeINTENA(%x)\n", value);
 
     agnus.recordRegisterChange(DMA_CYCLES(1), Reg::INTENA, value);
 }
@@ -122,7 +122,7 @@ Paula::setINTENA(bool setclr, u16 value)
 {
     assert(!(value & 0x8000));
 
-    trace(INTREG_DEBUG, "setINTENA(%d,%x)\n", setclr, value);
+    logmsg(LOG_INTREG, "setINTENA(%d,%x)\n", setclr, value);
 
     if (setclr) intena |= value; else intena &= ~value;
     checkInterrupt();
@@ -136,7 +136,7 @@ Paula::peekPOTxDAT() const
     if constexpr (x == 0) result = HI_LO(potCntY0, potCntX0);
     if constexpr (x == 1) result = HI_LO(potCntY1, potCntX1);
 
-    trace(POTREG_DEBUG, "peekPOT%ldDAT() = %x\n", x, result);
+    logmsg(LOG_POTREG, "peekPOT%tdDAT() = %x\n", x, result);
     return result;
 }
 
@@ -150,20 +150,20 @@ Paula::peekPOTGOR() const
     REPLACE_BIT(result, 10, chargeY0 >= 1.0);
     REPLACE_BIT(result,  8, chargeX0 >= 1.0);
 
-    trace(POT_DEBUG, "charges: %f %f %f %f\n", chargeY1, chargeX1, chargeY0, chargeX0);
+    logmsg(LOG_POT, "charges: %f %f %f %f\n", chargeY1, chargeX1, chargeY0, chargeX0);
     
     // A connected device may force the output level to a specific value
     controlPort1.changePotgo(result);
     controlPort2.changePotgo(result);
 
-    trace(POTREG_DEBUG, "peekPOTGOR() = %x (potgo = %x)\n", result, potgo);
+    logmsg(LOG_POTREG, "peekPOTGOR() = %x (potgo = %x)\n", result, potgo);
     return result;
 }
 
 void
 Paula::pokePOTGO(u16 value)
 {
-    trace(POTREG_DEBUG, "pokePOTGO(%x)\n", value);
+    logmsg(LOG_POTREG, "pokePOTGO(%x)\n", value);
 
     potgo = value;
 
@@ -176,7 +176,7 @@ Paula::pokePOTGO(u16 value)
     // Check the START bit
     if (GET_BIT(value, 0)) {
 
-        trace(POT_DEBUG, "Starting potentiometer scan procedure\n");
+        logmsg(LOG_POT, "Starting potentiometer scan procedure\n");
 
         // Clear potentiometer counters
         potCntX0 = 0;

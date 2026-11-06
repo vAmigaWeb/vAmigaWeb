@@ -6,6 +6,7 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
@@ -19,13 +20,14 @@ namespace vamiga {
  *   CIA_8520_DIP  mimics option "[ ] 391078-01" in UAE (default)
  *   CIA_8520_PLCC mimics option "[X] 391078-01" in UAE (A600)
  */
+/// CIA chip revision.
 enum class CIARev : long
 {
     MOS_8520_DIP,
     MOS_8520_PLCC
 };
 
-struct CIARevEnum : Reflection<CIARevEnum, CIARev>
+struct CIARevEnum : utl::Reflectable<CIARevEnum, CIARev>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(CIARev::MOS_8520_PLCC);
@@ -50,6 +52,7 @@ struct CIARevEnum : Reflection<CIARevEnum, CIARev>
     }
 };
 
+/// Registers of a CIA chip.
 enum class CIAReg : long
 {
     PRA,
@@ -70,7 +73,7 @@ enum class CIAReg : long
     CRB
 };
 
-struct CIARegEnum : Reflection<CIARegEnum, CIAReg>
+struct CIARegEnum : utl::Reflectable<CIARegEnum, CIAReg>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(CIAReg::CRB);
@@ -109,60 +112,65 @@ struct CIARegEnum : Reflection<CIARegEnum, CIAReg>
 // Structures
 //
 
+/// Configuration options of a CIA chip.
 typedef struct
 {
-    CIARev revision;
-    bool todBug;
-    bool eClockSyncing;
-    bool idleSleep;
+    CIARev revision;                        ///< Chip revision
+    bool todBug;                            ///< Emulate the TOD bug
+    bool eClockSyncing;                     ///< Sync accesses with the E clock
+    bool idleSleep;                         ///< Enter the idle state while the chip is not in use
 }
 CIAConfig;
 
+/// State of a CIA port.
 typedef struct
 {
-    u8 port;
-    u8 reg;
-    u8 dir;
+    u8 port;                                ///< State of the port pins
+    u8 reg;                                 ///< Port register (PRA or PRB)
+    u8 dir;                                 ///< Data direction register (DDRA or DDRB)
 }
 CIAPortInfo;
 
+/// State of a CIA timer.
 typedef struct
 {
-    u16 count;
-    u16 latch;
-    bool running;
-    bool toggle;
-    bool pbout;
-    bool oneShot;
+    u16 count;                              ///< Current counter value
+    u16 latch;                              ///< Latch value the counter is reloaded from
+    bool running;                           ///< The timer is running
+    bool toggle;                            ///< Toggle mode is on
+    bool pbout;                             ///< The timer output appears on port B
+    bool oneShot;                           ///< One-shot mode is on
 }
 CIATimerInfo;
 
+/// State of a CIA chip.
 typedef struct
 {
-    CIAPortInfo portA;
-    CIAPortInfo portB;
+    CIAPortInfo portA;                      ///< Port A
+    CIAPortInfo portB;                      ///< Port B
     
-    CIATimerInfo timerA;
-    CIATimerInfo timerB;
+    CIATimerInfo timerA;                    ///< Timer A
+    CIATimerInfo timerB;                    ///< Timer B
     
-    u8 sdr;
-    u8 ssr;
-    u8 icr;
-    u8 imr;
-    bool irq;
+    u8 sdr;                                 ///< Serial data register (SDR)
+    u8 ssr;                                 ///< Serial shift register
+    u8 icr;                                 ///< Interrupt control register (pending interrupts)
+    u8 imr;                                 ///< Interrupt mask register
+    bool irq;                               ///< The interrupt line is active
     
-    TODInfo tod;
-    bool todIrqEnable;
+    TODInfo tod;                            ///< Time-of-day clock
+    bool todIrqEnable;                      ///< The TOD alarm interrupt is enabled
 }
 CIAInfo;
 
+/// Statistics collected by a CIA chip.
 typedef struct
 {
-    Cycle totalCycles;
-    Cycle idleCycles;
+    Cycle totalCycles;                      ///< Total number of executed cycles
+    Cycle idleCycles;                       ///< Number of cycles spent in the idle state
     
-    double idlePercentage;
+    double idlePercentage;                  ///< Share of idle cycles
 }
-CIAStats;
+CIAMetrics;
 
 }

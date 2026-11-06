@@ -6,10 +6,11 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,11 +18,13 @@ namespace vamiga {
 // Enumerations
 //
 
+/// Configuration option.
 enum class Opt : long
 {
     // Host
     HOST_REFRESH_RATE,      ///< Refresh rate of the host display
-    HOST_SAMPLE_RATE,       ///< Refresh rate of the host display
+    HOST_SAMPLE_RATE,       ///< Host audio sample rate
+    HOST_TEX_FORMAT,        ///< Texture format
     HOST_FRAMEBUF_WIDTH,    ///< Current width of the emulator window
     HOST_FRAMEBUF_HEIGHT,   ///< Current height of the emulator window
     
@@ -32,30 +35,24 @@ enum class Opt : long
     AMIGA_VSYNC,            ///< Derive the frame rate to the VSYNC signal
     AMIGA_SPEED_BOOST,      ///< Speed adjustment in percent
     AMIGA_RUN_AHEAD,        ///< Number of run-ahead frames
-    
-    // Snapshots
-    AMIGA_SNAP_AUTO,        ///< Automatically take a snapshots
-    AMIGA_SNAP_DELAY,       ///< Delay between two snapshots in seconds
-    AMIGA_SNAP_COMPRESSOR,  ///< Snapshot compression method
 
     // Workspaces
-    AMIGA_WS_COMPRESSION,   ///< Workspace media file compression
 
     // Agnus
-    AGNUS_REVISION,
-    AGNUS_PTR_DROPS,
+    AGNUS_REVISION,         ///< Chip revision
+    AGNUS_PTR_DROPS,        ///< Ignore certain register writes
     
     // Denise
-    DENISE_REVISION,
-    DENISE_VIEWPORT_TRACKING,
-    DENISE_FRAME_SKIPPING,
-    DENISE_HIDDEN_BITPLANES,
-    DENISE_HIDDEN_SPRITES,
-    DENISE_HIDDEN_LAYERS,
-    DENISE_HIDDEN_LAYER_ALPHA,
-    DENISE_CLX_SPR_SPR,
-    DENISE_CLX_SPR_PLF,
-    DENISE_CLX_PLF_PLF,
+    DENISE_REVISION,        ///< Chip revision
+    DENISE_SHRES_BLEND,     ///< Blend super hires pixel pairs
+    DENISE_VIEWPORT_TRACKING,///< Track the currently used viewport
+    DENISE_FRAME_SKIPPING,  ///< Reduce frame rate in warp mode
+    DENISE_HIDDEN_BITPLANES,///< Hide bitplanes
+    DENISE_HIDDEN_SPRITES,  ///< Hide sprites
+    DENISE_HIDDEN_LAYERS,   ///< Hide playfields
+    DENISE_CLX_SPR_SPR,     ///< Detect sprite-sprite collisions
+    DENISE_CLX_SPR_PLF,     ///< Detect sprite-playfield collisions
+    DENISE_CLX_PLF_PLF,     ///< Detect playfield-playfield collisions
     
     // Monitor
     MON_PALETTE,            ///< Color palette
@@ -67,8 +64,8 @@ enum class Opt : long
     MON_VCENTER,            ///< Vertical centering
     MON_ZOOM,               ///< Zoom mode
     MON_HZOOM,              ///< Horizontal zoom
-    MON_VZOOM,              ///< Vertical centering
-    MON_ENHANCER,           ///< Pixel upscaler
+    MON_VZOOM,              ///< Vertical zoom
+    MON_ENHANCER,           ///< Enhancer
     MON_UPSCALER,           ///< Pixel upscaler
     MON_BLUR,               ///< Blur enable
     MON_BLUR_RADIUS,        ///< Blur radius
@@ -84,31 +81,36 @@ enum class Opt : long
     MON_DISALIGNMENT,       ///< Cathode ray disalignment enable
     MON_DISALIGNMENT_H,     ///< Horizontal cathode ray disalignment
     MON_DISALIGNMENT_V,     ///< Vertical cathode ray disalignment
-    MON_FLICKER,            ///< Interlace flicker enable
-    MON_FLICKER_WEIGHT,     ///< Interlace flicker intensity
+    MON_FLICKER_FIXER,      ///< Interlace flicker fixer (true = no flicker)
+    MON_FLICKER_JITTER,     ///< Interlace flicker intensity
 
-    // DMA Debugger
-    DMA_DEBUG_ENABLE,
-    DMA_DEBUG_MODE,
-    DMA_DEBUG_OPACITY,
-    DMA_DEBUG_CHANNEL0,
-    DMA_DEBUG_CHANNEL1,
-    DMA_DEBUG_CHANNEL2,
-    DMA_DEBUG_CHANNEL3,
-    DMA_DEBUG_CHANNEL4,
-    DMA_DEBUG_CHANNEL5,
-    DMA_DEBUG_CHANNEL6,
-    DMA_DEBUG_CHANNEL7,
-    DMA_DEBUG_COLOR0,
-    DMA_DEBUG_COLOR1,
-    DMA_DEBUG_COLOR2,
-    DMA_DEBUG_COLOR3,
-    DMA_DEBUG_COLOR4,
-    DMA_DEBUG_COLOR5,
-    DMA_DEBUG_COLOR6,
-    DMA_DEBUG_COLOR7,
-    
+    // X-Ray
+    XRAY_MODE,              ///< X-Ray mode
+    XRAY_OVERLAY,           ///< Show as overlay
+    XRAY_OVERLAY_STYLE,     ///< DMA Debugger style
+    XRAY_OVERLAY_OPACITY,   ///< Opacity
+    XRAY_DMA_CHANNEL0,      ///< Copper DMA
+    XRAY_DMA_CHANNEL1,      ///< Blitter DMA
+    XRAY_DMA_CHANNEL2,      ///< Disk DMA
+    XRAY_DMA_CHANNEL3,      ///< Audio DMA
+    XRAY_DMA_CHANNEL4,      ///< Sprite DMA
+    XRAY_DMA_CHANNEL5,      ///< Bitplane DMA
+    XRAY_DMA_CHANNEL6,      ///< CPU DMA
+    XRAY_DMA_CHANNEL7,      ///< Memory Refresh DMA
+    XRAY_COLOR0,            ///< Copper color
+    XRAY_COLOR1,            ///< Blitter color
+    XRAY_COLOR2,            ///< Disk color
+    XRAY_COLOR3,            ///< Audio color
+    XRAY_COLOR4,            ///< Sprite color
+    XRAY_COLOR5,            ///< Bitplane color
+    XRAY_COLOR6,            ///< CPU color
+    XRAY_COLOR7,            ///< Memory refresh color
+    XRAY_COLOR8,            ///< Playfield 1 color
+    XRAY_COLOR9,            ///< Playfield 2 color
+    XRAY_COMPOSITOR,        ///< X-Ray compositor
+
     // Logic analyzer
+    LA_CONNECT,             ///< Enable switch
     LA_PROBE0,              ///< Probe on channel 0
     LA_PROBE1,              ///< Probe on channel 1
     LA_PROBE2,              ///< Probe on channel 2
@@ -122,73 +124,84 @@ enum class Opt : long
     VID_WHITE_NOISE,        ///< Generate white-noise when switched off
 
     // CPU
-    CPU_REVISION,
-    CPU_DASM_REVISION,
-    CPU_DASM_SYNTAX,
-    CPU_DASM_NUMBERS,
-    CPU_OVERCLOCKING,
-    CPU_RESET_VAL,
+    CPU_REVISION,           ///< Chip revision
+    CPU_DASM_REVISION,      ///< Chip revision (disassembler)
+    CPU_DASM_SYNTAX,        ///< Disassembler syntax
+    CPU_DASM_NUMBERS,       ///< Disassembler number format
+    CPU_OVERCLOCKING,       ///< Overclocking factor
+    CPU_RESET_VAL,          ///< Register reset value
+    CPU_START_DELAY,        ///< Delay before the CPU starts
     
     // Real-time clock
-    RTC_MODEL,
+    RTC_MODEL,              ///< Chip revision
     
     // Memory
-    MEM_CHIP_RAM,
-    MEM_SLOW_RAM,
-    MEM_FAST_RAM,
-    MEM_EXT_START,
-    MEM_SAVE_ROMS,
-    MEM_SLOW_RAM_DELAY,
-    MEM_SLOW_RAM_MIRROR,
-    MEM_BANKMAP,
-    MEM_UNMAPPING_TYPE,
-    MEM_RAM_INIT_PATTERN,
+    MEM_BUS_WIDTH,          ///< Data bus width
+    MEM_CHIP_RAM,           ///< Chip RAM size
+    MEM_SLOW_RAM,           ///< Slow RAM size
+    MEM_FAST_RAM,           ///< Fast RAM size
+    MEM_EXT_START,          ///< Extension ROM location
+    MEM_SLOW_RAM_DELAY,     ///< Emulate slow RAM bus delays
+    MEM_SLOW_RAM_MIRROR,    ///< ECS memory mirroring
+    MEM_BANKMAP,            ///< Memory mapping scheme
+    MEM_UNMAPPING_TYPE,     ///< Unmapped memory behavior
+    MEM_RAM_INIT_PATTERN,   ///< RAM initialization pattern
+    MEM_SAVE_ROMS,          ///< Include ROMs in snapshots
     
     // Disk controller
-    DC_SPEED,
-    DC_LOCK_DSKSYNC,
-    DC_AUTO_DSKSYNC,
+    DC_SPEED,               ///< Drive speed
+    DC_LOCK_DSKSYNC,        ///< Ignore writes to DSKSYNC
+    DC_AUTO_DSKSYNC,        ///< Always find a sync mark
     
     // Floppy Drives
-    DRIVE_CONNECT,
-    DRIVE_TYPE,
-    DRIVE_MECHANICS,
-    DRIVE_RPM,
-    DRIVE_SWAP_DELAY,
-    DRIVE_PAN,
-    DRIVE_STEP_VOLUME,
-    DRIVE_POLL_VOLUME,
-    DRIVE_INSERT_VOLUME,
-    DRIVE_EJECT_VOLUME,
+    DRIVE_CONNECT,          ///< Connection status
+    DRIVE_TYPE,             ///< Drive model
+    DRIVE_MECHANICS,        ///< Emulate drive mechanics
+    DRIVE_RPM,              ///< Disk rotation speed
+    DRIVE_SWAP_DELAY,       ///< Disk swap delay
+    DRIVE_PAN,              ///< Pan
+    DRIVE_STEP_VOLUME,      ///< Head step volume
+    DRIVE_POLL_VOLUME,      ///< Disk polling step volume
+    DRIVE_INSERT_VOLUME,    ///< Disk insertion volume
+    DRIVE_EJECT_VOLUME,     ///< Disk ejection volume
     
     // Hard drive controllers
-    HDC_CONNECT,
+    HDC_CONNECT,            ///< Connection status
+    HDC_MB_LIMIT,           ///< Capacity limit in MB
     
     // Hard drives
-    HDR_TYPE,
-    HDR_PAN,
-    HDR_STEP_VOLUME,
-    
+    HDR_TYPE,               ///< Drive model
+    HDR_WRITE_THROUGH,      ///< When to write changes to the file
+    HDR_SNAPSHOT,           ///< Include disk in snapshots
+    HDR_MEM_LIMIT,          ///< Capacity limit for disks in memory in MB
+    HDR_PAN,                ///< Pan
+    HDR_STEP_VOLUME,        ///< Head step volume
+
     // Ports
-    SER_DEVICE,
-    SER_VERBOSE,
+    SER_DEVICE,             ///< Serial device type
+    SER_VERBOSE,            ///< Verbose
+    SER_HANDSHAKE,
     
+    // MIDI
+    MIDI_DEVICE_OUT,        ///< MIDI output device
+    MIDI_DEVICE_IN,         ///< MIDI input device
+
     // Blitter
-    BLITTER_ACCURACY,
+    BLITTER_ACCURACY,       ///< Blitter accuracy level
     
     // CIAs
-    CIA_REVISION,
-    CIA_TODBUG,
-    CIA_ECLOCK_SYNCING,
-    CIA_IDLE_SLEEP,
+    CIA_REVISION,           ///< Chip revision
+    CIA_TODBUG,             ///< Emulate TOD bug
+    CIA_ECLOCK_SYNCING,     ///< Sync accesses with E-clock
+    CIA_IDLE_SLEEP,         ///< Enter idle state while not in use
     
     // Keyboard
-    KBD_ACCURACY,
+    KBD_ACCURACY,           ///< Keyboard emulation accuracy
     
     // Mouse
-    MOUSE_PULLUP_RESISTORS,
-    MOUSE_SHAKE_DETECTION,
-    MOUSE_VELOCITY,
+    MOUSE_PULLUP_RESISTORS, ///< Emulate pullup resistors
+    MOUSE_SHAKE_DETECTION,  ///< Detect a shaked mouse
+    MOUSE_VELOCITY,         ///< Mouse velocity
     
     // Joystick
     JOY_AUTOFIRE,           ///< Autofire status [on/off]
@@ -197,33 +210,33 @@ enum class Opt : long
     JOY_AUTOFIRE_DELAY,     ///< Delay between two button events [frames]
     
     // Paula audio
-    AUD_PAN0,
-    AUD_PAN1,
-    AUD_PAN2,
-    AUD_PAN3,
-    AUD_VOL0,
-    AUD_VOL1,
-    AUD_VOL2,
-    AUD_VOL3,
-    AUD_VOLL,
-    AUD_VOLR,
-    AUD_FILTER_TYPE,
-    AUD_BUFFER_SIZE,
-    AUD_SAMPLING_METHOD,
-    AUD_ASR,
-    AUD_FASTPATH,
+    AUD_PAN0,               ///< Channel 0 pan
+    AUD_PAN1,               ///< Channel 1 pan
+    AUD_PAN2,               ///< Channel 2 pan
+    AUD_PAN3,               ///< Channel 3 pan
+    AUD_VOL0,               ///< Channel 0 volume
+    AUD_VOL1,               ///< Channel 1 volume
+    AUD_VOL2,               ///< Channel 2 volume
+    AUD_VOL3,               ///< Channel 3 volume
+    AUD_VOLL,               ///< Master volume (left)
+    AUD_VOLR,               ///< Master volume (right)
+    AUD_FILTER_TYPE,        ///< Audio filter type
+    AUD_BUFFER_SIZE,        ///< Audio buffer capacity
+    AUD_SAMPLING_METHOD,    ///< Sampling method
+    AUD_ASR,                ///< Adaptive Sample Rate
+    AUD_FASTPATH,           ///< Boost performance
     
     // Expansion boards
-    DIAG_BOARD,
+    DIAG_BOARD,             ///< Diagnose board
     
     // Remote servers
-    SRV_PORT,
-    SRV_PROTOCOL,
-    SRV_AUTORUN,
-    SRV_VERBOSE
+    SRV_ENABLE,             ///< Server enable status
+    SRV_PORT,               ///< Server port
+    SRV_TRANSPORT,          ///< Server transport
+    SRV_VERBOSE             ///< Verbose mode
 };
 
-struct OptEnum : Reflection<OptEnum, Opt>
+struct OptEnum : utl::Reflectable<OptEnum, Opt>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Opt::SRV_VERBOSE);
@@ -234,6 +247,7 @@ struct OptEnum : Reflection<OptEnum, Opt>
                 
             case Opt::HOST_REFRESH_RATE:         return "HOST.REFRESH_RATE";
             case Opt::HOST_SAMPLE_RATE:          return "HOST.SAMPLE_RATE";
+            case Opt::HOST_TEX_FORMAT:           return "HOST.TEX_FORMAT";
             case Opt::HOST_FRAMEBUF_WIDTH:       return "HOST.FRAMEBUF_WIDTH";
             case Opt::HOST_FRAMEBUF_HEIGHT:      return "HOST.FRAMEBUF_HEIGHT";
                 
@@ -243,10 +257,6 @@ struct OptEnum : Reflection<OptEnum, Opt>
             case Opt::AMIGA_VSYNC:               return "AMIGA.VSYNC";
             case Opt::AMIGA_SPEED_BOOST:         return "AMIGA.SPEED_BOOST";
             case Opt::AMIGA_RUN_AHEAD:           return "AMIGA.RUN_AHEAD";
-            case Opt::AMIGA_SNAP_AUTO:           return "AMIGA.SNAP_AUTO";
-            case Opt::AMIGA_SNAP_DELAY:          return "AMIGA.SNAP_DELAY";
-            case Opt::AMIGA_SNAP_COMPRESSOR:     return "AMIGA.SNAP_COMPRESSOR";
-            case Opt::AMIGA_WS_COMPRESSION:      return "AMIGA.WS_COMPRESSION";
                 
             case Opt::AGNUS_REVISION:            return "AGNUS.REVISION";
             case Opt::AGNUS_PTR_DROPS:           return "AGNUS.PTR_DROPS";
@@ -257,7 +267,7 @@ struct OptEnum : Reflection<OptEnum, Opt>
             case Opt::DENISE_HIDDEN_BITPLANES:   return "HIDDEN_BITPLANES";
             case Opt::DENISE_HIDDEN_SPRITES:     return "HIDDEN_SPRITES";
             case Opt::DENISE_HIDDEN_LAYERS:      return "HIDDEN_LAYERS";
-            case Opt::DENISE_HIDDEN_LAYER_ALPHA: return "HIDDEN_LAYER_ALPHA";
+            case Opt::DENISE_SHRES_BLEND:        return "SHRES_BLEND";
             case Opt::DENISE_CLX_SPR_SPR:        return "CLX_SPR_SPR";
             case Opt::DENISE_CLX_SPR_PLF:        return "CLX_SPR_PLF";
             case Opt::DENISE_CLX_PLF_PLF:        return "CLX_PLF_PLF";
@@ -288,29 +298,34 @@ struct OptEnum : Reflection<OptEnum, Opt>
             case Opt::MON_DISALIGNMENT:          return "MON.DISALIGNMENT";
             case Opt::MON_DISALIGNMENT_H:        return "MON.DISALIGNMENT_H";
             case Opt::MON_DISALIGNMENT_V:        return "MON.DISALIGNMENT_V";
-            case Opt::MON_FLICKER:               return "MON.FLICKER";
-            case Opt::MON_FLICKER_WEIGHT:        return "MON.FLICKER_WEIGHT";
+            case Opt::MON_FLICKER_FIXER:         return "MON.FLICKER_FIXER";
+            case Opt::MON_FLICKER_JITTER:        return "MON.FLICKER_JITTER";
 
-            case Opt::DMA_DEBUG_ENABLE:          return "DMA.DEBUG_ENABLE";
-            case Opt::DMA_DEBUG_MODE:            return "DMA.DEBUG_MODE";
-            case Opt::DMA_DEBUG_OPACITY:         return "DMA.DEBUG_OPACITY";
-            case Opt::DMA_DEBUG_CHANNEL0:        return "DMA.DEBUG_CHANNEL0";
-            case Opt::DMA_DEBUG_CHANNEL1:        return "DMA.DEBUG_CHANNEL1";
-            case Opt::DMA_DEBUG_CHANNEL2:        return "DMA.DEBUG_CHANNEL2";
-            case Opt::DMA_DEBUG_CHANNEL3:        return "DMA.DEBUG_CHANNEL3";
-            case Opt::DMA_DEBUG_CHANNEL4:        return "DMA.DEBUG_CHANNEL4";
-            case Opt::DMA_DEBUG_CHANNEL5:        return "DMA.DEBUG_CHANNEL5";
-            case Opt::DMA_DEBUG_CHANNEL6:        return "DMA.DEBUG_CHANNEL6";
-            case Opt::DMA_DEBUG_CHANNEL7:        return "DMA.DEBUG_CHANNEL7";
-            case Opt::DMA_DEBUG_COLOR0:          return "DMA.DEBUG_COLOR0";
-            case Opt::DMA_DEBUG_COLOR1:          return "DMA.DEBUG_COLOR1";
-            case Opt::DMA_DEBUG_COLOR2:          return "DMA.DEBUG_COLOR2";
-            case Opt::DMA_DEBUG_COLOR3:          return "DMA.DEBUG_COLOR3";
-            case Opt::DMA_DEBUG_COLOR4:          return "DMA.DEBUG_COLOR4";
-            case Opt::DMA_DEBUG_COLOR5:          return "DMA.DEBUG_COLOR5";
-            case Opt::DMA_DEBUG_COLOR6:          return "DMA.DEBUG_COLOR6";
-            case Opt::DMA_DEBUG_COLOR7:          return "DMA.DEBUG_COLOR7";
+            case Opt::XRAY_MODE:            return "XRAY.MODE";
+            case Opt::XRAY_OVERLAY:         return "XRAY.OVERLAY";
+            case Opt::XRAY_OVERLAY_STYLE: return "XRAY.OVERLAY_STYLE";
+            case Opt::XRAY_OVERLAY_OPACITY: return "XRAY.OVERLAY_OPACITY";
+            case Opt::XRAY_DMA_CHANNEL0:        return "XRAY.DMA_CHANNEL0";
+            case Opt::XRAY_DMA_CHANNEL1:        return "XRAY.DMA_CHANNEL1";
+            case Opt::XRAY_DMA_CHANNEL2:        return "XRAY.DMA_CHANNEL2";
+            case Opt::XRAY_DMA_CHANNEL3:        return "XRAY.DMA_CHANNEL3";
+            case Opt::XRAY_DMA_CHANNEL4:        return "XRAY.DMA_CHANNEL4";
+            case Opt::XRAY_DMA_CHANNEL5:        return "XRAY.DMA_CHANNEL5";
+            case Opt::XRAY_DMA_CHANNEL6:        return "XRAY.DMA_CHANNEL6";
+            case Opt::XRAY_DMA_CHANNEL7:        return "XRAY.DMA_CHANNEL7";
+            case Opt::XRAY_COLOR0:          return "XRAY.COLOR0";
+            case Opt::XRAY_COLOR1:          return "XRAY.COLOR1";
+            case Opt::XRAY_COLOR2:          return "XRAY.COLOR2";
+            case Opt::XRAY_COLOR3:          return "XRAY.COLOR3";
+            case Opt::XRAY_COLOR4:          return "XRAY.COLOR4";
+            case Opt::XRAY_COLOR5:          return "XRAY.COLOR5";
+            case Opt::XRAY_COLOR6:          return "XRAY.COLOR6";
+            case Opt::XRAY_COLOR7:          return "XRAY.COLOR7";
+            case Opt::XRAY_COLOR8:          return "XRAY.COLOR8";
+            case Opt::XRAY_COLOR9:          return "XRAY.COLOR9";
+            case Opt::XRAY_COMPOSITOR:      return "XRAY.COMPOSITOR";
                 
+            case Opt::LA_CONNECT:                return "LA.CONNECT";
             case Opt::LA_PROBE0:                 return "LA.PROBE0";
             case Opt::LA_PROBE1:                 return "LA.PROBE1";
             case Opt::LA_PROBE2:                 return "LA.PROBE2";
@@ -328,20 +343,22 @@ struct OptEnum : Reflection<OptEnum, Opt>
             case Opt::CPU_DASM_NUMBERS:          return "CPU.DASM_NUMBERS";
             case Opt::CPU_OVERCLOCKING:          return "CPU.OVERCLOCKING";
             case Opt::CPU_RESET_VAL:             return "CPU.RESET_VAL";
+            case Opt::CPU_START_DELAY:           return "CPU.START_DELAY";
                 
             case Opt::RTC_MODEL:                 return "RTC.MODEL";
                 
+            case Opt::MEM_BUS_WIDTH:             return "MEM.BUS_WIDTH";
             case Opt::MEM_CHIP_RAM:              return "MEM.CHIP_RAM";
             case Opt::MEM_SLOW_RAM:              return "MEM.SLOW_RAM";
             case Opt::MEM_FAST_RAM:              return "MEM.FAST_RAM";
             case Opt::MEM_EXT_START:             return "MEM.EXT_START";
-            case Opt::MEM_SAVE_ROMS:             return "MEM.SAVE_ROMS";
             case Opt::MEM_SLOW_RAM_DELAY:        return "MEM.SLOW_RAM_DELAY";
             case Opt::MEM_SLOW_RAM_MIRROR:       return "MEM.SLOW_RAM_MIRROR";
             case Opt::MEM_BANKMAP:               return "MEM.BANKMAP";
             case Opt::MEM_UNMAPPING_TYPE:        return "MEM.UNMAPPING_TYPE";
             case Opt::MEM_RAM_INIT_PATTERN:      return "MEM.RAM_INIT_PATTERN";
-                
+            case Opt::MEM_SAVE_ROMS:             return "MEM.SAVE_ROMS";
+
             case Opt::DC_SPEED:                  return "DC.SPEED";
             case Opt::DC_LOCK_DSKSYNC:           return "DC.LOCK_DSKSYNC";
             case Opt::DC_AUTO_DSKSYNC:           return "DC.AUTO_DSKSYNC";
@@ -358,14 +375,22 @@ struct OptEnum : Reflection<OptEnum, Opt>
             case Opt::DRIVE_EJECT_VOLUME:        return "DRIVE.EJECT_VOLUME";
                 
             case Opt::HDC_CONNECT:               return "HDC.CONNECT";
+            case Opt::HDC_MB_LIMIT:              return "HDC.MB_LIMIT";
                 
             case Opt::HDR_TYPE:                  return "HDR.TYPE";
             case Opt::HDR_PAN:                   return "HDR.PAN";
             case Opt::HDR_STEP_VOLUME:           return "HDR.STEP_VOLUME";
+            case Opt::HDR_WRITE_THROUGH:         return "HDR.WRITE_THROUGH";
+            case Opt::HDR_SNAPSHOT:              return "HDR.SNAPSHOT";
+            case Opt::HDR_MEM_LIMIT:             return "HDR.MEM_LIMIT";
                 
             case Opt::SER_DEVICE:                return "SER.DEVICE";
             case Opt::SER_VERBOSE:               return "SER.VERBOSE";
-                
+            case Opt::SER_HANDSHAKE:             return "SER.HANDSHAKE";
+            
+            case Opt::MIDI_DEVICE_OUT:           return "MIDI_DEVICE_OUT";
+            case Opt::MIDI_DEVICE_IN:            return "MIDI_DEVICE_IN";
+
             case Opt::BLITTER_ACCURACY:          return "BLITTER.ACCURACY";
                 
             case Opt::CIA_REVISION:              return "CIA.REVISION";
@@ -402,10 +427,10 @@ struct OptEnum : Reflection<OptEnum, Opt>
                 
             case Opt::DIAG_BOARD:                return "DIAG_BOARD";
                 
-            case Opt::SRV_PORT:                  return "SRV.PORT";
-            case Opt::SRV_PROTOCOL:              return "SRV.PROTOCOL";
-            case Opt::SRV_AUTORUN:               return "SRV.AUTORUN";
-            case Opt::SRV_VERBOSE:               return "SRV.VERBOSE";
+            case Opt::SRV_ENABLE:               return "SRV.ENABLE";
+            case Opt::SRV_PORT:                 return "SRV.PORT";
+            case Opt::SRV_TRANSPORT:            return "SRV.TRANSPORT";
+            case Opt::SRV_VERBOSE:              return "SRV.VERBOSE";
         }
         return "???";
     }
@@ -416,6 +441,7 @@ struct OptEnum : Reflection<OptEnum, Opt>
                 
             case Opt::HOST_REFRESH_RATE:         return "Host video refresh rate";
             case Opt::HOST_SAMPLE_RATE:          return "Host audio sample rate";
+            case Opt::HOST_TEX_FORMAT:           return "Texture format";
             case Opt::HOST_FRAMEBUF_WIDTH:       return "Window width";
             case Opt::HOST_FRAMEBUF_HEIGHT:      return "Window height";
                 
@@ -425,10 +451,6 @@ struct OptEnum : Reflection<OptEnum, Opt>
             case Opt::AMIGA_VSYNC:               return "VSYNC mode";
             case Opt::AMIGA_SPEED_BOOST:         return "Speed adjustment";
             case Opt::AMIGA_RUN_AHEAD:           return "Run-ahead frames";
-            case Opt::AMIGA_SNAP_AUTO:           return "Automatically take snapshots";
-            case Opt::AMIGA_SNAP_DELAY:          return "Time span between two snapshots";
-            case Opt::AMIGA_SNAP_COMPRESSOR:     return "Snapshot compression method";
-            case Opt::AMIGA_WS_COMPRESSION:      return "Compress workspaces";
 
             case Opt::AGNUS_REVISION:            return "Chip revision";
             case Opt::AGNUS_PTR_DROPS:           return "Ignore certain register writes";
@@ -439,7 +461,7 @@ struct OptEnum : Reflection<OptEnum, Opt>
             case Opt::DENISE_HIDDEN_BITPLANES:   return "Hide bitplanes";
             case Opt::DENISE_HIDDEN_SPRITES:     return "Hide sprites";
             case Opt::DENISE_HIDDEN_LAYERS:      return "Hide playfields";
-            case Opt::DENISE_HIDDEN_LAYER_ALPHA: return "Hidden playfield opacity";
+            case Opt::DENISE_SHRES_BLEND:        return "Blend super hires pixel pairs";
             case Opt::DENISE_CLX_SPR_SPR:        return "Detect sprite-sprite collisions";
             case Opt::DENISE_CLX_SPR_PLF:        return "Detect sprite-playfield collisions";
             case Opt::DENISE_CLX_PLF_PLF:        return "Detect playfield-playfield collisions";
@@ -470,29 +492,34 @@ struct OptEnum : Reflection<OptEnum, Opt>
             case Opt::MON_DISALIGNMENT:          return "Cathode rays disalignment";
             case Opt::MON_DISALIGNMENT_H:        return "Horizontal cathode ray shift";
             case Opt::MON_DISALIGNMENT_V:        return "Vertical cathode ray shift";
-            case Opt::MON_FLICKER:               return "Interlace flicker";
-            case Opt::MON_FLICKER_WEIGHT:        return "Interlace flicker intensity";
+            case Opt::MON_FLICKER_FIXER:         return "Interlace flicker fixer";
+            case Opt::MON_FLICKER_JITTER:        return "Interlace flicker jitter";
 
-            case Opt::DMA_DEBUG_ENABLE:          return "DMA Debugger";
-            case Opt::DMA_DEBUG_MODE:            return "DMA Debugger style";
-            case Opt::DMA_DEBUG_OPACITY:         return "Opacity";
-            case Opt::DMA_DEBUG_CHANNEL0:        return "Copper DMA";
-            case Opt::DMA_DEBUG_CHANNEL1:        return "Blitter DMA";
-            case Opt::DMA_DEBUG_CHANNEL2:        return "Disk DMA";
-            case Opt::DMA_DEBUG_CHANNEL3:        return "Audio DMA";
-            case Opt::DMA_DEBUG_CHANNEL4:        return "Sprite DMA";
-            case Opt::DMA_DEBUG_CHANNEL5:        return "Bitplane DMA";
-            case Opt::DMA_DEBUG_CHANNEL6:        return "CPU DMA";
-            case Opt::DMA_DEBUG_CHANNEL7:        return "Memory Refresh DMA";
-            case Opt::DMA_DEBUG_COLOR0:          return "Copper color";
-            case Opt::DMA_DEBUG_COLOR1:          return "Blitter color";
-            case Opt::DMA_DEBUG_COLOR2:          return "Disk color";
-            case Opt::DMA_DEBUG_COLOR3:          return "Audio color";
-            case Opt::DMA_DEBUG_COLOR4:          return "Sprite color";
-            case Opt::DMA_DEBUG_COLOR5:          return "Bitplane color";
-            case Opt::DMA_DEBUG_COLOR6:          return "CPU color";
-            case Opt::DMA_DEBUG_COLOR7:          return "Memory refresh color";
-                
+            case Opt::XRAY_MODE:            return "X-Ray mode";
+            case Opt::XRAY_OVERLAY:         return "Show as overlay";
+            case Opt::XRAY_OVERLAY_STYLE: return "DMA Debugger style";
+            case Opt::XRAY_OVERLAY_OPACITY: return "Opacity";
+            case Opt::XRAY_DMA_CHANNEL0:        return "Copper DMA";
+            case Opt::XRAY_DMA_CHANNEL1:        return "Blitter DMA";
+            case Opt::XRAY_DMA_CHANNEL2:        return "Disk DMA";
+            case Opt::XRAY_DMA_CHANNEL3:        return "Audio DMA";
+            case Opt::XRAY_DMA_CHANNEL4:        return "Sprite DMA";
+            case Opt::XRAY_DMA_CHANNEL5:        return "Bitplane DMA";
+            case Opt::XRAY_DMA_CHANNEL6:        return "CPU DMA";
+            case Opt::XRAY_DMA_CHANNEL7:        return "Memory Refresh DMA";
+            case Opt::XRAY_COLOR0:          return "Copper color";
+            case Opt::XRAY_COLOR1:          return "Blitter color";
+            case Opt::XRAY_COLOR2:          return "Disk color";
+            case Opt::XRAY_COLOR3:          return "Audio color";
+            case Opt::XRAY_COLOR4:          return "Sprite color";
+            case Opt::XRAY_COLOR5:          return "Bitplane color";
+            case Opt::XRAY_COLOR6:          return "CPU color";
+            case Opt::XRAY_COLOR7:          return "Memory refresh color";
+            case Opt::XRAY_COLOR8:          return "Playfield 1 color";
+            case Opt::XRAY_COLOR9:          return "Playfield 2 color";
+            case Opt::XRAY_COMPOSITOR:      return "X-Ray compositor";
+
+            case Opt::LA_CONNECT:                return "On / Off switch";
             case Opt::LA_PROBE0:                 return "Probe on channel 0";
             case Opt::LA_PROBE1:                 return "Probe on channel 1";
             case Opt::LA_PROBE2:                 return "Probe on channel 2";
@@ -510,20 +537,22 @@ struct OptEnum : Reflection<OptEnum, Opt>
             case Opt::CPU_DASM_NUMBERS:          return "Disassembler number format";
             case Opt::CPU_OVERCLOCKING:          return "Overclocking factor";
             case Opt::CPU_RESET_VAL:             return "Register reset value";
+            case Opt::CPU_START_DELAY:           return "Delay before the CPU starts";
                 
             case Opt::RTC_MODEL:                 return "Chip revision";
                 
+            case Opt::MEM_BUS_WIDTH:             return "Data bus width";
             case Opt::MEM_CHIP_RAM:              return "Chip RAM size";
             case Opt::MEM_SLOW_RAM:              return "Slow RAM size";
             case Opt::MEM_FAST_RAM:              return "Fast RAM size";
             case Opt::MEM_EXT_START:             return "Extension ROM location";
-            case Opt::MEM_SAVE_ROMS:             return "Include ROMs in snapshots";
             case Opt::MEM_SLOW_RAM_DELAY:        return "Emulate slow RAM bus delays";
             case Opt::MEM_SLOW_RAM_MIRROR:       return "ECS memory mirroring";
             case Opt::MEM_BANKMAP:               return "Memory mapping scheme";
             case Opt::MEM_UNMAPPING_TYPE:        return "Unmapped memory behavior";
             case Opt::MEM_RAM_INIT_PATTERN:      return "RAM initialization pattern";
-                
+            case Opt::MEM_SAVE_ROMS:             return "Include ROMs in snapshots";
+
             case Opt::DC_SPEED:                  return "Drive speed";
             case Opt::DC_LOCK_DSKSYNC:           return "Ignore writes to DSKSYNC";
             case Opt::DC_AUTO_DSKSYNC:           return "Always find a sync mark";
@@ -540,14 +569,22 @@ struct OptEnum : Reflection<OptEnum, Opt>
             case Opt::DRIVE_EJECT_VOLUME:        return "Disk ejection volume";
                 
             case Opt::HDC_CONNECT:               return "Connection status";
+            case Opt::HDC_MB_LIMIT:              return "Capacity limit in MB";
                 
             case Opt::HDR_TYPE:                  return "Drive model";
             case Opt::HDR_PAN:                   return "Pan";
             case Opt::HDR_STEP_VOLUME:           return "Head step volume";
+            case Opt::HDR_WRITE_THROUGH:         return "When to write changes to the file";
+            case Opt::HDR_SNAPSHOT:              return "Include disk in snapshots";
+            case Opt::HDR_MEM_LIMIT:             return "Capacity limit for disks in memory in MB";
                 
             case Opt::SER_DEVICE:                return "Serial device type";
             case Opt::SER_VERBOSE:               return "Verbose";
-                
+            case Opt::SER_HANDSHAKE:             return "RTS/CTS handshake on the null modem cable";
+            
+            case Opt::MIDI_DEVICE_OUT:           return "MIDI output device";
+            case Opt::MIDI_DEVICE_IN:            return "MIDI input device";
+
             case Opt::BLITTER_ACCURACY:          return "Blitter accuracy level";
                 
             case Opt::CIA_REVISION:              return "Chip revision";
@@ -584,10 +621,10 @@ struct OptEnum : Reflection<OptEnum, Opt>
                 
             case Opt::DIAG_BOARD:                return "Diagnose board";
                 
-            case Opt::SRV_PORT:                  return "Server port";
-            case Opt::SRV_PROTOCOL:              return "Server protocol";
-            case Opt::SRV_AUTORUN:               return "Auto run";
-            case Opt::SRV_VERBOSE:               return "Verbose mode";
+            case Opt::SRV_ENABLE:            return "Server enable status";
+            case Opt::SRV_PORT:              return "Server port";
+            case Opt::SRV_TRANSPORT:         return "Server transport";
+            case Opt::SRV_VERBOSE:           return "Verbose mode";
         }
         return "???";
     }

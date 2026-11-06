@@ -10,17 +10,18 @@
 #pragma once
 
 #include "Macros.h"
-#include "MemUtils.h"
-#include "Buffer.h"
-#include "RingBuffer.h"
+#include "utl/storage.h"
+#include "utl/abilities/Hashable.h"
+#include "utl/abilities/Streamable.h"
+#include "utl/support/Bits.h"
+
 #include <concepts>
 
 namespace vamiga {
 
-struct SerializableStruct {
+using utl::Hashable;
 
-};
-
+/*
 class Serializable {
 
 public:
@@ -34,6 +35,7 @@ public:
     virtual void operator << (class SerReader &worker) = 0;
     virtual void operator << (class SerWriter &worker) = 0;
 };
+*/
 
 
 //
@@ -161,14 +163,14 @@ public:
     COUNTD(const double)
        
     template <class T>
-    auto& operator<<(util::Allocator<T> &a)
+    auto& operator<<(utl::Buffer<T> &a)
     {
         count += 8 + a.size;
         return *this;
     }
 
     template <class T, isize N>
-    auto& operator<<(util::Array<T, N> &a)
+    auto& operator<<(utl::Array<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         *this << a.elements << a.w;
@@ -176,7 +178,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::SortedArray<T, N> &a)
+    auto& operator<<(utl::SortedArray<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         for(isize i = 0; i < N; ++i) *this << a.keys[i];
@@ -185,7 +187,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::RingBuffer<T, N> &a)
+    auto& operator<<(utl::RingBuffer<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         *this << a.r << a.w;
@@ -193,7 +195,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::SortedRingBuffer<T, N> &a)
+    auto& operator<<(utl::SortedRingBuffer<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         for(isize i = 0; i < N; ++i) *this << a.keys[i];
@@ -241,14 +243,7 @@ public:
         return *this;
     }
 
-    template <std::derived_from<SerializableStruct> T>
-    SerCounter& operator<<(T &v)
-    {
-        v << *this;
-        return *this;
-    }
-
-    template <std::derived_from<Serializable> T>
+    template <std::derived_from<Streamable> T>
     SerCounter& operator<<(T &v)
     {
         v << *this;
@@ -264,7 +259,7 @@ public:
 #define CHECK(type) \
 auto& operator<<(type& v) \
 { \
-hash = util::fnvIt64(hash, (u64)v); \
+hash = Hashable::fnvIt64(hash, (u64)v); \
 return *this; \
 }
 
@@ -274,7 +269,7 @@ public:
 
     u64 hash;
 
-    SerChecker() { hash = util::fnvInit64(); }
+    SerChecker() { hash = Hashable::fnvInit64(); }
 
     CHECK(const bool)
     CHECK(const char)
@@ -292,14 +287,14 @@ public:
     CHECK(const double)
 
     template <class T>
-    auto& operator<<(util::Allocator<T> &a)
+    auto& operator<<(utl::Buffer<T> &a)
     {
-        hash = util::fnvIt64(hash, a.fnv64());
+        hash = Hashable::fnvIt64(hash, a.fnv64());
         return *this;
     }
 
     template <class T, isize N>
-    auto& operator<<(util::Array<T, N> &a)
+    auto& operator<<(utl::Array<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         *this << a.elements << a.w;
@@ -307,7 +302,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::SortedArray<T, N> &a)
+    auto& operator<<(utl::SortedArray<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         for(isize i = 0; i < N; ++i) *this << a.keys[i];
@@ -316,7 +311,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::RingBuffer<T, N> &a)
+    auto& operator<<(utl::RingBuffer<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         *this << a.r << a.w;
@@ -324,7 +319,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::SortedRingBuffer<T, N> &a)
+    auto& operator<<(utl::SortedRingBuffer<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         for(isize i = 0; i < N; ++i) *this << a.keys[i];
@@ -336,7 +331,7 @@ public:
     {
         auto len = v.length();
         for (usize i = 0; i < len; i++) {
-            hash = util::fnvIt64(hash, v[i]);
+            hash = Hashable::fnvIt64(hash, v[i]);
         }
         return *this;
     }
@@ -370,18 +365,11 @@ public:
     template <class E, class = std::enable_if_t<std::is_enum<E>{}>>
     SerChecker& operator<<(E &v)
     {
-        hash = util::fnvIt64(hash, u64(v));
+        hash = Hashable::fnvIt64(hash, u64(v));
         return *this;
     }
 
-    template <std::derived_from<SerializableStruct> T>
-    SerChecker& operator<<(T &v)
-    {
-        v << *this;
-        return *this;
-    }
-
-    template <std::derived_from<Serializable> T>
+    template <std::derived_from<Streamable> T>
     SerChecker& operator<<(T &v)
     {
         v << *this;
@@ -430,7 +418,7 @@ public:
     DESERIALIZED(double)
 
     template <class T>
-    auto& operator<<(util::Allocator<T> &a)
+    auto& operator<<(utl::Buffer<T> &a)
     {
         i64 len;
         *this << len;
@@ -440,7 +428,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::Array<T, N> &a)
+    auto& operator<<(utl::Array<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         *this << a.elements << a.w;
@@ -448,7 +436,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::SortedArray<T, N> &a)
+    auto& operator<<(utl::SortedArray<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         for(isize i = 0; i < N; ++i) *this << a.keys[i];
@@ -457,7 +445,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::RingBuffer<T, N> &a)
+    auto& operator<<(utl::RingBuffer<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         *this << a.r << a.w;
@@ -465,7 +453,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::SortedRingBuffer<T, N> &a)
+    auto& operator<<(utl::SortedRingBuffer<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         for(isize i = 0; i < N; ++i) *this << a.keys[i];
@@ -522,14 +510,7 @@ public:
         return *this;
     }
 
-    template <std::derived_from<SerializableStruct> T>
-    SerReader& operator<<(T &v)
-    {
-        v << *this;
-        return *this;
-    }
-
-    template <std::derived_from<Serializable> T>
+    template <std::derived_from<Streamable> T>
     SerReader& operator<<(T &v)
     {
         v << *this;
@@ -584,7 +565,7 @@ public:
     SERIALIZED(const double)
 
     template <class T>
-    auto& operator<<(util::Allocator<T> &a)
+    auto& operator<<(utl::Buffer<T> &a)
     {
         *this << i64(a.size);
         a.copy(ptr);
@@ -593,7 +574,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::Array<T, N> &a)
+    auto& operator<<(utl::Array<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         *this << a.elements << a.w;
@@ -601,7 +582,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::SortedArray<T, N> &a)
+    auto& operator<<(utl::SortedArray<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         for(isize i = 0; i < N; ++i) *this << a.keys[i];
@@ -610,7 +591,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::RingBuffer<T, N> &a)
+    auto& operator<<(utl::RingBuffer<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         *this << a.r << a.w;
@@ -618,7 +599,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::SortedRingBuffer<T, N> &a)
+    auto& operator<<(utl::SortedRingBuffer<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         for(isize i = 0; i < N; ++i) *this << a.keys[i];
@@ -668,14 +649,7 @@ public:
         return *this;
     }
 
-    template <std::derived_from<SerializableStruct> T>
-    SerWriter& operator<<(T &v)
-    {
-        v << *this;
-        return *this;
-    }
-
-    template <std::derived_from<Serializable> T>
+    template <std::derived_from<Streamable> T>
     SerWriter& operator<<(T &v)
     {
         v << *this;
@@ -728,14 +702,14 @@ public:
     RESET(double)
 
     template <class T>
-    auto& operator<<(util::Allocator<T> &a)
+    auto& operator<<(utl::Buffer<T> &a)
     {
         a.clear();
         return *this;
     }
 
     template <class T, isize N>
-    auto& operator<<(util::Array<T, N> &a)
+    auto& operator<<(utl::Array<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         *this << a.elements << a.w;
@@ -743,7 +717,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::SortedArray<T, N> &a)
+    auto& operator<<(utl::SortedArray<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         for(isize i = 0; i < N; ++i) *this << a.keys[i];
@@ -752,7 +726,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::RingBuffer<T, N> &a)
+    auto& operator<<(utl::RingBuffer<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         *this << a.r << a.w;
@@ -760,7 +734,7 @@ public:
     }
 
     template <class T, isize N>
-    auto& operator<<(util::SortedRingBuffer<T, N> &a)
+    auto& operator<<(utl::SortedRingBuffer<T, N> &a)
     {
         for(isize i = 0; i < N; ++i) *this << a.elements[i];
         for(isize i = 0; i < N; ++i) *this << a.keys[i];
@@ -803,15 +777,9 @@ public:
         v = (E)0;
         return *this;
     }
-    template <std::derived_from<SerializableStruct> T>
-    SerResetter & operator<<(T &v)
-    {
-        v << *this;
-        return *this;
-    }
 
-    template <std::derived_from<Serializable> T>
-    SerResetter& operator<<(T &v)
+    template <std::derived_from<Streamable> T>
+    SerResetter & operator<<(T &v)
     {
         v << *this;
         return *this;
@@ -830,18 +798,11 @@ template <> inline bool isHardResetter(SerResetter &worker) { return worker.isHa
 }
 
 #define SERIALIZERS(fn) \
-void operator << (SerChecker &worker) override { fn(worker); } \
-void operator << (SerCounter &worker) override { fn(worker); } \
+void operator << (SerChecker  &worker) override { fn(worker); } \
+void operator << (SerCounter  &worker) override { fn(worker); } \
 void operator << (SerResetter &worker) override { fn(worker); } \
-void operator << (SerReader &worker) override { fn(worker); } \
-void operator << (SerWriter &worker) override { fn(worker); }
-
-#define STRUCT_SERIALIZERS(fn) \
-void operator << (SerChecker &worker) { fn(worker); } \
-void operator << (SerCounter &worker) { fn(worker); } \
-void operator << (SerResetter &worker) { fn(worker); } \
-void operator << (SerReader &worker) { fn(worker); } \
-void operator << (SerWriter &worker) { fn(worker); }
+void operator << (SerReader   &worker) override { fn(worker); } \
+void operator << (SerWriter   &worker) override { fn(worker); }
 
 #define CLONE(x) x = other.x;
 #define CLONE_ARRAY(x) std::copy(std::begin(other.x), std::end(other.x), std::begin(x));

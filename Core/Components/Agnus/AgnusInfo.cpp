@@ -7,18 +7,18 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Agnus.h"
-#include "IOUtils.h"
 #include "CIA.h"
 #include "CPU.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
 const char *
 Agnus::eventName(EventSlot slot, EventID id)
 {
-    assert_enum(EventSlot, slot);
+    EventSlotEnum::validate(slot);
     
     switch (slot) {
 
@@ -98,6 +98,22 @@ Agnus::eventName(EventSlot slot, EventID id)
                 case BPL_L6_MOD | DRAW_ODD:     return "BPL_L6*[O]";
                 case BPL_L6_MOD | DRAW_EVEN:    return "BPL_L6*[E]";
                 case BPL_L6_MOD | DRAW_BOTH:    return "BPL_L6*[OE]";
+                case BPL_L7:                    return "BPL_L7";
+                case BPL_L7 | DRAW_ODD:         return "BPL_L7 [O]";
+                case BPL_L7 | DRAW_EVEN:        return "BPL_L7 [E]";
+                case BPL_L7 | DRAW_BOTH:        return "BPL_L7 [OE]";
+                case BPL_L7_MOD:                return "BPL_L7*";
+                case BPL_L7_MOD | DRAW_ODD:     return "BPL_L7*[O]";
+                case BPL_L7_MOD | DRAW_EVEN:    return "BPL_L7*[E]";
+                case BPL_L7_MOD | DRAW_BOTH:    return "BPL_L7*[OE]";
+                case BPL_L8:                    return "BPL_L8";
+                case BPL_L8 | DRAW_ODD:         return "BPL_L8 [O]";
+                case BPL_L8 | DRAW_EVEN:        return "BPL_L8 [E]";
+                case BPL_L8 | DRAW_BOTH:        return "BPL_L8 [OE]";
+                case BPL_L8_MOD:                return "BPL_L8*";
+                case BPL_L8_MOD | DRAW_ODD:     return "BPL_L8*[O]";
+                case BPL_L8_MOD | DRAW_EVEN:    return "BPL_L8*[E]";
+                case BPL_L8_MOD | DRAW_BOTH:    return "BPL_L8*[OE]";
                 case BPL_H1:                    return "BPL_H1";
                 case BPL_H1 | DRAW_ODD:         return "BPL_H1 [O]";
                 case BPL_H1 | DRAW_EVEN:        return "BPL_H1 [E]";
@@ -130,6 +146,38 @@ Agnus::eventName(EventSlot slot, EventID id)
                 case BPL_H4_MOD | DRAW_ODD:     return "BPL_H4*[O]";
                 case BPL_H4_MOD | DRAW_EVEN:    return "BPL_H4*[E]";
                 case BPL_H4_MOD | DRAW_BOTH:    return "BPL_H4*[OE]";
+                case BPL_H5:                    return "BPL_H5";
+                case BPL_H5 | DRAW_ODD:         return "BPL_H5 [O]";
+                case BPL_H5 | DRAW_EVEN:        return "BPL_H5 [E]";
+                case BPL_H5 | DRAW_BOTH:        return "BPL_H5 [OE]";
+                case BPL_H5_MOD:                return "BPL_H5*";
+                case BPL_H5_MOD | DRAW_ODD:     return "BPL_H5*[O]";
+                case BPL_H5_MOD | DRAW_EVEN:    return "BPL_H5*[E]";
+                case BPL_H5_MOD | DRAW_BOTH:    return "BPL_H5*[OE]";
+                case BPL_H6:                    return "BPL_H6";
+                case BPL_H6 | DRAW_ODD:         return "BPL_H6 [O]";
+                case BPL_H6 | DRAW_EVEN:        return "BPL_H6 [E]";
+                case BPL_H6 | DRAW_BOTH:        return "BPL_H6 [OE]";
+                case BPL_H6_MOD:                return "BPL_H6*";
+                case BPL_H6_MOD | DRAW_ODD:     return "BPL_H6*[O]";
+                case BPL_H6_MOD | DRAW_EVEN:    return "BPL_H6*[E]";
+                case BPL_H6_MOD | DRAW_BOTH:    return "BPL_H6*[OE]";
+                case BPL_H7:                    return "BPL_H7";
+                case BPL_H7 | DRAW_ODD:         return "BPL_H7 [O]";
+                case BPL_H7 | DRAW_EVEN:        return "BPL_H7 [E]";
+                case BPL_H7 | DRAW_BOTH:        return "BPL_H7 [OE]";
+                case BPL_H7_MOD:                return "BPL_H7*";
+                case BPL_H7_MOD | DRAW_ODD:     return "BPL_H7*[O]";
+                case BPL_H7_MOD | DRAW_EVEN:    return "BPL_H7*[E]";
+                case BPL_H7_MOD | DRAW_BOTH:    return "BPL_H7*[OE]";
+                case BPL_H8:                    return "BPL_H8";
+                case BPL_H8 | DRAW_ODD:         return "BPL_H8 [O]";
+                case BPL_H8 | DRAW_EVEN:        return "BPL_H8 [E]";
+                case BPL_H8 | DRAW_BOTH:        return "BPL_H8 [OE]";
+                case BPL_H8_MOD:                return "BPL_H8*";
+                case BPL_H8_MOD | DRAW_ODD:     return "BPL_H8*[O]";
+                case BPL_H8_MOD | DRAW_EVEN:    return "BPL_H8*[E]";
+                case BPL_H8_MOD | DRAW_BOTH:    return "BPL_H8*[OE]";
                 case BPL_S1:                    return "BPL_S1";
                 case BPL_S1 | DRAW_ODD:         return "BPL_S1 [O]";
                 case BPL_S1 | DRAW_EVEN:        return "BPL_S1 [E]";
@@ -146,6 +194,60 @@ Agnus::eventName(EventSlot slot, EventID id)
                 case BPL_S2_MOD | DRAW_ODD:     return "BPL_S2*[O]";
                 case BPL_S2_MOD | DRAW_EVEN:    return "BPL_S2*[E]";
                 case BPL_S2_MOD | DRAW_BOTH:    return "BPL_S2*[OE]";
+
+                case BPL_S3:                    return "BPL_S3";
+                case BPL_S3 | DRAW_ODD:         return "BPL_S3 [O]";
+                case BPL_S3 | DRAW_EVEN:        return "BPL_S3 [E]";
+                case BPL_S3 | DRAW_BOTH:        return "BPL_S3 [OE]";
+                case BPL_S3_MOD:                return "BPL_S3*";
+                case BPL_S3_MOD | DRAW_ODD:     return "BPL_S3*[O]";
+                case BPL_S3_MOD | DRAW_EVEN:    return "BPL_S3*[E]";
+                case BPL_S3_MOD | DRAW_BOTH:    return "BPL_S3*[OE]";
+
+                case BPL_S4:                    return "BPL_S4";
+                case BPL_S4 | DRAW_ODD:         return "BPL_S4 [O]";
+                case BPL_S4 | DRAW_EVEN:        return "BPL_S4 [E]";
+                case BPL_S4 | DRAW_BOTH:        return "BPL_S4 [OE]";
+                case BPL_S4_MOD:                return "BPL_S4*";
+                case BPL_S4_MOD | DRAW_ODD:     return "BPL_S4*[O]";
+                case BPL_S4_MOD | DRAW_EVEN:    return "BPL_S4*[E]";
+                case BPL_S4_MOD | DRAW_BOTH:    return "BPL_S4*[OE]";
+
+                case BPL_S5:                    return "BPL_S5";
+                case BPL_S5 | DRAW_ODD:         return "BPL_S5 [O]";
+                case BPL_S5 | DRAW_EVEN:        return "BPL_S5 [E]";
+                case BPL_S5 | DRAW_BOTH:        return "BPL_S5 [OE]";
+                case BPL_S5_MOD:                return "BPL_S5*";
+                case BPL_S5_MOD | DRAW_ODD:     return "BPL_S5*[O]";
+                case BPL_S5_MOD | DRAW_EVEN:    return "BPL_S5*[E]";
+                case BPL_S5_MOD | DRAW_BOTH:    return "BPL_S5*[OE]";
+
+                case BPL_S6:                    return "BPL_S6";
+                case BPL_S6 | DRAW_ODD:         return "BPL_S6 [O]";
+                case BPL_S6 | DRAW_EVEN:        return "BPL_S6 [E]";
+                case BPL_S6 | DRAW_BOTH:        return "BPL_S6 [OE]";
+                case BPL_S6_MOD:                return "BPL_S6*";
+                case BPL_S6_MOD | DRAW_ODD:     return "BPL_S6*[O]";
+                case BPL_S6_MOD | DRAW_EVEN:    return "BPL_S6*[E]";
+                case BPL_S6_MOD | DRAW_BOTH:    return "BPL_S6*[OE]";
+
+                case BPL_S7:                    return "BPL_S7";
+                case BPL_S7 | DRAW_ODD:         return "BPL_S7 [O]";
+                case BPL_S7 | DRAW_EVEN:        return "BPL_S7 [E]";
+                case BPL_S7 | DRAW_BOTH:        return "BPL_S7 [OE]";
+                case BPL_S7_MOD:                return "BPL_S7*";
+                case BPL_S7_MOD | DRAW_ODD:     return "BPL_S7*[O]";
+                case BPL_S7_MOD | DRAW_EVEN:    return "BPL_S7*[E]";
+                case BPL_S7_MOD | DRAW_BOTH:    return "BPL_S7*[OE]";
+
+                case BPL_S8:                    return "BPL_S8";
+                case BPL_S8 | DRAW_ODD:         return "BPL_S8 [O]";
+                case BPL_S8 | DRAW_EVEN:        return "BPL_S8 [E]";
+                case BPL_S8 | DRAW_BOTH:        return "BPL_S8 [OE]";
+                case BPL_S8_MOD:                return "BPL_S8*";
+                case BPL_S8_MOD | DRAW_ODD:     return "BPL_S8*[O]";
+                case BPL_S8_MOD | DRAW_EVEN:    return "BPL_S8*[E]";
+                case BPL_S8_MOD | DRAW_BOTH:    return "BPL_S8*[OE]";
 
                 default:                        return "*** INVALID ***";
             }
@@ -221,7 +323,7 @@ Agnus::eventName(EventSlot slot, EventID id)
                 case BLT_COPY_FAKE: return "BLT_COPY_FAKE";
                 case BLT_LINE_SLOW: return "BLT_LINE_SLOW";
                 case BLT_LINE_FAKE: return "BLT_LINE_FAKE";
-                case BLT_BUSY:      return "BLT_BUSY";
+                case BLT_BBUSY:     return "BLT_BBUSY";
                 default:            return "*** INVALID ***";
             }
             break;
@@ -400,7 +502,9 @@ Agnus::eventName(EventSlot slot, EventID id)
             }
             break;
 
-        case SLOT_RSH:
+        case SLOT_RSH0:
+        case SLOT_RSH1:
+        case SLOT_RSH2:
 
             switch (id) {
 
@@ -468,8 +572,8 @@ Agnus::eventName(EventSlot slot, EventID id)
 void
 Agnus::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-    
+    using namespace utl;
+
     if (category == Category::Config) {
 
         dumpConfig(os);
@@ -525,6 +629,7 @@ Agnus::_dump(Category category, std::ostream &os) const
         os << tab("BPL0PT") << hex(bplpt[0]) << "  BPL1PT : " << hex(bplpt[1]) << std::endl;
         os << tab("BPL2PT") << hex(bplpt[2]) << "  BPL3PT : " << hex(bplpt[3]) << std::endl;
         os << tab("BPL4PT") << hex(bplpt[4]) << "  BPL5PT : " << hex(bplpt[5]) << std::endl;
+        os << tab("BPL6PT") << hex(bplpt[6]) << "  BPL6PT : " << hex(bplpt[7]) << std::endl;
         os << std::endl;
         os << tab("SPR0PT") << hex(sprpt[0]) << "  SPR1PT : " << hex(sprpt[1]) << std::endl;
         os << tab("SPR2PT") << hex(sprpt[2]) << "  SPR3PT : " << hex(sprpt[3]) << std::endl;
@@ -557,7 +662,7 @@ Agnus::_dump(Category category, std::ostream &os) const
     
     if (category == Category::Events) {
 
-        auto &info = getInfo();
+        auto current = info.current();
 
         os << std::left << std::setw(10) << "Slot";
         os << std::left << std::setw(14) << "Event";
@@ -566,7 +671,7 @@ Agnus::_dump(Category category, std::ostream &os) const
         
         for (isize i = 0; i < SLOT_COUNT; i++) {
             
-            EventSlotInfo &sinfo = info.slotInfo[i];
+            auto &sinfo = current.slotInfo[i];
 
             os << std::left << std::setw(10) << EventSlotEnum::key(sinfo.slot);
             os << std::left << std::setw(14) << sinfo.eventName;
@@ -606,67 +711,76 @@ Agnus::_dump(Category category, std::ostream &os) const
     }
 }
 
-void
-Agnus::cacheInfo(AgnusInfo &info) const
+AgnusInfo
+Agnus::cacheInfo() const
 {
-    {   SYNCHRONIZED
-        
-        info.vpos     = pos.v;
-        info.hpos     = pos.h;
-        info.frame    = pos.frame;
-        
-        info.dmacon   = dmacon;
-        info.bplcon0  = bplcon0;
-        info.ddfstrt  = sequencer.ddfstrt;
-        info.ddfstop  = sequencer.ddfstop;
-        info.diwstrt  = sequencer.diwstrt;
-        info.diwstop  = sequencer.diwstop;
-        
-        info.bpl1mod  = bpl1mod;
-        info.bpl2mod  = bpl2mod;
-        info.bltamod  = blitter.bltamod;
-        info.bltbmod  = blitter.bltbmod;
-        info.bltcmod  = blitter.bltcmod;
-        info.bltdmod  = blitter.bltdmod;
-        info.bltcon0  = blitter.bltcon0;
-        info.bls      = bls;
-        
-        info.coppc0   = copper.coppc0 & ptrMask;
-        info.dskpt    = dskpt & ptrMask;
-        info.bltpt[0] = blitter.bltapt & ptrMask;
-        info.bltpt[1] = blitter.bltbpt & ptrMask;
-        info.bltpt[2] = blitter.bltcpt & ptrMask;
-        info.bltpt[3] = blitter.bltdpt & ptrMask;
-        for (isize i = 0; i < 6; i++) info.bplpt[i] = bplpt[i] & ptrMask;
-        for (isize i = 0; i < 4; i++) info.audpt[i] = audpt[i] & ptrMask;
-        for (isize i = 0; i < 4; i++) info.audlc[i] = audlc[i] & ptrMask;
-        for (isize i = 0; i < 8; i++) info.sprpt[i] = sprpt[i] & ptrMask;
-        
-        info.eventInfo.cpuClock = cpu.getMasterClock();
-        info.eventInfo.cpuCycles = cpu.getCpuClock();
-        info.eventInfo.dmaClock = agnus.clock;
-        info.eventInfo.ciaAClock = ciaa.getClock();
-        info.eventInfo.ciaBClock  = ciab.getClock();
-        info.eventInfo.frame = agnus.pos.frame;
-        info.eventInfo.vpos = agnus.pos.v;
-        info.eventInfo.hpos = agnus.pos.h;
-        
-        for (isize i = 0; i < SLOT_COUNT; i++) {
-            
-            info.slotInfo[i].slot = EventSlot(i);
-            info.slotInfo[i].eventId = id[i];
-            info.slotInfo[i].trigger = trigger[i];
-            info.slotInfo[i].triggerRel = trigger[i] - agnus.clock;
-            
-            auto beam = pos + isize(AS_DMA_CYCLES(trigger[i] - clock));
-            
-            info.slotInfo[i].vpos = beam.v;
-            info.slotInfo[i].hpos = beam.h;
-            info.slotInfo[i].frameRel = long(beam.frame - pos.frame);
-            
-            info.slotInfo[i].eventName = eventName((EventSlot)i, id[i]);
-        }
+    AgnusInfo info;
+
+    info.vpos     = pos.v;
+    info.hpos     = pos.h;
+    info.frame    = pos.frame;
+
+    info.dmacon   = dmacon;
+    info.bplcon0  = bplcon0;
+    info.ddfstrt  = sequencer.ddfstrt;
+    info.ddfstop  = sequencer.ddfstop;
+    info.diwstrt  = sequencer.diwstrt;
+    info.diwstop  = sequencer.diwstop;
+    info.diwhigh  = sequencer.diwhigh;
+    info.fmode    = fmode;
+
+    info.bpl1mod  = bpl1mod;
+    info.bpl2mod  = bpl2mod;
+    info.bltamod  = blitter.bltamod;
+    info.bltbmod  = blitter.bltbmod;
+    info.bltcmod  = blitter.bltcmod;
+    info.bltdmod  = blitter.bltdmod;
+    info.bltcon0  = blitter.bltcon0;
+    info.bls      = bls;
+
+    info.coppc0   = copper.coppc0 & ptrMask;
+    info.dskpt    = dskpt & ptrMask;
+    info.bltpt[0] = blitter.bltapt & ptrMask;
+    info.bltpt[1] = blitter.bltbpt & ptrMask;
+    info.bltpt[2] = blitter.bltcpt & ptrMask;
+    info.bltpt[3] = blitter.bltdpt & ptrMask;
+    for (isize i = 0; i < 8; i++) info.bplpt[i] = bplpt[i] & ptrMask;
+    for (isize i = 0; i < 4; i++) info.audpt[i] = audpt[i] & ptrMask;
+    for (isize i = 0; i < 4; i++) info.audlc[i] = audlc[i] & ptrMask;
+    for (isize i = 0; i < 8; i++) info.sprpt[i] = sprpt[i] & ptrMask;
+
+    info.eventInfo.cpuClock = cpu.getMasterClock();
+    info.eventInfo.cpuCycles = cpu.getCpuClock();
+    info.eventInfo.dmaClock = agnus.clock;
+    info.eventInfo.ciaAClock = ciaa.getClock();
+    info.eventInfo.ciaBClock  = ciab.getClock();
+    info.eventInfo.frame = agnus.pos.frame;
+    info.eventInfo.vpos = agnus.pos.v;
+    info.eventInfo.hpos = agnus.pos.h;
+
+    for (isize i = 0; i < SLOT_COUNT; i++) {
+
+        info.slotInfo[i].slot = EventSlot(i);
+        info.slotInfo[i].eventId = id[i];
+        info.slotInfo[i].trigger = trigger[i];
+        info.slotInfo[i].triggerRel = trigger[i] - agnus.clock;
+
+        auto beam = pos + isize(AS_DMA_CYCLES(trigger[i] - clock));
+
+        info.slotInfo[i].vpos = beam.v;
+        info.slotInfo[i].hpos = beam.h;
+        info.slotInfo[i].frameRel = isize(beam.frame - pos.frame);
+
+        info.slotInfo[i].eventName = eventName((EventSlot)i, id[i]);
     }
+
+    return info;
+}
+
+AgnusMetrics
+Agnus::cacheMetrics() const
+{
+    return stats;
 }
 
 void
@@ -674,17 +788,17 @@ Agnus::updateStats()
 {
     constexpr double w = 0.5;
     
-    double copperUsage = stats.usage[BUS_COPPER];
-    double blitterUsage = stats.usage[BUS_BLITTER];
-    double diskUsage = stats.usage[BUS_DISK];
+    auto copperUsage = stats.usage[BUS_COPPER];
+    auto blitterUsage = stats.usage[BUS_BLITTER];
+    auto diskUsage = stats.usage[BUS_DISK];
     
-    double audioUsage =
+    auto audioUsage =
     stats.usage[BUS_AUD0] +
     stats.usage[BUS_AUD1] +
     stats.usage[BUS_AUD2] +
     stats.usage[BUS_AUD3];
 
-    double spriteUsage =
+    auto spriteUsage =
     stats.usage[BUS_SPRITE0] +
     stats.usage[BUS_SPRITE1] +
     stats.usage[BUS_SPRITE2] +
@@ -694,7 +808,7 @@ Agnus::updateStats()
     stats.usage[BUS_SPRITE6] +
     stats.usage[BUS_SPRITE7];
     
-    double bitplaneUsage =
+    auto bitplaneUsage =
     stats.usage[BUS_BPL1] +
     stats.usage[BUS_BPL2] +
     stats.usage[BUS_BPL3] +
@@ -702,12 +816,12 @@ Agnus::updateStats()
     stats.usage[BUS_BPL5] +
     stats.usage[BUS_BPL6];
 
-    stats.copperActivity = w * stats.copperActivity + (1 - w) * copperUsage;
-    stats.blitterActivity = w * stats.blitterActivity + (1 - w) * blitterUsage;
-    stats.diskActivity = w * stats.diskActivity + (1 - w) * diskUsage;
-    stats.audioActivity = w * stats.audioActivity + (1 - w) * audioUsage;
-    stats.spriteActivity = w * stats.spriteActivity + (1 - w) * spriteUsage;
-    stats.bitplaneActivity = w * stats.bitplaneActivity + (1 - w) * bitplaneUsage;
+    stats.copperActivity = w * stats.copperActivity + (1 - w) * double(copperUsage);
+    stats.blitterActivity = w * stats.blitterActivity + (1 - w) * double(blitterUsage);
+    stats.diskActivity = w * stats.diskActivity + (1 - w) * double(diskUsage);
+    stats.audioActivity = w * stats.audioActivity + (1 - w) * double(audioUsage);
+    stats.spriteActivity = w * stats.spriteActivity + (1 - w) * double(spriteUsage);
+    stats.bitplaneActivity = w * stats.bitplaneActivity + (1 - w) * double(bitplaneUsage);
     
     for (isize i = 0; i < BUS_COUNT; i++) stats.usage[i] = 0;
 }

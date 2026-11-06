@@ -6,10 +6,11 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,6 +18,7 @@ namespace vamiga {
 // Enumerations
 //
 
+/// Type of a device connected to a control port.
 enum class ControlPortDevice
 {
     NONE,
@@ -24,7 +26,7 @@ enum class ControlPortDevice
     JOYSTICK
 };
 
-struct ControlPortDeviceEnum : Reflection<ControlPortDeviceEnum, ControlPortDevice>
+struct ControlPortDeviceEnum : utl::Reflectable<ControlPortDeviceEnum, ControlPortDevice>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(ControlPortDevice::JOYSTICK);
@@ -56,16 +58,17 @@ struct ControlPortDeviceEnum : Reflection<ControlPortDeviceEnum, ControlPortDevi
 // Structures
 //
 
+/// State of a control port.
 typedef struct
 {
-    bool m0v;
-    bool m0h;
-    bool m1v;
-    bool m1h;
-    u16 joydat;
-    u16 potgo;
-    u16 potgor;
-    u16 potdat;
+    bool m0v;                               ///< Mouse quadrature signal V0
+    bool m0h;                               ///< Mouse quadrature signal H0
+    bool m1v;                               ///< Mouse quadrature signal V1
+    bool m1h;                               ///< Mouse quadrature signal H1
+    u16 joydat;                             ///< Joystick/mouse data register (JOYxDAT)
+    u16 potgo;                              ///< Potentiometer control register (POTGO)
+    u16 potgor;                             ///< Potentiometer port data read register (POTGOR)
+    u16 potdat;                             ///< Potentiometer counter data register (POTxDAT)
 }
 ControlPortInfo;
 

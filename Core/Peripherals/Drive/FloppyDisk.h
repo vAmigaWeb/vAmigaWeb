@@ -10,12 +10,31 @@
 #pragma once
 
 #include "FloppyDiskTypes.h"
+#include "utl/hints.h"
 #include "DriveTypes.h"
+#include "ImageTypes.h"
+#include "ADFFile.h"
+#include "FloppyDiskImage.h"
 #include "CoreComponent.h"
+#include "TrackDevice.h"
+
+namespace retro::vault {
+
+class ADFFile;
+class IMGFile;
+class STFile;
+
+}
 
 namespace vamiga {
 
-class FloppyFile;
+using retro::vault::TrackDevice;
+using retro::vault::FloppyDiskImage;
+using retro::vault::ImageFormat;
+using retro::vault::ImageFormatEnum;
+using retro::vault::ADFFile;
+using retro::vault::IMGFile;
+using retro::vault::STFile;
 
 /* MFM encoded disk data of a standard 3.5" DD disk:
  *
@@ -52,16 +71,13 @@ class FloppyFile;
  *    - a disk usually occupies 84 * 2 * 12.664 =  2.127.552 MFM bytes
  */
 
-class FloppyDisk : public CoreObject {
-    
+class FloppyDisk : public CoreObject, public TrackDevice {
+
     friend class FloppyDrive;
-    friend class ADFFile;
-    friend class EADFFile;
-    friend class IMGFile;
-    friend class STFile;
+    friend class Codec;
 
 public:
-    
+
     // The form factor of this disk
     Diameter diameter;
     
@@ -76,12 +92,9 @@ private:
         u8 cylinder[84][2][32768];
         u8 track[168][32768];
     } data;
-    
-    // Length of each track in bytes
-    union {
-        i32 cylinder[84][2];
-        i32 track[168];
-    } length;
+
+    // Bit views on top of the disk data
+    MutableBitView track[168] {};
 
     // Disk state
     long flags = 0;
@@ -94,17 +107,18 @@ private:
 public:
     
     FloppyDisk() = default;
-    FloppyDisk(Diameter dia, Density den, bool wp = false) throws { init(dia, den, wp); }
-    FloppyDisk(const FloppyFile &file, bool wp = false) throws { init(file, wp); }
-    FloppyDisk(SerReader &reader, Diameter dia, Density den, bool wp = false) throws {
+    FloppyDisk(Diameter dia, Density den, bool wp = false) { init(dia, den, wp); }
+    FloppyDisk(const FloppyDiskImage &file, bool wp = false) { init(file, wp); }
+    FloppyDisk(SerReader &reader, Diameter dia, Density den, bool wp = false) {
         init(reader, dia, den, wp); }
     ~FloppyDisk();
     
 private:
     
-    void init(Diameter dia, Density den, bool wp) throws;
-    void init(const class FloppyFile &file, bool wp) throws;
-    void init(SerReader &reader, Diameter dia, Density den, bool wp) throws;
+    void init(Diameter dia, Density den, bool wp);
+    void init(const class FloppyDiskImage &file, bool wp);
+    // void init(unique_ptr<FloppyDiskImage> file, bool wp);
+    void init(SerReader &reader, Diameter dia, Density den, bool wp);
 
     
 public:
@@ -114,8 +128,11 @@ public:
         CLONE(diameter)
         CLONE(density)
         CLONE_ARRAY(data.raw)
-        CLONE_ARRAY(length.track)
         CLONE(flags)
+
+        for (isize i = 0; i < 168; ++i) {
+            track[i] = MutableBitView(track[i].data(), other.track[i].size());
+        }
 
         return *this;
     }
@@ -129,8 +146,44 @@ private:
     
     const char *objectName() const override { return "Disk"; }
     void _dump(Category category, std::ostream &os) const override;
+
+
+    //
+    // Methods from LinearDevice
+    //
+
+    isize size() const override { fatalError; }
+    void read(u8 *dst, isize offset, isize count) const override { fatalError; }
+    void write(const u8 *src, isize offset, isize count) override  { fatalError; }
+
+
+    //
+    // Methods from BlockDevice
+    //
+
+public:
+
+    isize capacity() const override { return numCyls() * numHeads() * numSectors(0); }
+    isize bsize() const override { return 512; }
+    void readBlock(u8 *dst, isize nr) const override;
+    void readBlocks(u8 *dst, Range<isize> range) const override;
+    void writeBlock(const u8 *src, isize nr) override;
+    void writeBlocks(const  u8 *src, Range<isize> range) override;
+
+
+    //
+    // Methods from TrackDevice
+    //
+
+public:
     
-    
+    isize numCyls() const override { return diameter == Diameter::INCH_525 ? 42 : 84; }
+    isize numHeads() const override { return 2; }
+    isize numSectors(isize t) const override { return density == Density::DD ? 11 : 22; }
+    void readTrack(u8 *dst, isize nr) const override;
+    void writeTrack(const u8 *src, isize nr) override;
+
+
     //
     // Serializing
     //
@@ -147,7 +200,6 @@ private:
         << diameter
         << density
         << data.raw
-        << length.track
         << flags;
     };
 
@@ -155,16 +207,10 @@ private:
     // Performing sanity checks
     //
 
-    static bool isValidTrackNr(isize value) { return value >= 0 && value < 168; }
-    static bool isValidCylinderNr(isize value) { return value >= 0 && value < 84; }
-    static bool isValidHeadNr(isize value) { return value >= 0 && value < 2; }
-    bool isValidHeadPos(Track t, isize offset) const;
-    bool isValidHeadPos(Cylinder c, Head h, isize offset) const;
-
     // Computes a debug checksum for a single track or the entire disk
     u64 checksum() const;
-    u64 checksum(Track t) const;
-    u64 checksum(Cylinder c, Head h) const;
+    u64 checksum(TrackNr t) const;
+    u64 checksum(CylNr c, HeadNr h) const;
 
 
     //
@@ -175,11 +221,7 @@ public:
     
     Diameter getDiameter() const { return diameter; }
     Density getDensity() const { return density; }
-    
-    isize numCyls() const { return diameter == Diameter::INCH_525 ? 42 : 84; }
-    isize numHeads() const { return 2; }
-    isize numTracks() const { return diameter == Diameter::INCH_525 ? 84 : 168; }
-    
+
     bool isWriteProtected() const { return flags & long(DiskFlags::PROTECTED); }
     void setWriteProtection(bool value) { value ? flags |= long(DiskFlags::PROTECTED) : flags &= ~long(DiskFlags::PROTECTED); }
 
@@ -191,26 +233,32 @@ public:
     void setFlag(DiskFlags flag) { setFlag(flag, true); }
     void clearFlag(DiskFlags flag) { setFlag(flag, false); }
 
-    
+
+    //
+    // Accessing tracks and sectors
+    //
+
+    BitView bitView(TrackNr t) const;
+    BitView bitView(TrackNr t, SectorNr s) const;
+    MutableBitView bitView(TrackNr t);
+    MutableBitView bitView(TrackNr t, SectorNr s);
+
+    // DEPRECATED
+    ByteView byteView(TrackNr t) const;
+    ByteView byteView(TrackNr t, SectorNr s) const;
+    MutableByteView byteView(TrackNr t);
+    MutableByteView byteView(TrackNr t, SectorNr s);
+
+
     //
     // Reading and writing
     //
 
-    // Reads a bit from disk
-    u8 readBit(Track t, isize offset) const;
-    u8 readBit(Cylinder c, Head h, isize offset) const;
-
-    // Writes a bit to disk
-    void writeBit(Track t, isize offset, bool value);
-    void writeBit(Cylinder c, Head h, isize offset, bool value);
-
     // Reads a byte from disk
-    u8 readByte(Track t, isize offset) const;
-    u8 readByte(Cylinder c, Head h, isize offset) const;
+    u8 read8(CylNr c, HeadNr h, isize offset) const;
     
     // Writes a byte to disk
-    void writeByte(Track t, isize offset, u8 value);
-    void writeByte(Cylinder c, Head h, isize offset, u8 value);
+    void write8(CylNr c, HeadNr h, isize offset, u8 value);
     
     
     //
@@ -226,9 +274,9 @@ public:
     void clearDisk(u8 value);
     
     // Initializes a single track with random data or a specific value
-    void clearTrack(Track t);
-    void clearTrack(Track t, u8 value);
-    void clearTrack(Track t, u8 value1, u8 value2);
+    void clearTrack(TrackNr t);
+    void clearTrack(TrackNr t, u8 value);
+    void clearTrack(TrackNr t, u8 value1, u8 value2);
     
     
     //
@@ -236,35 +284,45 @@ public:
     //
     
 public:
-    
+
     // Encodes a disk
-    void encodeDisk(const class FloppyFile &file);
+    void encodeDisk(const class FloppyDiskImage &file);
+    void decodeDisk(class FloppyDiskImage &file) const;
+
+    void encode(const ADFFile &source);
+    void decode(ADFFile &target) const;
+    void encode(const IMGFile &source);
+    void decode(IMGFile &target) const;
+    void encode(const STFile &source);
+    void decode(STFile &target) const;
+
+    // Replaces the MFM data of a single track
+    void replaceTrack(TrackNr t, BitView mfm);
 
     // Shifts the tracks agains each other
     void shiftTracks(isize offset);
 
-    
+
+    //
+    // Exporting data
+    //
+
+    void writeToFile(const fs::path& path) const;
+    void writeToFile(const fs::path& path, ImageFormat fmt) const;
+
+
     //
     // Working with MFM encoded data streams
     //
     
 public:
     
-    static void encodeMFM(u8 *dst, const u8 *src, isize count);
-    static void decodeMFM(u8 *dst, const u8 *src, isize count);
-    
-    static void encodeOddEven(u8 *dst, const u8 *src, isize count);
-    static void decodeOddEven(u8 *dst, const u8 *src, isize count);
+    // Repeats the MFM data inside the track buffer to ease decoding (DEPRECATED)
+    // [[deprecated]] void repeatTracks();
 
-    static void addClockBits(u8 *dst, isize count);
-    static u8 addClockBits(u8 value, u8 previous);
-    
-    // Repeats the MFM data inside the track buffer to ease decoding
-    void repeatTracks();
-    
     // Returns a textual representation of all bits of a track
-    string readTrackBits(Track t) const;
-    string readTrackBits(Cylinder c, Head h) const;
+    string readTrackBits(TrackNr t) const;
+    string readTrackBits(CylNr c, HeadNr h) const;
 };
 
 }

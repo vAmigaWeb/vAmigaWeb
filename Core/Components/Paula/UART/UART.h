@@ -2,21 +2,25 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
 
 #include "UARTTypes.h"
+#include "utl/support/Bits.h"
 #include "Constants.h"
 #include "SubComponent.h"
 #include "AgnusTypes.h"
+#include "utl/wrappers.h"
 
 namespace vamiga {
 
-class UART final : public SubComponent, public Inspectable<UARTInfo> {
+class UART final : public SubComponent {
+
+    friend class SerServer;
 
     Descriptions descriptions = {{
 
@@ -30,8 +34,13 @@ class UART final : public SubComponent, public Inspectable<UARTInfo> {
 
     };
 
-    friend class SerServer;
-    
+public:
+
+    // Result of the latest inspection
+    utl::Backed<UARTInfo> info;
+
+private:
+
     // Port period and control register
     u16 serper;
 
@@ -62,8 +71,8 @@ class UART final : public SubComponent, public Inspectable<UARTInfo> {
 
 public:
     
-    using SubComponent::SubComponent;
-    
+    UART(Amiga &ref);
+
     UART& operator= (const UART& other) {
 
         CLONE(serper)
@@ -126,12 +135,12 @@ public:
 
 
     //
-    // Methods from Inspectable
+    // Analyzing
     //
 
 public:
 
-    void cacheInfo(UARTInfo &result) const override;
+    UARTInfo cacheInfo() const;
 
     
     //

@@ -7,28 +7,28 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "GdbServer.h"
 #include "Emulator.h"
 #include "CPU.h"
-#include "IOUtils.h"
 #include "Memory.h"
-#include "MemUtils.h"
 #include "MsgQueue.h"
 #include "OSDebugger.h"
 #include "RetroShell.h"
+#include "utl/io.h"
+#include "utl/support/Strings.h"
 
 namespace vamiga {
 
 void
 GdbServer::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
 
     RemoteServer::_dump(category, os);
 
     if (category == Category::Segments) {
-        
+
         os << tab("Code segment") << hex(codeSeg()) << std::endl;
         os << tab("Data segment") << hex(dataSeg()) << std::endl;
         os << tab("BSS segment") << hex(bssSeg()) << std::endl;
@@ -36,54 +36,69 @@ GdbServer::_dump(Category category, std::ostream &os) const
 }
 
 bool
-GdbServer::shouldRun()
+GdbServer::canRun()
 {
     // Don't run if no process is specified
     if (processName == "") return false;
-    
+
     // Try to locate the segment list if it hasn't been located yet
     if (segList.empty()) readSegList();
 
     return !segList.empty();
 }
 
-string
-GdbServer::doReceive()
+Transport &
+GdbServer::transport()
 {
-    auto cmd = connection.recv();
-    
+    switch (config.transport) {
+
+        case TransportProtocol::STDIO: return stdio;
+        case TransportProtocol::TCP:   return tcp;
+
+        default:
+            fatalError;
+    }
+}
+
+const Transport &
+GdbServer::transport() const
+{
+    return const_cast<GdbServer *>(this)->transport();
+}
+
+bool
+GdbServer::isSupported(TransportProtocol protocol) const
+{
+    switch (protocol) {
+
+        case TransportProtocol::STDIO:  return true;
+        case TransportProtocol::TCP:    return true;
+
+        default:
+            return false;
+    }
+}
+
+void
+GdbServer::didReceive(const string &payload)
+{
     // Remove LF and CR (if present)
-    cmd = util::rtrim(cmd, "\n\r");
+    auto cmd = utl::rtrim(payload, "\n\r");
 
     if (config.verbose) {
-        retroShell << "R: " << util::makePrintable(cmd) << "\n";
+        retroShell << "R: " << utl::makePrintable(cmd) << "\n";
     }
 
     latestCmd = cmd;
-    return latestCmd;
-}
 
-void
-GdbServer::doSend(const string &payload)
-{
-    connection.send(payload);
-    
-    if (config.verbose) {
-        retroShell << "T: " << util::makePrintable(payload) << "\n";
-    }
-}
-
-void
-GdbServer::doProcess(const string &payload)
-{
     try {
-        
+
         process(latestCmd);
-        
-    } catch (AppError &err) {
-        
+
+    } catch(Error &err) {
+
         auto msg = "GDB server error: " + string(err.what());
-        debug(SRV_DEBUG, "%s\n", msg.c_str());
+        logmsg(LOG_SRV, "%s\n", msg.c_str());
 
         // Display the error message in RetroShell
         retroShell << msg << '\n';
@@ -115,12 +130,16 @@ void
 GdbServer::reply(const string &payload)
 {
     string packet = "$";
-    
+
     packet += payload;
     packet += "#";
     packet += computeChecksum(payload);
-    
+
     send(packet);
+
+    if (config.verbose) {
+        retroShell << "GdbServer T: " << utl::makePrintable(packet) << "\n";
+    }
 }
 
 bool
@@ -128,13 +147,13 @@ GdbServer::attach(const string &name)
 {
     this->processName = name;
     this->segList = { };
-    
+
     if (readSegList()) {
 
         retroShell << "Successfully attached to process '" << processName << "'\n\n";
-        retroShell << "    Data segment: " << util::hexstr <8> (dataSeg()) << "\n";
-        retroShell << "    Code segment: " << util::hexstr <8> (codeSeg()) << "\n";
-        retroShell << "     BSS segment: " << util::hexstr <8> (bssSeg()) << "\n\n";
+        retroShell << "    Data segment: " << utl::hexstr <8> (dataSeg()) << "\n";
+        retroShell << "    Code segment: " << utl::hexstr <8> (codeSeg()) << "\n";
+        retroShell << "     BSS segment: " << utl::hexstr <8> (bssSeg()) << "\n\n";
     }
 
     if (segList.empty()) {
@@ -157,7 +176,7 @@ GdbServer::readSegList()
 {
     // Quick-exit if no process is supposed to be attached
     if (processName == "") return false;
-    
+
     // Quick-exit if the segment list is already present
     if (!segList.empty()) return true;
 
@@ -165,12 +184,6 @@ GdbServer::readSegList()
     osDebugger.read(processName, segList);
     if (segList.empty()) return false;
 
-    /*
-    retroShell << "Successfully attached to process '" << processName << "'\n\n";
-    retroShell << "    Data segment: " << util::hexstr <8> (dataSeg()) << "\n";
-    retroShell << "    Code segment: " << util::hexstr <8> (codeSeg()) << "\n";
-    retroShell << "     BSS segment: " << util::hexstr <8> (bssSeg()) << "\n\n";
-    */
     return true;
 }
 
@@ -198,7 +211,7 @@ GdbServer::computeChecksum(const string &s)
     u8 chk = 0;
     for(auto &c : s) U8_INC(chk, c);
 
-    return util::hexstr <2> (chk);
+    return utl::hexstr <2> (chk);
 }
 
 bool
@@ -211,16 +224,16 @@ string
 GdbServer::readRegister(isize nr)
 {
     if (nr >= 0 && nr <= 7) {
-        return util::hexstr <8> ((u32)cpu.getD((int)(nr)));
+        return utl::hexstr <8> ((u32)cpu.getD((int)(nr)));
     }
     if (nr >= 8 && nr <= 15) {
-        return util::hexstr <8> ((u32)cpu.getA((int)(nr - 8)));
+        return utl::hexstr <8> ((u32)cpu.getA((int)(nr - 8)));
     }
     if (nr == 16) {
-        return util::hexstr <8> ((u32)cpu.getSR());
+        return utl::hexstr <8> ((u32)cpu.getSR());
     }
     if (nr == 17) {
-        return util::hexstr <8> ((u32)cpu.getPC());
+        return utl::hexstr <8> ((u32)cpu.getPC());
     }
 
     return "xxxxxxxx";
@@ -230,13 +243,13 @@ string
 GdbServer::readMemory(isize addr)
 {
     auto byte = mem.spypeek8 <Accessor::CPU> ((u32)addr);
-    return util::hexstr <2> (byte);
+    return utl::hexstr <2> (byte);
 }
 
 void
 GdbServer::breakpointReached()
 {
-    debug(GDB_DEBUG, "breakpointReached()\n");
+    logmsg(LOG_GDB, "breakpointReached()\n");
     process <'?'> ("");
 }
 

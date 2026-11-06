@@ -10,17 +10,21 @@
 #pragma once
 
 #include "CopperTypes.h"
+#include "utl/support/Bits.h"
 #include "SubComponent.h"
 #include "AgnusTypes.h"
 #include "Beam.h"
-#include "Checksum.h"
 #include "CopperDebugger.h"
 #include "Memory.h"
+#include "utl/wrappers.h"
 
 namespace vamiga {
 
-class Copper final : public SubComponent, public Inspectable<CopperInfo>
-{
+class Copper final : public SubComponent {
+
+    friend class Agnus;
+    friend class CopperDebugger;
+
     Descriptions descriptions = {{
 
         .type           = Class::Copper,
@@ -33,10 +37,10 @@ class Copper final : public SubComponent, public Inspectable<CopperInfo>
 
     };
 
-    friend class Agnus;
-    friend class CopperDebugger;
-    
 public:
+
+    // Result of the latest inspection
+    utl::Backed<CopperInfo> info;
 
     // The Copper debugger
     CopperDebugger debugger = CopperDebugger(amiga);
@@ -92,7 +96,7 @@ public:
 private:
 
     u64 checkcnt = 0;
-    u32 checksum = util::fnvInit32();
+    u32 checksum = Hashable::fnvInit32();
 
 
     //
@@ -163,13 +167,13 @@ private:
 
 
     //
-    // Methods from Inspectable
+    // Analyzing
     //
 
 public:
 
-    void cacheInfo(CopperInfo &result) const override;
-    
+    CopperInfo cacheInfo() const;
+
 
     //
     // Accessing

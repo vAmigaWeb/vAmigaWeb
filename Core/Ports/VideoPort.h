@@ -12,10 +12,11 @@
 #include "VideoPortTypes.h"
 #include "SubComponent.h"
 #include "Texture.h"
+#include "utl/wrappers.h"
 
 namespace vamiga {
 
-class VideoPort final : public SubComponent, public Inspectable<VideoPortInfo, VideoPortStats> {
+class VideoPort final : public SubComponent {
 
     Descriptions descriptions = {{
 
@@ -33,12 +34,26 @@ class VideoPort final : public SubComponent, public Inspectable<VideoPortInfo, V
     // Current configuration
     VideoPortConfig config = { };
 
+public:
+
+    // Result of the latest inspection
+    utl::Backed<VideoPortInfo> info;
+    utl::Backed<VideoPortStats> metrics;
+
+private:
+
     // Predefined frame buffers
     mutable Texture whiteNoise;
     Texture blank;
 
     //  White noise data
     Buffer <Texel> noise;
+
+    // Remembers the number of the most recently grabbed frame
+    mutable i64 latestGrabbedFrame = 0;
+
+    // Counts the number of dropped frames
+    mutable isize droppedFrames = 0;
 
 
     //
@@ -101,13 +116,13 @@ public:
 
 
     //
-    // Methods from Inspectable
+    // Analyzing
     //
 
 public:
 
-    void cacheInfo(VideoPortInfo &result) const override;
-    void cacheStats(VideoPortStats &result) const override;
+    VideoPortInfo cacheInfo() const;
+    VideoPortStats cacheStats() const;
 
 
     //
@@ -118,6 +133,32 @@ public:
 
     // Returns a pointer to the stable emulator texture
     const class Texture &getTexture(isize offset = 0) const;
+
+    // Returns a pointer to the stable DMA debugger texture
+    const class Texture &getXrayTexture(isize offset = 0) const;
+
+    /* Saves the stable emulator texture or DMA debugger texture as a PNG file.
+     *
+     * The cutout is given in texels of the texture: x counts super-hires
+     * pixels (0 ... 2 * HPIXELS), y counts lines (0 ... VPIXELS). The upper
+     * bounds x2 and y2 are exclusive. Without a cutout, the entire texture is
+     * saved. Lines are repeated four times to compensate for the elongated
+     * shape of super-hires pixels, so the image has the proportions the GUI
+     * shows. Throws if the cutout is empty or exceeds the texture.
+     */
+    void saveTexture(const fs::path &path, isize offset = 0) const;
+    void saveTexture(const fs::path &path, isize x1, isize x2, isize y1, isize y2,
+                     isize offset = 0) const;
+    void saveXrayTexture(const fs::path &path, isize offset = 0) const;
+    void saveXrayTexture(const fs::path &path, isize x1, isize x2, isize y1, isize y2,
+                         isize offset = 0) const;
+
+private:
+
+    void savePNG(const Texture &texture, const fs::path &path,
+                 isize x1, isize x2, isize y1, isize y2) const;
+
+public:
 
     // Informs the video port about a buffer swap
     void buffersWillSwap();

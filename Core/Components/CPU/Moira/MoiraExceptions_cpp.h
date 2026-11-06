@@ -5,6 +5,7 @@
 // Published under the terms of the MIT License
 // -----------------------------------------------------------------------------
 
+#include "utl/support/Bits.h"
 template <Core C> void
 Moira::writeStackFrameAEBE(StackFrame &frame)
 {
@@ -333,6 +334,10 @@ Moira::execBusError(StackFrame frame, int delay)
     didExecute(M68kException::BUS_ERROR, 2);
 }
 
+// The following definitions are not templated. They are compiled into the
+// main translation unit only (see MoiraCore_cpp.h).
+#ifdef MOIRA_MAIN_TU
+
 void
 Moira::execException(M68kException exc, int nr)
 {
@@ -343,6 +348,8 @@ Moira::execException(M68kException exc, int nr)
         default:            execException<Core::C68020>(exc, nr); break;
     }
 }
+
+#endif
 
 template <Core C> void
 Moira::execException(M68kException exc, int nr)
@@ -486,6 +493,10 @@ Moira::execException(M68kException exc, int nr)
     didExecute(exc, vector);
 }
 
+// The following definitions are not templated. They are compiled into the
+// main translation unit only (see MoiraCore_cpp.h).
+#ifdef MOIRA_MAIN_TU
+
 void
 Moira::execInterrupt(u8 level)
 {
@@ -498,6 +509,8 @@ Moira::execInterrupt(u8 level)
             execInterrupt<Core::C68020>(level);
     }
 }
+
+#endif
 
 template <Core C> void
 Moira::execInterrupt(u8 level)
@@ -557,11 +570,12 @@ Moira::execInterrupt(u8 level)
 
             queue.ird = getIrqVector(level);
 
-            writeStackFrame0000<C>(status, reg.pc, 4 * queue.ird);
+            writeStackFrame0000<C>(status, reg.pc, queue.ird);
 
             if (reg.sr.m) {
 
-                writeStackFrame0001<C>(status, reg.pc, 4 * queue.ird);
+                setMasterMode(false);
+                writeStackFrame0001<C>(status | 0x2000, reg.pc, queue.ird);
             }
     }
 

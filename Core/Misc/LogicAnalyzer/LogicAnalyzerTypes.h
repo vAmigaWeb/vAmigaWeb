@@ -6,6 +6,8 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
+/// @file
+
 #pragma once
 
 #include "BusTypes.h"
@@ -16,6 +18,7 @@ namespace vamiga {
 // Enumerations
 //
 
+/// Signal that is recorded by the logic analyzer.
 enum class Probe : long
 {
     NONE,
@@ -23,7 +26,7 @@ enum class Probe : long
     IPL
 };
 
-struct ProbeEnum : Reflection<ProbeEnum, Probe>
+struct ProbeEnum : utl::Reflectable<ProbeEnum, Probe>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Probe::IPL);
@@ -49,23 +52,45 @@ struct ProbeEnum : Reflection<ProbeEnum, Probe>
 // Structures
 //
 
+/// A sample recorded by the logic analyzer.
+typedef struct {
+    
+    /// Position
+    i64 frame;
+    isize vpos;                         ///< Vertical beam position
+    isize hpos;                         ///< Horizontal beam position
+
+    /// Bus usage
+    BusOwner owner;
+    u16 dataBus;                        ///< Value on the data bus
+    u32 addrBus;                        ///< Value on the address bus
+    
+    /// Probe values
+    isize values[4];
+    
+} LogicAnalyzerSample;
+
+/// Configuration options of the logic analyzer.
 typedef struct
 {
-    // The logic analyzer channels
+    /// Enable switch
+    bool connect;
+    
+    /// The logic analyzer channels
     Probe channel[4];
     
-    // Probe address (in case of memory probing)
+    /// Probe address (in case of memory probing)
     u32 addr[4];
 }
 LogicAnalyzerConfig;
 
+/// State of the logic analyzer.
 typedef struct
 {
 
-    const BusOwner *busOwner;
-    const u32 *addrBus;
-    const u16 *dataBus;
-    const isize *channel[4];
+    const BusOwner *busOwner;               ///< Bus owner of each recorded slot
+    const u32 *addrBus;                     ///< Address bus value of each recorded slot
+    const u16 *dataBus;                     ///< Data bus value of each recorded slot
 }
 LogicAnalyzerInfo;
 

@@ -2,15 +2,14 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "DiskController.h"
 #include "Agnus.h"
-#include "Checksum.h"
 #include "FloppyDrive.h"
 #include "MsgQueue.h"
 #include "Paula.h"
@@ -27,7 +26,7 @@ DiskController::peekDSKDATR() const
 void
 DiskController::pokeDSKLEN(u16 value)
 {
-    trace(DSKREG_DEBUG, "pokeDSKLEN(%X)\n", value);
+    logmsg(LOG_DSKREG, "pokeDSKLEN(%X)\n", value);
 
     setDSKLEN(dsklen, value);
 }
@@ -35,7 +34,7 @@ DiskController::pokeDSKLEN(u16 value)
 void
 DiskController::setDSKLEN(u16 oldValue, u16 newValue)
 {
-    trace(DSKREG_DEBUG, "setDSKLEN(%x) [%ld,%ld,%ld]\n",
+    logmsg(LOG_DSKREG, "setDSKLEN(%x) [%td,%td,%td]\n",
           newValue, df0.head.cylinder, df0.head.head, df0.head.offset);
 
     FloppyDrive *drive = getSelectedDrive();
@@ -43,11 +42,11 @@ DiskController::setDSKLEN(u16 oldValue, u16 newValue)
     dsklen = newValue;
 
     // Initialize checksum (for debugging only)
-    if (DSK_CHECKSUM) {
-        
+    if CONSTEXPR (DSK_CHECKSUM) {
+
         checkcnt = 0;
-        check1 = util::fnvInit32();
-        check2 = util::fnvInit32();
+        check1 = Hashable::fnvInit32();
+        check2 = Hashable::fnvInit32();
     }
     
     // Disable DMA if bit 15 (DMAEN) is zero
@@ -61,14 +60,14 @@ DiskController::setDSKLEN(u16 oldValue, u16 newValue)
     if (oldValue & newValue & 0x8000) {
 
         if (state != DriveDmaState::OFF) {
-            xfiles("DSKLEN: Written in DMA state %ld\n", isize(state));
+            xfiles("DSKLEN: Written in DMA state %td\n", isize(state));
         }
 
         // Only proceed if there are bytes to process
         if ((dsklen & 0x3FFF) == 0) { paula.raiseIrq(IrqSource::DSKBLK); return; }
 
         // In debug mode, reset head position to generate reproducable results
-        if (ALIGN_HEAD) if (drive) drive->head.offset = 0;
+        if CONSTEXPR (ALIGN_HEAD) if (drive) drive->head.offset = 0;
 
         // Check if the WRITE bit (bit 14) also has been written twice
         if (oldValue & newValue & 0x4000) {
@@ -101,7 +100,7 @@ DiskController::setDSKLEN(u16 oldValue, u16 newValue)
 void
 DiskController::pokeDSKDAT(u16 value)
 {
-    debug(DSKREG_DEBUG, "pokeDSKDAT\n");
+    logmsg(LOG_DSKREG, "pokeDSKDAT\n");
 }
 
 u16
@@ -112,7 +111,7 @@ DiskController::peekDSKBYTR()
     // Clear the DSKBYT bit, so it won't show up in the next read
     incoming &= 0x7FFF;
 
-    debug(DSKREG_DEBUG, "peekDSKBYTR() = %x\n", result);
+    logmsg(LOG_DSKREG, "peekDSKBYTR() = %x\n", result);
     return result;
 }
 
@@ -146,14 +145,14 @@ DiskController::computeDSKBYTR() const
 void
 DiskController::pokeDSKSYNC(u16 value)
 {
-    debug(DSKREG_DEBUG, "pokeDSKSYNC(%x)\n", value);
+    logmsg(LOG_DSKREG, "pokeDSKSYNC(%x)\n", value);
     
     if (value != 0x4489) {
         
         xfiles("DSKSYNC: Unusual sync mark $%04X\n", value);
         
         if (config.lockDskSync) {
-            debug(DSKREG_DEBUG, "Write to DSKSYNC blocked (%x)\n", value);
+            logmsg(LOG_DSKREG, "Write to DSKSYNC blocked (%x)\n", value);
             return;
         }
     }
@@ -197,9 +196,9 @@ DiskController::PRBdidChange(u8 oldValue, u8 newValue)
     if (oldSelected != selected) {
         
         if (selected == -1) {
-            debug(DSKREG_DEBUG, "Deselecting df%ld\n", oldSelected);
+            logmsg(LOG_DSKREG, "Deselecting df%td\n", oldSelected);
         } else {
-            debug(DSKREG_DEBUG, "Selecting df%ld\n", selected);
+            logmsg(LOG_DSKREG, "Selecting df%td\n", selected);
         }
 
         // Inform the GUI

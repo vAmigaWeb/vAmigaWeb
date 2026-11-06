@@ -9,12 +9,13 @@
 
 #pragma once
 
-#include "RingBuffer.h"
-#include "Serializable.h"
 #include "AgnusTypes.h"
 #include "AmigaTypes.h"
 #include "MemoryTypes.h"
 #include "Aliases.h"
+#include "Serializable.h"
+#include "utl/storage.h"
+#include "utl/abilities/Streamable.h"
 #include <functional>
 
 namespace vamiga {
@@ -40,7 +41,7 @@ namespace vamiga {
 // Register change recorder
 //
 
-struct RegChange : SerializableStruct
+struct RegChange : Streamable
 {
     Reg reg;
     u16 value;
@@ -48,13 +49,13 @@ struct RegChange : SerializableStruct
 
 
     //
-    // Methods from Serializable
+    // Methods from Streamable
     //
 
 public:
 
-    template <class T>
-    void serialize(T& worker)
+    template <class W>
+    W& operator<<(W& worker)
     {
         worker
 
@@ -62,11 +63,12 @@ public:
         << value
         << accessor;
 
-    } STRUCT_SERIALIZERS(serialize);
+        return worker;
+    }
 };
 
 template <isize capacity>
-struct RegChangeRecorder : public util::SortedRingBuffer<RegChange, capacity>
+struct RegChangeRecorder : public utl::SortedRingBuffer<RegChange, capacity>
 {
     Cycle trigger() {
         return this->isEmpty() ? NEVER : this->keys[this->r];
@@ -92,7 +94,7 @@ struct RegChangeRecorder : public util::SortedRingBuffer<RegChange, capacity>
 // Signal change recorder
 //
 
-struct SigRecorder : public util::SortedArray<u32, 256>
+struct SigRecorder : public utl::SortedArray<u32, 256>
 {
     bool modified = false;
     

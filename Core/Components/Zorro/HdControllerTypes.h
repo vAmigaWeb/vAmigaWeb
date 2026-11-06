@@ -2,14 +2,15 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,28 +18,46 @@ namespace vamiga {
 // Constants
 //
 
-// Constants from exec/errors.h
+/// Constants from exec/errors.h
 constexpr i8    IOERR_OPENFAIL      = -1;
-constexpr i8    IOERR_ABORTED       = -2;
-constexpr i8    IOERR_NOCMD         = -3;
-constexpr i8    IOERR_BADLENGTH     = -4;
-constexpr i8    IOERR_BADADDRESS    = -5;
-constexpr i8    IOERR_UNITBUSY      = -6;
-constexpr i8    IOERR_SELFTEST      = -7;
+constexpr i8    IOERR_ABORTED       = -2;  ///< IO error: The request was aborted
+constexpr i8    IOERR_NOCMD         = -3;  ///< IO error: Unknown command
+constexpr i8    IOERR_BADLENGTH     = -4;  ///< IO error: Invalid length
+constexpr i8    IOERR_BADADDRESS    = -5;  ///< IO error: Invalid address
+constexpr i8    IOERR_UNITBUSY      = -6;  ///< IO error: The unit is busy
+constexpr i8    IOERR_SELFTEST      = -7;  ///< IO error: The self test failed
+constexpr i8    TDERR_WRITEPROT     = 28;   ///< The disk is write protected (trackdisk.device)
+constexpr i8    TDERR_DISKCHANGED   = 29;   ///< No disk in the drive (trackdisk.device)
 
-// Offsets into the IOStdReq struct
+/// Answer to TD_GETDRIVETYPE from a device that understands the NSD commands
+constexpr u32   DRIVE_NEWSTYLE      = 0x4E535459;   // 'NSTY'
+
+/// Device type reported by NSCMD_DEVICEQUERY
+constexpr u16   NSDEVTYPE_TRACKDISK = 5;
+
+/// Size of the NSDeviceQueryResult structure this device fills in
+constexpr u32   NSD_QUERY_SIZE      = 16;
+
+/// Size of the DriveGeometry structure this device fills in
+constexpr u32   DG_SIZE             = 32;
+
+/// Device type reported by TD_GETGEOMETRY
+constexpr u8    DG_DIRECT_ACCESS    = 0;
+
+/// Offsets into the IOStdReq struct
 constexpr u32   IO_COMMAND          = 0x1C;
-constexpr u32   IO_ERROR            = 0x1F;
-constexpr u32   IO_ACTUAL           = 0x20;
-constexpr u32   IO_LENGTH           = 0x24;
-constexpr u32   IO_DATA             = 0x28;
-constexpr u32   IO_OFFSET           = 0x2C;
+constexpr u32   IO_ERROR            = 0x1F;  ///< Offset of the IORequest error field
+constexpr u32   IO_ACTUAL           = 0x20;  ///< Offset of the IORequest actual field
+constexpr u32   IO_LENGTH           = 0x24;  ///< Offset of the IORequest length field
+constexpr u32   IO_DATA             = 0x28;  ///< Offset of the IORequest data pointer
+constexpr u32   IO_OFFSET           = 0x2C;  ///< Offset of the IORequest offset field
 
 
 //
 // Enumerations
 //
 
+/// Command of the hard drive controller.
 enum class IoCommand
 {
     // Standard commands
@@ -68,13 +87,39 @@ enum class IoCommand
     TD_REMCHANGEINT,    // 21
     TD_GETGEOMETRY,     // 22
     TD_EJECT,           // 23
-    TD_LASTCOMM         // 24
+
+    /* 64-bit commands (TD64)
+     *
+     * They begin where the trackdisk commands end, at what trackdisk.h calls
+     * TD_LASTCOMM, and carry the high 32 bits of the offset in io_Actual.
+     * That is how a drive beyond 4 GB is addressed at all: io_Offset is a
+     * 32-bit field and always will be.
+     */
+    TD_READ64,          // 24
+    TD_WRITE64,         // 25
+    TD_SEEK64,          // 26
+    TD_FORMAT64,        // 27
+    HD_SCSICMD,         // 28 (not supported)
+
+    /* New Style Device commands
+     *
+     * The same four 64-bit commands under different numbers, plus the query
+     * that tells a caller which commands a device understands. They live
+     * outside the trackdisk command space, which is why they lie beyond the
+     * range this enum calls valid.
+     */
+    NSD_DEVICEQUERY     = 0x4000,
+    NSD_TD_READ64       = 0xC000,
+    NSD_TD_WRITE64      = 0xC001,
+    NSD_TD_SEEK64       = 0xC002,
+    NSD_TD_FORMAT64     = 0xC003
 };
 
-struct IoCommandEnum : Reflection<IoCommandEnum, IoCommand>
+struct IoCommandEnum : utl::Reflectable<IoCommandEnum, IoCommand>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = long(IoCommand::TD_LASTCOMM);
+    // The NSD commands are deliberately outside this range (see IoCommand)
+    static constexpr long maxVal = long(IoCommand::HD_SCSICMD);
     
     static const char *_key(IoCommand value)
     {
@@ -105,7 +150,17 @@ struct IoCommandEnum : Reflection<IoCommandEnum, IoCommand>
             case IoCommand::TD_REMCHANGEINT:   return "TD_REMCHANGEINT";
             case IoCommand::TD_GETGEOMETRY:    return "TD_GETGEOMETRY";
             case IoCommand::TD_EJECT:          return "TD_EJECT";
-            case IoCommand::TD_LASTCOMM:       return "TD_LASTCOMM";
+            case IoCommand::TD_READ64:         return "TD_READ64";
+            case IoCommand::TD_WRITE64:        return "TD_WRITE64";
+            case IoCommand::TD_SEEK64:         return "TD_SEEK64";
+            case IoCommand::TD_FORMAT64:       return "TD_FORMAT64";
+            case IoCommand::HD_SCSICMD:        return "HD_SCSICMD";
+
+            case IoCommand::NSD_DEVICEQUERY:   return "NSD_DEVICEQUERY";
+            case IoCommand::NSD_TD_READ64:     return "NSD_TD_READ64";
+            case IoCommand::NSD_TD_WRITE64:    return "NSD_TD_WRITE64";
+            case IoCommand::NSD_TD_SEEK64:     return "NSD_TD_SEEK64";
+            case IoCommand::NSD_TD_FORMAT64:   return "NSD_TD_FORMAT64";
         }
         return "???";
     }
@@ -115,6 +170,7 @@ struct IoCommandEnum : Reflection<IoCommandEnum, IoCommand>
     }
 };
 
+/// State of a hard drive controller.
 enum class HdcState
 {
     UNDETECTED,     // The controller waits to be detected by the OS
@@ -122,7 +178,7 @@ enum class HdcState
     READY           // The controller is fully operational
 };
 
-struct HdcStateEnum : Reflection<HdcStateEnum, HdcState>
+struct HdcStateEnum : utl::Reflectable<HdcStateEnum, HdcState>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(HdcState::READY);
@@ -148,25 +204,37 @@ struct HdcStateEnum : Reflection<HdcStateEnum, HdcState>
 // Structures
 //
 
+/// Configuration options of a hard drive controller.
 typedef struct
 {
-    bool connected;
+    bool connected;                         ///< The controller is connected
+
+    /** Largest drive this controller accepts, in MB (1...16384)
+     *
+     * Controllers of the era could only address so much, and an image beyond
+     * their reach would not have worked on the hardware being emulated. 504
+     * reproduces the classic IDE ceiling; 16384 is the largest value the
+     * option accepts.
+     */
+    isize mbLimit;
 }
 HdcConfig;
 
+/// State of a hard drive controller.
 typedef struct
 {
-    isize nr;
-    bool pluggedIn;
-    HdcState state;
+    isize nr;                               ///< Number of the controller
+    bool pluggedIn;                         ///< The controller is plugged in
+    HdcState state;                         ///< State of the controller
 }
 HdcInfo;
 
+/// Counters of the commands executed by a hard drive controller.
 typedef struct
 {
-    // Tracks the number of executed commands
-    isize cmdCount[25];
+    /// Tracks the number of executed commands
+    isize cmdCount[29];
 }
-HdcStats;
+HdcMetrics;
 
 }

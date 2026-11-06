@@ -7,18 +7,16 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Blitter.h"
 #include "Amiga.h"
-#include "Checksum.h"
-#include "IOUtils.h"
 #include "Thread.h"
 
 namespace vamiga {
 
 Blitter::Blitter(Amiga& ref) : SubComponent(ref)
 {
-
+    info.bind([this] { return cacheInfo(); } );
 }
 
 void
@@ -38,7 +36,7 @@ Blitter::_initialize()
                 inclPattern |= carry << bit; // inclusive fill
                 exclPattern ^= carry << bit; // exclusive fill
 
-                if (byte & (1 << bit)) carry = !carry;
+                if (byte & (isize(1) << bit)) carry = !carry;
             }
             fillPattern[0][carryIn][byte] = inclPattern;
             fillPattern[1][carryIn][byte] = exclPattern;
@@ -64,7 +62,7 @@ Blitter::_didReset(bool hard)
 void
 Blitter::_run()
 {
-    if (BLT_MEM_GUARD) {
+    if CONSTEXPR (BLT_MEM_GUARD) {
 
         memguard.resize(mem.getConfig().chipSize);
         memguard.clear();
@@ -91,12 +89,12 @@ Blitter::checkOption(Opt opt, i64 value)
         case Opt::BLITTER_ACCURACY:
 
             if (value < 0 || value > 2) {
-                throw AppError(Fault::OPT_INV_ARG, "0, 1, 2");
+                throw CoreError(CoreError::OPT_INV_ARG, "0, 1, 2");
             }
             return;
 
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -128,10 +126,10 @@ Blitter::barrelShifter(u16 anew, u16 aold, u16 shift, bool desc) const
 u16
 Blitter::doMintermLogic(u16 a, u16 b, u16 c, u8 minterm) const
 {
-    u16 result = doMintermLogicQuick(a, b, c, minterm);
+    u16 result = (u16)doMintermLogicQuick(a, b, c, minterm);
 
-    if (BLT_DEBUG) {
-        
+    if CONSTEXPR (BLT_MINTERM_CHECK) {
+
         u16 result2 = 0;
         
         if (minterm & 0b10000000) result2 |=  a &  b &  c;
@@ -143,16 +141,17 @@ Blitter::doMintermLogic(u16 a, u16 b, u16 c, u8 minterm) const
         if (minterm & 0b00000010) result2 |= ~a & ~b &  c;
         if (minterm & 0b00000001) result2 |= ~a & ~b & ~c;
 
-        if (result != result2) fatal("Blitter minterm error\n");
+        if (result != result2) logmsg(LOG_FATAL, "Blitter minterm error\n");
     }
     
     return result;
 }
 
-u16
+int
 Blitter::doMintermLogicQuick(u16 a, u16 b, u16 c, u8 minterm) const
 {
     switch (minterm) {
+
         case 0: return 0;
         case 1: return (~c & ~b & ~a);
         case 2: return (c & ~b & ~a);
@@ -417,7 +416,7 @@ Blitter::doFill(u16 &data, bool &carry) const
 {
     assert(carry == 0 || carry == 1);
 
-    trace(BLT_DEBUG, "data = %X carry = %X\n", data, carry);
+    logmsg(LOG_BLT, "data = %X carry = %X\n", data, carry);
     
     u8 dataHi = HI_BYTE(data);
     u8 dataLo = LO_BYTE(data);
@@ -503,40 +502,40 @@ Blitter::beginBlit()
 
     if (bltconLINE()) {
 
-        if (BLT_CHECKSUM) {
-            
+        if CONSTEXPR (BLT_CHECKSUM) {
+
             linecount++;
-            check1 = check2 = util::fnvInit32();
-            msg("Line %ld (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x\n",
-                linecount, bltsizeH, bltsizeV,
-                bltconUSEA(), bltconUSEB(), bltconUSEC(), bltconUSED(),
-                bltcon0,
-                bltamod, bltbmod, bltcmod, bltdmod,
-                bltapt & agnus.ptrMask,
-                bltbpt & agnus.ptrMask,
-                bltcpt & agnus.ptrMask,
-                bltdpt & agnus.ptrMask);
+            check1 = check2 = Hashable::fnvInit32();
+            logmsg(LOG_DEBUG, "Line %td (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x\n",
+                    linecount, bltsizeH, bltsizeV,
+                    bltconUSEA(), bltconUSEB(), bltconUSEC(), bltconUSED(),
+                    bltcon0,
+                    bltamod, bltbmod, bltcmod, bltdmod,
+                    bltapt & agnus.ptrMask,
+                    bltbpt & agnus.ptrMask,
+                    bltcpt & agnus.ptrMask,
+                    bltdpt & agnus.ptrMask);
         }
 
         beginLineBlit(level);
 
     } else {
 
-        if (BLT_CHECKSUM) {
-            
+        if CONSTEXPR (BLT_CHECKSUM) {
+
             copycount++;
-            check1 = check2 = util::fnvInit32();
-            msg("Blit %ld (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x %s%s\n",
-                copycount,
-                bltsizeH, bltsizeV,
-                bltconUSEA(), bltconUSEB(), bltconUSEC(), bltconUSED(),
-                bltcon0,
-                bltamod, bltbmod, bltcmod, bltdmod,
-                bltapt & agnus.ptrMask,
-                bltbpt & agnus.ptrMask,
-                bltcpt & agnus.ptrMask,
-                bltdpt & agnus.ptrMask,
-                bltconDESC() ? "D" : "", bltconFE() ? "F" : "");
+            check1 = check2 = Hashable::fnvInit32();
+            logmsg(LOG_DEBUG, "Blit %td (%d,%d) (%d%d%d%d)[%x] (%d %d %d %d) %x %x %x %x %s%s\n",
+                    copycount,
+                    bltsizeH, bltsizeV,
+                    bltconUSEA(), bltconUSEB(), bltconUSEC(), bltconUSED(),
+                    bltcon0,
+                    bltamod, bltbmod, bltcmod, bltdmod,
+                    bltapt & agnus.ptrMask,
+                    bltbpt & agnus.ptrMask,
+                    bltcpt & agnus.ptrMask,
+                    bltdpt & agnus.ptrMask,
+                    bltconDESC() ? "D" : "", bltconFE() ? "F" : "");
         }
 
         beginCopyBlit(level);
@@ -549,7 +548,7 @@ Blitter::beginLineBlit(isize level)
     static u64 verbose = 0;
 
     if (verbose++ == 0) {
-        debug(BLT_CHECKSUM, "Performing level %ld line blits.\n", level);
+        if CONSTEXPR (BLT_CHECKSUM) logmsg(LOG_DEBUG, "Performing level %td line blits.\n", level);
     }
     if (bltcon0 & BLTCON0_USEB) {
         xfiles("Performing line blit with channel B enabled\n");
@@ -575,7 +574,7 @@ Blitter::beginCopyBlit(isize level)
     static u64 verbose = 0;
 
     if (verbose++ == 0) {
-        debug(BLT_CHECKSUM, "Performing level %ld copy blits.\n", level);
+        if CONSTEXPR (BLT_CHECKSUM) logmsg(LOG_DEBUG, "Performing level %td copy blits.\n", level);
     }
 
     switch (level) {
@@ -592,18 +591,7 @@ Blitter::beginCopyBlit(isize level)
 void
 Blitter::clearBusyFlag()
 {
-    debug(BLTTIM_DEBUG, "(%ld,%ld) Blitter bbusy\n", agnus.pos.v, agnus.pos.h);
-
-    /* In AGA, a blit that writes to the D channel keeps the busy flag set for
-     * two more CCKs. Line blits are not affected, because they take a
-     * different path through the D logic. The delay is a cycle-exact detail
-     * the fast Blitter does not participate in.
-     */
-    if (config.accuracy >= 2 && agnus.isAGA() && bltconUSED() && !bltconLINE()) {
-
-        bbusyDelay = 2;
-        return;
-    }
+    logmsg(LOG_BLTTIM, "(%td,%td) Blitter bbusy\n", agnus.pos.v, agnus.pos.h);
 
     // Clear the Blitter busy flag
     bbusy = false;
@@ -612,27 +600,22 @@ Blitter::clearBusyFlag()
 void
 Blitter::endBlit()
 {
-    debug(BLTTIM_DEBUG, "(%ld,%ld) Blitter terminates\n", agnus.pos.v, agnus.pos.h);
+    logmsg(LOG_BLTTIM, "(%td,%td) Blitter terminates\n", agnus.pos.v, agnus.pos.h);
     
     running = false;
-    if (BLT_MEM_GUARD) blitcount++;
+    if CONSTEXPR (BLT_MEM_GUARD) blitcount++;
     
-    /* Clear the Blitter slot. If the busy flag is still waiting to be cleared,
-     * the slot is kept alive until the delay has expired (see clearBusyFlag).
-     */
-    if (bbusyDelay) {
-        agnus.scheduleRel<SLOT_BLT>(DMA_CYCLES(bbusyDelay), BLT_BUSY);
-        bbusyDelay = 0;
-    } else {
-        agnus.cancel<SLOT_BLT>();
-    }
+    // Clear the Blitter slot
+    agnus.cancel<SLOT_BLT>();
     
     // Dump checksums if requested
-    debug(BLT_CHECKSUM,
-          "check1: %x check2: %x ABCD: %x %x %x %x\n",
-          check1, check2,
-          bltapt & agnus.ptrMask, bltbpt & agnus.ptrMask,
-          bltcpt & agnus.ptrMask, bltdpt & agnus.ptrMask);
+    if CONSTEXPR (BLT_CHECKSUM) {
+        logmsg(LOG_DEBUG,
+              "check1: %x check2: %x ABCD: %x %x %x %x\n",
+              check1, check2,
+              bltapt & agnus.ptrMask, bltbpt & agnus.ptrMask,
+              bltcpt & agnus.ptrMask, bltdpt & agnus.ptrMask);
+    }
     
     // Let the Copper know about the termination
     copper.blitterDidTerminate();

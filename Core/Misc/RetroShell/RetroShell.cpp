@@ -7,111 +7,149 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "RetroShell.h"
+#include "RSError.h"
 #include "Emulator.h"
+#include "utl/io.h"
 #include <istream>
 #include <sstream>
 #include <string>
 
 namespace vamiga {
 
-RetroShell::RetroShell(Amiga& ref) : SubComponent(ref)
+RetroShell::RetroShell(Amiga& ref, isize id) : SubComponent(ref, id)
 {
     subComponents = std::vector<CoreComponent *> {
-
-        &commander,
-        &debugger,
-        &navigator
+        
+        &console
     };
+
+    // The main shell boots into the Commander. The remote shell stays idle
+    // until a client connects.
+    if (isPrimary()) commands = { InputLine {.input = "commander"} };
+
+    info.bind([this] { return cacheInfo(); } );
+}
+
+void
+RetroShell::scheduleWakeup(Cycle delay)
+{
+    switch (objid) {
+
+        case 0:     agnus.scheduleRel<SLOT_RSH0>(delay, RSH_WAKEUP); break;
+        case 1:     agnus.scheduleRel<SLOT_RSH1>(delay, RSH_WAKEUP); break;
+        case 2:     agnus.scheduleRel<SLOT_RSH2>(delay, RSH_WAKEUP); break;
+
+        default:
+            fatalError;
+    }
+}
+
+void
+RetroShell::cancelWakeup()
+{
+    switch (objid) {
+
+        case 0:     agnus.cancel<SLOT_RSH0>(); break;
+        case 1:     agnus.cancel<SLOT_RSH1>(); break;
+        case 2:     agnus.cancel<SLOT_RSH2>(); break;
+
+        default:
+            fatalError;
+    }
+}
+
+void
+RetroShell::newSession()
+{
+    /* Called from the server threads. The lock keeps us from rebuilding the
+     * command tree while the emulator thread is walking it.
+     */
+    {   SYNCHRONIZED
+
+        commands = { };
+        cancelWakeup();
+        console.clear();
+        enterCommander();
+    }
 }
 
 void
 RetroShell::_initialize()
 {
-    // Set a console
-    current = &debugger;
+    exec();
+}
 
-    // Switch the console to let the welcome message appear
-    current->exec(vAmigaDOS ? "navigator" : "commander");
+RetroShellInfo
+RetroShell::cacheInfo() const
+{
+    SYNCHRONIZED
+
+    RetroShellInfo info;
+
+    info.console = isize(console.getCommandSet());
+    info.cursorRel = console.cursorRel();
+
+    return info;
 }
 
 void
-RetroShell::cacheInfo(RetroShellInfo &result) const
+RetroShell::enterConsole(CommandSet cs)
 {
-    {   SYNCHRONIZED
-
-        result.console = current->objid;
-        result.cursorRel = current->cursorRel();
-    }
-}
-
-void
-RetroShell::enterConsole(isize nr)
-{
-    Console *newConsole = nullptr;
-
-    switch (nr) {
-
-        case 0: newConsole = &commander; break;
-        case 1: newConsole = &debugger; break;
-        case 2: newConsole = &navigator; break;
-
-        default:
-            fatalError;
-    }
-
-    // Assign the new console
-    current = newConsole;
-
-    // Enter Leave tracking mode
-    nr == 1 ? emulator.trackOn(1) : emulator.trackOff(1);
-
-    if (current->isEmpty()) {
-
-        // Print the welcome message if entered the first time
-        current->exec("welcome"); *this << current->getPrompt();
-
-    } else {
-
-        // Otherwise, print the summary message
-        current->summary();
-    }
-
-    // Update prompt
-    *this << '\r' << current->getPrompt();
-
+    // Replace the command tree
+    console.setCommandSet(cs);
+    
     // Inform the GUI about the change
-    msgQueue.put(Msg::RSH_SWITCH, nr);
+    msgQueue.put(Msg::RSH_SWITCH, objid, isize(cs));
 }
 
 void
 RetroShell::asyncExec(const string &command, bool append)
 {
+    asyncExec(InputLine { .type = InputLine::Source::USER, .input = command });
+}
+
+void
+RetroShell::asyncExec(const InputLine &command, bool append)
+{
     // Feed the command into the command queue
     if (append) {
-        commands.push_back({ 0, command});
+        commands.push_back(command);
     } else {
-        commands.insert(commands.begin(), { 0, command});
+        commands.insert(commands.begin(), command);
     }
-
+    
     // Process the command queue in the next update cycle
     emulator.put(Command(Cmd::RSH_EXECUTE));
+}
+
+void
+RetroShell::asyncExecScript(const fs::path &path)
+{
+    auto stream = std::ifstream(path);
+    if (!stream.is_open()) throw IOError(IOError::FILE_NOT_FOUND, path);
+    asyncExecScript(stream);
 }
 
 void
 RetroShell::asyncExecScript(std::stringstream &ss)
 {
     {   SYNCHRONIZED
-        
+
         std::string line;
         isize nr = 1;
-        
+
         while (std::getline(ss, line)) {
-            
-            commands.push_back({ nr++, line });
+
+            commands.push_back(InputLine {
+
+                .id    = nr++,
+                .type  = InputLine::Source::SCRIPT,
+                .input = line
+            });
         }
-        
+    
         emulator.put(Command(Cmd::RSH_EXECUTE));
     }
 }
@@ -133,33 +171,14 @@ RetroShell::asyncExecScript(const string &contents)
 }
 
 void
-RetroShell::asyncExecScript(const MediaFile &file)
-{
-    string s;
-
-    switch (file.type()) {
-
-        case FileType::SCRIPT:
-
-            s = string((char *)file.getData(), file.getSize());
-            asyncExecScript(s);
-            break;
-
-        default:
-
-            throw AppError(Fault::FILE_TYPE_MISMATCH);
-    }
-}
-
-void
 RetroShell::abortScript()
 {
     {   SYNCHRONIZED
-
+        
         if (!commands.empty()) {
-
+            
             commands.clear();
-            agnus.cancel<SLOT_RSH>();
+            cancelWakeup();
         }
     }
 }
@@ -168,205 +187,204 @@ void
 RetroShell::exec()
 {
     {   SYNCHRONIZED
-        
+
         // Only proceed if there is anything to process
         if (commands.empty()) return;
-        
-        std::pair<isize, string> cmd;
-        
+
         try {
-            
+
             while (!commands.empty()) {
-                
-                cmd = commands.front();
+
+                InputLine cmd = commands.front();
                 commands.erase(commands.begin());
                 exec(cmd);
             }
-            
+
+            msgQueue.put(Msg::RSH_DONE, objid);
+
         } catch (ScriptInterruption &) {
-            
-            msgQueue.put(Msg::RSH_WAIT);
-            
+
+            msgQueue.put(Msg::RSH_WAIT, objid);
+
         } catch (...) {
-            
-            // Remove all remaining commands
+
+            // Remove all remaining commands, telling their senders why
+            auto error = std::current_exception();
+            for (auto &cmd : commands) { if (cmd.completion) cmd.completion("", error); }
             commands = { };
-            
-            msgQueue.put(Msg::RSH_ERROR);
+
+            msgQueue.put(Msg::RSH_ERROR, objid);
         }
-        
+
         // Print prompt
-        if (current->lastLineIsEmpty()) *this << current->getPrompt();
+        if (console.lastLineIsEmpty()) *this << console.prompt();
     }
 }
 
 void
-RetroShell::exec(QueuedCmd cmd)
+RetroShell::exec(const InputLine &cmd)
 {
-    auto line = cmd.first;
-    auto command = cmd.second;
-
     try {
 
-        // Print the command if it comes from a script
-        if (line) *this << command << '\n';
-
         // Call the interpreter
-        current->exec(command);
+        console.exec(cmd);
 
     } catch (ScriptInterruption &) {
 
         // Rethrow the exception
         throw;
 
-    } catch (std::exception &err) {
-
-        // Print error message
-        current->describe(err, line, command);
+    } catch (std::exception &) {
 
         // Rethrow the exception if the command is not prefixed with 'try'
-        if (command.rfind("try", 0)) throw;
+        if (cmd.input.rfind("try", 0)) throw;
     }
 }
 
 RetroShell &
 RetroShell::operator<<(char value)
 {
-    *current << value;
+    console << value;
     return *this;
 }
 
 RetroShell &
 RetroShell::operator<<(const char *value)
 {
-    *current << value;
+    console << value;
     return *this;
 }
 
 RetroShell &
 RetroShell::operator<<(const string &value)
 {
-    *current << value;
+    console << value;
     return *this;
 }
 
 RetroShell &
 RetroShell::operator<<(int value)
 {
-    *current << value;
+    console << value;
     return *this;
 }
 
 RetroShell &
 RetroShell::operator<<(unsigned int value)
 {
-    *current << value;
+    console << value;
     return *this;
 }
 
 RetroShell &
 RetroShell::operator<<(long value)
 {
-    *current << value;
+    console << value;
     return *this;
 }
 
 RetroShell &
 RetroShell::operator<<(unsigned long value)
 {
-    *current << value;
+    console << value;
     return *this;
 }
 
 RetroShell &
 RetroShell::operator<<(long long value)
 {
-    *current << value;
+    console << value;
     return *this;
 }
 
 RetroShell &
 RetroShell::operator<<(unsigned long long value)
 {
-    *current << value;
+    console << value;
     return *this;
 }
 
 RetroShell &
 RetroShell::operator<<(std::stringstream &stream)
 {
-    *current << stream;
+    console << stream;
     return *this;
 }
 
 RetroShell&
 RetroShell::operator<<(const vspace &value)
 {
-    *current << value;
+    console << value;
     return *this;
 }
 
 const char *
 RetroShell::text()
 {
-    return current->text();
+    return console.text();
 }
 
 isize
 RetroShell::cursorRel()
 {
-    return current->cursorRel();
+    return console.cursorRel();
 }
 
 void
 RetroShell::press(RSKey key, bool shift)
 {
     if (shift) {
-
+        
         switch(key) {
-
+                
             case RSKey::TAB:
+                
+                // Cycle through the available command sets
+                switch (console.getCommandSet()) {
+                        
+                    case CommandSet::Commander:     console.input = "debugger"; break;
+                    // case CommandSet::Debugger:      console.input = "navigator"; break;
+                    // case CommandSet::Navigator:     console.input = "cbmnavigator"; break;
+                    // case CommandSet::CBMNavigator:  console.input = "commander"; break;
 
-                // asyncExec(".");
-                if (current->objid == 0) current->input = "debugger";
-                if (current->objid == 1) current->input = "navigator";
-                if (current->objid == 2) current->input = "commander";
-                current->pressReturn(false);
+                    default:
+                        console.input = "commander";
+                        break;
+                }
+                console.pressReturn(false);
                 return;
-
+                
             default:
                 break;
         }
     }
-
-    current->press(key, shift);
+    
+    console.press(key, shift);
 }
 
 void
 RetroShell::press(char c)
 {
-    current->press(c);
+    console.press(c);
 }
 
 void
 RetroShell::press(const string &s)
 {
-    current->press(s);
+    console.press(s);
 }
 
 void
 RetroShell::setStream(std::ostream &os)
 {
-    commander.setStream(os);
-    debugger.setStream(os);
-    navigator.setStream(os);
+    console.setStream(os);
 }
 
 void
 RetroShell::serviceEvent()
 {
     emulator.put(Command(Cmd::RSH_EXECUTE));
-    agnus.cancel<SLOT_RSH>();
+    cancelWakeup();
 }
 
 }

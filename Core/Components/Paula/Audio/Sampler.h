@@ -2,16 +2,16 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
 
 #include "SamplerTypes.h"
 #include "Constants.h"
-#include "RingBuffer.h"
+#include "utl/storage.h"
 #include "Aliases.h"
 
 namespace vamiga {
@@ -23,7 +23,7 @@ namespace vamiga {
  * preserve the timing information.
  */
 
-struct Sampler : util::SortedRingBuffer <i16, VPOS_CNT * HPOS_CNT> {
+struct Sampler : utl::SortedRingBuffer <i16, VPOS_CNT * HPOS_CNT> {
     
     // Initializes the ring buffer with a single dummy element
     void reset();

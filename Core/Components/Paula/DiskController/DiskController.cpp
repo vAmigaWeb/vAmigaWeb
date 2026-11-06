@@ -2,24 +2,29 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "DiskController.h"
 #include "Amiga.h"
 #include "Agnus.h"
 #include "ADFFile.h"
 #include "FloppyDrive.h"
-#include "IOUtils.h"
 #include "MsgQueue.h"
 #include "Paula.h"
 #include "Thread.h"
+#include "utl/io.h"
 #include <algorithm>
 
 namespace vamiga {
+
+DiskController::DiskController(Amiga& ref) : SubComponent(ref)
+{
+    info.bind([this] { return cacheInfo(); } );
+}
 
 void
 DiskController::operator << (SerResetter &worker)
@@ -53,7 +58,7 @@ DiskController::checkOption(Opt opt, i64 value)
         case Opt::DC_SPEED:
 
             if (!isValidDriveSpeed((isize)value)) {
-                throw AppError(Fault::OPT_INV_ARG, "-1, 1, 2, 4, 8");
+                throw CoreError(CoreError::OPT_INV_ARG, "-1, 1, 2, 4, 8");
             }
             return;
 
@@ -63,7 +68,7 @@ DiskController::checkOption(Opt opt, i64 value)
             return;
 
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -93,30 +98,31 @@ DiskController::setOption(Opt option, i64 value)
     }
 }
 
-void 
-DiskController::cacheInfo(DiskControllerInfo &result) const
+DiskControllerInfo
+DiskController::cacheInfo() const
 {
-    {   SYNCHRONIZED
+    DiskControllerInfo info;
 
-        info.selectedDrive = selected;
-        info.state = state;
-        info.fifoCount = fifoCount;
-        info.dsklen = dsklen;
-        info.dskbytr = computeDSKBYTR();
-        info.dsksync = dsksync;
-        info.prb = prb;
-        
-        for (isize i = 0; i < 6; i++) {
-            info.fifo[i] = (fifo >> (8 * i)) & 0xFF;
-        }
+    info.selectedDrive = selected;
+    info.state = state;
+    info.fifoCount = fifoCount;
+    info.dsklen = dsklen;
+    info.dskbytr = computeDSKBYTR();
+    info.dsksync = dsksync;
+    info.prb = prb;
+
+    for (isize i = 0; i < 6; i++) {
+        info.fifo[i] = (fifo >> (8 * i)) & 0xFF;
     }
+    
+    return info;
 }
 
 void
 DiskController::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-    
+    using namespace utl;
+
     if (category == Category::Config) {
         
         dumpConfig(os);
@@ -176,7 +182,7 @@ DiskController::setState(DriveDmaState newState)
 void
 DiskController::setState(DriveDmaState oldState, DriveDmaState newState)
 {
-    trace(DSK_DEBUG, "%s -> %s\n",
+    logmsg(LOG_DSK, "%s -> %s\n",
           DriveStateEnum::key(oldState), DriveStateEnum::key(newState));
     
     state = newState;
@@ -277,7 +283,7 @@ DiskController::readByte()
     FloppyDrive *drive = getSelectedDrive();
 
     // Read a byte from the drive
-    incoming = drive ? drive->readByteAndRotate() : 0;
+    incoming = drive ? drive->read8AndRotate() : 0;
 
     // Set the byte ready flag (shows up in DSKBYT)
     incoming |= 0x8000;
@@ -305,7 +311,7 @@ DiskController::readBit(bool bit)
         syncCycle = agnus.clock;
 
         // Trigger a word SYNC interrupt
-        trace(DSK_DEBUG, "SYNC IRQ (dsklen = %d)\n", dsklen);
+        logmsg(LOG_DSK, "SYNC IRQ (dsklen = %d)\n", dsklen);
         paula.raiseIrq(IrqSource::DSKSYN);
 
         // Enable DMA if the controller was waiting for it
@@ -337,7 +343,7 @@ DiskController::writeByte()
         u8 outgoing = readFifo();
 
         // Write byte to disk
-        if (drive) drive->writeByteAndRotate(outgoing);
+        if (drive) drive->write8AndRotate(outgoing);
     }
 }
 
@@ -385,11 +391,11 @@ DiskController::performDMARead(FloppyDrive *drive, u32 remaining)
         u16 word = readFifo16();
         
         // Write word into memory
-        if (DSK_CHECKSUM) {
-            
+        if CONSTEXPR (DSK_CHECKSUM) {
+
             checkcnt++;
-            check1 = util::fnvIt32(check1, word);
-            check2 = util::fnvIt32(check2, agnus.dskpt & agnus.ptrMask);
+            check1 = Hashable::fnvIt32(check1, word);
+            check2 = Hashable::fnvIt32(check2, agnus.dskpt & agnus.ptrMask);
         }
         agnus.doDiskDmaWrite(word);
         
@@ -399,7 +405,7 @@ DiskController::performDMARead(FloppyDrive *drive, u32 remaining)
             paula.raiseIrq(IrqSource::DSKBLK);
             setState(DriveDmaState::OFF);
             
-            debug(DSK_CHECKSUM,
+            if CONSTEXPR (DSK_CHECKSUM) logmsg(LOG_DEBUG,
                   "read: cnt = %llu check1 = %x check2 = %x\n", checkcnt, check1, check2);
             
             return;
@@ -425,14 +431,16 @@ DiskController::performDMAWrite(FloppyDrive *drive, u32 remaining)
     do {
 
         // Read next word from memory
-        if (DSK_CHECKSUM) {
+        if CONSTEXPR (DSK_CHECKSUM) {
+
             checkcnt++;
-            check2 = util::fnvIt32(check2, agnus.dskpt & agnus.ptrMask);
+            check2 = Hashable::fnvIt32(check2, agnus.dskpt & agnus.ptrMask);
         }
         u16 word = agnus.doDiskDmaRead();
         
-        if (DSK_CHECKSUM) {
-            check1 = util::fnvIt32(check1, word);
+        if CONSTEXPR (DSK_CHECKSUM) {
+
+            check1 = Hashable::fnvIt32(check1, word);
         }
         
         // Write word into FIFO buffer
@@ -460,12 +468,14 @@ DiskController::performDMAWrite(FloppyDrive *drive, u32 remaining)
             while (!fifoIsEmpty()) {
                 
                 u8 value = readFifo();
-                if (drive) drive->writeByteAndRotate(value);
+                if (drive) drive->write8AndRotate(value);
             }
             setState(DriveDmaState::OFF);
             
-            debug(DSK_CHECKSUM, "write: cnt = %llu ", checkcnt);
-            debug(DSK_CHECKSUM, "check1 = %x check2 = %x\n", check1, check2);
+            if CONSTEXPR (DSK_CHECKSUM) {
+                logmsg(LOG_DEBUG, "write: cnt = %llu ", checkcnt);
+                logmsg(LOG_DEBUG, "check1 = %x check2 = %x\n", check1, check2);
+            }
 
             return;
         }
@@ -511,9 +521,13 @@ DiskController::performTurboDMA(FloppyDrive *drive)
     }
     
     // Trigger disk interrupt with some delay
-    Cycle delay = MIMIC_UAE ? 2 * PAL::HPOS_CNT - agnus.pos.h + 30 : 512;
+    Cycle delay = 512;
+
+    if CONSTEXPR (MIMIC_UAE)
+        delay = 2 * PAL::HPOS_CNT - agnus.pos.h + 30;
+
     paula.scheduleIrqRel(IrqSource::DSKBLK, DMA_CYCLES(delay));
-    
+
     setState(DriveDmaState::OFF);
 }
 
@@ -523,27 +537,30 @@ DiskController::performTurboRead(FloppyDrive *drive)
     for (isize i = 0; i < (dsklen & 0x3FFF); i++) {
         
         // Read word from disk
-        u16 word = drive->readWordAndRotate();
+        u16 word = drive->read16AndRotate();
         
         // Write word into memory
-        if (DSK_CHECKSUM) {
-            
+        if CONSTEXPR (DSK_CHECKSUM) {
+
             checkcnt++;
-            check1 = util::fnvIt32(check1, word);
-            check2 = util::fnvIt32(check2, agnus.dskpt & agnus.ptrMask);
+            check1 = Hashable::fnvIt32(check1, word);
+            check2 = Hashable::fnvIt32(check2, agnus.dskpt & agnus.ptrMask);
         }
         mem.poke16 <Accessor::AGNUS> (agnus.dskpt, word);
         agnus.dskpt += 2;
     }
     
-    debug(DSK_CHECKSUM, "Turbo read %s: cyl: %ld side: %ld offset: %ld ",
-          drive->objectName(),
-          drive->head.cylinder,
-          drive->head.head,
-          drive->head.offset);
-    
-    debug(DSK_CHECKSUM, "checkcnt = %llu check1 = %x check2 = %x\n",
-          checkcnt, check1, check2);
+    if CONSTEXPR (DSK_CHECKSUM) {
+
+        logmsg(LOG_DEBUG, "Turbo read %s: cyl: %td side: %td offset: %td ",
+              drive->objectName(),
+              drive->head.cylinder,
+              drive->head.head,
+              drive->head.offset);
+
+        logmsg(LOG_DEBUG, "checkcnt = %llu check1 = %x check2 = %x\n",
+              checkcnt, check1, check2);
+    }
 }
 
 void
@@ -554,20 +571,20 @@ DiskController::performTurboWrite(FloppyDrive *drive)
         // Read word from memory
         u16 word = mem.peek16 <Accessor::AGNUS> (agnus.dskpt);
         
-        if (DSK_CHECKSUM) {
-            
+        if CONSTEXPR (DSK_CHECKSUM) {
+
             checkcnt++;
-            check1 = util::fnvIt32(check1, word);
-            check2 = util::fnvIt32(check2, agnus.dskpt & agnus.ptrMask);
+            check1 = Hashable::fnvIt32(check1, word);
+            check2 = Hashable::fnvIt32(check2, agnus.dskpt & agnus.ptrMask);
         }
         
         agnus.dskpt += 2;
         
         // Write word to disk
-        drive->writeWordAndRotate(word);
+        drive->write16AndRotate(word);
     }
     
-    debug(DSK_CHECKSUM,
+    if CONSTEXPR (DSK_CHECKSUM) logmsg(LOG_DEBUG,
           "Turbo write %s: checkcnt = %llu check1 = %x check2 = %x\n",
           drive->objectName(), checkcnt, check1, check2);
 }

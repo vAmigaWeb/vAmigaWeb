@@ -7,48 +7,57 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "LogicAnalyzer.h"
 #include "Amiga.h"
 
 namespace vamiga {
 
+LogicAnalyzer::LogicAnalyzer(Amiga& ref) : SubComponent(ref)
+{
+    info.bind([this] { return cacheInfo(); } );
+};
+
 void
 LogicAnalyzer::_pause()
 {
-    recordDelayed(agnus.pos.h);
+    // Complement the missing signal values of the most recent sample
+    if (!trace.isEmpty()) recordDelayed(*trace.latestAddr());
+
+    /* Hand the result over right away rather than waiting for the end of the
+     * frame, which is not going to arrive: a paused machine has to show what
+     * it actually recorded, up to and including the cycle it stopped on.
+     */
+    publish();
 }
 
 void
 LogicAnalyzer::_didReset(bool hard)
 {
+    trace.clear();
+    publish();
     checkEnable();
 }
 
 void
 LogicAnalyzer::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-
     if (category == Category::Config) {
         
         dumpConfig(os);
     }
 }
 
-void
-LogicAnalyzer::cacheInfo(LogicAnalyzerInfo &info) const
+LogicAnalyzerInfo
+LogicAnalyzer::cacheInfo() const
 {
-    {   SYNCHRONIZED
-        
-        info.busOwner = agnus.busOwner;
-        info.addrBus = agnus.busAddr;
-        info.dataBus = agnus.busData;
-        
-        for (isize i = 0; i < 4; i++) {
-            info.channel[i] = record[i];
-        }
-    }
+    LogicAnalyzerInfo info;
+
+    info.busOwner = agnus.busOwner;
+    info.addrBus = agnus.busAddr;
+    info.dataBus = agnus.busData;
+
+    return info;
 }
 
 i64
@@ -56,6 +65,7 @@ LogicAnalyzer::getOption(Opt option) const
 {
     switch (option) {
             
+        case Opt::LA_CONNECT: return (i64)config.connect;
         case Opt::LA_PROBE0: return (i64)config.channel[0];
         case Opt::LA_PROBE1: return (i64)config.channel[1];
         case Opt::LA_PROBE2: return (i64)config.channel[2];
@@ -75,13 +85,17 @@ LogicAnalyzer::checkOption(Opt opt, i64 value)
 {
     switch (opt) {
 
+        case Opt::LA_CONNECT:
+            
+            return;
+            
         case Opt::LA_PROBE0:
         case Opt::LA_PROBE1:
         case Opt::LA_PROBE2:
         case Opt::LA_PROBE3:
 
             if (!ProbeEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, ProbeEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, ProbeEnum::keyList());
             }
             
         case Opt::LA_ADDR0:
@@ -92,7 +106,7 @@ LogicAnalyzer::checkOption(Opt opt, i64 value)
             return;
 
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -103,6 +117,20 @@ LogicAnalyzer::setOption(Opt option, i64 value)
     bool invalidate = false;
     
     switch (option) {
+            
+        case Opt::LA_CONNECT:
+
+            /* Drop the whole trace when the analyzer is switched off.
+             *
+             * Recording stops here, so whatever the buffer still holds is
+             * frozen history. Leaving it in place would have the panel keep
+             * displaying it as though it were live, and it would sit in front
+             * of the first samples taken after reconnecting.
+             */
+            if (!value) trace.clear();
+
+            config.connect = (bool)value;
+            break;
             
         case Opt::LA_PROBE3: c++; [[fallthrough]];
         case Opt::LA_PROBE2: c++; [[fallthrough]];
@@ -126,9 +154,26 @@ LogicAnalyzer::setOption(Opt option, i64 value)
             fatalError;
     }
 
-    // Wipe out prerecorded data if necessary
-    if (invalidate) std::fill_n(record[c], HPOS_CNT, -1);
- 
+    /* Wipe out prerecorded data if necessary.
+     *
+     * Only the affected channel's samples: the trace also carries the bus
+     * activity and the three other probes, none of which this option touched,
+     * and clearing the whole buffer would throw that recorded history away
+     * every time a probe is re-pointed.
+     */
+    if (invalidate) {
+
+        for (auto i = trace.begin(); i != trace.end(); i = trace.next(i)) {
+            trace.elements[i].values[c] = -1;
+        }
+    }
+
+    /* Both edits above (and the disconnect case) change the working buffer
+     * outside the recording path, and the machine may well be paused, so the
+     * result has to be handed over here instead of at the next frame end.
+     */
+    publish();
+
     // Enable or disable the logic analyzer
     checkEnable();
 }
@@ -136,13 +181,31 @@ LogicAnalyzer::setOption(Opt option, i64 value)
 void
 LogicAnalyzer::checkEnable()
 {
+    /*
     bool enable =
     config.channel[0] != Probe::NONE ||
     config.channel[1] != Probe::NONE ||
     config.channel[2] != Probe::NONE ||
     config.channel[3] != Probe::NONE ;
+    */
+    bool enable = config.connect;
     
     enable ? agnus.syncEvent |= EVFL::PROBE : agnus.syncEvent &= ~EVFL::PROBE;
+}
+
+void
+LogicAnalyzer::eofHandler()
+{
+    publish();
+}
+
+void
+LogicAnalyzer::publish()
+{
+    {   SYNCHRONIZED
+
+        stable = trace;
+    }
 }
 
 void
@@ -172,13 +235,23 @@ LogicAnalyzer::recordSignals()
      The second function is also called when the emulator pauses to complement
      the missing signal values.
      */
-    
-    recordCurrent(agnus.pos.h);
-    recordDelayed(agnus.pos.hPrev());
+
+    // Complete the sample that was opened in the previous DMA cycle
+    if (!trace.isEmpty()) recordDelayed(*trace.latestAddr());
+
+    // Open a new sample for the current DMA cycle
+    trace.put(LogicAnalyzerSample {
+
+        .frame = agnus.pos.frame,
+        .vpos = agnus.pos.v,
+        .hpos = agnus.pos.h,
+        .values = { -1, -1, -1, -1 }
+    });
+    recordCurrent(*trace.latestAddr());
 }
 
 void
-LogicAnalyzer::recordCurrent(isize hpos)
+LogicAnalyzer::recordCurrent(LogicAnalyzerSample &sample)
 {
     for (isize i = 0; i < 4; i++) {
         
@@ -186,7 +259,7 @@ LogicAnalyzer::recordCurrent(isize hpos)
 
             case Probe::MEMORY:
                 
-                record[i][hpos] = isize(mem.spypeek16<Accessor::CPU>(config.addr[i]));
+                sample.values[i] = isize(mem.spypeek16<Accessor::CPU>(config.addr[i]));
                 break;
                 
             default:
@@ -196,17 +269,33 @@ LogicAnalyzer::recordCurrent(isize hpos)
 }
 
 void
-LogicAnalyzer::recordDelayed(isize hpos)
+LogicAnalyzer::recordDelayed(LogicAnalyzerSample &sample)
 {
+    auto hpos = agnus.pos.h;
+    
+    if (hpos == 0) {
+        
+        // The previous cycle was a refresh cycle
+        sample.owner = BusOwner::REFRESH;
+        sample.dataBus = 0;
+        sample.addrBus = 0;
+        
+    } else {
+        
+        sample.owner = agnus.busOwner[hpos - 1];
+        sample.dataBus = agnus.busData[hpos - 1];
+        sample.addrBus = agnus.busAddr[hpos - 1];
+    }
+    
     for (isize i = 0; i < 4; i++) {
         
         switch (config.channel[i]) {
-                
+
             case Probe::IPL:
-
-                record[i][hpos] = cpu.getIPL();
+                
+                sample.values[i] = cpu.getIPL();
                 break;
-
+                
             default:
                 break;
         }

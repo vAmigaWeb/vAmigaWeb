@@ -7,30 +7,45 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "PixelEngine.h"
 #include "Amiga.h"
-#include "Colors.h"
+#include "utl/gfx/Colors.h"
 #include "Denise.h"
-#include "DmaDebugger.h"
+#include "XRay.h"
 #include "Emulator.h"
 
+#include <algorithm>
+#include <cmath>
 #include <fstream>
 
 namespace vamiga {
+
+namespace {
+
+/* Amiga video output targeted CRT displays with a gamma of roughly 2.8,
+ * while host displays are calibrated for the sRGB-ish standard gamma of
+ * 2.2. GAMMA_IN undoes the former to obtain linear light, GAMMA_OUT
+ * re-applies the latter to encode the result for the host display.
+ */
+constexpr double GAMMA_IN = 2.8;
+constexpr double GAMMA_OUT = 2.2;
+
+}
 
 void
 PixelEngine::clearAll()
 {
     // Wipe out all textures
-    for (isize i = 0; i < NUM_TEXTURES; i++) emuTexture[i].clear();
+    for (isize i = 0; i < NUM_TEXTURES; i++) {
+        emuTexture[i].clear();
+        xrayTexture[i].clear();
+    }
 }
 
 void
 PixelEngine::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-
     if (category == Category::Config) {
 
         dumpConfig(os);
@@ -40,13 +55,11 @@ PixelEngine::_dump(Category category, std::ostream &os) const
 void
 PixelEngine::_initialize()
 {
-    // Setup ECS/AGA BRDRBLNK color
-    palette[288] = TEXEL(GpuColor(0x00, 0x00, 0x00).rawValue);
+    // Setup the ECS BRDRBLNK color (BORDER_BG is mirrored in updateRGBA)
+    borderPalette[BORDER_BLNK] = toTexel(0x00, 0x00, 0x00);
 
-    // Setup debug colors
-    palette[289] = TEXEL(GpuColor(0xD0, 0x00, 0x00).rawValue);
-    palette[290] = TEXEL(GpuColor(0xA0, 0x00, 0x00).rawValue);
-    palette[291] = TEXEL(GpuColor(0x90, 0x00, 0x00).rawValue);
+    // Setup the border debug color
+    borderPalette[BORDER_DEBUG] = toTexel(0xD0, 0x00, 0x00);
 }
 
 void
@@ -79,94 +92,77 @@ PixelEngine::_powerOn()
 }
 
 void
-PixelEngine::setColor(isize reg, AmigaColor value)
+PixelEngine::setColor(isize reg, u16 value, bool loct)
 {
     assert(reg < 256);
 
-    color[reg] = value;
-
-    /* Update the standard palette entry. In EHB mode, the entries 32 to 63 are
-     * occupied by the darkened copies of the entries 0 to 31, so a write to
-     * one of these registers must not touch the palette.
-     */
-    if (!ehbMode || reg < 32 || reg >= 64) {
-        palette[reg] = toTexel(value);
-    }
-
-    // Update the mirrored entry in the upper half of the lower palette
-    if (reg < 32) {
-
-        if (ehbMode) {
-            palette[reg + 32] = toTexel(value.ehb());
-        } else if (!denise.isAGA()) {
-            palette[reg + 32] = palette[reg];
-        }
-    }
-}
-
-void
-PixelEngine::setColor(isize reg, u16 value)
-{
+    AmigaColor newColor = color[reg];
+    
     if (denise.isAGA()) {
-
-        /* In AGA, a write with LOCT cleared stores the given nibble in both
-         * halves of each component. A program that never performs the second
-         * write with LOCT set therefore ends up with the brightest possible
-         * shade of the requested color, which is what the hardware does.
-         */
-        u8 r = u8((value >> 8) & 0xF);
-        u8 g = u8((value >> 4) & 0xF);
-        u8 b = u8((value >> 0) & 0xF);
-
-        setColor(reg, AmigaColor(u8(r << 4 | r), u8(g << 4 | g), u8(b << 4 | b)));
-
+        
+        // In AGA, a write with LOCT cleared stores the given nibble in both
+        // halves of each component. A write with LOCT set replaces the lower
+        // nibbles and preserves the upper ones.
+        
+        if (!loct) newColor.setHiNibbles(value);
+        newColor.setLoNibbles(value);
+        
     } else {
-
-        // OCS and ECS only know 4 bit components, the lower nibble stays clear
-        setColor(reg, AmigaColor(u16(value & 0xFFF)));
+        
+        newColor.setHiNibbles(value);
+        newColor.setLoNibbles(0);
     }
-}
-
-void
-PixelEngine::setColorLoct(isize reg, u16 value)
-{
-    assert(reg < 256);
-
-    // A LOCT write replaces the lower nibbles and preserves the upper ones
-    auto c = color[reg];
-
-    setColor(reg, AmigaColor(u8((c.r & 0xF0) | ((value >> 8) & 0xF)),
-                             u8((c.g & 0xF0) | ((value >> 4) & 0xF)),
-                             u8((c.b & 0xF0) | ((value >> 0) & 0xF))));
+    
+    setColor(reg, newColor);
 }
 
 u16
 PixelEngine::getSpriteColor(isize s, isize nr) const
 {
-    // In AGA, the color bank of the sprite is selected by BPLCON4
     return getColor(denise.sprBase(s) + nr + 2 * (s & 6));
 }
 
-Texel
-PixelEngine::toTexel(AmigaColor c) const
+void
+PixelEngine::setColor(isize reg, AmigaColor value)
 {
-    if (adjIdentity) return TEXEL(HI_HI_LO_LO(0xFF, c.b, c.g, c.r));
+    if (color[reg] != value) {
+        
+        // Update color register
+        color[reg] = value;
+        
+       //  printf("*** color[%ld] = %02X %02X %02X\n", reg, color[reg].r, color[reg].g, color[reg].b);
 
-    auto clamp = [](i32 v) {
-        return u8(v < 0 ? 0 : v > (255 << 16) ? 255 : v >> 16);
-    };
+        // Update palette entry
+        updateRGBA(reg);
+        
+        // Update halfbright palette entry if needed
+        if (reg < 32) updateRGBA(reg + 32);
+    }
+}
 
-    u8 r = clamp(adjLut[adjIdx(0, 0) + c.r] +
-                 adjLut[adjIdx(0, 1) + c.g] +
-                 adjLut[adjIdx(0, 2) + c.b]);
-    u8 g = clamp(adjLut[adjIdx(1, 0) + c.r] +
-                 adjLut[adjIdx(1, 1) + c.g] +
-                 adjLut[adjIdx(1, 2) + c.b]);
-    u8 b = clamp(adjLut[adjIdx(2, 0) + c.r] +
-                 adjLut[adjIdx(2, 1) + c.g] +
-                 adjLut[adjIdx(2, 2) + c.b]);
+void
+PixelEngine::updateRGBA(isize nr)
+{
+    assert(nr < 256);
+ 
+    if (nr >= 32 && nr < 64 && ehbMode()) {
 
-    return TEXEL(HI_HI_LO_LO(0xFF, b, g, r));
+        palette[nr] = toTexel(color[nr - 32].ehb());
+        return;
+    }
+    
+    palette[nr] = toTexel(color[nr]);
+
+    // Keep the super hires sub-pixel colors in sync
+    if (nr < 16) {
+
+        shresPalette[0][nr] = toTexel(color[nr].shresHi());
+        shresPalette[1][nr] = toTexel(color[nr].shresLo());
+        shresBlendDirty = true;
+    }
+
+    // Keep the background border color in sync with color register 0
+    if (nr == 0) borderPalette[BORDER_BG] = palette[0];
 }
 
 void
@@ -174,39 +170,124 @@ PixelEngine::updateRGBA()
 {
     // Recompute the adjustment coefficients
     updateAdjLut();
-
+    
     // Update all cached RGBA values
-    for (isize i = 0; i < 256; i++) setColor(i, color[i]);
-
-    // Update the Extra-Half-Brite entries
-    updateEhbPalette();
+    for (isize i = 0; i < 256; i++) updateRGBA(i);
 }
 
 void
-PixelEngine::updateEhbPalette()
+PixelEngine::updateShresBlend()
 {
-    ehbMode = denise.ehb(ehbCon0, ehbCon2);
+    for (isize i = 0; i < 16; i++) {
 
-    for (isize i = 0; i < 32; i++) {
+        auto hi = color[i].shresHi();
+        for (isize j = 0; j < 16; j++) {
 
-        if (ehbMode) {
-
-            // Extra-Half-Brite: The entry holds a darkened copy
-            palette[i + 32] = toTexel(color[i].ehb());
-
-        } else if (denise.isAGA()) {
-
-            // AGA: The entry holds a color register of its own
-            palette[i + 32] = toTexel(color[i + 32]);
-
-        } else {
-
-            /* OCS and ECS: The register does not exist. With KILLEHB set, ECS
-             * Denise ignores bitplane 6, which makes the entry an alias of the
-             * corresponding register in the lower half.
-             */
-            palette[i + 32] = toTexel(color[i]);
+            shresPaletteBlend[i][j] = toTexel(hi.mix(color[j].shresLo()));
         }
+    }
+    shresBlendDirty = false;
+}
+
+void
+PixelEngine::updateEHB()
+{
+    // TODO: This function is called frequently. Inline to speed it up
+    for (isize i = 32; i < 64; ++i) updateRGBA(i);
+}
+
+bool
+PixelEngine::hamMode6() const
+{
+    return denise.hamMode6(bplcon0);
+}
+
+bool
+PixelEngine::hamMode8() const
+{
+    return denise.hamMode8(bplcon0);
+}
+
+bool
+PixelEngine::shresMode() const
+{
+    return Denise::shres(bplcon0);
+}
+
+bool
+PixelEngine::shresModeEcs() const
+{
+    /* Only ECS Denise pairs pixels up. OCS has no super hires at all, and AGA
+     * does a full color lookup for every super hires pixel, so both stay on
+     * the ordinary colorization path.
+     */
+    return denise.getConfig().revision == DeniseRev::ECS && shresMode();
+}
+
+bool
+PixelEngine::ehbMode() const
+{
+    switch (denise.getConfig().revision) {
+
+        case DeniseRev::OCS:
+
+            return true;
+
+        case DeniseRev::ECS:
+
+            return !Denise::killehb(bplcon2);
+
+        default: // AGA
+
+            return !Denise::killehb(bplcon2) && (bplcon0 & 0x7010) == 0x6000;
+    }
+}
+
+Texel
+PixelEngine::toTexel(const AmigaColor c) const
+{
+    // Clamps a 16.16 fixed-point linear-light value to an 8-bit range, then
+    // re-encodes it into the (non-linear) color space of the host display
+    auto clamp = [this](i32 v) {
+        u8 lin = u8(v < 0 ? 0 : v > (255 << 16) ? 255 : v >> 16);
+        return gammaLut[lin];
+    };
+
+    isize r8 = isize(c.r);
+    isize g8 = isize(c.g);
+    isize b8 = isize(c.b);
+
+    u8 r = clamp(adjLut[0 * 256 + r8] + adjLut[1 * 256 + g8] + adjLut[2 * 256 + b8]);
+    u8 g = clamp(adjLut[3 * 256 + r8] + adjLut[4 * 256 + g8] + adjLut[5 * 256 + b8]);
+    u8 b = clamp(adjLut[6 * 256 + r8] + adjLut[7 * 256 + g8] + adjLut[8 * 256 + b8]);
+
+    switch (host.getConfig().texFormat) {
+
+        case TexFormat::ABGR: return TEXEL(HI_HI_LO_LO(0xFF, b, g, r));
+        case TexFormat::ARGB: return TEXEL(HI_HI_LO_LO(0xFF, r, g, b));
+
+        default:
+            return TEXEL(HI_HI_LO_LO(r, g, b, 0xFF));
+    }
+}
+
+Texel
+PixelEngine::toTexel(u8 r, u8 g, u8 b, u8 a) const
+{
+    // One-off conversion: re-reads the host format and dispatches to the
+    // matching compile-time-specialized instantiation. A hot loop should
+    // do this switch itself, once, and call the template directly per pixel
+    // (see XRay::computeOverlay). HOST_TEX_FORMAT's own enum
+    // (TexFormat) and utlib's GpuColor<F> template parameter (TexelFormat)
+    // share the same three values in the same order, so a plain cast moves
+    // between them.
+    switch (static_cast<TexelFormat>(host.getConfig().texFormat)) {
+
+        case TexelFormat::ABGR: return toTexel(GpuColor<TexelFormat::ABGR>(r, g, b, a));
+        case TexelFormat::ARGB: return toTexel(GpuColor<TexelFormat::ARGB>(r, g, b, a));
+
+        default: // RGBA
+            return toTexel(GpuColor<TexelFormat::RGBA>(r, g, b, a));
     }
 }
 
@@ -215,66 +296,78 @@ PixelEngine::updateAdjLut()
 {
     auto palette = monitor.getConfig().palette;
 
-    // The RGB palette does not alter anything
-    adjIdentity = palette == Palette::RGB;
-    if (adjIdentity) return;
+    if (palette == Palette::RGB) {
+
+        std::memset(adjLut, 0, sizeof(adjLut));
+
+        for (isize i = 0; i < 256; i++) {
+
+            auto value = i32(std::round(double(i) * 65536.0));
+            adjLut[0 * 256 + i] = value; // (0,0)
+            adjLut[4 * 256 + i] = value; // (1,1)
+            adjLut[8 * 256 + i] = value; // (2,2)
+            gammaLut[i] = u8(i);
+        }
+
+        return;
+    }
 
     // Normalize adjustment parameters
-    double brightness = (monitor.getConfig().brightness - 50.0);
-    double contrast = monitor.getConfig().contrast / 100.0;
-    double saturation = monitor.getConfig().saturation / 50.0;
+    
+    double brightness = double(monitor.getConfig().brightness) - 50.0;
+    double contrast = double(monitor.getConfig().contrast) / 100.0;
+    double saturation = double(monitor.getConfig().saturation) / 50.0;
 
-    /* Coefficients of the RGB to YUV conversion. The luminance always depends
-     * on the input color, whereas the chrominance is replaced by a constant
-     * for the monochrome palettes.
-     */
+    // Coefficients of the RGB to YUV conversion. The luminance always depends
+    // on the input color, whereas the chrominance is replaced by a constant
+    // for the monochrome palettes.
+    
     double y[3] = { 0.299 * contrast, 0.587 * contrast, 0.114 * contrast };
     double u[3] = { 0.0, 0.0, 0.0 };
     double v[3] = { 0.0, 0.0, 0.0 };
     double u0 = 0.0, v0 = 0.0;
 
     switch (palette) {
-
+            
         case Palette::BLACK_WHITE:
-
+            
             break;
-
+            
         case Palette::PAPER_WHITE:
-
+            
             u0 = -128.0 + 120.0;
             v0 = -128.0 + 133.0;
             break;
-
+            
         case Palette::GREEN:
-
+            
             u0 = -128.0 + 29.0;
             v0 = -128.0 + 64.0;
             break;
-
+            
         case Palette::AMBER:
-
+            
             u0 = -128.0 + 24.0;
             v0 = -128.0 + 178.0;
             break;
-
+            
         case Palette::SEPIA:
-
+            
             u0 = -128.0 + 97.0;
             v0 = -128.0 + 154.0;
             break;
-
+            
         default:
-        {
+            
             assert(palette == Palette::COLOR);
-
             double s = saturation * contrast;
             u[0] = -0.147 * s; u[1] = -0.289 * s; u[2] =  0.436 * s;
             v[0] =  0.615 * s; v[1] = -0.515 * s; v[2] = -0.100 * s;
             break;
-        }
     }
 
     // Convert YUV back to RGB, which yields the affine transformation
+    
     double m[3][3], off[3];
 
     for (isize i = 0; i < 3; i++) {
@@ -288,17 +381,33 @@ PixelEngine::updateAdjLut()
     off[2] = brightness + 2.029 * u0;
 
     // Tabulate the transformation in 16.16 fixed point format
+    // The constant part is folded into the table of the red input
+
     for (isize out = 0; out < 3; out++) {
-
         for (isize in = 0; in < 3; in++) {
-
             for (isize val = 0; val < 256; val++) {
 
-                // The constant part is folded into the table of the red input
-                double t = m[out][in] * val + (in == 0 ? off[out] : 0.0);
-                adjLut[adjIdx(out, in) + val] = i32(std::round(t * 65536.0));
+                // Linearize the input value (undo the Amiga's assumed CRT
+                // gamma) before feeding it into the affine transformation,
+                // so brightness, contrast and saturation are applied to
+                // linear light rather than to gamma-encoded values
+                
+                double linear = std::pow(double(val) / 255.0, GAMMA_IN) * 255.0;
+                auto adjIdx = (out * 3 + in) * 256;
+                double t = m[out][in] * linear + (in == 0 ? off[out] : 0.0);
+                adjLut[adjIdx + val] = i32(std::round(t * 65536.0));
             }
         }
+    }
+
+    // Tabulate the re-encoding curve that converts the clamped linear-light
+    // result back into the color space expected by the host display
+    
+    for (isize i = 0; i < 256; i++) {
+
+        double linear = std::clamp(double(i) / 255.0, 0.0, 1.0);
+        double display = std::pow(linear, 1.0 / GAMMA_OUT) * 255.0;
+        gammaLut[i] = u8(std::round(std::clamp(display, 0.0, 255.0)));
     }
 }
 
@@ -333,10 +442,46 @@ PixelEngine::stablePtr(isize row, isize col)
     return getStableBuffer().pixels.ptr + row * HPIXELS + col;
 }
 
+Texture &
+PixelEngine::getWorkingXrayBuffer()
+{
+    return xrayTexture[activeBuffer];
+}
+
+const Texture &
+PixelEngine::getStableXrayBuffer(isize offset) const
+{
+    auto nr = activeBuffer + offset - 1;
+    return xrayTexture[(nr + NUM_TEXTURES) % NUM_TEXTURES];
+}
+
+Texel *
+PixelEngine::xrayStablePtr(isize row, isize col)
+{
+    assert(row >= 0 && row <= VPOS_MAX);
+    assert(col >= 0 && col <= HPOS_MAX);
+
+    return getStableXrayBuffer().pixels.ptr + row * HPIXELS + col;
+}
+
+Texel *
+PixelEngine::xrayWorkingPtr(isize row, isize col)
+{
+    assert(row >= 0 && row <= VPOS_MAX);
+    assert(col >= 0 && col <= HPOS_MAX);
+
+    return getWorkingXrayBuffer().pixels.ptr + row * HPIXELS + col;
+}
+
 void
 PixelEngine::swapBuffers()
 {
     emulator.lockTexture();
+
+    // Merge the xray texture into the just-finished frame before it
+    // becomes the new stable buffer -- see mergeXray for why this now
+    // happens once per frame instead of line-by-line/chunk-by-chunk.
+    mergeXray();
 
     videoPort.buffersWillSwap();
 
@@ -344,6 +489,7 @@ PixelEngine::swapBuffers()
     isize newActiveBuffer = (activeBuffer + 1) % NUM_TEXTURES;
 
     emuTexture[newActiveBuffer].nr = agnus.pos.frame;
+    xrayTexture[newActiveBuffer].nr = agnus.pos.frame;
     emuTexture[newActiveBuffer].lof = agnus.pos.lof;
     emuTexture[newActiveBuffer].prevlof = emuTexture[oldActiveBuffer].lof;
 
@@ -355,13 +501,7 @@ PixelEngine::swapBuffers()
 void
 PixelEngine::vsyncHandler()
 {
-    dmaDebugger.vSyncHandler();
-}
-
-void
-PixelEngine::eofHandler()
-{
-    dmaDebugger.eofHandler();
+    xray.vSyncHandler();
 }
 
 void
@@ -385,54 +525,64 @@ PixelEngine::applyRegisterChange(const RegChange &change)
 
         case Reg::BPLCON0:
 
-            hamMode = denise.isHAM6enabled(change.value);
-            hamMode8 = denise.isHAM8enabled(change.value);
-            shresMode = Denise::shres(change.value);
-            ehbCon0 = change.value;
-            updateEhbPalette();
+            bplcon0 = change.value;
+            updateEHB();
             break;
 
         case Reg::BPLCON2:
 
-            ehbCon2 = change.value;
-            updateEhbPalette();
+            bplcon2 = change.value;
+            updateEHB();
             break;
-            
-        default: // It must be a color register then
-        {
-            /* Register numbers beyond the 256 color registers denote AGA
-             * writes with the LOCT bit set (see Denise::recordColorChange).
-             */
-            auto nr = isize(change.reg) - isize(Reg::COLOR00);
-            assert(0 <= nr && nr < 512);
 
-            /* Both cases are applied unconditionally. Comparing against the
-             * current register value would be wrong, because a write with
-             * LOCT cleared also resets the lower nibbles, even if the upper
-             * ones are left at their previous value.
-             */
-            if (nr >= 256) {
-                setColorLoct(nr - 256, change.value);
-            } else {
-                setColor(nr, change.value);
-            }
+        default:
+            
+            // It must be a color register then
+            setColor(BYTE1(isize(change.reg)), change.value, !!BYTE2(isize(change.reg)));
             break;
-        }
     }
 }
 
 void
 PixelEngine::colorize(isize line)
 {
-    // Jump to the first pixel in the specified line in the active frame buffer
-    auto *dst = workingPtr(line);
+    /* Jump to the first pixel in the specified line in the active frame
+     * buffer. Denise's buffers run at super-hires resolution while one Texel
+     * covers a hires pixel and holds two RGBA values, so the line is written
+     * through a u32 pointer with twice as many entries. Pixel coordinates
+     * index that pointer directly.
+     */
+    auto *dst = (u32 *)workingPtr(line);
     Pixel pixel = 0;
+
+    /* The border buffer closes the display window on two counts, the DIW
+     * flipflop and the first BPL1DAT write, but a sprite answers to the DIW
+     * flipflop and to its own arming position only. BPL1DAT arms the sprites
+     * two buffer entries before it lets the bitplanes through, and in that
+     * strip Denise emits border pixels while the sprites are already live, so
+     * the border is lifted where a sprite pixel sits and the column shows the
+     * playfield instead. One screen column wide, measured on an A1200 in
+     * Denise/Registers/BPLCON4/bplam9; see SPRITE_LATENCY.
+     *
+     * The strip only exists where the window is open, hence the clamp against
+     * bBufferDiwOpen: without it a DIWSTRT sitting right of the bitplane data
+     * would let the sprite through in front of its own window edge.
+     *
+     * borderSprites() widens the same mechanism deliberately: it seeds
+     * spriteClipBegin to 0 in the hsync handler, so the sprite gets in front
+     * of the whole border strip rather than one column of it.
+     *
+     * Relevant tests: Denise/Registers/BPLCON4/bplam9, Denise/Sprites/clip (diwclip
+     * and newclip), Denise/Sprites/general/sprbpu1
+     */
+    removeBorderOverSprites(std::max(denise.spriteClipBegin, denise.bBufferDiwOpen),
+                            denise.bplDatBegin);
 
     // Initialize the HAM mode hold register with the current background color
     AmigaColor hold = color[0];
 
     // Add a dummy register change to ensure we draw until the line end
-    colChanges.insert(HPIXELS, RegChange { .reg = Reg(0), .value = 0 } );
+    colChanges.insert(Denise::PIXEL_CNT, RegChange { .reg = Reg(0), .value = 0 } );
 
     // Iterate over all recorded register changes
     for (isize i = 0, end = colChanges.end(); i < end; i++) {
@@ -441,11 +591,11 @@ PixelEngine::colorize(isize line)
         RegChange &change = colChanges.elements[i];
 
         // Colorize a chunk of pixels
-        if (shresMode) {
-            colorizeSHRES(dst, pixel, trigger);
-        } else if (hamMode8) {
-            colorizeHAM(dst, pixel, trigger, hold);
-        } else if (hamMode) {
+        if (shresModeEcs()) {
+            colorizeShres(dst, pixel, trigger);
+        } else if (hamMode8()) {
+            colorizeHAM8(dst, pixel, trigger, hold);
+        } else if (hamMode6()) {
             colorizeHAM(dst, pixel, trigger, hold);
         } else {
             colorize(dst, pixel, trigger);
@@ -462,182 +612,142 @@ PixelEngine::colorize(isize line)
     // Wipe out the HBLANK area
     auto start = agnus.pos.pixel(HBLANK_MIN);
     auto stop  = agnus.pos.pixel(HBLANK_MAX);
-    for (pixel = start; pixel <= stop; pixel++) dst[pixel] = Texture::hblank;
+    auto hbcol = Texture::hblank;
+    for (pixel = start; pixel <= stop; pixel++) dst[pixel] = u32(hbcol);
 }
 
 void
-PixelEngine::colorize(Texel *dst, Pixel from, Pixel to)
+PixelEngine::colorize(u32 *dst, Pixel from, Pixel to)
 {
     auto *mbuf = denise.mBuffer;
     auto *bbuf = denise.bBuffer;
 
-    /* With BRDSPRT enabled, a sprite pixel takes precedence over the border
-     * color. The case is checked outside the loop to keep the common path,
-     * where the border always wins, as tight as it was before.
+    // Let sprite shine through the border if enabled (AGA only)
+    if (denise.borderSprites()) removeBorderOverSprites(from, to);
+
+    // Colorize pixels
+    for (Pixel i = from; i < to; i++)
+        dst[i] = u32(bbuf[i] == BORDER_NONE ? palette[mbuf[i]] : borderPalette[bbuf[i]]);
+}
+
+void
+PixelEngine::colorizeShres(u32 *dst, Pixel from, Pixel to)
+{
+    auto *mbuf = denise.mBuffer;
+    auto *bbuf = denise.bBuffer;
+
+    /* ECS super hires colorization.
+     *
+     * Two pixels are combined into a single color index. The pairing works on
+     * aligned groups of four super hires pixels -- one lores pixel -- and
+     * within a group it pairs across, not side by side:
+     *
+     *     pixels 0 and 2 give one index, pixels 1 and 3 give the other
+     *     index = (pixel[base + 2] & 3) * 4 + (pixel[base] & 3)
+     *
+     * A pattern whose period is 2, or which is constant, has pixel[base + 2]
+     * equal to pixel[base], so it collapses to 5 * v and reaches only COLOR00,
+     * COLOR05, COLOR10 and COLOR15. That is what the shindex family measures,
+     * and why it cannot see the pairing at all: every pattern it draws is
+     * period 2 by construction. Richer patterns pair unequal pixels and reach
+     * the whole of COLOR00 to COLOR15.
+     *
+     * The groups are what keeps the edges clean. A sliding partner two pixels
+     * ahead fits the interior just as well, but it straddles the end of the
+     * fetched bitplane data, where the buffer holds zeros, and paints a stray
+     * column of an otherwise unreachable color there. An A500+ shows no such
+     * column, and a group never straddles: the fetched region always starts
+     * and ends on a word boundary, hence on a group boundary too.
+     *
+     * Relevant tests in the vAmigaTS test suite:
+     * Denise/Modes/shres/shspot1 to shspot16 pin down the pairing, since their
+     * patterns have period 16; shindex1 to shindex5 and sh1bpl1 to sh1bpl5
+     * pin down the index arithmetic itself.
+     *
+     * The register is then not shown in full. Denise cannot drive the DAC
+     * with a whole 4 bit component twice per hires cell, so it sends the high
+     * bit pair of each component to the first sub-pixel and the low bit pair
+     * to the second (AmigaColor::shresHi and shresLo). A monitor blurs the
+     * two back together, which is why the perceived brightness follows the
+     * SUM of the two bit pairs rather than the register value: $3 comes out
+     * brighter than $4, $7 brighter than $8 and $B brighter than $C. All
+     * seven shramp tests show that inversion on an A500+, and it is what
+     * shsplit1 was looking for and failed to find with only two data points.
      */
-    if (denise.brdsprt()) {
+    auto colorAt = [&](Pixel k) -> u32 {
 
-        auto *zbuf = denise.zBuffer;
+        if (bbuf[k] != BORDER_NONE) return u32(borderPalette[bbuf[k]]);
 
-        for (Pixel i = from; i < to; i++) {
+        return u32(shresPalette[k & 1][shresIndex(mbuf, k)]);
+    };
 
-            bool spr = bbuf[i] != 0xFFFF && Denise::isSpritePixel(zbuf[i]);
-            dst[i] = palette[bbuf[i] == 0xFFFF || spr ? mbuf[i] : bbuf[i]];
-        }
-        return;
-    }
+    if (denise.getConfig().shresBlend) {
 
-    for (Pixel i = from; i < to; i++) {
-        dst[i] = palette[bbuf[i] == 0xFFFF ? mbuf[i] : bbuf[i]];
-    }
-}
-
-void
-PixelEngine::colorizeSHRES(Texel *dst, Pixel from, Pixel to)
-{
-    auto *mbuf = denise.mBuffer;
-    auto *bbuf = denise.bBuffer;
-    auto *zbuf = denise.zBuffer;
-
-    // A sprite may shine through the border in AGA (see BRDSPRT)
-    bool brdsprt = denise.brdsprt();
-
-    if constexpr (sizeof(Texel) == 4) {
-
-        /* Output two super-hires pixels as a single texel. Only bitplane
-         * pixels carry two packed color indices, one in bit 3 and 2 and one in
-         * bit 1 and 0 (see Denise::drawOdd and Denise::drawEven). Border and
-         * sprite pixels are stored as ordinary indices and must not be
-         * unpacked. Since the texture provides just one texel per hires pixel,
-         * the two colors are averaged, which is the correct box filter for
-         * halving the horizontal resolution.
+        /* A real monitor cannot resolve the two sub-pixels and shows their
+         * average instead. The frame buffer keeps both, but anything sampling
+         * it at hires resolution -- the regression screenshots among others --
+         * keeps only the first and drops the second, so an emulator picture
+         * can differ from a photo of the same test even when the emulation is
+         * right. Blending matches what a CRT shows at the cost of the detail,
+         * and it is the only setting in which the brightness inversion
+         * described above is visible at all: unblended, the screenshot holds
+         * the high bit pair alone.
          */
+        if (shresBlendDirty) updateShresBlend();
+
         for (Pixel i = from; i < to; i++) {
 
-            if (bbuf[i] != 0xFFFF && !(brdsprt && Denise::isSpritePixel(zbuf[i]))) {
+            Pixel lo = i & ~1, hi = i | 1;
 
-                dst[i] = palette[bbuf[i]];
+            if (bbuf[lo] != BORDER_NONE || bbuf[hi] != BORDER_NONE) {
 
-            } else if (Denise::isSpritePixel(zbuf[i])) {
-
-                dst[i] = palette[mbuf[i]];
+                // Averaging the finished texels is good enough for the border
+                u32 a = colorAt(lo), b = colorAt(hi), c = 0;
+                for (isize s = 0; s < 32; s += 8) {
+                    c |= ((((a >> s) & 0xFF) + ((b >> s) & 0xFF)) / 2) << s;
+                }
+                dst[i] = c;
 
             } else {
 
-                auto t0 = u32(palette[(mbuf[i] >> 2) & 3]);
-                auto t1 = u32(palette[mbuf[i] & 3]);
-                dst[i] = Texel((t0 & t1) + (((t0 ^ t1) >> 1) & 0x7F7F7F7F));
+                dst[i] = u32(shresPaletteBlend[shresIndex(mbuf, lo)]
+                                               [shresIndex(mbuf, hi)]);
             }
         }
 
     } else {
 
-        // Output each super-hires pixel as a seperate texel
-        for (Pixel i = from; i < to; i++) {
-
-            u32 *p = (u32 *)(dst + i);
-
-            if (bbuf[i] != 0xFFFF && !(brdsprt && Denise::isSpritePixel(zbuf[i]))) {
-
-                p[0] =
-                p[1] = u32(palette[bbuf[i]]);
-
-            } else if (Denise::isSpritePixel(zbuf[i])) {
-
-                p[0] =
-                p[1] = u32(palette[mbuf[i]]);
-
-            } else {
-
-                p[0] = u32(palette[mbuf[i] >> 2]);
-                p[1] = u32(palette[mbuf[i] & 3]);
-            }
-        }
+        for (Pixel i = from; i < to; i++) dst[i] = colorAt(i);
     }
 }
 
 void
-PixelEngine::colorizeHAM(Texel *dst, Pixel from, Pixel to, AmigaColor& ham)
+PixelEngine::colorizeHAM(u32 *dst, Pixel from, Pixel to, AmigaColor& ham)
 {
     auto *dbuf = denise.dBuffer;
     auto *ibuf = denise.iBuffer;
     auto *mbuf = denise.mBuffer;
     auto *bbuf = denise.bBuffer;
 
-    bool brdsprt = denise.brdsprt();
+    // Let sprite shine through the border if enabled (AGA only)
+    if (denise.borderSprites()) removeBorderOverSprites(from, to);
 
     for (Pixel i = from; i < to; i++) {
 
         // Check for border pixels
-        if (bbuf[i] != 0xFFFF) {
+        if (bbuf[i] != BORDER_NONE) {
 
-            // A sprite may shine through the border in AGA (see BRDSPRT)
-            if (brdsprt && Denise::isSpritePixel(denise.zBuffer[i])) {
+            dst[i] = u32(borderPalette[bbuf[i]]);
 
-                dst[i] = palette[mbuf[i]];
-                continue;
-            }
-
-            dst[i] = palette[bbuf[i]];
-
-            /* Track the border color in the hold register. The buffer may also
-             * carry one of the artificial palette entries beyond the color
-             * registers, such as the pure black of the BRDRBLNK bit, which
-             * has no counterpart in the register file.
-             */
-            if (bbuf[i] < 256) ham = color[bbuf[i]];
+            // Only the background code corresponds to a real color register
+            if (bbuf[i] == BORDER_BG) ham = color[0];
             continue;
         }
 
-        /* The two data paths of HAM mode have different origins. The control
-         * bits are taken from the raw bitplane value, because Denise taps them
-         * off the bitplane serializer, ahead of the color index logic. The
-         * value that is written into the hold register, on the other hand, is
-         * the output of that logic, which is why it is read from the iBuffer.
-         *
-         * The distinction only matters if HAM is combined with dual playfield
-         * mode, where the iBuffer holds a playfield color index instead of the
-         * bitplane bits. The vAmigaTS test dualpf1 enables both modes and
-         * confirms the split: the picture reacts to the playfield priorities in
-         * BPLCON2, so the data path runs through the playfield logic, and it
-         * still shows HAM modifications, so the control bits do not.
-         */
-        u8 pw = dbuf[i];
-        u8 pv = ibuf[i];
-
-        if (hamMode8) {
-
-            /* HAM8 uses the lowest two bitplanes as control bits and the
-             * remaining six as data. Because a component holds eight bits,
-             * the two least significant ones are left untouched.
-             */
-            u8 val = pv & 0xFC;
-            assert(isPaletteIndex(pv >> 2));
-
-            switch (pw & 0b11) {
-
-                case 0b00: ham = color[pv >> 2]; break;
-                case 0b01: ham.b = u8((ham.b & 0x03) | val); break;
-                case 0b10: ham.r = u8((ham.r & 0x03) | val); break;
-                case 0b11: ham.g = u8((ham.g & 0x03) | val); break;
-            }
-
-            if (denise.spritePixelIsVisible(i)) {
-                dst[i] = palette[mbuf[i]];
-            } else {
-                dst[i] = toTexel(ham);
-            }
-            continue;
-        }
-
-        /* HAM6 supplies four data bits. AGA replicates them into both nibbles
-         * of the component, OCS and ECS only know the upper nibble.
-         */
-        u8 index = pv & 0xF;
-        u8 val = denise.isAGA() ? u8(index << 4 | index) : u8(index << 4);
+        u8 index = ibuf[i];
         assert(isPaletteIndex(index));
 
-        switch ((pw >> 4) & 0b11) {
+        switch ((dbuf[i] >> 4) & 0b11) {
 
             case 0b00: // Get color from register
 
@@ -646,73 +756,280 @@ PixelEngine::colorizeHAM(Texel *dst, Pixel from, Pixel to, AmigaColor& ham)
 
             case 0b01: // Modify blue
 
-                ham.b = val;
+                ham.b = u8((index & 0xF) << 4);
                 break;
 
             case 0b10: // Modify red
 
-                ham.r = val;
+                ham.r = u8((index & 0xF) << 4);
                 break;
 
             case 0b11: // Modify green
 
-                ham.g = val;
+                ham.g = u8((index & 0xF) << 4);
                 break;
-
-            default:
-                fatalError;
         }
 
         // Synthesize pixel
         if (denise.spritePixelIsVisible(i)) {
-            dst[i] = palette[mbuf[i]];
+            dst[i] = u32(palette[mbuf[i]]);
         } else {
-            dst[i] = toTexel(ham);
+            dst[i] = u32(toTexel(ham));
         }
     }
 }
 
 void
-PixelEngine::hide(isize line, u16 layers, u8 alpha)
+PixelEngine::colorizeHAM8(u32 *dst, Pixel from, Pixel to, AmigaColor& ham)
 {
-    auto *p = workingPtr(line);
+    auto *dbuf = denise.dBuffer;
+    auto *ibuf = denise.iBuffer;
+    auto *mbuf = denise.mBuffer;
+    auto *bbuf = denise.bBuffer;
 
-    for (Pixel i = 0; i < HPIXELS; i++) {
+    // Let sprite shine through the border if enabled (AGA only)
+    if (denise.borderSprites()) removeBorderOverSprites(from, to);
 
-        u16 z = denise.zBuffer[i];
+    for (Pixel i = from; i < to; i++) {
+
+        // Check for border pixels
+        if (bbuf[i] != BORDER_NONE) {
+
+            dst[i] = u32(borderPalette[bbuf[i]]);
+
+            // Only the background code corresponds to a real color register
+            if (bbuf[i] == BORDER_BG) ham = color[0];
+            continue;
+        }
+
+        u8 index = ibuf[i];
+        assert(isPaletteIndex(index));
+
+        // HAM8 uses the lowest two bitplanes as control bits and the
+        // remaining six as data. Because a component holds eight bits,
+        // the two least significant ones are left untouched.
+        
+        switch (dbuf[i] & 0b11) {
+
+            case 0b00: // Get color from register
+
+                ham = color[index >> 2];
+                break;
+
+            case 0b01: // Modify blue
+
+                ham.b = (ibuf[i] & 0xFC) | (ham.b & 0x03);
+                break;
+
+            case 0b10: // Modify red
+
+                ham.r = (ibuf[i] & 0xFC) | (ham.r & 0x03);
+                break;
+
+            case 0b11: // Modify green
+
+                ham.g = (ibuf[i] & 0xFC) | (ham.g & 0x03);
+                break;
+        }
+
+        // Synthesize pixel
+        if (denise.spritePixelIsVisible(i)) {
+            dst[i] = u32(palette[mbuf[i]]);
+        } else {
+            dst[i] = u32(toTexel(ham));
+        }
+    }
+}
+
+void
+PixelEngine::removeBorderOverSprites(Pixel from, Pixel to)
+{
+    auto *bbuf = denise.bBuffer;
+    auto *zbuf = denise.zBuffer;
+    bool punched = false;
+
+    for (Pixel i = from; i < to; i++) {
+        if (Denise::isSpritePixel(zbuf[i])) { bbuf[i] = BORDER_NONE; punched = true; }
+    }
+
+    /* The border buffer is cached and only rebuilt when something it depends
+     * on changes, but this writes into it directly and what it writes depends
+     * on the sprite data of THIS line. Left alone, a punched column stays
+     * punched for every following line until the buffer happens to be rebuilt
+     * for another reason -- eleven lines of false picture below a Pacman, in
+     * Denise/Registers/BPLCON4/bplam9. So a line that punched has to invalidate the
+     * buffer for the next one.
+     */
+    if (punched) denise.markBorderBufferAsDirty(1);
+}
+
+void
+PixelEngine::mergeXray()
+{
+    switch (static_cast<TexelFormat>(host.getConfig().texFormat)) {
+
+        case TexelFormat::ABGR: mergeXray<TexelFormat::ABGR>(); return;
+        case TexelFormat::ARGB: mergeXray<TexelFormat::ARGB>(); return;
+
+        default: // RGBA
+            mergeXray<TexelFormat::RGBA>(); return;
+    }
+}
+
+template <TexelFormat F>
+void
+PixelEngine::mergeXray()
+{
+    auto &config = xray.getConfig();
+    if (!config.overlay) return;
+
+    // The host merges the textures itself (e.g., in a shader)
+    if (config.compositor != XRayCompositor::CPU) return;
+
+    double opacity = double(config.opacity) / 255.0;
+    double bgWeight = 0;
+    double fgWeight = 0;
+
+    switch (config.displayMode) {
+
+        case DmaDisplayMode::FG_LAYER:
+
+            bgWeight = 0.0;
+            fgWeight = 1.0 - opacity;
+            break;
+
+        case DmaDisplayMode::BG_LAYER:
+
+            bgWeight = 1.0 - opacity;
+            fgWeight = 0.0;
+            break;
+
+        case DmaDisplayMode::ODD_EVEN_LAYERS:
+
+            bgWeight = opacity;
+            fgWeight = 1.0 - opacity;
+            break;
+
+        default:
+            fatalError;
+    }
+
+    auto *emu = getWorkingBuffer().pixels.ptr;
+    auto *xrayBuf = getWorkingXrayBuffer().pixels.ptr;
+
+    for (isize i = 0; i < PIXELS; i++) {
+
+        if (xrayBuf[i] != Texture::black) {
+
+            // An effect pixel is present here (painted by XRay::
+            // computeOverlay or hide, whichever mode is active) -- mix it
+            // with the real picture, not with pixels 2 apart -- a plain
+            // off-by-double that made the opacity slider blend against the
+            // wrong existing pixel (bleeding into the next DMA cycle).
+            if (fgWeight != 0.0) {
+                auto col = fromTexel<F>(xrayBuf[i]).mix(fromTexel<F>(emu[i]), fgWeight);
+                emu[i] = toTexel<F>(col);
+            } else {
+                emu[i] = xrayBuf[i];
+            }
+
+        } else if (bgWeight != 0.0) {
+
+            // Nothing to show here -- dim the real picture instead (only
+            // happens for XRAY_OVERLAY_STYLE::BG_LAYER/ODD_EVEN_LAYERS).
+            emu[i] = toTexel<F>(fromTexel<F>(emu[i]).shade(bgWeight));
+        }
+    }
+}
+
+void
+PixelEngine::hide(isize line, u16 layers)
+{
+    // Dispatched once per call (not per pixel) -- see the declaration's
+    // comment in PixelEngine.h.
+    switch (static_cast<TexelFormat>(host.getConfig().texFormat)) {
+
+        case TexelFormat::ABGR: hide<TexelFormat::ABGR>(line, layers); return;
+        case TexelFormat::ARGB: hide<TexelFormat::ARGB>(line, layers); return;
+
+        default: // RGBA
+            hide<TexelFormat::RGBA>(line, layers); return;
+    }
+}
+
+template <TexelFormat F>
+void
+PixelEngine::hide(isize line, u16 layers)
+{
+    auto *ptr = getWorkingXrayBuffer().pixels.ptr + line * HPIXELS;
+
+    // Resolve the ten possible Opt::XRAY_COLORn values into a light/dark
+    // checkerboard pair per slot, once per line -- same palette
+    // XRay uses for its own DMA channels 0-7, and the same two
+    // shade levels it precomputes for its channel colors (see
+    // XRay::setColor and XRayTypes::XRAY_COLOR_COUNT).
+    auto &debugColor = xray.getConfig().debugColor;
+    Texel colA[XRAY_COLOR_COUNT], colB[XRAY_COLOR_COUNT];
+    for (isize n = 0; n < XRAY_COLOR_COUNT; n++) {
+
+        RgbColor base(debugColor[n]);
+        colA[n] = toTexel<F>(GpuColor<F>(base.shade(0.3)));
+        colB[n] = toTexel<F>(GpuColor<F>(base.shade(0.1)));
+    }
+
+    // Row half of Texture::clear's checkerboard test ((row>>2)&1 ==
+    // (col>>3)&1 ? col1 : col2) -- constant for the whole line, so it is
+    // hoisted out of the column loop below.
+    bool rowBit = ((line >> 2) & 1) != 0;
+
+    /* AGA lets the visible sprite/playfield change on every pixel, not just
+     * every DMA cycle, so this must inspect the z-buffer at its native
+     * (superhires) resolution instead of sampling one representative
+     * sub-pixel per 4-texel cycle as the old, DMA-cycle-grained code did.
+     * Denise::zBuffer runs at twice the resolution of the (hires) xray
+     * texture, so hires column `col` maps to zBuffer index `2*col`.
+     *
+     * xrayBuf.clear() is not called here: with every column now visited
+     * individually anyway, painting the checkerboard directly (using the
+     * same ((row>>2)&1)==((col>>3)&1) test Texture::clear itself uses, so
+     * the squares align identically and differ only in color) avoids a
+     * separate baseline clear plus a second pass through the row.
+     */
+    for (isize col = 0; col < HPIXELS; col++) {
+
+        u16 z = denise.zBuffer[2 * col];
+        isize idx = -1;
 
         // Check for case 1: A sprite is visible
         if (Denise::isSpritePixel(z)) {
 
-            if (Denise::isSpritePixel<0>(z) && !(layers & 0x01)) continue;
-            if (Denise::isSpritePixel<1>(z) && !(layers & 0x02)) continue;
-            if (Denise::isSpritePixel<2>(z) && !(layers & 0x04)) continue;
-            if (Denise::isSpritePixel<3>(z) && !(layers & 0x08)) continue;
-            if (Denise::isSpritePixel<4>(z) && !(layers & 0x10)) continue;
-            if (Denise::isSpritePixel<5>(z) && !(layers & 0x20)) continue;
-            if (Denise::isSpritePixel<6>(z) && !(layers & 0x40)) continue;
-            if (Denise::isSpritePixel<7>(z) && !(layers & 0x80)) continue;
+            if      (Denise::isSpritePixel<0>(z) && (layers & 0x01)) idx = 0;
+            else if (Denise::isSpritePixel<1>(z) && (layers & 0x02)) idx = 1;
+            else if (Denise::isSpritePixel<2>(z) && (layers & 0x04)) idx = 2;
+            else if (Denise::isSpritePixel<3>(z) && (layers & 0x08)) idx = 3;
+            else if (Denise::isSpritePixel<4>(z) && (layers & 0x10)) idx = 4;
+            else if (Denise::isSpritePixel<5>(z) && (layers & 0x20)) idx = 5;
+            else if (Denise::isSpritePixel<6>(z) && (layers & 0x40)) idx = 6;
+            else if (Denise::isSpritePixel<7>(z) && (layers & 0x80)) idx = 7;
 
         } else {
 
-            // Check for case 2: Playfield 1 is visible
-            if ((Denise::upperPlayfield(z) == 1) && !(layers & 0x100)) continue;
-
-            // Check for case 3: layfield 2 is visible
-            if ((Denise::upperPlayfield(z) == 2) && !(layers & 0x200)) continue;
+            // Playfield 1 or playfield 2 is visible
+            if      ((Denise::upperPlayfield(z) == 1) && (layers & 0x100)) idx = 8;
+            else if ((Denise::upperPlayfield(z) == 2) && (layers & 0x200)) idx = 9;
         }
-        
-        u8 r = p[i] & 0xFF;
-        u8 g = (p[i] >> 8) & 0xFF;
-        u8 b = (p[i] >> 16) & 0xFF;
 
-        double scale = alpha / 255.0;
-        u8 bg = (line / 4) % 2 == (i / 8) % 2 ? 0x22 : 0x44;
-        u8 newr = (u8)(r * (1 - scale) + bg * scale);
-        u8 newg = (u8)(g * (1 - scale) + bg * scale);
-        u8 newb = (u8)(b * (1 - scale) + bg * scale);
-        
-        p[i] = 0xFF000000 | newb << 16 | newg << 8 | newr;
+        if (idx < 0) {
+
+            ptr[col] = Texture::black;
+            continue;
+        }
+
+        // Paint this column's assigned XRAY_COLOR checkerboard pixel into
+        // the xray texture alone -- see mergeXray for how (and whether) it
+        // ends up blended into the real picture.
+        bool colBit = ((col >> 3) & 1) != 0;
+        ptr[col] = rowBit == colBit ? colA[idx] : colB[idx];
     }
 }
 

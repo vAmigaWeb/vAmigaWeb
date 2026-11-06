@@ -7,10 +7,12 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "VideoPort.h"
 #include "Agnus.h"
 #include "Denise.h"
+#include "Host.h"
+#include "utl/gfx/Images.h"
 
 namespace vamiga {
 
@@ -31,6 +33,9 @@ VideoPort::VideoPort(Amiga &ref) : SubComponent(ref)
     for (isize i = 0; i < blank.pixels.size; i++) {
         blank.pixels.ptr[i] = 0xFF000000;
     }
+
+    info.bind([this] { return cacheInfo(); } );
+    metrics.bind([this] { return cacheStats(); } );
 };
 
 VideoPort::~VideoPort()
@@ -43,8 +48,6 @@ VideoPort::~VideoPort()
 void
 VideoPort::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-
     if (category == Category::Config) {
 
         dumpConfig(os);
@@ -77,7 +80,7 @@ VideoPort::checkOption(Opt opt, i64 value)
             return;
 
         default:
-            throw AppError(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -98,16 +101,16 @@ VideoPort::setOption(Opt opt, i64 value)
     }
 }
 
-void 
-VideoPort::cacheInfo(VideoPortInfo &result) const
+VideoPortInfo
+VideoPort::cacheInfo() const
 {
-
+    return VideoPortInfo { .latestGrabbedFrame = latestGrabbedFrame };
 }
 
-void 
-VideoPort::cacheStats(VideoPortStats &result) const
+VideoPortStats
+VideoPort::cacheStats() const
 {
-
+    return VideoPortStats { .droppedFrames = droppedFrames };
 }
 
 const Texture &
@@ -116,7 +119,7 @@ VideoPort::getTexture(isize offset) const
     if (isPoweredOn()) {
 
         auto &result = denise.pixelEngine.getStableBuffer(offset);
-        info.latestGrabbedFrame = result.nr;
+        latestGrabbedFrame = result.nr;
         return result;
     }
     if (config.whiteNoise) {
@@ -132,18 +135,72 @@ VideoPort::getTexture(isize offset) const
     return blank;
 }
 
-void 
+const Texture &
+VideoPort::getXrayTexture(isize offset) const
+{
+    if (isPoweredOn()) {
+
+        return denise.pixelEngine.getStableXrayBuffer(offset);
+    }
+
+    return blank;
+}
+
+void
+VideoPort::saveTexture(const fs::path &path, isize offset) const
+{
+    savePNG(getTexture(offset), path, 0, 2 * HPIXELS, 0, VPIXELS);
+}
+
+void
+VideoPort::saveTexture(const fs::path &path, isize x1, isize x2, isize y1, isize y2,
+                       isize offset) const
+{
+    savePNG(getTexture(offset), path, x1, x2, y1, y2);
+}
+
+void
+VideoPort::saveXrayTexture(const fs::path &path, isize offset) const
+{
+    savePNG(getXrayTexture(offset), path, 0, 2 * HPIXELS, 0, VPIXELS);
+}
+
+void
+VideoPort::saveXrayTexture(const fs::path &path, isize x1, isize x2, isize y1, isize y2,
+                           isize offset) const
+{
+    savePNG(getXrayTexture(offset), path, x1, x2, y1, y2);
+}
+
+void
+VideoPort::savePNG(const Texture &texture, const fs::path &path,
+                   isize x1, isize x2, isize y1, isize y2) const
+{
+    constexpr isize stride = 2 * HPIXELS;
+    constexpr isize vscale = 4;
+
+    if (x1 < 0 || x2 > stride || x1 >= x2 || y1 < 0 || y2 > VPIXELS || y1 >= y2)
+        throw utl::Error(0, "Invalid texture cutout");
+
+    // Two GPU texels per Texel, i.e., one texel per super-hires pixel
+    auto *texels = reinterpret_cast<const u32 *>(texture.pixels.ptr);
+    auto format = static_cast<utl::TexelFormat>(host.getConfig().texFormat);
+
+    utl::exportPNG(path, texels + y1 * stride + x1, x2 - x1, y2 - y1, stride, vscale, format);
+}
+
+void
 VideoPort::buffersWillSwap()
 {
     // Check if the texture has been grabbed
-    auto grabbed = info.latestGrabbedFrame;
+    auto grabbed = latestGrabbedFrame;
     auto current = denise.pixelEngine.getStableBuffer().nr;
 
     if (grabbed < current) {
 
-        stats.droppedFrames++;
-        debug(VID_DEBUG, "Frame %lld dropped (total: %ld latest: %lld)\n", 
-            current, stats.droppedFrames, grabbed);
+        droppedFrames++;
+        logmsg(LOG_VID, "Frame %lld dropped (total: %td latest: %lld)\n", 
+            current, droppedFrames, grabbed);
     }
 }
 

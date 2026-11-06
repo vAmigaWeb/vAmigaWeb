@@ -9,78 +9,16 @@
 
 #pragma once
 
-#include "ADFFile.h"
+#include "Images/EXE/EXEFile.h"
 
 namespace vamiga {
 
-class OtherFile : public FloppyFile {
-
-    ADFFile adf;
+class OtherFile : public retro::vault::EXEFile {
 
 public:
     
     static bool isCompatible(const std::filesystem::path &path);
-    static bool isCompatible(const u8 *buf, isize len);
-    static bool isCompatible(const Buffer<u8> &buffer);
-
-    
-    //
-    // Initializing
-    //
-    
-public:
-    
-    using AnyFile::init;
-    
-//    OtherFile(const std::filesystem::path &path) throws { init(path); }
-//    OtherFile(const u8 *buf, isize len) throws { init(buf, len); }
-    OtherFile(const char *name, const u8 *buf, isize len) throws {
-        filename = name;
-        if(filename.ends_with(".disk"))
-        {
-            filename.erase(filename.length() - 5); //remove .disk meta extension
-        }
-        init(buf, len);
-    }
-    std::string filename;
-    
-    const char *objectName() const override { return "EXE"; }
-
-    
-    //
-    // Methods from AnyFile
-    //
-    
-    FileType type() const override { return FileType::EXE; }
-    u64 fnv64() const override { return adf.fnv64(); }
-    bool isCompatiblePath(const std::filesystem::path &path) const override { return isCompatible(path); }
-    bool isCompatibleBuffer(const u8 *buf, isize len) const override { return isCompatible(buf, len); }
-    void finalizeRead() throws override;
-    
-    
-    //
-    // Methods from DiskFile
-    //
-
-    isize numCyls() const override { return adf.numCyls(); }
-    isize numHeads() const override { return adf.numHeads(); }
-    isize numSectors() const override { return adf.numSectors(); }
-
-    
-    //
-    // Methods from FloppyFile
-    //
-    
-    FSFormat getDos() const override { return adf.getDos(); }
-    void setDos(FSFormat dos) override { adf.setDos(dos); }
-    Diameter getDiameter() const override { return adf.getDiameter(); }
-    Density getDensity() const override { return adf.getDensity(); }
-    BootBlockType bootBlockType() const override { return adf.bootBlockType(); }
-    const char *bootBlockName() const override { return adf.bootBlockName(); }
-    void killVirus() override { adf.killVirus(); }
-    void readSector(u8 *target, isize s) const override { return adf.readSector(target, s); }
-    void readSector(u8 *target, isize t, isize s) const override { return adf.readSector(target, t, s); }
-    void encodeDisk(class FloppyDisk &disk) const throws override { return adf.encodeDisk(disk); }
+    OtherFile(const char *, const u8 *buf, isize len) : EXEFile(buf, len) { }
 };
 
 }

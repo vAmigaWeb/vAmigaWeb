@@ -2,12 +2,12 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "HdController.h"
 #include "HdControllerRom.h"
 #include "Amiga.h"
@@ -15,18 +15,20 @@
 #include "FloppyDrive.h"
 #include "OSDebugger.h"
 #include "OSDescriptors.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
 HdController::HdController(Amiga& ref, HardDrive& hdr) : ZorroBoard(ref, hdr.objid), drive(hdr)
 {
-
+    info.bind([this] { return cacheInfo(); } );
+    metrics.bind([this] { return cacheMetrics(); } );
 }
 
 void
 HdController::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
 
     ZorroBoard::_dump(category, os);
     
@@ -36,8 +38,9 @@ HdController::_dump(Category category, std::ostream &os) const
     }
     
     if (category == Category::Stats) {
-        
-        // for (isize i = 0; IoCommandEnum::isValid(i); i++) {
+
+        auto stats = metrics.current();
+
         for (const auto &i : IoCommandEnum::elements()) {
             
             os << tab(IoCommandEnum::key(i));
@@ -46,21 +49,22 @@ HdController::_dump(Category category, std::ostream &os) const
     }
 }
 
-void 
-HdController::cacheInfo(HdcInfo &result) const
+HdcInfo
+HdController::cacheInfo() const
 {
-    {   SYNCHRONIZED
-        
-        result.nr = objid;
-        result.pluggedIn = pluggedIn();
-        result.state = getHdcState();
-    }
+    HdcInfo info;
+
+    info.nr        = objid;
+    info.pluggedIn = pluggedIn();
+    info.state     = getHdcState();
+
+    return info;
 }
 
-void 
-HdController::cacheStats(HdcStats &result) const
+HdcMetrics
+HdController::cacheMetrics() const
 {
-    
+    return _metrics;
 }
 
 void
@@ -83,7 +87,7 @@ HdController::_didReset(bool hard)
         resetHdcState();
         
         // Wipe out previously recorded usage information
-        clearStats();
+        _metrics = {};
     }
 }
 
@@ -93,6 +97,7 @@ HdController::getOption(Opt option) const
     switch (option) {
             
         case Opt::HDC_CONNECT:       return (i64)config.connected;
+        case Opt::HDC_MB_LIMIT:      return (i64)config.mbLimit;
 
         default:
             fatalError;
@@ -107,8 +112,15 @@ HdController::checkOption(Opt opt, i64 value)
         case Opt::HDC_CONNECT:
             return;
 
+        case Opt::HDC_MB_LIMIT:
+
+            if (value < 1 || value > 16384) {
+                throw CoreError(CoreError::OPT_INV_ARG, "1...16384");
+            }
+            return;
+
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -123,8 +135,15 @@ HdController::setOption(Opt option, i64 value)
 
                 if (value) {
 
+                    /* The drive is left as it is. Connecting a controller
+                     * used to furnish an empty slot with a blank 10 MB disk
+                     * and format it, which put a disk nobody asked for in
+                     * front of whatever was about to be attached. An empty
+                     * connected drive is a state the controller already
+                     * handles (see isConnected() below, which asks for a disk
+                     * as well).
+                     */
                     config.connected = true;
-                    drive.connect();
                     msgQueue.put(Msg::HDC_CONNECT, DriveMsg { i16(objid), true, 0, 0 } );
 
                 } else {
@@ -136,6 +155,11 @@ HdController::setOption(Opt option, i64 value)
             }
             return;
 
+        case Opt::HDC_MB_LIMIT:
+
+            config.mbLimit = isize(value);
+            return;
+
         default:
             fatalError;
     }
@@ -144,7 +168,7 @@ HdController::setOption(Opt option, i64 value)
 bool
 HdController::pluggedIn() const
 {
-    return drive.isConnected() && !drive.data.empty();
+    return drive.isConnected() && drive.hasDisk();
 }
 
 void
@@ -205,7 +229,7 @@ HdController::changeHdcState(HdcState newState)
 {
     if (hdcState != newState) {
         
-        debug(HDR_DEBUG, "Changing state to %s\n", HdcStateEnum::key(newState));
+        logmsg(LOG_HDR, "Changing state to %s\n", HdcStateEnum::key(newState));
         
         hdcState = newState;
         msgQueue.put(Msg::HDC_STATE, HdcMsg { i16(objid), hdcState });
@@ -217,7 +241,7 @@ HdController::peek8(u32 addr)
 {
     auto result = spypeek8(addr);
 
-    trace(ZOR_DEBUG, "peek8(%06x) = %02x\n", addr, result);
+    logmsg(LOG_ZOR, "peek8(%06x) = %02x\n", addr, result);
     return result;
 }
 
@@ -226,14 +250,88 @@ HdController::peek16(u32 addr)
 {
     auto result = spypeek16(addr);
 
-    trace(ZOR_DEBUG, "peek16(%06x) = %04x\n", addr, result);
+    logmsg(LOG_ZOR, "peek16(%06x) = %04x\n", addr, result);
     return result;
+}
+
+namespace {
+
+/* The commands this device understands, as NSCMD_DEVICEQUERY reports them.
+ *
+ * Zero terminated, and to be kept in step with processCmd: a command listed
+ * here must not answer IOERR_NOCMD. The 64-bit commands appear in their NSD
+ * form only, which is what a caller that got here through the query expects;
+ * the TD64 numbers work just as well, but are not advertised.
+ */
+const u16 nsdCommandList[] = {
+
+    u16(IoCommand::NSD_DEVICEQUERY),
+    u16(IoCommand::RESET),
+    u16(IoCommand::READ),
+    u16(IoCommand::WRITE),
+    u16(IoCommand::UPDATE),
+    u16(IoCommand::CLEAR),
+    u16(IoCommand::STOP),
+    u16(IoCommand::START),
+    u16(IoCommand::FLUSH),
+    u16(IoCommand::TD_MOTOR),
+    u16(IoCommand::TD_SEEK),
+    u16(IoCommand::TD_FORMAT),
+    u16(IoCommand::TD_REMOVE),
+    u16(IoCommand::TD_CHANGENUM),
+    u16(IoCommand::TD_CHANGESTATE),
+    u16(IoCommand::TD_PROTSTATUS),
+    u16(IoCommand::TD_GETDRIVETYPE),
+    u16(IoCommand::TD_GETGEOMETRY),
+    u16(IoCommand::TD_ADDCHANGEINT),
+    u16(IoCommand::TD_REMCHANGEINT),
+    u16(IoCommand::NSD_TD_READ64),
+    u16(IoCommand::NSD_TD_WRITE64),
+    u16(IoCommand::NSD_TD_SEEK64),
+    u16(IoCommand::NSD_TD_FORMAT64),
+    0
+};
+
+}
+
+const u16 *
+HdController::nsdCommands()
+{
+    return nsdCommandList;
+}
+
+isize
+HdController::nsdCommandCount()
+{
+    return isize(sizeof(nsdCommandList) / sizeof(u16));
+}
+
+isize
+HdController::nsdCommandOffset()
+{
+    // Behind the Rom and the four magic registers (see spypeek16)
+    return EXPROM_SIZE + 8;
+}
+
+u32
+HdController::nsdCommandAddr() const
+{
+    return baseAddr + initDiagVec() + u32(nsdCommandOffset());
 }
 
 u8
 HdController::spypeek8(u32 addr) const
 {
     isize offset = (isize)(addr & 0xFFFF) - (isize)initDiagVec();
+    isize index = offset - nsdCommandOffset();
+
+    // Serve the NSD command list (see nsdCommands)
+    if (index >= 0 && index < 2 * nsdCommandCount()) {
+
+        auto entry = nsdCommands()[index / 2];
+        return u8(index & 1 ? entry : entry >> 8);
+    }
+
     return offset < rom.size ? rom[offset] : 0;
 }
 
@@ -247,13 +345,13 @@ HdController::spypeek16(u32 addr) const
         case EXPROM_SIZE:
             
             // Return the number of partitions
-            debug(HDR_DEBUG, "Partitions: %ld\n", drive.numPartitions());
+            logmsg(LOG_HDR, "Partitions: %td\n", drive.numPartitions());
             return u16(drive.numPartitions());
             
         case EXPROM_SIZE + 2:
             
             // Number of filesystem drivers to add
-            debug(HDR_DEBUG, "Filesystem drivers: %ld\n", drive.numDrivers());
+            logmsg(LOG_HDR, "Filesystem drivers: %td\n", drive.numDrivers());
             return u16(drive.numDrivers());
             
         case EXPROM_SIZE + 4:
@@ -261,7 +359,7 @@ HdController::spypeek16(u32 addr) const
             // Should auto boot be disabled?
             if (df0.hasDisk() || !drive.isBootable()) {
 
-                debug(HDR_DEBUG, "Disabling auto boot\n");
+                logmsg(LOG_HDR, "Disabling auto boot\n");
                 return u16(true);
             }
             
@@ -270,11 +368,18 @@ HdController::spypeek16(u32 addr) const
         case EXPROM_SIZE + 6:
             
             // Number of shared folders (not supported yet)
-            debug(HDR_DEBUG, "Shared folders: 0\n");
+            logmsg(LOG_HDR, "Shared folders: 0\n");
             return 0;
             
         default:
-            
+
+            // Serve the NSD command list (see nsdCommands)
+            if (auto index = offset - nsdCommandOffset();
+                index >= 0 && index < 2 * nsdCommandCount()) {
+
+                return nsdCommands()[index / 2];
+            }
+
             // Return Rom code
             return offset < rom.size ? HI_LO(rom[offset], rom[offset + 1]) : 0;
     }
@@ -283,13 +388,13 @@ HdController::spypeek16(u32 addr) const
 void
 HdController::poke8(u32 addr, u8 value)
 {
-    trace(ZOR_DEBUG, "poke8(%06x,%02x)\n", addr, value);
+    logmsg(LOG_ZOR, "poke8(%06x,%02x)\n", addr, value);
 }
 
 void
 HdController::poke16(u32 addr, u16 value)
 {
-    trace(ZOR_DEBUG, "poke16(%06x,%04x)\n", addr, value);
+    logmsg(LOG_ZOR, "poke16(%06x,%04x)\n", addr, value);
     
     isize offset = (isize)(addr & 0xFFFF) - (isize)initDiagVec();
 
@@ -316,14 +421,14 @@ HdController::poke16(u32 addr, u16 value)
                 case 0xfee2: processInitSeg(pointer); break;
                     
                 default:
-                    warn("Invalid value: %x\n", value);
+                    logmsg(LOG_WARN, "Invalid value: %x\n", value);
                     break;
             }
             break;
 
         default:
 
-            warn("Invalid addr: %x\n", addr);
+            logmsg(LOG_WARN, "Invalid addr: %x\n", addr);
             break;
     }
 }
@@ -340,24 +445,49 @@ HdController::processCmd(u32 ptr)
     
     // Extract information
     auto cmd = IoCommand(stdReq.io_Command);
-    auto offset = isize(stdReq.io_Offset);
-    auto length = isize(stdReq.io_Length);
+    auto offset = i64(stdReq.io_Offset);
+    auto length = i64(stdReq.io_Length);
     auto addr = u32(stdReq.io_Data);
+
+    /* The 64-bit commands carry the high half of the offset in io_Actual,
+     * which is an output field for every other command. This is the only way
+     * a drive beyond 4 GB can be addressed, and TD64 and NSD both do it this
+     * way (see IoCommand).
+     */
+    switch (cmd) {
+
+        case IoCommand::TD_READ64:
+        case IoCommand::TD_WRITE64:
+        case IoCommand::TD_SEEK64:
+        case IoCommand::TD_FORMAT64:
+        case IoCommand::NSD_TD_READ64:
+        case IoCommand::NSD_TD_WRITE64:
+        case IoCommand::NSD_TD_SEEK64:
+        case IoCommand::NSD_TD_FORMAT64:
+
+            offset |= i64(stdReq.io_Actual) << 32;
+            break;
+
+        default:
+            break;
+    }
     
-    if (HDR_DEBUG) {
+    if CONSTEXPR (LOG_HDR != LOG_OFF) {
 
         [[maybe_unused]] auto unit = mem.spypeek32 <Accessor::CPU> (stdReq.io_Unit + 0x2A);
         [[maybe_unused]] auto blck = offset / 512;
         
-        debug(HDR_DEBUG, "%d.%ld: %s\n", unit, blck, IoCommandEnum::key(cmd));
+        logmsg(LOG_HDR, "%d.%lld: %s\n", unit, (long long)blck, IoCommandEnum::key(cmd));
     }
     
     // Update the usage profile
-    if (IoCommandEnum::isValid(cmd)) stats.cmdCount[long(cmd)]++;
+    if (IoCommandEnum::isValid(cmd)) _metrics.cmdCount[long(cmd)]++;
     
     switch (cmd) {
             
         case IoCommand::READ:
+        case IoCommand::TD_READ64:
+        case IoCommand::NSD_TD_READ64:
 
             if (offset) changeHdcState(HdcState::READY);
             
@@ -367,9 +497,78 @@ HdController::processCmd(u32 ptr)
 
         case IoCommand::WRITE:
         case IoCommand::TD_FORMAT:
+        case IoCommand::TD_WRITE64:
+        case IoCommand::TD_FORMAT64:
+        case IoCommand::NSD_TD_WRITE64:
+        case IoCommand::NSD_TD_FORMAT64:
 
             error = drive.write(offset, length, addr);
             actual = u32(length);
+            break;
+
+        case IoCommand::TD_PROTSTATUS:
+
+            // -1 means protected, 0 means writable
+            actual = drive.hasProtectedDisk() ? u32(-1) : 0;
+            break;
+
+        case IoCommand::TD_GETDRIVETYPE:
+
+            /* Announce that this device understands the NSD commands. A
+             * caller asks this before it trusts the query below.
+             */
+            actual = DRIVE_NEWSTYLE;
+            break;
+
+        case IoCommand::TD_GETGEOMETRY:
+
+            // Describe the drive the way trackdisk.device does
+            if (!mem.inRam(addr) || !mem.inRam(u32(addr + DG_SIZE - 1))) {
+
+                logmsg(LOG_HDR, "Invalid RAM location\n");
+                error = u8(IOERR_BADADDRESS);
+
+            } else {
+
+                auto &geo = drive.getGeometry();
+
+                /* dg_TotalSectors is a 32-bit field. It cannot describe a
+                 * drive of more than 2 TB, which is far beyond what a
+                 * geometry can express anyway (see checkCompatibility).
+                 */
+                auto sectors = std::min(i64(geo.numBlocks()), i64(0xFFFFFFFF));
+
+                mem.patch(addr +  0, u32(geo.bsize));               // dg_SectorSize
+                mem.patch(addr +  4, u32(sectors));                 // dg_TotalSectors
+                mem.patch(addr +  8, u32(geo.cylinders));           // dg_Cylinders
+                mem.patch(addr + 12, u32(geo.heads * geo.sectors)); // dg_CylSectors
+                mem.patch(addr + 16, u32(geo.heads));               // dg_Heads
+                mem.patch(addr + 20, u32(geo.sectors));             // dg_TrackSectors
+                mem.patch(addr + 24, u32(0));                       // dg_BufMemType
+                mem.patch(addr + 28, u8(DG_DIRECT_ACCESS));         // dg_DeviceType
+                mem.patch(addr + 29, u8(0));                        // dg_Flags
+                mem.patch(addr + 30, u16(0));                       // dg_Reserved
+                actual = DG_SIZE;
+            }
+            break;
+
+        case IoCommand::NSD_DEVICEQUERY:
+
+            // Describe the device and point the caller at the command list
+            if (!mem.inRam(addr) || !mem.inRam(u32(addr + NSD_QUERY_SIZE - 1))) {
+
+                logmsg(LOG_HDR, "Invalid RAM location\n");
+                error = u8(IOERR_BADADDRESS);
+
+            } else {
+
+                mem.patch(addr + 0, u32(0));                        // DevQueryFormat
+                mem.patch(addr + 4, NSD_QUERY_SIZE);                // SizeAvailable
+                mem.patch(addr + 8, u16(NSDEVTYPE_TRACKDISK));      // DeviceType
+                mem.patch(addr + 10, u16(0));                       // DeviceSubType
+                mem.patch(addr + 12, nsdCommandAddr());             // SupportedCommands
+                actual = NSD_QUERY_SIZE;
+            }
             break;
 
         case IoCommand::RESET:
@@ -380,10 +579,11 @@ HdController::processCmd(u32 ptr)
         case IoCommand::FLUSH:
         case IoCommand::TD_MOTOR:
         case IoCommand::TD_SEEK:
+        case IoCommand::TD_SEEK64:
+        case IoCommand::NSD_TD_SEEK64:
         case IoCommand::TD_REMOVE:
         case IoCommand::TD_CHANGENUM:
         case IoCommand::TD_CHANGESTATE:
-        case IoCommand::TD_PROTSTATUS:
         case IoCommand::TD_ADDCHANGEINT:
         case IoCommand::TD_REMCHANGEINT:
             
@@ -391,7 +591,7 @@ HdController::processCmd(u32 ptr)
             
         default:
             
-            debug(HDR_DEBUG, "Unsupported cmd: %ld (%s)\n", long(cmd), IoCommandEnum::key(cmd));
+            logmsg(LOG_HDR, "Unsupported cmd: %ld (%s)\n", long(cmd), IoCommandEnum::key(cmd));
             error = u8(IOERR_NOCMD);
     }
     
@@ -405,7 +605,7 @@ HdController::processCmd(u32 ptr)
 void
 HdController::processInit(u32 ptr)
 {
-    debug(HDR_DEBUG, "processInit(%x)\n", ptr);
+    logmsg(LOG_HDR, "processInit(%x)\n", ptr);
 
     auto assignDosName = [&](isize partition) {
 
@@ -442,7 +642,7 @@ HdController::processInit(u32 ptr)
     
     if (unit < drive.ptable.size()) {
 
-        debug(HDR_DEBUG, "Initializing partition %d\n", unit);
+        logmsg(LOG_HDR, "Initializing partition %d\n", unit);
         changeHdcState(HdcState::INITIALIZING);
         
         // Collect hard drive information
@@ -459,7 +659,7 @@ HdController::processInit(u32 ptr)
         for (auto &driver : drive.drivers) {
             if (driver.dosType == part.dosType) {
                 segList = driver.segList;
-                debug(HDR_DEBUG, "Using seglist at BPTR %x\n", segList);
+                logmsg(LOG_HDR, "Using seglist at BPTR %x\n", segList);
             }
         }
         
@@ -468,7 +668,7 @@ HdController::processInit(u32 ptr)
         
         if (!drive.isBootable()) {
             
-            debug(HDR_DEBUG, "Removing boot flag\n");
+            logmsg(LOG_HDR, "Removing boot flag\n");
             bootFlag = 0;
         }
         
@@ -492,21 +692,21 @@ HdController::processInit(u32 ptr)
         mem.patch(ptr + devn_segList,       u32(segList));
         
         if ((part.dosType & 0xFFFFFFF0) != 0x444f5300) {
-            debug(HDR_DEBUG, "Unusual DOS type %x\n", part.dosType);
+            logmsg(LOG_HDR, "Unusual DOS type %x\n", part.dosType);
         }
         
         numPartitions = std::max(isize(unit), numPartitions);
 
     } else {
 
-        debug(HDR_DEBUG, "Partition %d does not exist\n", unit);
+        logmsg(LOG_HDR, "Partition %d does not exist\n", unit);
     }
 }
 
 void
 HdController::processResource(u32 ptr)
 {
-    debug(HDR_DEBUG, "processResource(%x)\n", ptr);
+    logmsg(LOG_HDR, "processResource(%x)\n", ptr);
 
     // Read the file system resource
     os::FileSysResource fsResource;
@@ -520,13 +720,13 @@ HdController::processResource(u32 ptr)
     
     for (const auto &fse : entries) {
         
-        debug(HDR_DEBUG, "Providing %s %s\n",
+        logmsg(LOG_HDR, "Providing %s %s\n",
               OSDebugger::dosTypeStr(fse.fse_DosType).c_str(),
               OSDebugger::dosVersionStr(fse.fse_Version).c_str());
         
         for (auto it = drivers.begin(); it != drivers.end(); ) {
 
-            if (HDR_FS_LOAD_ALL) {
+            if CONSTEXPR (HDR_FS_LOAD_ALL) {
 
                 it++;
                 continue;
@@ -534,7 +734,7 @@ HdController::processResource(u32 ptr)
 
             if (fse.fse_DosType == it->dosType && fse.fse_Version >= it->dosVersion) {
                 
-                debug(HDR_DEBUG, "Not needed: %s %s\n",
+                logmsg(LOG_HDR, "Not needed: %s %s\n",
                       OSDebugger::dosTypeStr(it->dosType).c_str(),
                       OSDebugger::dosVersionStr(it->dosVersion).c_str());
 
@@ -547,13 +747,13 @@ HdController::processResource(u32 ptr)
         }
     }
     
-    debug(HDR_DEBUG, "Remaining drivers: %zu\n", drivers.size());
+    logmsg(LOG_HDR, "Remaining drivers: %zu\n", drivers.size());
 }
 
 void
 HdController::processInfoReq(u32 ptr)
 {
-    debug(HDR_DEBUG, "processInfoReq(%x)\n", ptr);
+    logmsg(LOG_HDR, "processInfoReq(%x)\n", ptr);
     
     // Keep in sync with exprom.asm
     static constexpr u16 fsinfo_num = 0x00;
@@ -566,10 +766,10 @@ HdController::processInfoReq(u32 ptr)
 
         // Read driver number
         u16 num = mem.spypeek16 <Accessor::CPU> (ptr + fsinfo_num);
-        debug(HDR_DEBUG, "Requested info for driver %d\n", num);
+        logmsg(LOG_HDR, "Requested info for driver %d\n", num);
 
         if (num >= drive.drivers.size()) {
-            throw AppError(Fault::HDC_INIT, "Invalid driver number: " + std::to_string(num));
+            throw CoreError(CoreError::HDC_INIT, "Invalid driver number: " + std::to_string(num));
         }
         auto &driver = drive.drivers[num];
 
@@ -582,7 +782,7 @@ HdController::processInfoReq(u32 ptr)
         // We accept up to three hunks
         auto numHunks = descr.numHunks();
         if (numHunks == 0 || numHunks > 3) {
-            throw AppError(Fault::HUNK_CORRUPTED);
+            throw CoreError(CoreError::HUNK_CORRUPTED);
         }
         
         // Pass the hunk information back to the driver
@@ -593,16 +793,16 @@ HdController::processInfoReq(u32 ptr)
             mem.patch(u32(ptr + fsinfo_hunk + 4 * i), descr.hunks[i].memRaw);
         }
 
-    } catch (AppError &e) {
+    } catch(Error &e) {
 
-        warn("processInfoReq: %s\n", e.what());
+        logmsg(LOG_WARN, "processInfoReq: %s\n", e.what());
     }
 }
 
 void
 HdController::processInitSeg(u32 ptr)
 {
-    debug(HDR_DEBUG, "processInitSeg(%x)\n", ptr);
+    logmsg(LOG_HDR, "processInitSeg(%x)\n", ptr);
     
     static constexpr u16 fsinitseg_hunk = 0x00;
     static constexpr u16 fsinitseg_num = 0x0c;
@@ -611,10 +811,10 @@ HdController::processInitSeg(u32 ptr)
         
         // Read driver number
         u32 num = mem.spypeek32 <Accessor::CPU> (ptr + fsinitseg_num);
-        debug(HDR_DEBUG, "Processing driver %d\n", num);
+        logmsg(LOG_HDR, "Processing driver %d\n", num);
 
         if (num >= drive.drivers.size()) {
-            throw AppError(Fault::HDC_INIT, "Invalid driver number: " + std::to_string(num));
+            throw CoreError(CoreError::HDC_INIT, "Invalid driver number: " + std::to_string(num));
         }
 
         // Read driver
@@ -625,7 +825,7 @@ HdController::processInitSeg(u32 ptr)
         // We accept up to three hunks
         auto numHunks = descr.numHunks();
         if (numHunks == 0 || numHunks > 3) {
-            throw AppError(Fault::HUNK_CORRUPTED);
+            throw CoreError(CoreError::HUNK_CORRUPTED);
         }
         
         // Extract pointers to the allocated memory
@@ -636,9 +836,9 @@ HdController::processInitSeg(u32 ptr)
             auto segPtr = mem.spypeek32 <Accessor::CPU> (segPtrAddr);
             
             if (segPtr == 0) {
-                throw AppError(Fault::HDC_INIT, "Memory allocation failed inside AmigaOS");
+                throw CoreError(CoreError::HDC_INIT, "Memory allocation failed inside AmigaOS");
             }
-            debug(HDR_DEBUG, "Allocated memory at %x\n", segPtr);
+            logmsg(LOG_HDR, "Allocated memory at %x\n", segPtr);
             segPtrs.push_back(segPtr);
         }
         
@@ -658,7 +858,7 @@ HdController::processInitSeg(u32 ptr)
                     mem.patch(segPtrs[i] + 4, last ? 0 : (segPtrs[i + 1] + 4) >> 2);
 
                     // Copy data
-                    debug(HDR_DEBUG, "Copying %d bytes from %d\n", s.size, s.offset + 8);
+                    logmsg(LOG_HDR, "Copying %d bytes from %d\n", s.size, s.offset + 8);
                     mem.patch(segPtrs[i] + 8, code.ptr + s.offset + 8, s.size);
                 }
             }
@@ -669,16 +869,16 @@ HdController::processInitSeg(u32 ptr)
                 if (s.type == HUNK_RELOC32) {
                     
                     if (s.target >= numHunks) {
-                        throw AppError(Fault::HDC_INIT, "Invalid relocation target");
+                        throw CoreError(CoreError::HDC_INIT, "Invalid relocation target");
                     }
-                    debug(HDR_DEBUG, "Relocation target: %ld\n", s.target);
+                    logmsg(LOG_HDR, "Relocation target: %td\n", s.target);
                     
                     for (auto &offset : s.relocations) {
                         
                         auto addr = segPtrs[i] + 8 + offset;
                         auto value = mem.spypeek32 <Accessor::CPU> (addr);
-                        debug(HDR_DEBUG, "%x: %x -> %x\n",
-                              addr, value, value + segPtrs[s.target] + 8)
+                        logmsg(LOG_HDR, "%x: %x -> %x\n",
+                              addr, value, value + segPtrs[s.target] + 8);
                         mem.patch(addr, value + segPtrs[s.target] + 8);
                     }
                 }
@@ -688,12 +888,12 @@ HdController::processInitSeg(u32 ptr)
         // Remember a BPTR to the seglist
         drive.drivers[num].segList = (segPtrs[0] + 4) >> 2;
         
-    } catch (AppError &e) {
+    } catch(Error &e) {
 
-        warn("processInitSeg: %s\n", e.what());
+        logmsg(LOG_WARN, "processInitSeg: %s\n", e.what());
     }
     
-    debug(HDR_DEBUG, "processInitSeg completed\n");
+    logmsg(LOG_HDR, "processInitSeg completed\n");
 }
 
 }

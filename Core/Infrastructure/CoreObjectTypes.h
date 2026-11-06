@@ -1,0 +1,61 @@
+// -----------------------------------------------------------------------------
+// This file is part of vAmiga
+//
+// Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
+// Licensed under the Mozilla Public License v2
+//
+// See https://mozilla.org/MPL/2.0 for license information
+// -----------------------------------------------------------------------------
+/// @file
+
+#pragma once
+
+namespace vamiga {
+
+/// Category of a dump or debug output.
+enum class Category : long
+{
+    BankMap,
+    Beam,
+    Beamtraps,
+    Blocks,
+    Breakpoints,
+    Bus,
+    Catchpoints,
+    Checksums,
+    Config,
+    Current,
+    Debug,
+    Defaults,
+    Disk,
+    Dma,
+    Drive,
+    Events,
+    FetchUnit,
+    FileSystem,
+    Geometry,
+    Hunks,
+    Info,
+    List1,
+    List2,
+    Parameters,
+    Partitions,
+    Properties,
+    Registers,
+    RunAhead,
+    Sections,
+    Segments,
+    Signals,
+    Slots,
+    State,
+    Stats,
+    Storage,
+    SwTraps,
+    Tod,
+    Trace,
+    Vectors,
+    Volumes,
+    Watchpoints
+};
+
+}

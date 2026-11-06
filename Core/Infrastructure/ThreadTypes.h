@@ -6,10 +6,11 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -26,7 +27,7 @@ enum class ExecState : long
     HALTED        ///< Shut down
 };
 
-struct ExecStateEnum : Reflection<ExecStateEnum, ExecState>
+struct ExecStateEnum : utl::Reflectable<ExecStateEnum, ExecState>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(ExecState::HALTED);

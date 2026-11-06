@@ -7,26 +7,29 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "SerServer.h"
 #include "Amiga.h"
-#include "IOUtils.h"
 #include "RetroShell.h"
 #include "SerialPort.h"
 #include "Thread.h"
 #include "UART.h"
+#include "MidiManager.h"
+#include "SerialPortTypes.h"
+#include "utl/io.h"
+#include "utl/support/Strings.h"
 
 namespace vamiga {
 
 void
 SerServer::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
 
     RemoteServer::_dump(category, os);
-    
+
     if (category == Category::State) {
-        
+
         os << tab("Received bytes");
         os << dec(receivedBytes) << std::endl;
         os << tab("Transmitted bytes");
@@ -41,39 +44,66 @@ SerServer::_dump(Category category, std::ostream &os) const
 }
 
 bool
-SerServer::shouldRun()
+SerServer::canRun()
 {
     return SerialPortDevice(serialPort.getOption(Opt::SER_DEVICE)) == SerialPortDevice::NULLMODEM;
 }
 
-string
-SerServer::doReceive()
+Transport &
+SerServer::transport()
 {
-    auto result = connection.recv();
-    receivedBytes += (isize)result.size();
-    
-    if (config.verbose) {
-        retroShell << "R: " << util::makePrintable(result) << "\n";
-    }
+    switch (config.transport) {
 
-    return result;
-}
+        case TransportProtocol::STDIO: return stdio;
+        case TransportProtocol::TCP:   return tcp;
 
-void
-SerServer::doSend(const string &packet)
-{
-    transmittedBytes += (isize)packet.size();
-    connection.send(packet);
-    
-    if (config.verbose) {
-        retroShell << "T: " << util::makePrintable(packet) << "\n";
+        default:
+            fatalError;
     }
 }
 
-void
-SerServer::doProcess(const string &packet)
+const Transport &
+SerServer::transport() const
 {
-    for (auto c : packet) { processIncomingByte((u8)c); }
+    return const_cast<SerServer *>(this)->transport();
+}
+
+bool
+SerServer::isSupported(TransportProtocol protocol) const
+{
+    switch (protocol) {
+
+        case TransportProtocol::STDIO:  return true;
+        case TransportProtocol::TCP:    return true;
+
+        default:
+            return false;
+    }
+}
+
+void
+SerServer::send(const string &payload)
+{
+    transmittedBytes += (isize)payload.size();
+    transport().send(payload);
+
+    /*
+    if (config.verbose) {
+        retroShell << "T: " << utl::makePrintable(payload) << "\n";
+    }
+    */
+}
+
+void
+SerServer::didReceive(const string &payload)
+{
+    receivedBytes += (isize)payload.size();
+
+    if (config.verbose) {
+        retroShell << "R: " << utl::makePrintable(payload) << "\n";
+    }
+
+    for (auto c : payload) { processIncomingByte((u8)c); }
 }
 
 void
@@ -82,14 +112,14 @@ SerServer::processIncomingByte(u8 byte)
     if (!buffer.isFull()) {
 
         buffer.write(byte);
-        
+
         // When enough bytes have been received, leave buffering mode
         if (buffer.count() >= 8) buffering = false;
 
     } else {
 
         lostBytes++;
-        debug(SRV_DEBUG, "Buffer overflow\n");
+        logmsg(LOG_SRV, "Buffer overflow\n");
     }
 }
 
@@ -102,6 +132,7 @@ SerServer::didConnect()
     transmittedBytes = 0;
     processedBytes = 0;
     lostBytes = 0;
+    onTheLine = -1;
 
     // Start scheduling messages
     assert(agnus.id[SLOT_SER] == EVENT_NONE);
@@ -119,26 +150,53 @@ void
 SerServer::serviceSerEvent()
 {
     assert(agnus.id[SLOT_SER] == SER_RECEIVE);
-    
+
+    // Check if we're in MIDI mode
+    if (serialPort.getConfig().device == SerialPortDevice::MIDI) {
+
+        // Handle MIDI input
+        uint8_t midiByte;
+        if (amiga.midiManager.receiveByte(&midiByte)) {
+            uart.receiveShiftReg = midiByte;
+            uart.copyFromReceiveShiftRegister();
+        }
+
+        // Keep checking for more MIDI data
+        scheduleNextEvent();
+        return;
+    }
+
+    // The frame started one event ago has now been shifted in completely
+    if (onTheLine >= 0) {
+
+        // Hand it over to the UART, followed by its stop bit
+        uart.receiveShiftReg = u16(onTheLine | (1 << uart.packetLength()));
+        uart.copyFromReceiveShiftRegister();
+        processedBytes++;
+        onTheLine = -1;
+    }
+
+    // Original SerServer code for null modem
     if (buffer.isEmpty()) {
-        
+
         // Enter buffering mode if we run dry
         buffering = true;
 
     } else if (buffering) {
-        
+
         // Exit buffering mode if now new symbols came in for quite a while
         if (++skippedTransmissions > 8) buffering = false;
 
-    } else {
+    } else if (!serialPort.getConfig().handshake || serialPort.getRTS()) {
 
-        // Hand the oldest buffer element over to the UART
-        uart.receiveShiftReg = buffer.read();
-        uart.copyFromReceiveShiftRegister();
-        processedBytes++;
+        /* Start sending the oldest buffer element. With handshaking, the peer
+         * checks its CTS line, which is the Amiga's RTS, before each byte. A byte
+         * that has already started is completed.
+         */
+        onTheLine = buffer.read();
         skippedTransmissions = 0;
     }
-    
+
     scheduleNextEvent();
 }
 
@@ -146,18 +204,21 @@ void
 SerServer::scheduleNextEvent()
 {
     assert(agnus.id[SLOT_SER] == SER_RECEIVE);
-    
+
     // Otherwise, emulate proper timing based on the current baud rate
     auto pulseWidth = uart.pulseWidth();
-    
+
     // If the pulseWidth is extremely low, fallback to a default value
     if (pulseWidth < 40) {
-        
-        debug(SRV_DEBUG, "Very low SERPER value\n");
+
+        logmsg(LOG_SRV, "Very low SERPER value\n");
         pulseWidth = 12000;
     }
-    
-    agnus.scheduleRel<SLOT_SER>(8 * pulseWidth, SER_RECEIVE);
+
+    // One frame per event: a start bit, 8 or 9 data bits (SERPER.LONG) and a stop bit. This is
+    // the shortest frame a sender can put on the line, and the period the UART's own receiver
+    // (serviceRxdEvent) works with.
+    agnus.scheduleRel<SLOT_SER>((uart.packetLength() + 2) * pulseWidth, SER_RECEIVE);
 }
 
 }

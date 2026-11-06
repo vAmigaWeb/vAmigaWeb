@@ -13,12 +13,13 @@
 #include "SubComponent.h"
 #include "CmdQueue.h"
 #include "GuardList.h"
-#include "RingBuffer.h"
 #include "Moira.h"
+#include "utl/storage.h"
+#include "utl/wrappers.h"
 
 namespace vamiga {
 
-class CPU : public moira::Moira, public Inspectable<CPUInfo>
+class CPU : public moira::Moira
 {
     friend class Moira;
 
@@ -37,18 +38,25 @@ class CPU : public moira::Moira, public Inspectable<CPUInfo>
         Opt::CPU_DASM_SYNTAX,
         Opt::CPU_DASM_NUMBERS,
         Opt::CPU_OVERCLOCKING,
-        Opt::CPU_RESET_VAL
+        Opt::CPU_RESET_VAL,
+        Opt::CPU_START_DELAY
     };
 
     // The current configuration
     CPUConfig config = {};
 
+    // The frame tracer's locking bit to turn instruction logging on and off
+    static constexpr isize TRACE_SOURCE = 6;
+
 public:
-    
+
+    // The current state
+    utl::Backed<CPUInfo> info;
+
     // Breakpoints, Watchpoints, Catchpoints
-    GuardList breakpoints = GuardList(amiga, debugger.breakpoints);
-    GuardList watchpoints = GuardList(amiga, debugger.watchpoints);
-    GuardList catchpoints = GuardList(amiga, debugger.catchpoints);
+    GuardList breakpoints = GuardList(amiga, debugger.breakpoints, GuardType::BREAKPOINT);
+    GuardList watchpoints = GuardList(amiga, debugger.watchpoints, GuardType::WATCHPOINT);
+    GuardList catchpoints = GuardList(amiga, debugger.catchpoints, GuardType::CATCHPOINT);
 
     // Sub-cycle counter (overclocking)
     i64 debt;
@@ -99,14 +107,18 @@ public:
         CLONE(queue.irc)
         CLONE(queue.ird)
 
+        CLONE_ARRAY(iCache.cache)
+        CLONE(iCache.latch.addr)
+        CLONE(iCache.latch.data)
+        CLONE(budget.cp)
+        CLONE(budget.accumulated)
+        CLONE(budget.stalled)
+
         CLONE(irqMode)
         CLONE(ipl)
         CLONE(fcl)
         CLONE(fcSource)
         CLONE(exception)
-        CLONE(cp)
-        CLONE(cpAccum)
-        CLONE(cpStall)
         CLONE(loopModeDelay)
         CLONE(readBuffer)
         CLONE(writeBuffer)
@@ -119,9 +131,6 @@ public:
             setModel((moira::Model)other.config.revision,
                      (moira::Model)other.config.dasmRevision);
         }
-
-        // The instruction cache is not cloned. Drop stale lines.
-        flushInstructionCache();
 
         return *this;
     }
@@ -171,18 +180,29 @@ private:
 
         << queue.irc
         << queue.ird
+        << budget.cp
+        << budget.accumulated
+        << budget.stalled
 
         << irqMode
         << ipl
         << fcl
         << fcSource
         << exception
-        << cp
         << loopModeDelay
         << readBuffer
         << writeBuffer
         << flags;
 
+        // Instruction cache
+        worker << iCache.latch.addr << iCache.latch.data;
+        for (isize i = 0; i < 64; ++i) {
+
+            worker << iCache.cache[i].data;
+            worker << iCache.cache[i].tag;
+            worker << iCache.cache[i].valid;
+        }
+        
         if (isResetter(worker)) return;
 
         worker
@@ -191,7 +211,8 @@ private:
         << config.revision
         << config.dasmRevision
         << config.overclocking
-        << config.regResetVal;
+        << config.regResetVal
+        << config.startDelay;
 
     } SERIALIZERS(serialize);
 
@@ -224,12 +245,12 @@ public:
     
 
     //
-    // Methods from Inspectable
+    // Analyzing
     //
 
 public:
 
-    void cacheInfo(CPUInfo &result) const override;
+    CPUInfo cacheInfo() const;
 
 
     //
@@ -265,25 +286,44 @@ public:
 
 
     //
+    // Frame boundaries
+    //
+
+public:
+
+    // Called by Agnus at the end of each frame
+    void eofHandler();
+
+
+    //
     // Running the disassembler
     //
     
-    // Disassembles a recorded instruction from the log buffer
-    const char *disassembleRecordedInstr(isize i, isize *len) const;
-    const char *disassembleRecordedWords(isize i, isize len) const;
-    const char *disassembleRecordedFlags(isize i) const;
-    const char *disassembleRecordedPC(isize i) const;
+    /* Disassembles an instruction according to a format string. The
+     * following directives are supported:
+     *
+     *   %p  Instruction address
+     *   %b  Instruction words
+     *   %i  Instruction
+     *   %f  Status register flags
+     *   %Nd Data register DN (N = 0 ... 7)
+     *   %Na Address register AN (N = 0 ... 7)
+     *
+     * A number in front of %p, %b, %i, or %f pads the output with spaces to
+     * the given width. The register directives print the registers of the
+     * CPU state the instruction has been recorded in (or the current CPU state
+     * if the instruction is not taken from the log buffer). Throws CoreError
+     * (OPT_INV_ARG) if the format string is invalid. If 'len' is given, it
+     * receives the length of the instruction in bytes.
+     */
+    string disass(const string &fmt, u32 addr, isize *len = nullptr) const;
+    string disassRecorded(const string &fmt, isize nr, isize *len = nullptr) const;
 
-    // Disassembles the instruction at the specified address
-    const char *disassembleWord(u16 value) const;
-    const char *disassembleAddr(u32 addr) const;
-    const char *disassembleInstr(u32 addr, isize *len) const;
-    const char *disassembleWords(u32 addr, isize len) const;
+private:
 
-    // Disassembles the currently executed instruction
-    const char *disassembleInstr(isize *len) const;
-    const char *disassembleWords(isize len) const;
-    const char *disassemblePC() const;
+    string disass(const string &fmt, u32 addr, const moira::Registers &regs, isize *len) const;
+
+public:
 
     // Dumps a portion of the log buffer
     void dumpLogBuffer(std::ostream &os, isize count) const;
@@ -311,15 +351,6 @@ public:
     void willExecute(moira::M68kException exc, u16 vector);
     void didExecute(moira::M68kException exc, u16 vector);
 
-
-    //
-    // Processing commands
-    //
-
-public:
-
-    // Processes a command from the command queue
-    void processCommand(const Command &cmd);
 };
 
 }

@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -12,11 +12,12 @@
 #include "DiskControllerTypes.h"
 #include "SubComponent.h"
 #include "FloppyDisk.h"
+#include "utl/wrappers.h"
 
 namespace vamiga {
 
-class DiskController final : public SubComponent, public Inspectable<DiskControllerInfo>
-{
+class DiskController final : public SubComponent {
+
     Descriptions descriptions = {{
 
         .type           = Class::DiskController,
@@ -34,6 +35,13 @@ class DiskController final : public SubComponent, public Inspectable<DiskControl
 
     // Current configuration
     DiskControllerConfig config = {};
+
+public:
+
+    // Result of the latest inspection
+    utl::Backed<DiskControllerInfo> info;
+
+private:
 
     // The currently selected drive (-1 if no drive is selected)
     isize selected = -1;
@@ -109,7 +117,7 @@ class DiskController final : public SubComponent, public Inspectable<DiskControl
     
 public:
     
-    using SubComponent::SubComponent;
+    DiskController(Amiga& ref);
 
     DiskController& operator= (const DiskController& other) {
 
@@ -209,7 +217,8 @@ public:
     
 public:
     
-    void cacheInfo(DiskControllerInfo &result) const override;
+    DiskControllerInfo cacheInfo() const;
+
 
     //
     // Accessing

@@ -7,15 +7,16 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "CopperDebugger.h"
 #include "Emulator.h"
 #include "Copper.h"
-#include "IOUtils.h"
+#include "utl/io.h"
+#include "utl/support.h"
 
 namespace vamiga {
 
-CopperBreakpoints::CopperBreakpoints(Copper& ref) : GuardList(ref.amiga), copper(ref)
+CopperBreakpoints::CopperBreakpoints(Copper& ref) : GuardList(ref.amiga, GuardType::COPPER_BREAKPOINT), copper(ref)
 {
 
 }
@@ -26,7 +27,7 @@ CopperBreakpoints::setNeedsCheck(bool value)
     copper.checkForBreakpoints = value;
 }
 
-CopperWatchpoints::CopperWatchpoints(Copper& ref) : GuardList(ref.amiga), copper(ref)
+CopperWatchpoints::CopperWatchpoints(Copper& ref) : GuardList(ref.amiga, GuardType::COPPER_WATCHPOINT), copper(ref)
 {
 
 }
@@ -48,7 +49,7 @@ CopperDebugger::_didReset(bool hard)
 void
 CopperDebugger::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
 
     auto print = [&](const string &name, const GuardList &guards) {
 
@@ -191,6 +192,10 @@ CopperDebugger::disassemble(std::ostream &os, isize list, bool symbolic, isize m
     assert(list == 1 || list == 2);
     
     auto prog = list == 1 ? current1 : current2;
+    if (!prog) {
+        os << "No recorded data. Debug mode is off." << std::endl;
+        return;
+    }
     auto cnt  = isize(prog->end - prog->start) / 4;
     auto addr = u32(list == 1 ? copper.cop1lc : copper.cop2lc);
     
@@ -260,8 +265,8 @@ CopperDebugger::disassemble(u32 addr, bool symbolic) const
         auto word1 = mem.spypeek16 <Accessor::AGNUS> (addr);
         auto word2 = mem.spypeek16 <Accessor::AGNUS> (addr + 2);
         
-        auto hex1 = util::hexstr <4> (word1);
-        auto hex2 = util::hexstr <4> (word2);
+        auto hex1 = utl::hexstr <4> (word1);
+        auto hex2 = utl::hexstr <4> (word2);
         
         return "dc.w " + hex1 + "," + hex2;
     }

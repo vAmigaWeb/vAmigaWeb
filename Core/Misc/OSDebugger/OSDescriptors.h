@@ -10,11 +10,11 @@
 #pragma once
 
 #include "CoreObject.h"
-#include "Buffer.h"
+#include "utl/storage.h"
 
 namespace vamiga {
 
-using util::Buffer;
+using utl::Buffer;
 
 #define HUNK_UNIT       999
 #define HUNK_NAME       1000
@@ -110,11 +110,11 @@ struct ProgramUnitDescriptor {
     // Initializing
     //
     
-    ProgramUnitDescriptor(const u8 *buf, isize len) throws { init(buf, len); }
-    ProgramUnitDescriptor(const Buffer<u8> &buf) throws { init(buf); }
+    ProgramUnitDescriptor(const u8 *buf, isize len) { init(buf, len); }
+    ProgramUnitDescriptor(const Buffer<u8> &buf) { init(buf); }
 
-    void init(const u8 *buf, isize len) throws;
-    void init(const Buffer<u8> &buf) throws;
+    void init(const u8 *buf, isize len);
+    void init(const Buffer<u8> &buf);
 
     
     //

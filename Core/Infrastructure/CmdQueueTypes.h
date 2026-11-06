@@ -6,12 +6,14 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
 #include "OptionTypes.h"
 #include "JoystickTypes.h"
 #include "KeyboardTypes.h"
+#include "GuardListTypes.h"
 #include "Aliases.h"
 
 namespace vamiga {
@@ -37,12 +39,23 @@ enum class Cmd : long
     PAUSE,                  ///< Pause emulation
     WARP_ON,                ///< Switch on warp mode
     WARP_OFF,               ///< Switch off warp mode
+    TRACK_ON,               ///< Switch on track mode
+    TRACK_OFF,              ///< Switch off track mode
+    STEP_INTO,             ///< Run the emulator for a single step
+    STEP_OVER,             ///< Run the emulator for a single step
+    FINISH_LINE,           ///< Run the emulator for a single step
+    FINISH_FRAME,          ///< Run the emulator for a single step
     HALT,                   ///< Terminate the emulator thread
 
     // Amiga
     ALARM_ABS,              ///< Schedule an alarm (absolute cycle)
     ALARM_REL,              ///< Schedule an alarm (relative cycle)
     INSPECTION_TARGET,      ///< Sets the auto-inspection mask
+    SAVE_WORKSPACE,         ///< Save the workspace to a folder (path attached)
+    SAVE_SNAPSHOT,          ///< Save a snapshot to a file (path attached)
+    HIBERNATE,              ///< Hibernate into an SVM (path attached, value = bit 0: snapshot, bit 1: workspace)
+    HDR_ATTACH,             ///< Attach a hard drive and put it into an SVM (path attached, value = drive, value2 = SVM)
+    HDR_IMPORT,             ///< Import a folder into a hard drive (path attached, value = drive)
     
     // CPU (Breakpoints, Watchpoints, Catchpoints)
     GUARD_SET_AT,
@@ -57,12 +70,16 @@ enum class Cmd : long
     GUARD_DISABLE_NR,       ///< Disable the n-th guard
     GUARD_DISABLE_AT,       ///< Disable the guard at an address
     GUARD_DISABLE_ALL,      ///< Disable all guards
+    GUARD_TOGGLE_NR,        ///< Toggle the n-th guard
     
     // Keyboard
-    KEY_PRESS,              ///< Press a key on the C64 keyboard
-    KEY_RELEASE,            ///< Release a key on the C64 keyboard
+    KEY_PRESS,              ///< Press a key on the Amiga keyboard
+    KEY_RELEASE,            ///< Release a key on the Amiga keyboard
     KEY_RELEASE_ALL,        ///< Clear the keyboard matrix
-    KEY_TOGGLE,             ///< Press or release a key on the C64 keyboard
+    KEY_TOGGLE,             ///< Press or release a key on the Amiga keyboard
+    KEY_LOCK,               ///< Lock a key so it survives a release call
+    KEY_UNLOCK,             ///< Unlock a previously locked key
+    KEY_ABORT_TYPING,       ///< Delete all pending keyboard events
 
     // Mouse
     MOUSE_MOVE_ABS,         ///< Signal a mouse movement (absolute)
@@ -71,23 +88,28 @@ enum class Cmd : long
 
     // Joystick
     JOY_EVENT,              ///< Signal a joystick button event
+    JOY_STATE,              ///< Set the complete joystick state (directions and fire button)
 
     // Floppy disk
     DSK_TOGGLE_WP,          ///< Toggle write-protection
     DSK_MODIFIED,           ///< Signal that the disk has been saved
     DSK_UNMODIFIED,         ///< Signan that the disk needs saving
+    DSK_INSERT,             ///< Insert a disk (path attached, value = drive, value2 = write protection)
     
     // RetroShell
     RSH_EXECUTE,            ///< Execute a script command
+    RSH_PRESS_KEY,          ///< Type a special key into RetroShell (value = key, value2 = shift)
+    RSH_PRESS_CHAR,         ///< Type a character into RetroShell (value = character)
+    RSH_PRESS_TEXT,         ///< Type a string into RetroShell (text attached)
     
-    // Experimental
-    FUNC,
+    // Calls
+    CALL,                   ///< Run a function on the emulator thread (value2 = pointer to a std::function<void()> that stays alive until the command has been carried out)
 
     // Host machine
     FOCUS                   ///< The emulator windows got or lost focus
 };
 
-struct CmdEnum : Reflection<CmdEnum, Cmd> {
+struct CmdEnum : utl::Reflectable<CmdEnum, Cmd> {
 
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Cmd::FOCUS);
@@ -109,11 +131,22 @@ struct CmdEnum : Reflection<CmdEnum, Cmd> {
             case Cmd::PAUSE:                 return "PAUSE";
             case Cmd::WARP_ON:               return "WARP_ON";
             case Cmd::WARP_OFF:              return "WARP_OFF";
+            case Cmd::TRACK_ON:              return "TRACK_ON";
+            case Cmd::TRACK_OFF:             return "TRACK_OFF";
+            case Cmd::STEP_INTO:             return "STEP_INTO";
+            case Cmd::STEP_OVER:             return "STEP_OVER";
+            case Cmd::FINISH_LINE:           return "FINISH_LINE";
+            case Cmd::FINISH_FRAME:          return "FINISH_FRAME";
             case Cmd::HALT:                  return "HALT";
 
             case Cmd::ALARM_ABS:             return "ALARM_ABS";
             case Cmd::ALARM_REL:             return "ALARM_REL";
             case Cmd::INSPECTION_TARGET:     return "INSPECTION_TARGET";
+            case Cmd::SAVE_WORKSPACE:        return "SAVE_WORKSPACE";
+            case Cmd::SAVE_SNAPSHOT:         return "SAVE_SNAPSHOT";
+            case Cmd::HIBERNATE:             return "HIBERNATE";
+            case Cmd::HDR_ATTACH:            return "HDR_ATTACH";
+            case Cmd::HDR_IMPORT:            return "HDR_IMPORT";
                 
             case Cmd::GUARD_SET_AT:          return "GUARD_SET_AT";
             case Cmd::GUARD_MOVE_NR:         return "GUARD_MOVE_TO";
@@ -127,25 +160,34 @@ struct CmdEnum : Reflection<CmdEnum, Cmd> {
             case Cmd::GUARD_DISABLE_NR:      return "GUARD_DISABLE_NR";
             case Cmd::GUARD_DISABLE_AT:      return "GUARD_DISABLE_AT";
             case Cmd::GUARD_DISABLE_ALL:     return "GUARD_DISABLE_ALL";
+            case Cmd::GUARD_TOGGLE_NR:       return "GUARD_TOGGLE_NR";
                 
             case Cmd::KEY_PRESS:             return "KEY_PRESS";
             case Cmd::KEY_RELEASE:           return "KEY_RELEASE";
             case Cmd::KEY_RELEASE_ALL:       return "KEY_RELEASE_ALL";
             case Cmd::KEY_TOGGLE:            return "KEY_TOGGLE";
+            case Cmd::KEY_LOCK:              return "KEY_LOCK";
+            case Cmd::KEY_UNLOCK:            return "KEY_UNLOCK";
+            case Cmd::KEY_ABORT_TYPING:      return "KEY_ABORT_TYPING";
 
             case Cmd::MOUSE_MOVE_ABS:        return "MOUSE_MOVE_ABS";
             case Cmd::MOUSE_MOVE_REL:        return "MOUSE_MOVE_REL";
             case Cmd::MOUSE_BUTTON:          return "MOUSE_BUTTON";
 
             case Cmd::JOY_EVENT:             return "JOY_EVENT";
+            case Cmd::JOY_STATE:             return "JOY_STATE";
 
             case Cmd::DSK_TOGGLE_WP:         return "DSK_TOGGLE_WP";
             case Cmd::DSK_MODIFIED:          return "DSK_MODIFIED";
             case Cmd::DSK_UNMODIFIED:        return "DSK_UNMODIFIED";
+            case Cmd::DSK_INSERT:            return "DSK_INSERT";
                 
             case Cmd::RSH_EXECUTE:           return "RSH_EXECUTE";
+            case Cmd::RSH_PRESS_KEY:         return "RSH_PRESS_KEY";
+            case Cmd::RSH_PRESS_CHAR:        return "RSH_PRESS_CHAR";
+            case Cmd::RSH_PRESS_TEXT:        return "RSH_PRESS_TEXT";
                 
-            case Cmd::FUNC:                  return "FUNC";
+            case Cmd::CALL:                  return "CALL";
             case Cmd::FOCUS:                 return "FOCUS";
 
         }
@@ -163,70 +205,114 @@ struct CmdEnum : Reflection<CmdEnum, Cmd> {
 // Structures
 //
 
+/// Payload of a command that changes a configuration option.
 typedef struct
 {
-    Opt option;
-    i64 value;
-    isize id;
+    Opt option;                         ///< The option to change
+    i64 value;                          ///< The new value of the option
+    isize id;                           ///< The component the option applies to (e.g., the drive number)
 }
 ConfigCmd;
 
+/// Payload of a command that carries a key event.
 typedef struct
 {
-    KeyCode keycode;
-    double delay;
+    KeyCode keycode;                    ///< Key code of the key event
+    double delay;                       ///< Delay in seconds before the event is performed
 }
 KeyCmd;
 
+/// Payload of a command that carries a coordinate.
 typedef struct
 {
-    isize port;
-    double x;
-    double y;
+    isize port;                         ///< Number of the control port
+    double x;                           ///< Horizontal coordinate
+    double y;                           ///< Vertical coordinate
 }
 CoordCmd;
 
+/// Payload of a command that carries a game pad action.
 typedef struct
 {
-    isize port;
-    GamePadAction action;
+    isize port;                         ///< Number of the control port
+    GamePadAction action;               ///< The action to perform
 }
 GamePadCmd;
 
+/// Payload of a command that carries a joystick state.
 typedef struct
 {
-    i64 cycle;
-    i64 value;
+    isize port;                         ///< Number of the control port
+    u32 state;      ///< Bits 0-4: current state, bits 8-12: previous state (up, down, left, right, fire)
+}
+JoyStateCmd;
+
+/// Payload of a command that schedules an alarm.
+typedef struct
+{
+    i64 cycle;                          ///< Master cycle at which the alarm fires
+    i64 value;                          ///< Value that is passed to the alarm handler
 }
 AlarmCmd;
 
+// The guard list to modify is identified by a GuardType
+/// Payload of a command that changes a guard.
+typedef struct
+{
+    GuardType list;       ///< The guard list to modify
+    isize nr;           ///< Number of a guard in the list
+    u32 addr;           ///< Target of a guard
+    isize ignores;      ///< Ignore count
+}
+GuardCmd;
+
+/// A command sent to the emulator thread.
 struct Command
 {
-    // Header
+    /// Header
     Cmd type;
 
-    // Sender
+    /// Sender
     void *sender;
     
     // Payload
     union {
 
-        struct { i64 value; i64 value2; };
-        ConfigCmd config;
-        KeyCmd key;
-        GamePadCmd action;
-        CoordCmd coord;
-        AlarmCmd alarm;
+        struct {
+            i64 value;                  ///< First integer payload value
+            i64 value2;                 ///< Second integer payload value
+        };
+        ConfigCmd config;               ///< Payload of CONFIG commands
+        KeyCmd key;                     ///< Payload of key commands
+        GamePadCmd action;              ///< Payload of game pad commands
+        CoordCmd coord;                 ///< Payload of coordinate commands
+        AlarmCmd alarm;                 ///< Payload of alarm commands
+        GuardCmd guard;                 ///< Payload of guard commands
+        JoyStateCmd joyState;           ///< Payload of joystick state commands
     };
 
+    /// Attached string (may be null)
+    const char *str = nullptr;
+
     Command() { }
+    /// Creates a command with up to two integer payload values.
     Command(Cmd type, i64 v1 = 0, i64 v2 = 0) : type(type), value(v1), value2(v2) { }
+    /// Creates a command with a sender and up to two integer payload values.
     Command(Cmd type, void *s, i64 v1 = 0, i64 v2 = 0) : type(type), sender(s), value(v1), value2(v2) { }
+    /// Creates a command that changes a configuration option.
     Command(Cmd type, const ConfigCmd &cmd) : type(type), config(cmd) { }
+    /// Creates a command that carries a key event.
     Command(Cmd type, const KeyCmd &cmd) : type(type), key(cmd) { }
+    /// Creates a command that carries a game pad action.
     Command(Cmd type, const GamePadCmd &cmd) : type(type), action(cmd) { }
+    /// Creates a command that carries a coordinate.
     Command(Cmd type, const CoordCmd &cmd) : type(type), coord(cmd) { }
+    /// Creates a command that schedules an alarm.
     Command(Cmd type, const AlarmCmd &cmd) : type(type), alarm(cmd) { }
+    /// Creates a command that changes a guard.
+    Command(Cmd type, const GuardCmd &cmd) : type(type), guard(cmd) { }
+    /// Creates a command that carries a joystick state.
+    Command(Cmd type, const JoyStateCmd &cmd) : type(type), joyState(cmd) { }
 };
 
 }

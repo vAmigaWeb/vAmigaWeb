@@ -12,11 +12,10 @@
 #include "CoreComponentTypes.h"
 #include "EmulatorTypes.h"
 #include "CoreObject.h"
-#include "Concurrency.h"
 #include "Configurable.h"
-#include "Inspectable.h"
 #include "Serializable.h"
-#include "Synchronizable.h"
+#include "utl/concurrency.h"
+#include "utl/abilities/Synchronizable.h"
 #include <functional>
 
 namespace vamiga {
@@ -27,13 +26,12 @@ struct Description {
     const char *name;               // Short name
     const char *description;        // Textual descripiton
     const char *shell;              // RetroShell access
-    // std::vector<string> help;       // RetroShell custom help strings
 };
 
 typedef std::vector<Description> Descriptions;
 
 class CoreComponent :
-public CoreObject, public Serializable, public Synchronizable, public Configurable {
+public CoreObject, public utl::Synchronizable, public Configurable {
 
 public:
 
@@ -66,6 +64,14 @@ public:
     bool operator!= (CoreComponent &other) { return !(other == *this); }
 
 
+    // Serializers (to be implemented by the subclass)
+    virtual void operator << (class SerCounter &worker) = 0;
+    virtual void operator << (class SerChecker &worker) = 0;
+    virtual void operator << (class SerResetter &worker) = 0;
+    virtual void operator << (class SerReader &worker) = 0;
+    virtual void operator << (class SerWriter &worker) = 0;
+    
+
     //
     // Querying properties
     //
@@ -89,7 +95,7 @@ public:
     virtual bool isHalted() const;
 
     // Throws an exception if the emulator is not ready to power on
-    virtual void isReady() const throws;
+    virtual void checkReady() const;
 
     // Computes a checksum
     u64 checksum(bool recursive);
@@ -146,7 +152,7 @@ public:
 private:
 
     virtual void _initialize() { }
-    virtual void _isReady() const throws { }
+    virtual void _checkReady() const { } // Throws
     virtual void _powerOn() { }
     virtual void _powerOff() { }
     virtual void _run() { }
@@ -179,7 +185,7 @@ public:
     void softReset() { reset(false); }
 
     // Loads the internal state from a memory buffer
-    isize load(const u8 *buf) throws;
+    isize load(const u8 *buf);
     virtual void _didLoad() { }
 
     // Saves the internal state to a memory buffer

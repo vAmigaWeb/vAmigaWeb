@@ -7,22 +7,21 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "GdbServer.h"
 #include "Emulator.h"
 #include "CPU.h"
-#include "IOUtils.h"
 #include "Memory.h"
-#include "MemUtils.h"
 #include "MsgQueue.h"
 #include "RetroShell.h"
+#include "utl/support/Strings.h"
 
 namespace vamiga {
 
 template <> void
 GdbServer::process <' ', GdbCmd::CtrlC> (string arg)
 {
-    debug(SRV_DEBUG, "Ctrl+C\n");
+    logmsg(LOG_SRV, "Ctrl+C\n");
     
     amiga.signalStop();
     reply("OK");
@@ -49,9 +48,9 @@ GdbServer::process <'q', GdbCmd::Offset> (string arg)
 {
     string result;
 
-    result += "Text=" + util::hexstr <8> (codeSeg()) + ";";
-    result += "Data=" + util::hexstr <8> (dataSeg()) + ";";
-    result += "Bss="  + util::hexstr <8> (bssSeg());
+    result += "Text=" + utl::hexstr <8> (codeSeg()) + ";";
+    result += "Data=" + utl::hexstr <8> (dataSeg()) + ";";
+    result += "Bss="  + utl::hexstr <8> (bssSeg());
 
     reply(result);
 }
@@ -131,7 +130,7 @@ GdbServer::process <'v', GdbCmd::Cont> (string arg)
         return;
     }
     
-    throw AppError(Fault::GDB_INVALID_FORMAT);
+    throw ServerError(ServerError::GDB_INVALID_FORMAT);
 }
 
 template <> void
@@ -161,7 +160,7 @@ GdbServer::process <'v'> (string cmd)
         return;
     }
 
-    throw AppError(Fault::GDB_UNSUPPORTED_CMD, "v");
+    throw ServerError(ServerError::GDB_UNSUPPORTED_CMD, "v");
 }
 
 template <> void
@@ -220,13 +219,13 @@ GdbServer::process <'q'> (string cmd)
         return;
     }
     
-    throw AppError(Fault::GDB_UNSUPPORTED_CMD, "q");
+    throw ServerError(ServerError::GDB_UNSUPPORTED_CMD, "q");
 }
 
 template <> void
 GdbServer::process <'Q'> (string cmd)
 {
-    auto tokens = util::split(cmd, ':');
+    auto tokens = utl::split(cmd, ':');
 
     if (tokens[0] == "StartNoAckMode") {
 
@@ -234,7 +233,7 @@ GdbServer::process <'Q'> (string cmd)
         return;
     }
     
-    throw AppError(Fault::GDB_UNSUPPORTED_CMD, "Q");
+    throw ServerError(ServerError::GDB_UNSUPPORTED_CMD, "Q");
 }
 
 template <> void
@@ -254,7 +253,7 @@ GdbServer::process <'s'> (string cmd)
 template <> void
 GdbServer::process <'n'> (string cmd)
 {
-    throw AppError(Fault::GDB_UNSUPPORTED_CMD, "n");
+    throw ServerError(ServerError::GDB_UNSUPPORTED_CMD, "n");
 }
 
 template <> void
@@ -266,13 +265,13 @@ GdbServer::process <'H'> (string cmd)
 template <> void
 GdbServer::process <'G'> (string cmd)
 {
-    throw AppError(Fault::GDB_UNSUPPORTED_CMD, "G");
+    throw ServerError(ServerError::GDB_UNSUPPORTED_CMD, "G");
 }
 
 template <> void
 GdbServer::process <'?'> (string cmd)
 {
-    auto pc = util::hexstr <8> (cpu.getPC0());
+    auto pc = utl::hexstr <8> (cpu.getPC0());
     reply("T051:" + pc + ";");
 
     /*
@@ -291,28 +290,28 @@ GdbServer::process <'?'> (string cmd)
 template <> void
 GdbServer::process <'!'> (string cmd)
 {
-    throw AppError(Fault::GDB_UNSUPPORTED_CMD, "!");
+    throw ServerError(ServerError::GDB_UNSUPPORTED_CMD, "!");
 }
 
 template <> void
 GdbServer::process <'k'> (string cmd)
 {
-    throw AppError(Fault::GDB_UNSUPPORTED_CMD, "k");
+    throw ServerError(ServerError::GDB_UNSUPPORTED_CMD, "k");
 }
 
 template <> void
 GdbServer::process <'m'> (string cmd)
 {
-    auto tokens = util::split(cmd, ',');
+    auto tokens = utl::split(cmd, ',');
     
     if (tokens.size() == 2) {
 
         string result;
 
         isize addr;
-        util::parseHex(tokens[0], &addr);
+        utl::parseHex(tokens[0], &addr);
         isize size;
-        util::parseHex(tokens[1], &size);
+        utl::parseHex(tokens[1], &size);
 
         for (isize i = 0; i < size; i++) {
             result += readMemory(addr + i);
@@ -322,28 +321,28 @@ GdbServer::process <'m'> (string cmd)
 
     } else {
 
-        throw AppError(Fault::GDB_UNSUPPORTED_CMD, "m");
+        throw ServerError(ServerError::GDB_UNSUPPORTED_CMD, "m");
     }
 }
 
 template <> void
 GdbServer::process <'M'> (string cmd)
 {
-    throw AppError(Fault::GDB_UNSUPPORTED_CMD, "M");
+    throw ServerError(ServerError::GDB_UNSUPPORTED_CMD, "M");
 }
 
 template <> void
 GdbServer::process <'p'> (string cmd)
 {
     isize nr;
-    util::parseHex(cmd, &nr);
+    utl::parseHex(cmd, &nr);
     reply(readRegister(nr));
 }
 
 template <> void
 GdbServer::process <'P'> (string cmd)
 {
-    throw AppError(Fault::GDB_UNSUPPORTED_CMD, "P");
+    throw ServerError(ServerError::GDB_UNSUPPORTED_CMD, "P");
 }
 
 template <> void
@@ -355,13 +354,13 @@ GdbServer::process <'c'> (string cmd)
 template <> void
 GdbServer::process <'D'> (string cmd)
 {
-    throw AppError(Fault::GDB_UNSUPPORTED_CMD, "D");
+    throw ServerError(ServerError::GDB_UNSUPPORTED_CMD, "D");
 }
 
 template <> void
 GdbServer::process <'Z'> (string cmd)
 {
-    auto tokens = util::split(cmd, ',');
+    auto tokens = utl::split(cmd, ',');
     
     if (tokens.size() == 3) {
 
@@ -377,14 +376,14 @@ GdbServer::process <'Z'> (string cmd)
 
     } else {
 
-        throw AppError(Fault::GDB_INVALID_FORMAT, "Z");
+        throw ServerError(ServerError::GDB_INVALID_FORMAT, "Z");
     }
 }
 
 template <> void
 GdbServer::process <'z'> (string cmd)
 {
-    auto tokens = util::split(cmd, ',');
+    auto tokens = utl::split(cmd, ',');
     
     if (tokens.size() == 3) {
 
@@ -400,17 +399,17 @@ GdbServer::process <'z'> (string cmd)
 
     } else {
 
-        throw AppError(Fault::GDB_INVALID_FORMAT, "z");
+        throw ServerError(ServerError::GDB_INVALID_FORMAT, "z");
     }
 }
 
 void
 GdbServer::process(string package)
 {
-    debug(SRV_DEBUG, "process(%s)\n", package.c_str());
+    logmsg(LOG_SRV, "process(%s)\n", package.c_str());
     
     // Check if the previous package has been rejected
-    if (package[0] == '-') throw AppError(Fault::GDB_NO_ACK);
+    if (package[0] == '-') throw ServerError(ServerError::GDB_NO_ACK);
 
     // Strip off the acknowledgment symbol if present
     if (package[0] == '+') package.erase(0,1);
@@ -438,15 +437,15 @@ GdbServer::process(string package)
                 process(cmd, arg);
                 
             } else {
-                
-                if (ackMode) connection.send("-");
-                throw AppError(Fault::GDB_INVALID_CHECKSUM);
+
+                if (ackMode) send("-");
+                throw ServerError(ServerError::GDB_INVALID_CHECKSUM);
             }
             
             return;
         }
         
-        throw AppError(Fault::GDB_INVALID_FORMAT);
+        throw ServerError(ServerError::GDB_INVALID_FORMAT);
     }
 }
 
@@ -476,7 +475,7 @@ GdbServer::process(char cmd, string package)
         case 'z' : process <'z'> (package); break;
             
         default:
-            throw AppError(Fault::GDB_UNRECOGNIZED_CMD, string(1, cmd));
+            throw ServerError(ServerError::GDB_UNRECOGNIZED_CMD, string(1, cmd));
     }
 }
 

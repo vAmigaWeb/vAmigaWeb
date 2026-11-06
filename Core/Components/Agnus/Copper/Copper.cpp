@@ -7,14 +7,11 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Copper.h"
 #include "Emulator.h"
 #include "CopperDebugger.h"
-#include "Checksum.h"
 #include "Denise.h"
-#include "IOUtils.h"
-#include "PixelEngine.h"
 
 namespace vamiga {
 
@@ -24,6 +21,8 @@ Copper::Copper(Amiga& ref) : SubComponent(ref)
         
         &debugger
     };
+
+    info.bind([this] { return cacheInfo(); } );
 }
 
 void
@@ -198,21 +197,20 @@ Copper::move(u32 addr, u16 value)
     assert(IS_EVEN(addr));
     assert(addr < 0x1FF);
     
-    trace(COP_DEBUG,
+    logmsg(LOG_COP,
           "COPPC: %X move(%s, $%X) (%d)\n", coppc0, MemoryDebugger::regName(addr), value, value);
 
     // Catch registers with special timing needs
     if (addr >= 0x180 && addr <= 0x1BE) {
 
-        trace(OCSREG_DEBUG,
+        logmsg(LOG_OCSREG,
               "pokeCustom16(%X [%s], %X)\n", addr, MemoryDebugger::regName(addr), value);
 
-        /* Color registers are recorded in the change history to preserve the
-         * exact pixel position of the write. Denise handles the AGA specifics
-         * on the way, namely the redirection to the color bank selected by
-         * BPLCON3 and the suppression of writes while LOCT is set.
-         */
+        // Color registers
         denise.recordColorChange((addr - 0x180) >> 1, value);
+
+        // auto reg = Reg(isize(Reg::COLOR00) + ((addr - 0x180) >> 1));
+        // pixelEngine.colChanges.insert(agnus.pos.pixel(), RegChange { .reg = reg, .value = value} );
         return;
     }
 
@@ -420,14 +418,14 @@ Copper::eofHandler()
      */
     agnus.scheduleRel <SLOT_COP> (DMA_CYCLES(0), COP_VBLANK);
     
-    if (COP_CHECKSUM) {
-        
-        if (checkcnt) {
-            msg("[%lld] Checksum: %x (%lld) lc1 = %x lc2 = %x\n",
-                agnus.pos.frame, checksum, checkcnt, cop1lc, cop2lc);
-        }
+    if CONSTEXPR (COP_CHECKSUM) {
+
+        if (checkcnt)
+            logmsg(LOG_DEBUG, "[%lld] Checksum: %x (%lld) lc1 = %x lc2 = %x\n",
+                    agnus.pos.frame, checksum, checkcnt, cop1lc, cop2lc);
+
         checkcnt = 0;
-        checksum = util::fnvInit32();
+        checksum = Hashable::fnvInit32();
     }
 }
 

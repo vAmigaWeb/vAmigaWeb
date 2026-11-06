@@ -5,29 +5,26 @@
  */
 
 #include <stdio.h>
+#include <stdexcept>
 #include <vector>
-#include "config.h"
+#include "vaconfig.h"
 #include "VAmiga.h"
 #include "VAmigaTypes.h"
 #include "Emulator.h"
 #include "Amiga.h"
 #include "AmigaTypes.h"
-#include "RomFile.h"
-#include "RomDatabase.h"
-#include "ADFFile.h"
-#include "ADZFile.h"
-#include "DMSFile.h"
-#include "EXEFile.h"
-#include "HDFFile.h"
-#include "HDZFile.h"
-#include "Snapshot.h"
-#include "EADFFile.h"
-#include "STFile.h"
+#include "Media/Rom/RomFile.h"
+#include "Roms/RomManager.h"
+#include "Images/ADF/ADFFile.h"
+#include "Images/DMS/DMSFile.h"
+#include "Images/EXE/EXEFile.h"
+#include "Images/HDF/HDFFile.h"
+#include "Media/Snapshot.h"
+#include "Images/EADF/EADFFile.h"
+#include "Images/ST/STFile.h"
+#include "Images/BinaryImage.h"
 #include "OtherFile.h"
-#include "MutableFileSystem.h"
-
-#include "MemUtils.h"
-#include "MediaFileTypes.h"
+#include "FileSystems/Amiga/FileSystem.h"
 
 #include <emscripten.h>
 
@@ -37,6 +34,10 @@
 #endif
 
 using namespace vamiga;
+using namespace retro::vault;
+namespace util = utl;
+
+constexpr int TPP = sizeof(Texel) / sizeof(u32);
 
 #define RENDER_SOFTWARE 0
 #define RENDER_GPU 1
@@ -57,6 +58,8 @@ const char* display_names[] = {"narrow","standard","wider","overscan",
 "viewport tracking","borderless","extreme"}; 
 
 bool log_on=false;
+bool has_pending_viewport_tracking=false;
+bool pending_viewport_tracking=true;
 
 
 //HRM: In NTSC, the fields are 262, then 263 lines and in PAL, 312, then 313 lines.
@@ -404,16 +407,16 @@ static inline void wasm_compute_frame_safe()
   // or beam trap. Without this check, calls already queued from JS
   // (setTimeout(execute_amiga_frame) / loops below) would keep executing
   // instructions even though the core just requested a pause.
-  if (!emu->emu->isRunning()) 
+  if (!emu->getEmulator().isRunning())
   {
-    emu->emu->update();
+    emu->getEmulator().update();
     return;
   }
 
   try {
-    emu->emu->computeFrame();
+    emu->getEmulator().computeFrame();
   } catch (StateChangeException &) {
-    emu->emu->pause();
+    emu->getEmulator().pause();
   }
 }
 
@@ -440,16 +443,16 @@ extern "C" void wasm_execute()
 extern "C" bool wasm_execute_one_frame()
 {
   bool trapped = false;
-  emu->emu->update(); //apply commands that were queued while being paused
+  emu->getEmulator().update(); //apply commands that were queued while being paused
   try {
-    emu->emu->computeFrame();
+    emu->getEmulator().computeFrame();
   } catch (StateChangeException &) {
 
-    if (emu->emu->isRunning()) {
+    if (emu->getEmulator().isRunning()) {
 
       // regular transition RUNNING -> PAUSED, which dispatches the _pause()
       // hooks of all components on its own
-      emu->emu->pause();
+      emu->getEmulator().pause();
 
     } else {
 
@@ -458,14 +461,14 @@ extern "C" bool wasm_execute_one_frame()
       // this is exactly what Emulator::_pause() does. It makes the debugger
       // console print the stop location (DebuggerConsole::_pause() runs
       // "state") and posts Msg::PAUSE, just like a trap hit at normal speed.
-      emu->amiga.amiga->pause();
+      emu->getAmiga().pause();
     }
 
     // Flush the console output produced above: Msg::RSH_UPDATE is only posted
     // from Amiga::update(). At normal speed the run loop keeps calling update()
     // and picks it up on the next host frame, but stepping stops right here, so
     // the GUI would never learn that there is new RetroShell content.
-    emu->emu->update();
+    emu->getEmulator().update();
 
     trapped = true;
   }
@@ -495,7 +498,7 @@ extern "C" int wasm_draw_one_frame(double now)
   double elapsedTimeInSeconds = (now - start_time)/1000.0;
   int64_t targetFrameCount = (int64_t)(elapsedTimeInSeconds * target_fps *speed_boost);
   
-  emu->emu->update();
+  emu->getEmulator().update();
 
   bool show_stat=true;
   if(emu->isWarping() == true)
@@ -729,7 +732,17 @@ void send_message_to_js_w(const char * msg, long data1, long data2)
 bool already_run_the_emscripten_main_loop=false;
 bool warp_mode=false;
 //void theListener(const void * amiga, long type,  int data1, int data2, int data3, int data4){
-void theListener(const void * emu, Message msg){
+void theListener(const void * emu, Message msg, std::exception_ptr error){
+  if (error) {
+    try {
+      std::rethrow_exception(error);
+    } catch (const std::exception &exception) {
+      printf("Core message error: %s\n", exception.what());
+    } catch (...) {
+      printf("Core message error: unknown exception\n");
+    }
+  }
+
   int data1=msg.value;
   int data2=0;
   if(msg.type == Msg::VIEWPORT)
@@ -809,11 +822,11 @@ void theListener(const void * emu, Message msg){
 
     if(msg.type == Msg::SER_OUT)
     {
-      int byte = ((VAmiga *)emu)->serialPort.serialPort->readOutgoingByte();
+      int byte = ((VAmiga *)emu)->serialPort.readOutgoingByte();
       while(byte>=0)
       {
         send_message_to_js_with_param(message_as_string, byte, data2);
-        byte = ((VAmiga *)emu)->serialPort.serialPort->readOutgoingByte();
+        byte = ((VAmiga *)emu)->serialPort.readOutgoingByte();
       }
     }
     else
@@ -832,7 +845,7 @@ class vAmigaWrapper {
 
   vAmigaWrapper()
   {
-    printf("constructing vAmiga ...\n");
+    printf("constructing vAmiga v5.0...\n");
     this->emu = new VAmiga();
   }
   ~vAmigaWrapper()
@@ -842,7 +855,7 @@ class vAmigaWrapper {
 
   void run()
   {
-    try { emu->isReady(); } catch(...) { 
+    try { emu->checkReady(); } catch(...) {
       printf("***** put missing rom message\n");
        // amiga->msgQueue.put(ROM_MISSING); 
         EM_ASM({
@@ -853,7 +866,7 @@ class vAmigaWrapper {
     printf("wrapper calls run on vAmiga->run() method\n");
 
 
-    emu->defaults.defaults->setFallback(Opt::HDC_CONNECT, false, {0});
+    emu->defaults.setFallback(Opt::HDC_CONNECT, false, {0});
 
 //  wrapper->emu->defaults.setFallback(OPT_FILTER_TYPE, FILTER_NONE);
 //  wrapper->emu->set(OPT_FILTER_TYPE, FILTER_NONE);
@@ -876,7 +889,7 @@ class vAmigaWrapper {
 
   emu->set(Opt::DRIVE_CONNECT,true, /*df1*/ {1});
 
-  emu->emu->update();
+  emu->getEmulator().update();
 
 
 
@@ -934,14 +947,23 @@ int main(int argc, char** argv) {
 
   printf("connecting listener to vAmiga message queue...\n");
 
-//  try{
+  const char *startup_stage = "launch";
+  try {
       wrapper->emu->launch(wrapper->emu, &theListener);
-//  } catch(std::exception &exception) {
-//      printf("%s\n", exception.what());
-//  }
-//  printf("launch completed\n");
-
-  wrapper->run();
+      startup_stage = "startup viewport configuration";
+      if (has_pending_viewport_tracking) {
+          wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, pending_viewport_tracking);
+          has_pending_viewport_tracking = false;
+      }
+      startup_stage = "wrapper setup";
+      wrapper->run();
+  } catch (const std::exception &exception) {
+      fprintf(stderr, "vAmiga startup failed during %s: %s\n", startup_stage, exception.what());
+      throw;
+  } catch (...) {
+      fprintf(stderr, "vAmiga startup failed during %s with an unknown exception.\n", startup_stage);
+      throw;
+  }
   return 0;
 }
 
@@ -949,13 +971,13 @@ int main(int argc, char** argv) {
 extern "C" Texel * wasm_pixel_buffer()
 {
 //  auto stable_ptr = emu->denise.denise->pixelEngine.stablePtr();
-  auto stable_ptr = emu->emu->getTexture().pixels.ptr;
+  auto stable_ptr = emu->getEmulator().getTexture().pixels.ptr;
   return stable_ptr;
 }
 extern "C" u32 wasm_frame_info()
 {
 //  auto &stableBuffer = emu->denise.denise->pixelEngine.getStableBuffer();
-  auto &stableBuffer = emu->emu->getTexture();
+  auto &stableBuffer = emu->getEmulator().getTexture();
   u32 info = (u32)stableBuffer.nr;
   info = info<<1;
 
@@ -1006,13 +1028,13 @@ extern "C" void wasm_key(int code, int pressed)
   if(pressed==1)
   {
 //    wrapper->emu->keyboard.keyboard->pressKey(code);
-      wrapper->emu->keyboard.keyboard->press(KeyCode(code));
+      wrapper->emu->keyboard.press(KeyCode(code));
   }
   else
   {
     wrapper->emu->keyboard.release(KeyCode(code));
   }
-  wrapper->emu->emu->update();
+  wrapper->emu->getEmulator().update();
 
 }
 
@@ -1038,7 +1060,7 @@ extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_d
   
   //  wrapper->emu->keyboard.scheduleKeyRelease(*new C64Key(code1,code2), frame_delay);
   }
-  wrapper->emu->emu->update();
+  wrapper->emu->getEmulator().update();
 
 }
 
@@ -1046,19 +1068,19 @@ extern "C" void wasm_schedule_key(int code1, int code2, int pressed, int frame_d
 extern "C" int wasm_peek(u32 addr)
 {
   if(wrapper == NULL) return 0;
-  return wrapper->emu->mem.mem->spypeek8<Accessor::CPU>(addr);
+  return wrapper->emu->getMemory().spypeek8<Accessor::CPU>(addr);
 }
 
 extern "C" u16 wasm_peek16(u32 addr)
 {
   if(wrapper == NULL) return 0;
-  return wrapper->emu->mem.mem->spypeek16<Accessor::CPU>(addr);
+  return wrapper->emu->getMemory().spypeek16<Accessor::CPU>(addr);
 }
 
 extern "C" void wasm_set_bitplane_guess(int on)
 {
   if(wrapper == NULL) return;
-  auto *ag = wrapper->emu->agnus.agnus;
+  auto *ag = &wrapper->emu->getAgnus();
   if(on != 0)
   {
     // Prime the per-line first-pointer table with the invalid marker so lines
@@ -1073,13 +1095,13 @@ extern "C" void wasm_set_bitplane_guess(int on)
 extern "C" void wasm_set_write_tracking(int on)
 {
   if(wrapper == NULL) return;
-  wrapper->emu->mem.mem->setWriteOwnerTracking(on != 0);
+  wrapper->emu->getMemory().setWriteOwnerTracking(on != 0);
 }
 
 extern "C" int wasm_get_write_owner(u32 addr)
 {
   if(wrapper == NULL) return 0;
-  return wrapper->emu->mem.mem->getWriteOwner(addr);
+  return wrapper->emu->getMemory().getWriteOwner(addr);
 }
 
 // read/write heatmap: expose the raw shadow buffers so the JS memory view can
@@ -1089,58 +1111,58 @@ extern "C" int wasm_get_write_owner(u32 addr)
 extern "C" u32 wasm_get_write_owner_ptr()
 {
   if(wrapper == NULL) return 0;
-  auto &v = wrapper->emu->mem.mem->writeOwner;
+  auto &v = wrapper->emu->getMemory().writeOwner;
   return v.empty() ? 0 : (u32)(uintptr_t)v.data();
 }
 
 extern "C" u32 wasm_get_write_frame_ptr()
 {
   if(wrapper == NULL) return 0;
-  auto &v = wrapper->emu->mem.mem->writeFrame;
+  auto &v = wrapper->emu->getMemory().writeFrame;
   return v.empty() ? 0 : (u32)(uintptr_t)v.data();
 }
 
 extern "C" u32 wasm_get_read_frame_ptr()
 {
   if(wrapper == NULL) return 0;
-  auto &v = wrapper->emu->mem.mem->readFrame;
+  auto &v = wrapper->emu->getMemory().readFrame;
   return v.empty() ? 0 : (u32)(uintptr_t)v.data();
 }
 
 extern "C" u32 wasm_get_access_frame()
 {
   if(wrapper == NULL) return 0;
-  return (u32)wrapper->emu->mem.mem->accessFrame;
+  return (u32)wrapper->emu->getMemory().accessFrame;
 }
 
 extern "C" u32 wasm_get_access_chip_size()
 {
   if(wrapper == NULL) return 0;
-  return (u32)wrapper->emu->mem.mem->chipRamSize();
+  return (u32)wrapper->emu->getMemory().chipRamSize();
 }
 
 extern "C" u32 wasm_get_access_slow_size()
 {
   if(wrapper == NULL) return 0;
-  return (u32)wrapper->emu->mem.mem->slowRamSize();
+  return (u32)wrapper->emu->getMemory().slowRamSize();
 }
 
 extern "C" u32 wasm_get_access_fast_size()
 {
   if(wrapper == NULL) return 0;
-  return (u32)wrapper->emu->mem.mem->fastRamSize();
+  return (u32)wrapper->emu->getMemory().fastRamSize();
 }
 
 extern "C" u32 wasm_get_fast_base()
 {
   if(wrapper == NULL) return 0;
-  return wrapper->emu->mem.mem->fastRamBaseAddr();
+  return wrapper->emu->getMemory().fastRamBaseAddr();
 }
 
 extern "C" u32 wasm_get_rom_size()
 {
   if(wrapper == NULL) return 0;
-  return (u32)wrapper->emu->mem.mem->kickRomSize();
+  return (u32)wrapper->emu->getMemory().kickRomSize();
 }
 
 char wasm_bitplane_areas_result[4096];
@@ -1154,7 +1176,7 @@ extern "C" const char* wasm_get_bitplane_areas()
   // register is meaningless. The reported modulo is stride - 2*words.
   wasm_bitplane_areas_result[0] = 0;
   if(wrapper == NULL) return wasm_bitplane_areas_result;
-  auto *ag = wrapper->emu->agnus.agnus;
+  auto *ag = &wrapper->emu->getAgnus();
 
   constexpr int MAX_LINES = Agnus::BPL_GUESS_MAX_LINES;
   constexpr int MAX_CHUNKS_PER_PLANE = 8;
@@ -1242,7 +1264,7 @@ extern "C" const char* wasm_get_bitplane_areas()
 extern "C" void wasm_poke(u32 addr, u8 value)
 {
   if(wrapper == NULL) return;
-  wrapper->emu->mem.mem->poke8<Accessor::CPU>(addr, value);
+  wrapper->emu->getMemory().poke8<Accessor::CPU>(addr, value);
 }
 
 
@@ -1291,7 +1313,7 @@ extern "C" bool wasm_has_disk(const char *drive_name)
 void eject_harddisk(int drive)
 {
     auto runs = wrapper->emu->isRunning();
-    wrapper->emu->powerOff();wrapper->emu->emu->update();
+    wrapper->emu->powerOff();wrapper->emu->getEmulator().update();
     wrapper->emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {drive});
     wrapper->emu->powerOn();
     if(runs) wrapper->emu->run();
@@ -1351,7 +1373,7 @@ extern "C" void wasm_eject_disk(const char *drive_name)
 
 }
 
-DiskFile *export_disk=NULL;
+BinaryImage *export_disk=NULL;
 extern "C" void wasm_delete_disk()
 {
   if(export_disk!=NULL)
@@ -1384,18 +1406,19 @@ extern "C" char* wasm_export_as_folder(const char *drive_name,  const char *path
     hd = &wrapper->emu->hd3.getDrive();
   }
 
-  if (hd != NULL)
+  if (hd != NULL && hd->cacheInfo().hasDisk && hd->numPartitions() > 0)
   {
     try
     {
-      auto fs = new MutableFileSystem(*hd,0);
-      fs->exportFiles(path);
-      auto hd_name = fs->getName();
-      delete fs;
+      const auto &partition = hd->getPartitionDescriptor(0);
+      Volume volume(*hd, partition.range());
+      amiga::FileSystem fs(volume);
+      fs.exporter.exportFiles(path);
+      auto hd_name = fs.stat().name;
       sprintf(wasm_pull_user_snapshot_file_json_result, "%s",hd_name.c_str());
       return wasm_pull_user_snapshot_file_json_result;
     }
-    catch (const AppError& e) {
+    catch (const std::exception& e) {
       printf("Error exporting hard drive to folder - %s\n",e.what());
       EM_ASM(
       {
@@ -1407,10 +1430,19 @@ extern "C" char* wasm_export_as_folder(const char *drive_name,  const char *path
   return wasm_pull_user_snapshot_file_json_result;
 }
 
+static ADFFile *
+export_floppy_disk(FloppyDrive &drive)
+{
+  if (!drive.disk) return nullptr;
+
+  auto *image = new ADFFile(drive.disk->diameter, drive.disk->density);
+  drive.disk->decodeDisk(*image);
+  return image;
+}
+
 extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10, const char *hd_name="vAmiga HDF")
 {
   wasm_delete_disk();
-  Buffer<u8> *data=NULL;
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"size\": 0 }");
 
   if(strcmp(drive_name,"df0") == 0)
@@ -1419,8 +1451,7 @@ extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10,
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-    export_disk = new ADFFile(wrapper->emu->df0.getDisk());
-    data=&(export_disk->data);
+    export_disk = export_floppy_disk(wrapper->emu->getAmiga().df0);
   }
   else if(strcmp(drive_name,"df1") == 0)
   {
@@ -1428,8 +1459,7 @@ extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10,
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-    export_disk = new ADFFile(wrapper->emu->df1.getDisk());
-    data=&(export_disk->data);
+    export_disk = export_floppy_disk(wrapper->emu->getAmiga().df1);
   }
   else if(strcmp(drive_name,"df2") == 0)
   {
@@ -1437,8 +1467,7 @@ extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10,
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-    export_disk = new ADFFile(wrapper->emu->df2.getDisk());
-    data=&(export_disk->data);
+    export_disk = export_floppy_disk(wrapper->emu->getAmiga().df2);
   }
   else if(strcmp(drive_name,"df3") == 0)
   {
@@ -1446,8 +1475,7 @@ extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10,
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-    export_disk = new ADFFile(wrapper->emu->df3.getDisk());
-    data=&(export_disk->data);
+    export_disk = export_floppy_disk(wrapper->emu->getAmiga().df3);
   }
   else if (strcmp(drive_name,"dh0") == 0)
   {
@@ -1455,9 +1483,7 @@ extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10,
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-
     export_disk = new HDFFile(wrapper->emu->hd0.getDrive());
-    data=&(export_disk->data);
   }
   else if (strcmp(drive_name,"dh1") == 0)
   {
@@ -1465,9 +1491,7 @@ extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10,
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-
     export_disk = new HDFFile(wrapper->emu->hd1.getDrive());
-    data=&(export_disk->data);
   }
   else if (strcmp(drive_name,"dh2") == 0)
   {
@@ -1475,9 +1499,7 @@ extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10,
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-
     export_disk = new HDFFile(wrapper->emu->hd2.getDrive());
-    data=&(export_disk->data);
   }
   else if (strcmp(drive_name,"dh3") == 0)
   {
@@ -1485,34 +1507,32 @@ extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10,
     {
       return wasm_pull_user_snapshot_file_json_result;
     }
-
     export_disk = new HDFFile(wrapper->emu->hd3.getDrive());
-    data=&(export_disk->data);
   }
   else if (strcmp(drive_name,"/imported_hd") == 0)
   {
     try {
-    auto drive=new HardDrive(*wrapper->emu->amiga.amiga,-1);
+      auto drive = std::make_unique<HardDrive>(wrapper->emu->getAmiga(), -1);
 
-    drive->init(MB(capacity_in_mb));
-    drive->format(FSFormat::FFS, hd_name);
-    drive->importFolder("/imported_hd");
-    export_disk = new HDFFile(*drive);
-    delete drive;
-  
-    data=&(export_disk->data);
-  } catch (const AppError& e) {
-    printf("Error importing into hard drive - %s\n",e.what());
-    EM_ASM(
-    {
-      alert(`Error importing into hard drive - ${UTF8ToString($0)}`);
-    }, e.what());    
-  }
+      drive->setOption(Opt::HDR_MEM_LIMIT, capacity_in_mb);
+      drive->init(i64(capacity_in_mb) << 20);
+      drive->format(amiga::FSFormat::FFS, amiga::FSName(hd_name));
+      drive->importFolder("/imported_hd");
+      export_disk = new HDFFile(*drive);
+    } catch (const std::exception& e) {
+      printf("Error importing into hard drive - %s\n", e.what());
+      EM_ASM(
+      {
+        alert(`Error importing into hard drive - ${UTF8ToString($0)}`);
+      }, e.what());
+    }
 
   }
-  
+
+  if (export_disk == nullptr) return wasm_pull_user_snapshot_file_json_result;
+  auto data = export_disk->byteView(0, export_disk->getSize());
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %lu }",
-    (unsigned long)data->ptr, data->size);
+    (unsigned long)(uintptr_t)data.data(), (unsigned long)data.size());
 
   printf("return => %s\n",wasm_pull_user_snapshot_file_json_result);
 
@@ -1520,15 +1540,14 @@ extern "C" char* wasm_export_disk(const char *drive_name, u16 capacity_in_mb=10,
 }
 
 
-MediaFile *snapshot=NULL;
+std::unique_ptr<Snapshot> snapshot;
 extern "C" void wasm_delete_user_snapshot()
 {
 //  printf("request to free user_snapshot memory\n");
 
-  if(snapshot!=NULL)
+  if(snapshot)
   {
-    delete snapshot;
-    snapshot=NULL;
+    snapshot.reset();
     if(log_on) printf("freed user_snapshot memory\n");
   }
 }
@@ -1539,10 +1558,10 @@ extern "C" char* wasm_take_user_snapshot()
     printf("wasm_pull_user_snapshot_file\n");
 
     wasm_delete_user_snapshot();
-    snapshot = wrapper->emu->amiga.takeSnapshot(); //wrapper->emu->userSnapshot(nr);
+    snapshot = wrapper->emu->amiga.takeSnapshot(utl::Compressor::NONE);
 
   //  printf("got snapshot %u.%u.%u\n", snapshot->getHeader()->major,snapshot->getHeader()->minor,snapshot->getHeader()->subminor );
-    u8 *data = (u8*)(((Snapshot *)snapshot)->getHeader());
+    u8 *data = reinterpret_cast<u8 *>(snapshot->getHeader());
 
     printf("data header bytes= %x, %x, %x\n", data[0],data[1],data[2]);
   
@@ -1558,7 +1577,7 @@ extern "C" char* wasm_take_user_snapshot()
     printf("return => %s\n",wasm_pull_user_snapshot_file_json_result);
 
     return wasm_pull_user_snapshot_file_json_result;
-  } catch (const AppError& e) {
+  } catch (const std::exception& e) {
     printf("Error taking user snapshot - %s\n",e.what());
     EM_ASM(
     {
@@ -1578,16 +1597,16 @@ extern "C" float* wasm_get_sound_buffer_address()
 
 extern "C" unsigned wasm_copy_into_sound_buffer()
 {
-  auto count=wrapper->emu->audioPort.port->stream.count();
-  
-  auto copied_samples=0;
-  for(unsigned ipos=1024;ipos<=count;ipos+=1024)
+  unsigned copied_samples = 0;
+  constexpr unsigned buffer_capacity = sizeof(sound_buffer) / sizeof(sound_buffer[0]);
+  while(copied_samples + 2048 <= buffer_capacity)
   {
-    wrapper->emu->audioPort.copyStereo(
-    sound_buffer+copied_samples,
-     sound_buffer+copied_samples+1024, 
-     1024); 
-    copied_samples+=1024*2;
+    auto copied = wrapper->emu->audioPort.copyStereo(
+      sound_buffer + copied_samples,
+      sound_buffer + copied_samples + 1024,
+      1024);
+    copied_samples += unsigned(copied) * 2;
+    if (copied < 1024) break;
 //  printf("fillLevel (%lf)",wrapper->emu->paula.muxer.stream.fillLevel());
   }
   sum_samples += copied_samples/2; 
@@ -1607,13 +1626,13 @@ extern "C" unsigned wasm_copy_into_sound_buffer()
 extern "C" void wasm_set_warp(unsigned on)
 {
   wrapper->emu->set(Opt::AMIGA_WARP_MODE,(i64) (on == 1 ?Warp::AUTO:Warp::NEVER)); 
-  wrapper->emu->emu->update();
+  wrapper->emu->getEmulator().update();
 }
 
 extern "C" void wasm_set_manual_warp(unsigned on)
 {
   on == 1 ? wrapper->emu->warpOn(1) : wrapper->emu->warpOff(1);
-  wrapper->emu->emu->update();
+  wrapper->emu->getEmulator().update();
 }
 
 
@@ -1624,6 +1643,15 @@ extern "C" bool wasm_is_warping()
 
 
 
+void set_viewport_tracking(bool enabled)
+{
+  if (wrapper && wrapper->emu->getEmulator().isLaunched()) {
+    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, enabled);
+  } else {
+    pending_viewport_tracking = enabled;
+    has_pending_viewport_tracking = true;
+  }
+}
 
 extern "C" void wasm_set_display(const char *name)
 {
@@ -1676,17 +1704,17 @@ extern "C" void wasm_set_display(const char *name)
       strcmp(name,"viewport tracking") == 0)
   {
     geometry=DISPLAY_ADAPTIVE;
-    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, true); 
+    set_viewport_tracking(true);
   }
   else if( strcmp(name,"borderless") == 0)
   {
     geometry=DISPLAY_BORDERLESS;
-    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, true); 
+    set_viewport_tracking(true);
     return;
   }
   else if( strcmp(name,"narrow") == 0)
   {
-    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, false); 
+    set_viewport_tracking(false);
     geometry=DISPLAY_NARROW;
     xOff=252 + 4;
     yOff=PAL::VBLANK_CNT +16;
@@ -1697,7 +1725,7 @@ extern "C" void wasm_set_display(const char *name)
   }
   else if( strcmp(name,"standard") == 0)
   {
-    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, false); 
+    set_viewport_tracking(false);
   
     geometry=DISPLAY_STANDARD;
     xOff=208+HBLANK_MAX;
@@ -1710,7 +1738,7 @@ extern "C" void wasm_set_display(const char *name)
   }
   else if( strcmp(name,"wider") == 0)
   {
-    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, false); 
+    set_viewport_tracking(false);
   
     geometry=DISPLAY_WIDER;
     xOff=208+ HBLANK_MAX/2;
@@ -1722,7 +1750,7 @@ extern "C" void wasm_set_display(const char *name)
   }
   else if( strcmp(name,"overscan") == 0)
   {
-    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, false); 
+    set_viewport_tracking(false);
   
     geometry=DISPLAY_OVERSCAN;
 
@@ -1735,7 +1763,7 @@ extern "C" void wasm_set_display(const char *name)
   } 
   else if( strcmp(name,"extreme") == 0)
   {
-    wrapper->emu->set(Opt::DENISE_VIEWPORT_TRACKING, false); 
+    set_viewport_tracking(false);
   
     geometry=DISPLAY_EXTREME;
 
@@ -1762,7 +1790,9 @@ std::unique_ptr<FloppyDisk> load_disk(const char* filename, u8 *blob, long len)
 {
   printf("file content starts with %.*s\n",8, blob );
 
-  if (DMSFile::isCompatible(filename)) {
+  const auto extension = utl::lowercased(fs::path(filename).extension().string());
+
+  if (len >= 4 && memcmp(blob, "DMS!", 4) == 0) {
     printf("%s - Loading DMS file\n", filename);
     DMSFile dms{blob, len};
     return std::make_unique<FloppyDisk>(dms);
@@ -1774,24 +1804,25 @@ std::unique_ptr<FloppyDisk> load_disk(const char* filename, u8 *blob, long len)
       return std::make_unique<FloppyDisk>(ext);
   }
 
-  if (ADFFile::isCompatible(filename)) {
+  if (extension == ".adf") {
     printf("%s - Loading ADF file\n", filename);
     ADFFile adf{blob, len};
     return std::make_unique<FloppyDisk>(adf);
   }
 
-  if (ADZFile::isCompatible(filename)) {
+  if (extension == ".adz") {
     printf("%s - Loading ADZ file\n", filename);
-    ADZFile adz{blob, len};
-    return std::make_unique<FloppyDisk>(adz);
+    ADFFile adf;
+    adf.init(blob, len, ADFFile::compressorFor(filename));
+    return std::make_unique<FloppyDisk>(adf);
   }
 
-  if (EXEFile::isCompatible(filename)) {
+  if (extension == ".exe") {
     printf("%s - Loading EXE file\n", filename);
     EXEFile exe{blob, len};
     return std::make_unique<FloppyDisk>(exe);
   }
-  if (STFile::isCompatible(filename)) {
+  if (extension == ".st") {
     printf("%s - Loading ST file\n", filename);
     STFile st{blob, len};
     return std::make_unique<FloppyDisk>(st);
@@ -1819,7 +1850,7 @@ extern "C" const void wasm_mem_patch(u32 amiga_mem_address, u8 *blob, isize len)
   printf("wasm_mem_patch addr=0x%x, len=%ld, header bytes= %x, %x, %x\n", amiga_mem_address, len, blob[0],blob[1],blob[2]);
   if(wrapper == NULL) return;
 
-  wrapper->emu->mem.mem->patch(amiga_mem_address, blob, len);
+  wrapper->emu->getMemory().patch(amiga_mem_address, blob, len);
   return;
 }
 
@@ -1832,10 +1863,20 @@ extractSuffix(const string &s)
     return s.substr(pos, len);
 }
 
+static char wasm_load_error_result[512];
+
+static const char *
+save_wasm_load_error(const std::exception &exception)
+{
+    snprintf(wasm_load_error_result, sizeof(wasm_load_error_result), "%s", exception.what());
+    return wasm_load_error_result;
+}
+
 extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_number)
 {
   printf("load drive=%d, file=%s len=%ld, header bytes= %x, %x, %x\n", drive_number, name, len, blob[0],blob[1],blob[2]);
   filename=name;
+  const auto extension = utl::lowercased(fs::path(filename).extension().string());
   if(wrapper == NULL)
   {
     return "";
@@ -1845,13 +1886,13 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
       if(drive_number>0)
       {//configure correct disk drive type (df0 does only accept DD, no HD)
         wrapper->emu->set(Opt::DRIVE_TYPE, (i64)(disk->density==Density::DD? FloppyDriveType::DD_35:FloppyDriveType::HD_35), {drive_number} );
-        wrapper->emu->emu->update();
+        wrapper->emu->getEmulator().update();
       }
 
       if(drive_number==0){
         if(disk->density == Density::DD)
         {
-          wrapper->emu->df0.drive->swapDisk(std::move(disk));
+          wrapper->emu->getAmiga().df0.swapDisk(std::move(disk));
         }
         else
           EM_ASM(
@@ -1861,15 +1902,15 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
           }, filename);
       }
       else if(drive_number==1)
-        wrapper->emu->df1.drive->swapDisk(std::move(disk));
+        wrapper->emu->getAmiga().df1.swapDisk(std::move(disk));
       else if(drive_number==2)
-        wrapper->emu->df2.drive->swapDisk(std::move(disk));
+        wrapper->emu->getAmiga().df2.swapDisk(std::move(disk));
       else if(drive_number==3)
-        wrapper->emu->df3.drive->swapDisk(std::move(disk));
+        wrapper->emu->getAmiga().df3.swapDisk(std::move(disk));
 
       return "";
     }
-  } catch (const AppError& e) {
+  } catch (const std::exception& e) {
     printf("Error loading %s - %s\n", filename, e.what());
     EM_ASM(
     {
@@ -1877,134 +1918,65 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
     }, filename, e.what());    
   }
 
-  if (HDZFile::isCompatible(filename)) 
+  if (extension == ".hdz" || extension == ".hdf")
   {
-    printf("is hdz\n");
+    printf("is hdf/hdz\n");
 
-    HDZFile *hdz;
-
-    try{    
-      hdz = new HDZFile(blob, len);
-    }
-    catch(AppError &exception) {
-      printf("Failed to create HDZ image file %s\n", name);
-      Fault ec=Fault(exception.data);
-      printf("%s - %s\n", FaultEnum::key(ec), exception.what());
-      EM_ASM(
-      {
-        alert(`${UTF8ToString($0)} - ${UTF8ToString($1)}`);
-      }, FaultEnum::key(ec), exception.what());
-      return FaultEnum::key(ec); 
-    }    
-
-    auto hard_drive = wrapper->emu->hd0.drive;
-    if(drive_number==1)
-    {
-      hard_drive = wrapper->emu->hd1.drive;
-    }
-    else if(drive_number==2)
-    {
-      hard_drive = wrapper->emu->hd2.drive;
-    }
-    else if(drive_number==3)
-    {
-      hard_drive = wrapper->emu->hd3.drive;
-    }
-
-    try
-    {
-        hard_drive->init(*hdz);
-        if(!hard_drive->getInfo().hasDisk)
-        {
-          throw Fault(Fault::OUT_OF_MEMORY);
-        }
-    }
-    catch(AppError &exception) {
-      printf("Failed to init HDZ image file %s\n", name);
+    std::unique_ptr<HDFFile> hdf;
+    try {
+      hdf = std::make_unique<HDFFile>();
+      hdf->init(blob, len, HDFFile::compressorFor(filename));
+    } catch (const std::exception &exception) {
+      printf("Failed to create HDF image file %s\n", name);
+      printf("%s\n", exception.what());
       EM_ASM(
       {
         alert(`${UTF8ToString($0)}`);
       }, exception.what());
-      delete hdz;
-      return exception.what();
+      return save_wasm_load_error(exception);
     }
- 
-    delete hdz;
 
-    wrapper->emu->powerOff(); wrapper->emu->emu->update();
-    wrapper->emu->set(Opt::HDC_CONNECT, true, {drive_number});
-    wrapper->emu->emu->update();
-    wrapper->emu->powerOn(); //does set emu in paused mode
-    wrapper->emu->run(); //needed otherwise core will stay muted if it was paused
-    wrapper->emu->emu->update();
-    return "";
-  }
-  //end HDZ
-
-  if (HDFFile::isCompatible(filename)) 
-  {
-    printf("is hdf\n");
-
-    HDFFile *hdf;
-
-    try{    
-      hdf = new HDFFile(blob, len);
-    }
-    catch(AppError &exception) {
-      printf("Failed to create HDF image file %s\n", name);
-      Fault ec=Fault(exception.data);
-      printf("%s - %s\n", FaultEnum::key(ec), exception.what());
-      EM_ASM(
-      {
-        alert(`${UTF8ToString($0)} - ${UTF8ToString($1)}`);
-      }, FaultEnum::key(ec), exception.what());
-      return FaultEnum::key(ec); 
-    }    
-
-    auto hard_drive = wrapper->emu->hd0.drive;
+    auto *hard_drive = &wrapper->emu->hd0.getDrive();
     if(drive_number==1)
     {
-      hard_drive = wrapper->emu->hd1.drive;
+      hard_drive = &wrapper->emu->hd1.getDrive();
     }
     else if(drive_number==2)
     {
-      hard_drive = wrapper->emu->hd2.drive;
+      hard_drive = &wrapper->emu->hd2.getDrive();
     }
     else if(drive_number==3)
     {
-      hard_drive = wrapper->emu->hd3.drive;
+      hard_drive = &wrapper->emu->hd3.getDrive();
     }
 
     try
     {
-        hard_drive->init(*hdf);
-        if(!hard_drive->getInfo().hasDisk)
+        hard_drive->init(std::move(hdf));
+        if(!hard_drive->cacheInfo().hasDisk)
         {
-          throw Fault(Fault::OUT_OF_MEMORY);
+          throw std::runtime_error("Failed to attach hard drive image");
         }
     }
-    catch(AppError &exception) {
+    catch(const std::exception &exception) {
       printf("Failed to init HDF image file %s\n", name);
       EM_ASM(
       {
         alert(`${UTF8ToString($0)}`);
       }, exception.what());
-      delete hdf;
-      return exception.what();
+      return save_wasm_load_error(exception);
     }
- 
-    delete hdf;
 
-    wrapper->emu->powerOff(); wrapper->emu->emu->update();
+    wrapper->emu->powerOff(); wrapper->emu->getEmulator().update();
     wrapper->emu->set(Opt::HDC_CONNECT, true, {drive_number});
-    wrapper->emu->emu->update();
+    wrapper->emu->getEmulator().update();
     wrapper->emu->powerOn(); //does set emu in paused mode
     wrapper->emu->run(); //needed otherwise core will stay muted if it was paused
-    wrapper->emu->emu->update();
+    wrapper->emu->getEmulator().update();
     return "";
   }
   bool file_still_unprocessed=true;
-  if (Snapshot::isCompatible(blob,len) && extractSuffix(filename)!="rom")
+  if (len >= 6 && memcmp(blob, "VASNAP", 6) == 0 && extension != ".rom")
   {  
     try
     {
@@ -2024,16 +1996,15 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
 */
       printf("run snapshot at %f Hz, isPAL=%d\n", target_fps, !ntsc);
     }
-    catch(AppError &exception) {
-      Fault ec=Fault(exception.data);
-      printf("%s\n", FaultEnum::key(ec));
+    catch(std::exception &exception) {
+      printf("Snapshot error: %s\n", exception.what());
     }
   }
 
   if(file_still_unprocessed && extractSuffix(filename)=="rom_file")
   {
     bool wasRunnable = true;
-    try { wrapper->emu->isReady(); } catch(...) { wasRunnable=false; }
+    try { wrapper->emu->checkReady(); } catch(...) { wasRunnable=false; }
 
     RomFile *rom = NULL;
     try
@@ -2041,16 +2012,15 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
       printf("try to build RomFile\n");
       rom = new RomFile(blob, len);
     }
-    catch(AppError &exception) {
+    catch(std::exception &exception) {
       printf("Failed to read ROM image file %s\n", name);
-      Fault ec=Fault(exception.data);
-      printf("%s\n", FaultEnum::key(ec));
-      return "";
+      printf("%s\n", exception.what());
+      return save_wasm_load_error(exception);
     }
 
     if(wrapper->emu->isPoweredOn())
     {
-      wrapper->emu->powerOff(); wrapper->emu->emu->update();
+      wrapper->emu->powerOff(); wrapper->emu->getEmulator().update();
     }
 
     // If this is an AROS kickstart, ensure at least 1 MB total RAM is
@@ -2058,13 +2028,9 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
     // available memory.
     {
       u32 crc = rom->crc32();
-      bool is_aros = false;
-      for (const auto &r : roms) {
-        if (r.crc == crc && r.title && strcmp(r.title, "AROS Kickstart replacement") == 0) {
-          is_aros = true;
-          break;
-        }
-      }
+      auto traits = RomManager::shared().resolveCRC32(crc);
+      bool is_aros = traits && traits->title &&
+                     strcmp(traits->title, "AROS Kickstart replacement") == 0;
       if (is_aros) {
         long chip = (long)wrapper->emu->get(Opt::MEM_CHIP_RAM);
         long slow = (long)wrapper->emu->get(Opt::MEM_SLOW_RAM);
@@ -2079,14 +2045,14 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
             if (fast_options[i] >= new_fast) { chosen = fast_options[i]; break; }
           }
           wrapper->emu->set(Opt::MEM_FAST_RAM, chosen);
-          wrapper->emu->emu->update();
+          wrapper->emu->getEmulator().update();
         }
       }
     }
 
 //    wrapper->emu->suspend();
     try { 
-      wrapper->emu->mem.loadRom(*rom); 
+      wrapper->emu->mem.loadRom(blob, len);
       
       printf("Loaded ROM image %s. %s\n", name, wrapper->emu->mem.getRomTraits().title);
       if(strncmp("EmuTOS",wrapper->emu->mem.getRomTraits().title,strlen("EmuTOS"))==0)
@@ -2102,17 +2068,16 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
       );
 */
     }  
-    catch(AppError &exception) { 
+    catch(std::exception &exception) {
       printf("Failed to flash ROM image %s.\n", name);
-      Fault ec=Fault(exception.data);
-      printf("%s\n", FaultEnum::key(ec));
-      return "";
+      printf("%s\n", exception.what());
+      return save_wasm_load_error(exception);
     }
     const char *rom_type="rom";
     try
     {
         bool is_ready_now = true;
-        try { wrapper->emu->isReady(); } catch(...) { is_ready_now=false; }
+        try { wrapper->emu->checkReady(); } catch(...) { is_ready_now=false; }
 
         if (!wasRunnable && is_ready_now)
         {
@@ -2129,9 +2094,8 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
         wrapper->emu->powerOn();
         wrapper->emu->run();
     }    
-    catch(AppError &exception) { 
-      Fault ec=Fault(exception.data);
-      printf("%s\n", FaultEnum::key(ec));
+    catch(std::exception &exception) {
+      printf("%s\n", exception.what());
     } 
 
     return rom_type;    
@@ -2140,7 +2104,7 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
   if(file_still_unprocessed && extractSuffix(filename)=="rom_ext_file")
   {
     bool wasRunnable = true;
-    try { wrapper->emu->isReady(); } catch(...) { wasRunnable=false; }
+    try { wrapper->emu->checkReady(); } catch(...) { wasRunnable=false; }
 
     RomFile *rom = NULL;
     try
@@ -2148,34 +2112,32 @@ extern "C" const char* _wasm_loadFile(char* name, u8 *blob, long len, u8 drive_n
       printf("try to build RomFile\n");
       rom = new RomFile(blob, len);
     }
-    catch(AppError &exception) {
+    catch(std::exception &exception) {
       printf("Failed to read ROM_EXT image file %s\n", name);
-      Fault ec=Fault(exception.data);
-      printf("%s\n", FaultEnum::key(ec));
-      return "";
+      printf("%s\n", exception.what());
+      return save_wasm_load_error(exception);
     }
 
     auto was_running = wrapper->emu->isRunning();
     if(wrapper->emu->isPoweredOn())
     {
-      wrapper->emu->powerOff(); wrapper->emu->emu->update();
+      wrapper->emu->powerOff(); wrapper->emu->getEmulator().update();
     }
     //wrapper->emu->suspend();
     try { 
-      wrapper->emu->mem.loadExt(*rom); 
+      wrapper->emu->mem.loadExt(blob, len);
       
       printf("Loaded ROM_EXT image %s.\n", name);
       
     }  
-    catch(AppError &exception) { 
+    catch(std::exception &exception) {
       printf("Failed to flash ROM_EXT image %s.\n", name);
-      Fault ec=Fault(exception.data);
-      printf("%s\n", FaultEnum::key(ec));
+      printf("%s\n", exception.what());
     }
   
 
     bool is_ready_now = true;
-    try { wrapper->emu->isReady(); } catch(...) { is_ready_now=false; }
+    try { wrapper->emu->checkReady(); } catch(...) { is_ready_now=false; }
 
     if (!wasRunnable && is_ready_now)
     {
@@ -2205,7 +2167,7 @@ extern "C" const char* wasm_loadFile(char* name, u8 *blob, long len, u8 drive_nu
   {
     return _wasm_loadFile(name, blob, len, drive_number);
   }
-  catch (const AppError& e) {
+  catch (const std::exception& e) {
     EM_ASM(
     {
       alert(`Error loading ${UTF8ToString($0)} - ${UTF8ToString($1)}`);
@@ -2380,39 +2342,30 @@ extern "C" char* wasm_sprite_info()
 {
   if(!wrapper->emu->isTracking())
   {
-    wrapper->emu->trackOn();
+    wrapper->emu->trackOn(6);
   }
 //   wrapper->emu->setInspectionTarget(INSPECTION_DENISE, MSEC(250));
 //   wrapper->emu->denise.debugger.recordSprite(0);
 
-   Denise *denise = wrapper->emu->denise.denise;
-   auto spriteinfo0 = denise->debugger.getSpriteInfo(0);
-   auto spriteinfo1 = denise->debugger.getSpriteInfo(1);
-   auto spriteinfo2 = denise->debugger.getSpriteInfo(2);
-   auto spriteinfo3 = denise->debugger.getSpriteInfo(3);
-   auto spriteinfo4 = denise->debugger.getSpriteInfo(4);
-   auto spriteinfo5 = denise->debugger.getSpriteInfo(5);
-   auto spriteinfo6 = denise->debugger.getSpriteInfo(6);
-   auto spriteinfo7 = denise->debugger.getSpriteInfo(7);
-
+   const auto &info = wrapper->emu->denise.getCachedInfo();
 
    sprintf(buffer, "%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu", 
-     spriteinfo0.hstrt*2,
-     spriteinfo0.vstrt, 
-     spriteinfo1.hstrt*2,
-     spriteinfo1.vstrt, 
-     spriteinfo2.hstrt*2,
-     spriteinfo2.vstrt, 
-     spriteinfo3.hstrt*2,
-     spriteinfo3.vstrt, 
-     spriteinfo4.hstrt*2,
-     spriteinfo4.vstrt, 
-     spriteinfo5.hstrt*2,
-     spriteinfo5.vstrt, 
-     spriteinfo6.hstrt*2,
-     spriteinfo6.vstrt, 
-     spriteinfo7.hstrt*2,
-     spriteinfo7.vstrt
+     info.sprite[0].hstrt*2,
+     info.sprite[0].vstrt,
+     info.sprite[1].hstrt*2,
+     info.sprite[1].vstrt,
+     info.sprite[2].hstrt*2,
+     info.sprite[2].vstrt,
+     info.sprite[3].hstrt*2,
+     info.sprite[3].vstrt,
+     info.sprite[4].hstrt*2,
+     info.sprite[4].vstrt,
+     info.sprite[5].hstrt*2,
+     info.sprite[5].vstrt,
+     info.sprite[6].hstrt*2,
+     info.sprite[6].vstrt,
+     info.sprite[7].hstrt*2,
+     info.sprite[7].vstrt
      );  
 
    return buffer;
@@ -2421,7 +2374,6 @@ extern "C" char* wasm_sprite_info()
 
 extern "C" void wasm_cut_layers(unsigned cut_layers)
 {
-  wrapper->emu->set(Opt::DENISE_HIDDEN_LAYER_ALPHA,255);
 //  wrapper->emu->set(OPT_HIDDEN_SPRITES, 0x100 | (SPR0|SPR1|SPR2|SPR3|SPR4|SPR5|SPR6|SPR7)); 
   wrapper->emu->set(Opt::DENISE_HIDDEN_LAYERS, cut_layers); 
 }
@@ -2464,27 +2416,29 @@ extern "C" const char* wasm_rom_info()
 {
   const auto romTraits = wrapper->emu->mem.getRomTraits();
   const auto extTraits = wrapper->emu->mem.getExtTraits();
+  const auto romReleased = RomDateToString(romTraits.released);
+  const auto extReleased = RomDateToString(extTraits.released);
 
   json_result = "{\"hasRom\":";
-  append_json_string(json_result, wrapper->emu->mem.mem->hasRom() ? "true" : "false");
+  append_json_string(json_result, wrapper->emu->getMemory().hasRom() ? "true" : "false");
   json_result += ",\"hasExt\":";
-  append_json_string(json_result, wrapper->emu->mem.mem->hasExt() ? "true" : "false");
+  append_json_string(json_result, wrapper->emu->getMemory().hasExt() ? "true" : "false");
   json_result += ",\"romTitle\":";
   append_json_string(json_result, romTraits.title);
   json_result += ",\"romVersion\":";
   append_json_string(json_result, romTraits.revision);
   json_result += ",\"romReleased\":";
-  append_json_string(json_result, romTraits.released);
+  append_json_string(json_result, romReleased.c_str());
   json_result += ",\"romModel\":";
-  append_json_string(json_result, romTraits.model);
+  append_json_string(json_result, RomTypeEnum::key(romTraits.type));
   json_result += ",\"extTitle\":";
   append_json_string(json_result, extTraits.title);
   json_result += ",\"extVersion\":";
   append_json_string(json_result, extTraits.revision);
   json_result += ",\"extReleased\":";
-  append_json_string(json_result, extTraits.released);
+  append_json_string(json_result, extReleased.c_str());
   json_result += ",\"extModel\":";
-  append_json_string(json_result, extTraits.model);
+  append_json_string(json_result, RomTypeEnum::key(extTraits.type));
   json_result += "}";
 
   printf("rom crc=%x, ext crc=%x\n", wrapper->emu->mem.getRomTraits().crc, wrapper->emu->mem.getExtTraits().crc);
@@ -2515,6 +2469,10 @@ extern "C" void wasm_set_color_palette(char* palette)
   {
     wrapper->emu->set(Opt::MON_PALETTE, (i64)Palette::COLOR);
   }
+  else if( strcmp(palette,"directRGB") == 0)
+  {
+    wrapper->emu->set(Opt::MON_PALETTE, (i64)Palette::RGB);
+  }
   else if( strcmp(palette,"black white") == 0)
   { 
     wrapper->emu->set(Opt::MON_PALETTE, (i64)Palette::BLACK_WHITE); 
@@ -2541,7 +2499,7 @@ extern "C" void wasm_set_color_palette(char* palette)
 
 extern "C" u64 wasm_get_cpu_cycles()
 {
-  return wrapper->emu->cpu.cpu->getClock();
+  return wrapper->emu->getCPU().getClock();
 }
 
 char config_result[512];
@@ -2554,14 +2512,14 @@ extern "C" const char* wasm_power_on(unsigned power_on)
     {
         wrapper->emu->powerOn();
         wrapper->emu->run();
-        wrapper->emu->emu->update();
+        wrapper->emu->getEmulator().update();
     }
     else if(power_on == 0 && was_powered_on)
     {
-        wrapper->emu->powerOff();wrapper->emu->emu->update();
+        wrapper->emu->powerOff();wrapper->emu->getEmulator().update();
     }
   }  
-  catch(AppError &exception) {   
+  catch(std::exception &exception) {
     sprintf(config_result,"%s", exception.what());
   }
   return config_result; 
@@ -2573,7 +2531,7 @@ extern "C" void wasm_set_sample_rate(unsigned sample_rate)
     printf("set paula.muxer to freq= %d\n", sample_rate);
 
     wrapper->emu->set(Opt::HOST_SAMPLE_RATE,sample_rate);
-    wrapper->emu->emu->update();
+    wrapper->emu->getEmulator().update();
     auto got_sample_rate=wrapper->emu->get(Opt::HOST_SAMPLE_RATE);
 
     printf("amiga.host.getSampleRate()==%lld\n", got_sample_rate);
@@ -2589,57 +2547,37 @@ extern "C" i32 wasm_get_config_item(char* item_name, unsigned data)
   }
   else
   {
-    return wrapper->emu->get(Opt(util::parseEnum <OptEnum>(std::string(item_name))));
+    return wrapper->emu->get(Opt(utl::parseEnum <OptEnum>(std::string(item_name))));
   }
 }
 
-extern "C" const char* wasm_configure_key(char* option, char* key, char* _value)
+extern "C" const char* wasm_configure_key(char* option, char* _value)
 {
- // printf("----->wasm_configure_key %s %s = %s\n", option, key, _value);
- // return config_result;
-  sprintf(config_result,""); 
+  sprintf(config_result, "");
   auto value = std::string(_value);
-  if(log_on) printf("wasm_configure_key %s %s = %s\n", option, key, value.c_str());
+  if(log_on) printf("wasm_configure_key %s = %s\n", option, value.c_str());
 
   try {
-/*
-    setFallback(OPT_DMA_DEBUG_ENABLE, false);
-    setFallback(OPT_DMA_DEBUG_MODE, DMA_DISPLAY_MODE_FG_LAYER);
-    setFallback(OPT_DMA_DEBUG_OPACITY, 50);
-    setFallback(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_COPPER, true);
-    setFallback(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_BLITTER, true);
-    setFallback(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_DISK, true);
-    setFallback(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_AUDIO, true);
-    setFallback(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_SPRITE, true);
-    setFallback(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_BITPLANE, true);
-    setFallback(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_CPU, false);
-    setFallback(OPT_DMA_DEBUG_CHANNEL, DMA_CHANNEL_REFRESH, true);
-    setFallback(OPT_DMA_DEBUG_COLOR, DMA_CHANNEL_COPPER, 0xFFFF0000);
-    setFallback(OPT_DMA_DEBUG_COLOR, DMA_CHANNEL_BLITTER, 0xFFCC0000);
-    setFallback(OPT_DMA_DEBUG_COLOR, DMA_CHANNEL_DISK, 0x00FF0000);
-    setFallback(OPT_DMA_DEBUG_COLOR, DMA_CHANNEL_AUDIO, 0xFF00FF00);
-    setFallback(OPT_DMA_DEBUG_COLOR, DMA_CHANNEL_SPRITE, 0x0088FF00);
-    setFallback(OPT_DMA_DEBUG_COLOR, DMA_CHANNEL_BITPLANE, 0x00FFFF00);
-    setFallback(OPT_DMA_DEBUG_COLOR, DMA_CHANNEL_CPU, 0xFFFFFF00);
-    setFallback(OPT_DMA_DEBUG_COLOR, DMA_CHANNEL_REFRESH, 0xFF000000);
-*/
-        wrapper->emu->set(Opt::DMA_DEBUG_ENABLE, true);   
-        wrapper->emu->set(
-         //OPT_DMA_DEBUG_CHANNEL6,
-         Opt(util::parseEnum <OptEnum>(std::string(option))),
-//         util::parseEnum <DmaChannelEnum>(std::string(key)), 
-         util::parseBool(std::string(key))); 
-        // process the command queue right away so the DMA debugger reacts while
-        // the emulator is paused / in slomo (single step). otherwise the set()
-        // would only be applied by the run loop's update() on the next play.
-        wrapper->emu->emu->update();
-  }
-  catch(AppError &exception) {
-      printf("unknown key %s %s = %s\n", option, key, value.c_str());
+    const std::string prefix = "DEBUG_CHANNEL";
+    const std::string name(option);
+    if (name.compare(0, prefix.size(), prefix) != 0) {
+      throw std::invalid_argument("Unknown debug channel");
+    }
 
-//    ErrorCode ec=exception.data;
-//    sprintf(config_result,"%s", ErrorCodeEnum::key(ec));
-    sprintf(config_result,"%s", exception.what());
+    const auto channel = utl::parseNum(name.substr(prefix.size()));
+    if (channel < 0 || channel > 7) {
+      throw std::invalid_argument("Debug channel must be in the range 0...7");
+    }
+
+    wrapper->emu->set(Opt::XRAY_MODE, (i64)XRayMode::XRAY_DMA);
+    wrapper->emu->set(
+      static_cast<Opt>(static_cast<long>(Opt::XRAY_DMA_CHANNEL0) + channel),
+      utl::parseBool(value));
+    wrapper->emu->getEmulator().update();
+  }
+  catch(std::exception &exception) {
+    printf("unknown key %s = %s\n", option, value.c_str());
+    sprintf(config_result, "%s", exception.what());
   }
   return config_result; 
 }
@@ -2674,8 +2612,8 @@ extern "C" const char* wasm_configure(char* option, char* _value)
   if(strcmp(option,"warp_to_frame") == 0 )
   {
     auto warp_to_frame= util::parseNum(value);
-    wrapper->emu->set(Opt::AMIGA_WARP_BOOT, warp_to_frame/(wrapper->emu->agnus.agnus->isPAL()?50:60));
-    wrapper->emu->emu->update();
+    wrapper->emu->set(Opt::AMIGA_WARP_BOOT, warp_to_frame/(wrapper->emu->getAgnus().isPAL()?50:60));
+    wrapper->emu->getEmulator().update();
     wrapper->emu->softReset(); //agnus.reset() schedules warp_off therefore we have to reset here after changing warp_boot 
     return config_result;
   }
@@ -2698,7 +2636,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
       wrapper->emu->set(Opt::DRIVE_CONNECT, false, {i});
       i++;
     }
-    wrapper->emu->emu->update();
+    wrapper->emu->getEmulator().update();
     return config_result;
   }
 
@@ -2711,6 +2649,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
                     strcmp(option,"CHIP_RAM") == 0 ||
                     strcmp(option,"SLOW_RAM") == 0 ||
                     strcmp(option,"FAST_RAM") == 0 ||
+                    strcmp(option,"MEM_BUS_WIDTH") == 0 ||
                     strcmp(option,"CPU_REVISION") == 0;
  
   if(was_powered_on && must_be_off)
@@ -2729,7 +2668,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
               return config_result;
           }
       }
-      wrapper->emu->powerOff();wrapper->emu->emu->update();
+      wrapper->emu->powerOff();wrapper->emu->getEmulator().update();
   }
 
   try{
@@ -2759,6 +2698,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
               strcmp(option,"CHIP_RAM") == 0  ||
               strcmp(option,"SLOW_RAM") == 0  ||
               strcmp(option,"FAST_RAM") == 0  ||
+              strcmp(option,"MEM_BUS_WIDTH") == 0 ||
               strcmp(option,"CPU_OVERCLOCKING") == 0 ||
               strcmp(option,"CPU_REVISION") == 0
     )
@@ -2815,7 +2755,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
     else
     {
       wrapper->emu->set(Opt(util::parseEnum <OptEnum>(std::string(option))), util::parseBool(value)); 
-      wrapper->emu->emu->update();
+      wrapper->emu->getEmulator().update();
     }
 
     if(was_powered_on && must_be_off)
@@ -2826,9 +2766,9 @@ extern "C" const char* wasm_configure(char* option, char* _value)
 
     // execute the queued commands, otherwise a subsequent
     // wasm_get_config_item() would still report the previous values
-    wrapper->emu->emu->update();
+    wrapper->emu->getEmulator().update();
   }
-  catch(AppError &exception) {    
+  catch(std::exception &exception) {
 //    ErrorCode ec=exception.data;
 //    sprintf(config_result,"%s", ErrorCodeEnum::key(ec));
     printf("unknown key wasm_configure %s = %s\n", option, value.c_str());
@@ -2891,7 +2831,7 @@ extern "C" const char* wasm_configure_multi(char* _config)
 
   if(was_powered_on)
   {
-      wrapper->emu->powerOff(); wrapper->emu->emu->update();
+      wrapper->emu->powerOff(); wrapper->emu->getEmulator().update();
   }
 
   try
@@ -2915,6 +2855,8 @@ extern "C" const char* wasm_configure_multi(char* _config)
         wrapper->emu->set(Opt::CPU_REVISION, util::parseNum(value));
       else if( strcmp(option.c_str(),"CPU_OVERCLOCKING") == 0)
         wrapper->emu->set(Opt::CPU_OVERCLOCKING, util::parseNum(value));
+      else if( strcmp(option.c_str(),"MEM_BUS_WIDTH") == 0)
+        wrapper->emu->set(Opt::MEM_BUS_WIDTH, util::parseNum(value));
       else
       {
         printf("wasm_configure_multi unknown key: %s\n", option.c_str());
@@ -2931,9 +2873,9 @@ extern "C" const char* wasm_configure_multi(char* _config)
 
     // execute the queued commands, otherwise a subsequent
     // wasm_get_config_item() would still report the previous values
-    wrapper->emu->emu->update();
+    wrapper->emu->getEmulator().update();
   }
-  catch(AppError &exception) {
+  catch(std::exception &exception) {
     printf("wasm_configure_multi error: %s\n", exception.what());
     if(config_result[0] == '\0')
       sprintf(config_result,"%s", exception.what());
@@ -2979,11 +2921,7 @@ extern "C" void wasm_update_audio(int offset)
 
 extern "C" void wasm_write_string_to_ser(char* chars_to_send)
 {
-    if(wrapper->emu->agnus.agnus->id[SLOT_SER] != SER_RECEIVE)
-    {
-      wrapper->emu->remoteManager.remoteManager->serServer.didConnect();
-    }
-    wrapper->emu->remoteManager.remoteManager->serServer.doProcess(chars_to_send);
+    wrapper->emu->getSerialPort() << std::string(chars_to_send);
 }
 
 /*extern "C" void wasm_write_bytes_to_ser(u8 *bytes_to_send, u32 length)
@@ -3000,17 +2938,13 @@ extern "C" void wasm_write_string_to_ser(char* chars_to_send)
 
 extern "C" void wasm_write_byte_to_ser(u8 byte_to_send)
 {
-    if(wrapper->emu->agnus.agnus->id[SLOT_SER] != SER_RECEIVE)
-    {
-      wrapper->emu->remoteManager.remoteManager->serServer.didConnect();
-    }
-    wrapper->emu->remoteManager.remoteManager->serServer.processIncomingByte(byte_to_send);
+    wrapper->emu->getSerialPort() << static_cast<char>(byte_to_send);
 }
 
 extern "C" double wasm_activity(u8 id, u8 read_or_write)
 {
     double value=0.0;
-    auto dma = wrapper->emu->agnus.getStats();
+    auto dma = wrapper->emu->agnus.getMetrics();
     if(id==0)
       value= dma.copperActivity /(313 *120);
     else if(id==1)
@@ -3040,7 +2974,7 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
         addValues(Monitors.Monitor.slowRam, slowR, slowW)
         addValues(Monitors.Monitor.fastRam, fastR, fastW)
         addValues(Monitors.Monitor.kickRom, kickR, kickW)*/
-        auto mem = wrapper->emu->mem.getStats();
+        auto mem = wrapper->emu->mem.getMetrics();
         auto max = float(PAL::HPOS_CNT * VPOS_CNT) / 2.0;
         value = float(
           read_or_write == 0 ? mem.chipReads.accumulated : mem.chipWrites.accumulated
@@ -3048,7 +2982,7 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
     }
     else if(id==7)
     {
-        auto mem = wrapper->emu->mem.getStats();
+        auto mem = wrapper->emu->mem.getMetrics();
         auto max = float(PAL::HPOS_CNT * VPOS_CNT) / 2.0;
         value= float(
           read_or_write == 0 ? mem.slowReads.accumulated : mem.slowWrites.accumulated
@@ -3056,7 +2990,7 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
     }
     else if(id==8)
     {
-        auto mem = wrapper->emu->mem.getStats();
+        auto mem = wrapper->emu->mem.getMetrics();
         auto max = float(PAL::HPOS_CNT * VPOS_CNT) / 2.0;
         value = float(
           read_or_write == 0 ? mem.fastReads.accumulated : mem.fastWrites.accumulated
@@ -3064,7 +2998,7 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
     }
     else if(id==9)
     {
-        auto mem = wrapper->emu->mem.getStats();
+        auto mem = wrapper->emu->mem.getMetrics();
         auto max = float(PAL::HPOS_CNT * VPOS_CNT) / 2.0;
         value = float(
           read_or_write == 0 ? mem.kickReads.accumulated : mem.kickWrites.accumulated
@@ -3081,17 +3015,16 @@ Thumbnail preview;
 extern "C" char* wasm_save_workspace(char* path)
 {
   try{
-    //save with DMA_DEBUG_ENABLE=false otherwise vAmiga.app for macOS would trigger minimized debug screen 
-    auto debug_enable = wrapper->emu->get(Opt::DMA_DEBUG_ENABLE);
-    wrapper->emu->set(Opt::DMA_DEBUG_ENABLE,false);
-    wrapper->emu->emu->update();
+    auto xray_mode = wrapper->emu->get(Opt::XRAY_MODE);
+    wrapper->emu->set(Opt::XRAY_MODE, (i64)XRayMode::XRAY_NONE);
+    wrapper->emu->getEmulator().update();
 
     wrapper->emu->amiga.saveWorkspace(path);
 
-    wrapper->emu->set(Opt::DMA_DEBUG_ENABLE,debug_enable);
-    wrapper->emu->emu->update();
+    wrapper->emu->set(Opt::XRAY_MODE, xray_mode);
+    wrapper->emu->getEmulator().update();
   }
-  catch (const AppError& e) {
+  catch (const std::exception& e) {
     printf("Error %s\n", e.what());
     EM_ASM(
     {
@@ -3099,7 +3032,7 @@ extern "C" char* wasm_save_workspace(char* path)
     }, e.what());    
   }
 
-  preview.take(*(wrapper->emu->amiga.amiga));
+  preview.take(wrapper->emu->getAmiga());
 
   sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %u, \"width\": %d, \"height\":%d }",
     (unsigned long)preview.screen, 
@@ -3113,33 +3046,31 @@ extern "C" char* wasm_save_workspace(char* path)
 extern "C" void wasm_load_workspace(char* path)
 {
   try{
-    //don't respect the DMA_DEBUG_ENABLE setting in the workspace file
-    //instead keep current user choice
-    auto debug_enable = wrapper->emu->get(Opt::DMA_DEBUG_ENABLE);
-    auto channel0 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL0);
-    auto channel1 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL1);
-    auto channel2 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL2);
-    auto channel3 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL3);
-    auto channel4 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL4);
-    auto channel5 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL5);
-    auto channel6 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL6);
-    auto channel7 = wrapper->emu->get(Opt::DMA_DEBUG_CHANNEL7);
+    auto xray_mode = wrapper->emu->get(Opt::XRAY_MODE);
+    auto channel0 = wrapper->emu->get(Opt::XRAY_DMA_CHANNEL0);
+    auto channel1 = wrapper->emu->get(Opt::XRAY_DMA_CHANNEL1);
+    auto channel2 = wrapper->emu->get(Opt::XRAY_DMA_CHANNEL2);
+    auto channel3 = wrapper->emu->get(Opt::XRAY_DMA_CHANNEL3);
+    auto channel4 = wrapper->emu->get(Opt::XRAY_DMA_CHANNEL4);
+    auto channel5 = wrapper->emu->get(Opt::XRAY_DMA_CHANNEL5);
+    auto channel6 = wrapper->emu->get(Opt::XRAY_DMA_CHANNEL6);
+    auto channel7 = wrapper->emu->get(Opt::XRAY_DMA_CHANNEL7);
 
     wrapper->emu->amiga.loadWorkspace(path);
 
-    wrapper->emu->set(Opt::DMA_DEBUG_ENABLE,debug_enable);
-    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL0,channel0);
-    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL1,channel1);
-    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL2,channel2);
-    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL3,channel3);
-    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL4,channel4);
-    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL5,channel5);
-    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL6,channel6);
-    wrapper->emu->set(Opt::DMA_DEBUG_CHANNEL7,channel7);
-    wrapper->emu->emu->update();
+    wrapper->emu->set(Opt::XRAY_MODE, xray_mode);
+    wrapper->emu->set(Opt::XRAY_DMA_CHANNEL0, channel0);
+    wrapper->emu->set(Opt::XRAY_DMA_CHANNEL1, channel1);
+    wrapper->emu->set(Opt::XRAY_DMA_CHANNEL2, channel2);
+    wrapper->emu->set(Opt::XRAY_DMA_CHANNEL3, channel3);
+    wrapper->emu->set(Opt::XRAY_DMA_CHANNEL4, channel4);
+    wrapper->emu->set(Opt::XRAY_DMA_CHANNEL5, channel5);
+    wrapper->emu->set(Opt::XRAY_DMA_CHANNEL6, channel6);
+    wrapper->emu->set(Opt::XRAY_DMA_CHANNEL7, channel7);
+    wrapper->emu->getEmulator().update();
 
   }
-  catch (const AppError& e) {
+  catch (const std::exception& e) {
     printf("Error %s\n", e.what());
     EM_ASM(
     {
@@ -3153,16 +3084,18 @@ extern "C" void wasm_retro_shell(char* cmd)
   if( strcmp(cmd,"unmute") == 0)
   {
     printf("do unmute\n");
-    wrapper->emu->audioPort.port->unmute(10000);
+    wrapper->emu->getAudioPort().unmute(10000);
   }
   else
-    wrapper->emu->retroShell.execScript(cmd);  
+    wrapper->emu->retroShell.execScriptAsync(std::string(cmd));
 }
 
 // Interactive RetroShell console bindings (modeled after vAmigaNet)
 extern "C" const char* wasm_retro_shell_get_text()
 {
-  return wrapper->emu->retroShell.text();
+  static std::string text;
+  text = wrapper->emu->retroShell.text();
+  return text.c_str();
 }
 
 extern "C" int wasm_retro_shell_get_cursor()
@@ -3181,11 +3114,11 @@ extern "C" void wasm_retro_shell_press_key(int c)
   wrapper->emu->retroShell.press((char)c);
   // Process the command queue right away so RetroShell also reacts while the
   // emulator is paused (RSH_EXECUTE would otherwise only run in the run loop).
-  wrapper->emu->emu->update();
+  wrapper->emu->getEmulator().update();
 }
 
 extern "C" void wasm_retro_shell_press_special(int key, int shift)
 {
   wrapper->emu->retroShell.press((RSKey)key, shift != 0);
-  wrapper->emu->emu->update();
+  wrapper->emu->getEmulator().update();
 }

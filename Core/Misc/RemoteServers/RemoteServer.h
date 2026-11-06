@@ -10,70 +10,79 @@
 #pragma once
 
 #include "RemoteServerTypes.h"
+#include "RemoteManagerTypes.h"
 #include "SubComponent.h"
-#include "Socket.h"
-#include "Thread.h"
-#include <thread>
+#include "Transport.h"
+#include "utl/wrappers.h"
 
 namespace vamiga {
 
-class RemoteServer : public SubComponent {
+/* Every remote server is the transport delegate of its own transport layers.
+ * The TransportDelegate base is inherited here (rather than by the concrete
+ * subclasses) so that common functionality, such as traffic recording, can
+ * be implemented in a single place.
+ */
+class RemoteServer : public SubComponent, public TransportDelegate {
 
     friend class RemoteManager;
 
     Descriptions descriptions = {{
 
-        .name           = "SerServer",
-        .description    = "Serial Port Server",
-        .shell          = "server serial"
-    }, {
         .name           = "RshServer",
         .description    = "Remote Shell Server",
-        .shell          = "server rshell"
+        .shell          = "server rsh"
+    }, {
+        .name           = "RpcServer",
+        .description    = "JSON RPC Server",
+        .shell          = "server rpc"
+    }, {
+        .name           = "GdbServer",
+        .description    = "GDB Remote Server",
+        .shell          = "server gdb"
     }, {
         .name           = "PromServer",
         .description    = "Prometheus Server",
         .shell          = "server prom"
     }, {
-        .name           = "GdbServer",
-        .description    = "GDB Remote Server",
-        .shell          = "server gdb"
+        .name           = "SerServer",
+        .description    = "Serial Port Server",
+        .shell          = "server ser"
     }};
 
     Options options = {
 
+        // ENABLE comes last so it is executed last when a config script is read,
+        // ensuring the server starts with the correct settings.
+
+        Opt::SRV_TRANSPORT,
         Opt::SRV_PORT,
-        Opt::SRV_PROTOCOL,
-        Opt::SRV_AUTORUN,
-        Opt::SRV_VERBOSE
+        Opt::SRV_VERBOSE,
+        Opt::SRV_ENABLE
     };
+
+public:
+
+    // Result of the latest inspection
+    utl::Backed<RemoteServerInfo> info;
 
 protected:
     
     // Current configuration
     ServerConfig config = {};
 
-    // The server thread
-    std::thread serverThread;
-
-    // The current server state
-    SrvState state = SrvState::OFF;
-    
 
     //
     // Initializing
     //
-    
+
 public:
-    
-    using SubComponent::SubComponent;
-    ~RemoteServer() { shutDownServer(); }
-    void shutDownServer();
-    
+
+    RemoteServer(Amiga& ref, isize id);
+
     RemoteServer& operator= (const RemoteServer& other) {
 
         CLONE(config)
-        
+
         return *this;
     }
 
@@ -85,16 +94,17 @@ public:
 protected:
 
     void _dump(Category category, std::ostream &os) const override;
-    
-public:
-
-    const Descriptions &getDescriptions() const override { return descriptions; }
 
 
     //
     // Methods from CoreComponent
     //
-    
+
+private:
+
+    void _halt() override { try { stop(); } catch(...) { } };
+    const Descriptions &getDescriptions() const override { return descriptions; }
+
 protected:
     
     void _powerOff() override;
@@ -106,9 +116,9 @@ protected:
 
         worker
 
+        << config.enable
         << config.port
-        << config.protocol
-        << config.autoRun
+        << config.transport
         << config.verbose;
 
     };
@@ -133,69 +143,107 @@ public:
     void checkOption(Opt opt, i64 value) override;
     void setOption(Opt option, i64 value) override;
 
-
-    //
-    // Examining state
-    //
     
+    //
+    // Analyzing
+    //
+
 public:
 
-    bool isOff() const { return state == SrvState::OFF; }
-    bool isStarting() const { return state == SrvState::STARTING; }
-    bool isListening() const { return state == SrvState::LISTENING; }
-    bool isConnected() const { return state == SrvState::CONNECTED; }
-    bool isStopping() const { return state == SrvState::STOPPING; }
-    bool isErroneous() const { return state == SrvState::INVALID; }
+    RemoteServerInfo cacheInfo() const;
 
-    
+
     //
-    // Starting and stopping the server
+    // Examining the server
     //
-    
-public:
 
-    // Launch the remote server
-    virtual void start() throws;
-
-    // Shuts down the remote server
-    virtual void stop() throws;
-
-    // Disconnects the client
-    virtual void disconnect() throws = 0;
-
-protected:
-
-    // Switches the internal state
-    void switchState(SrvState newState);
-    
 private:
-    
-    // Used by the launch daemon to determine if actions should be taken
-    virtual bool shouldRun() { return true; }
+
+    // Returns a reference to the currently selected transport layer
+    virtual Transport &transport() = 0;
+    virtual const Transport &transport() const = 0;
+
+public:
+
+    virtual bool isSupported(TransportProtocol protocol) const = 0;
+    SrvState getState() const { return transport().getState(); }
+    bool isOff() const { return getState() == SrvState::OFF; }
+    bool isWaiting() const { return getState() == SrvState::WAITING; }
+    bool isStarting() const { return getState() == SrvState::STARTING; }
+    bool isListening() const { return getState() == SrvState::LISTENING; }
+    bool isConnected() const { return getState() == SrvState::CONNECTED; }
+    bool isStopping() const { return getState() == SrvState::STOPPING; }
+    bool isErroneous() const { return getState() == SrvState::INVALID; }
 
 
     //
     // Running the server
     //
 
-protected:
+public:
 
-    // The main thread function
-    virtual void main() throws = 0;
+    // Indicates if the server is ready to launch
+    virtual bool canRun() = 0;
 
-    // Reports an error to the GUI
-    void handleError(const char *description);
+    // Launch the remote server
+    void start();
+
+    // Returns the endpoint the transport is started with (HTTP-based servers)
+    virtual string endpoint() const { return ""; }
+
+    // Shuts down the remote server
+    virtual void stop();
+
+    // Disconnects the client (if any)
+    virtual void disconnect() { transport().disconnect(); }
+
+    // Switches into the WAITING state
+    void waitForLaunch();
 
 
     //
-    // Delegation methods
+    // Recording traffic
     //
 
-    void didSwitch(SrvState from, SrvState to);
-    virtual void didStart() { };
-    virtual void didStop() { };
-    virtual void didConnect() { };
-    virtual void didDisconnect() { };
+public:
+
+    /* Records a transmitted or received packet in the traffic log of the
+     * RemoteManager. This function is called from the transport layer for
+     * every packet that passes through. Note: It may be invoked from the
+     * transport's session thread.
+     */
+    void recordTraffic(TrafficDirection direction, const string &payload);
+
+
+    //
+    // Sending packets
+    //
+
+public:
+
+    // Sends a packet
+    virtual void send(const string &payload) { transport().send(payload); }
+    void send(char payload);
+    void send(int payload);
+    void send(long payload);
+    void send(std::stringstream &payload);
+
+    // Operator overloads
+    RemoteServer &operator<<(char payload) { send(payload); return *this; }
+    RemoteServer &operator<<(const string &payload) { send(payload); return *this; }
+    RemoteServer &operator<<(int payload) { send(payload); return *this; }
+    RemoteServer &operator<<(long payload) { send(payload); return *this; }
+    RemoteServer &operator<<(std::stringstream &payload) { send(payload); return *this; }
+
+
+    //
+    // Methods from TransportDelegate
+    //
+
+public:
+
+    void didSwitch(SrvState from, SrvState to) override;
+    void didTerminate(const string &error) override;
 };
 
 }

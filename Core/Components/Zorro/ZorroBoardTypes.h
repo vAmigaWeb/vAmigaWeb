@@ -2,14 +2,15 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,25 +18,22 @@ namespace vamiga {
 // Constants
 //
 
-// Autoconfig related constants ('type' field)
-#define ERT_ZORROII         0xc0
-#define ERT_ZORROIII        0x80
-#define ERTF_MEMLIST        (1<<5)
-#define ERTF_DIAGVALID      (1<<4)
-#define ERTF_CHAINEDCONFIG  (1<<3)
+/// Autoconfig related constants ('type' field)
+inline constexpr int ERT_ZORROII = 0xc0;
+inline constexpr int ERT_ZORROIII = 0x80;  ///< Board type flag: Zorro III board
+inline constexpr int ERTF_MEMLIST = (1<<5);  ///< Board type flag: Link the board's memory into the system memory list
+inline constexpr int ERTF_DIAGVALID = (1<<4);  ///< Board type flag: The board contains a valid diagnostic area
+inline constexpr int ERTF_CHAINEDCONFIG = (1<<3);  ///< Board type flag: The next board is chained to this one
 
 // Autoconfig related constants ('flags' field)
-
-#define ERFF_MEMSPACE       (1<<7)
-#define ERFF_NOSHUTUP       (1<<6)
-#define ERFF_EXTENDED       (1<<5)
-#define ERFF_ZORRO_III      (1<<4)
-
-
-//
+inline constexpr int ERFF_MEMSPACE = (1<<7);  ///< Flag: The board occupies the memory address space
+inline constexpr int ERFF_NOSHUTUP = (1<<6);  ///< Flag: The board cannot be shut up
+inline constexpr int ERFF_EXTENDED = (1<<5);  ///< Flag: The board uses an extended size
+inline constexpr int ERFF_ZORRO_III = (1<<4); ///< Flag: The board is a Zorro III board
 // Enumerations
 //
 
+/// State of a Zorro expansion board.
 enum class BoardState : long
 {
     AUTOCONF,
@@ -43,7 +41,7 @@ enum class BoardState : long
     SHUTUP
 };
 
-struct BoardStateEnum : Reflection<BoardStateEnum, BoardState>
+struct BoardStateEnum : utl::Reflectable<BoardStateEnum, BoardState>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(BoardState::SHUTUP);

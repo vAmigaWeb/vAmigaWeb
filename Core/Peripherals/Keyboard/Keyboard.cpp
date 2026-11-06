@@ -7,21 +7,27 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Keyboard.h"
 #include "Amiga.h"
-#include "IOUtils.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
-void
-Keyboard::cacheInfo(KeyboardInfo &result) const
+Keyboard::Keyboard(Amiga& ref) : SubComponent(ref)
 {
-    {   SYNCHRONIZED
-        
-        result.state = state;
-        result.shiftReg = shiftReg;
-    }
+    info.bind([this] { return cacheInfo(); } );
+};
+
+KeyboardInfo
+Keyboard::cacheInfo() const
+{
+    KeyboardInfo info;
+
+    info.state = state;
+    info.shiftReg = shiftReg;
+
+    return info;
 }
 
 void
@@ -54,7 +60,7 @@ Keyboard::checkOption(Opt opt, i64 value)
             return;
 
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -76,8 +82,8 @@ Keyboard::setOption(Opt option, i64 value)
 void
 Keyboard::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-    
+    using namespace utl;
+
     if (category == Category::Config) {
         
         dumpConfig(os);
@@ -124,16 +130,18 @@ Keyboard::press(KeyCode keycode)
     
     if (!keyDown[keycode] && !queue.isFull()) {
         
-        trace(KBD_DEBUG, "Pressing Amiga key %02X\n", keycode);
+        logmsg(LOG_KBD, "Pressing Amiga key %02X\n", keycode);
         
         keyDown[keycode] = true;
         queue.write(keycode);
         wakeUp();
-        
+
         // Check for reset key combination (CTRL + Amiga Left + Amiga Right)
         if (keyDown[0x63] && keyDown[0x66] && keyDown[0x67]) {
             msgQueue.put(Msg::CTRL_AMIGA_AMIGA);
         }
+
+        msgQueue.put(Msg::KB_PRESS, keycode);
     }
 }
 
@@ -141,16 +149,19 @@ void
 Keyboard::release(KeyCode keycode)
 {
     assert(keycode < 0x80);
-    
+
     SYNCHRONIZED
-    
-    if (keyDown[keycode] && !queue.isFull()) {
-        
-        trace(KBD_DEBUG, "Releasing Amiga key %02X\n", keycode);
-        
+
+    // Only proceed if the key is currently pressed and unlocked
+    if (keyDown[keycode] && !isLocked(keycode) && !queue.isFull()) {
+
+        logmsg(LOG_KBD, "Releasing Amiga key %02X\n", keycode);
+
         keyDown[keycode] = false;
         queue.write(keycode | 0x80);
         wakeUp();
+
+        msgQueue.put(Msg::KB_RELEASE, keycode);
     }
 }
 
@@ -168,12 +179,55 @@ Keyboard::releaseAll()
     }
 }
 
+bool
+Keyboard::isLocked(KeyCode keycode) const
+{
+    assert(keycode < 0x80);
+    return locked[keycode];
+}
+
+void
+Keyboard::lock(KeyCode keycode)
+{
+    assert(keycode < 0x80);
+
+    SYNCHRONIZED
+
+    if (!locked[keycode]) {
+
+        locked[keycode] = true;
+        msgQueue.put(Msg::KB_LOCK, keycode);
+    }
+}
+
+void
+Keyboard::unlock(KeyCode keycode)
+{
+    assert(keycode < 0x80);
+
+    SYNCHRONIZED
+
+    if (locked[keycode]) {
+
+        locked[keycode] = false;
+        msgQueue.put(Msg::KB_UNLOCK, keycode);
+    }
+}
+
+void
+Keyboard::unlockAll()
+{
+    for (KeyCode i = 0; i < 0x80; i++) {
+        unlock(i);
+    }
+}
+
 void
 Keyboard::wakeUp()
 {
     if (!agnus.hasEvent<SLOT_KBD>()) {
         
-        trace(KBD_DEBUG, "Wake up\n");
+        logmsg(LOG_KBD, "Wake up\n");
         state = KbState::SEND;
         execute();
     }
@@ -182,7 +236,7 @@ Keyboard::wakeUp()
 void
 Keyboard::abortTyping()
 {
-    debug(KEY_DEBUG, "abortTyping()\n");
+    logmsg(LOG_KEY, "abortTyping()\n");
 
     {   SYNCHRONIZED
 
@@ -197,7 +251,7 @@ Keyboard::abortTyping()
 void
 Keyboard::setSPLine(bool value, Cycle cycle)
 {
-    trace(KBD_DEBUG, "setSPLine(%d)\n", value);
+    logmsg(LOG_KBD, "setSPLine(%d)\n", value);
 
     if (value) {
         if (spHigh <= spLow) spHigh = cycle;
@@ -221,13 +275,13 @@ Keyboard::setSPLine(bool value, Cycle cycle)
 
     if (accept) {
 
-        trace(KBD_DEBUG, "Accepting handshake (SP low for %ld usec)\n", diff);
+        logmsg(LOG_KBD, "Accepting handshake (SP low for %td usec)\n", diff);
         processHandshake();
     }
 
     if (reject) {
 
-        trace(KBD_DEBUG, "REJECTING handshake (SP low for %ld usec)\n", diff);
+        logmsg(LOG_KBD, "REJECTING handshake (SP low for %td usec)\n", diff);
     }
 }
 
@@ -260,7 +314,7 @@ Keyboard::execute()
             
         case KbState::SELFTEST:
             
-            trace(KBD_DEBUG, "KB_SELFTEST\n");
+            logmsg(LOG_KBD, "KB_SELFTEST\n");
             
             // Await a handshake within the next second
             agnus.scheduleRel<SLOT_KBD>(SEC(1), KBD_TIMEOUT);
@@ -268,13 +322,13 @@ Keyboard::execute()
             
         case KbState::SYNC:
             
-            trace(KBD_DEBUG, "KB_SYNC\n");
+            logmsg(LOG_KBD, "KB_SYNC\n");
             sendSyncPulse();
             break;
             
         case KbState::STRM_ON:
             
-            trace(KBD_DEBUG, "KB_STRM_ON\n");
+            logmsg(LOG_KBD, "KB_STRM_ON\n");
             
             // Send the "Initiate power-up key stream" code ($FD)
             sendKeyCode(0xFD);
@@ -282,7 +336,7 @@ Keyboard::execute()
             
         case KbState::STRM_OFF:
             
-            trace(KBD_DEBUG, "KB_STRM_OFF\n");
+            logmsg(LOG_KBD, "KB_STRM_OFF\n");
             
             // Send the "Terminate key stream" code ($FE)
             sendKeyCode(0xFE);
@@ -290,7 +344,7 @@ Keyboard::execute()
             
         case KbState::SEND:
 
-            trace(KBD_DEBUG, "KB_SEND\n");
+            logmsg(LOG_KBD, "KB_SEND\n");
 
             // Send a key code if the buffer is filled
             if (!queue.isEmpty()) {
@@ -308,7 +362,7 @@ Keyboard::execute()
 void
 Keyboard::sendKeyCode(u8 code)
 {
-    trace(KBD_DEBUG, "sendKeyCode(%d)\n", code);
+    logmsg(LOG_KBD, "sendKeyCode(%d)\n", code);
 
     // Reorder and invert the key code bits (6-5-4-3-2-1-0-7)
     shiftReg = ~((code << 1) | (code >> 7)) & 0xFF;
@@ -347,7 +401,7 @@ Keyboard::sendSyncPulse()
      *  1 and waits again. This process will continue until a handshake pulse
      *  arrives."
      */
-    trace(KBD_DEBUG, "sendSyncPulse\n");
+    logmsg(LOG_KBD, "sendSyncPulse\n");
     
     if (config.accurate) {
         
@@ -365,7 +419,7 @@ Keyboard::processCommand(const Command &cmd)
 {
     if (cmd.key.delay > 0) {
 
-        trace(KEY_DEBUG, "%s: Delayed for %f sec\n", CmdEnum::key(cmd.type), cmd.key.delay);
+        logmsg(LOG_KEY, "%s: Delayed for %f sec\n", CmdEnum::key(cmd.type), cmd.key.delay);
 
         pending.insert(agnus.clock + SEC(cmd.key.delay),
                        Command(cmd.type, KeyCmd { .keycode = cmd.key.keycode }));
@@ -373,7 +427,7 @@ Keyboard::processCommand(const Command &cmd)
 
     } else {
 
-        trace(KEY_DEBUG, "%s\n", CmdEnum::key(cmd.type));
+        logmsg(LOG_KEY, "%s\n", CmdEnum::key(cmd.type));
 
         switch (cmd.type) {
 
@@ -381,6 +435,8 @@ Keyboard::processCommand(const Command &cmd)
             case Cmd::KEY_RELEASE:       release(cmd.key.keycode); break;
             case Cmd::KEY_RELEASE_ALL:   releaseAll(); break;
             case Cmd::KEY_TOGGLE:        toggle(cmd.key.keycode); break;
+            case Cmd::KEY_LOCK:          lock(cmd.key.keycode); break;
+            case Cmd::KEY_UNLOCK:        unlock(cmd.key.keycode); break;
 
             default:
                 fatalError;

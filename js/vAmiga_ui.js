@@ -641,7 +641,7 @@ function message_handler_queue_worker(msg, data, data2)
         for(let key of [
             'OPT_BLITTER_ACCURACY', 'OPT_DRIVE_SPEED', 'OPT_CPU_REVISION',
             'OPT_CPU_OVERCLOCKING', 'OPT_AGNUS_REVISION', 'OPT_DENISE_REVISION',
-            'OPT_CHIP_RAM', 'OPT_SLOW_RAM', 'OPT_FAST_RAM'
+            'OPT_CHIP_RAM', 'OPT_SLOW_RAM', 'OPT_FAST_RAM', 'OPT_MEM_BUS_WIDTH'
         ]) {
             settings_value_causes[key] = cause;
         }
@@ -2142,7 +2142,7 @@ function InitWrappers() {
     wasm_export_as_folder = Module.cwrap('wasm_export_as_folder', 'string', ['string', 'string']);
     wasm_configure = Module.cwrap('wasm_configure', 'string', ['string', 'string']);
     wasm_configure_multi = Module.cwrap('wasm_configure_multi', 'string', ['string']);
-    wasm_configure_key = Module.cwrap('wasm_configure_key', 'string', ['string', 'string', 'string']);
+    wasm_configure_key = Module.cwrap('wasm_configure_key', 'string', ['string', 'string']);
     wasm_write_string_to_ser = Module.cwrap('wasm_write_string_to_ser', 'undefined', ['string']);
     wasm_print_error = Module.cwrap('wasm_print_error', 'undefined', ['number']);
     wasm_power_on = Module.cwrap('wasm_power_on', 'string', ['number']);
@@ -3418,6 +3418,7 @@ function validate_hardware()
 }
 
 validate_hardware();
+wasm_configure("MEM_BUS_WIDTH", load_setting("OPT_MEM_BUS_WIDTH", "16"));
 
 function bind_config_choice(key, name, values, default_value, value2text=null, text2value=null, targetElement=null, updated_func=null){
     value2text = value2text == null ? (t)=>t: value2text;
@@ -3517,13 +3518,13 @@ bind_config_choice("OPT_DRIVE_SPEED", "floppy drive speed",['-1', '1', '2', '4',
 const CUSTOM_MODEL_KEY = 'CUSTOM';
 
 var amiga_models = {
-    "A1000": { name: "A1000", chipset: "OCS <span style='font-size: x-small; display: inline-block; line-height: 1.1; vertical-align: top'>early<br>rev.</span>", agnus: "OCS_OLD", denise: "OCS", chip: "512", slow: "0", fast: "0", cpu: "0", clock: "0" },
-    "A500_UNEXPANDED": { name: "A500", chipset: "OCS", agnus: "OCS", denise: "OCS", chip: "512", slow: "0", fast: "0", cpu: "0", clock: "0" },
-    "A500_VANILLA": { name: "A500", chipset: "OCS", agnus: "OCS", denise: "OCS", chip: "512", slow: "512", fast: "0", cpu: "0", clock: "0" },
-    "A500+_STOCK": { name: "A500+", chipset: "ECS", agnus: "ECS_2MB", denise: "ECS", chip: "1024", slow: "0", fast: "0", cpu: "0", clock: "0" },
-    "A500+_BOOST": { name: "A500+", chipset: "ECS", agnus: "ECS_2MB", denise: "ECS", chip: "2048", slow: "0", fast: "2048", cpu: "0", clock: "0" },
-    "A1200_STOCK": { name: "A1200", chipset: "AGA", agnus: "AGA", denise: "AGA", chip: "2048", slow: "0", fast: "0", cpu: "2", clock: "2" },
-    "A1200_BOOST": { name: "A1200", chipset: "AGA", agnus: "AGA", denise: "AGA", chip: "2048", slow: "0", fast: "8192", cpu: "2", clock: "4" }
+    "A1000": { name: "A1000", chipset: "OCS <span style='font-size: x-small; display: inline-block; line-height: 1.1; vertical-align: top'>early<br>rev.</span>", agnus: "OCS_OLD", denise: "OCS", chip: "512", slow: "0", fast: "0", cpu: "0", clock: "0", busWidth: "16" },
+    "A500_UNEXPANDED": { name: "A500", chipset: "OCS", agnus: "OCS", denise: "OCS", chip: "512", slow: "0", fast: "0", cpu: "0", clock: "0", busWidth: "16" },
+    "A500_VANILLA": { name: "A500", chipset: "OCS", agnus: "OCS", denise: "OCS", chip: "512", slow: "512", fast: "0", cpu: "0", clock: "0", busWidth: "16" },
+    "A500+_STOCK": { name: "A500+", chipset: "ECS", agnus: "ECS_2MB", denise: "ECS", chip: "1024", slow: "0", fast: "0", cpu: "0", clock: "0", busWidth: "16" },
+    "A500+_BOOST": { name: "A500+", chipset: "ECS", agnus: "ECS_2MB", denise: "ECS", chip: "2048", slow: "0", fast: "2048", cpu: "0", clock: "0", busWidth: "16" },
+    "A1200_STOCK": { name: "A1200", chipset: "AGA", agnus: "AGA", denise: "AGA", chip: "2048", slow: "0", fast: "0", cpu: "2", clock: "2", busWidth: "32" },
+    "A1200_BOOST": { name: "A1200", chipset: "AGA", agnus: "AGA", denise: "AGA", chip: "2048", slow: "0", fast: "8192", cpu: "2", clock: "4", busWidth: "32" }
 };
 
 function format_ram(kb) {
@@ -3683,7 +3684,8 @@ function apply_model(model_key) {
         `SLOW_RAM=${preset.slow}`,
         `FAST_RAM=${preset.fast}`,
         `CPU_REVISION=${preset.cpu}`,
-        `CPU_OVERCLOCKING=${preset.clock}`
+        `CPU_OVERCLOCKING=${preset.clock}`,
+        `MEM_BUS_WIDTH=${preset.busWidth}`
     ].join('\n');
 
     let result = wasm_configure_multi(config_lines);
@@ -3695,7 +3697,7 @@ function apply_model(model_key) {
     for(let key of [
         'OPT_AGNUS_REVISION', 'OPT_DENISE_REVISION', 'OPT_CHIP_RAM',
         'OPT_SLOW_RAM', 'OPT_FAST_RAM', 'OPT_CPU_REVISION',
-        'OPT_CPU_OVERCLOCKING'
+        'OPT_CPU_OVERCLOCKING', 'OPT_MEM_BUS_WIDTH'
     ]) {
         delete settings_value_causes[key];
     }
@@ -3707,6 +3709,7 @@ function apply_model(model_key) {
     save_setting('OPT_FAST_RAM', preset.fast);
     save_setting('OPT_CPU_REVISION', preset.cpu);
     save_setting('OPT_CPU_OVERCLOCKING', preset.clock);
+    save_setting('OPT_MEM_BUS_WIDTH', preset.busWidth);
 
     update_hardware_button('OPT_AGNUS_REVISION', preset.agnus);
     update_hardware_button('OPT_DENISE_REVISION', preset.denise);
@@ -3748,7 +3751,8 @@ function update_model_from_hardware(preset=null) {
         let m = amiga_models[key];
         if (m.agnus === agnus && m.denise === denise &&
             m.chip === chip_v && m.slow === slow_v && m.fast === fast_v &&
-            String(m.cpu) === cpu && String(m.clock) === clock_v) {
+            String(m.cpu) === cpu && String(m.clock) === clock_v &&
+            m.busWidth === String(wasm_get_config_item('MEM.BUS_WIDTH'))) {
             remove_custom_model();
             show_current_model(key);
             return;
@@ -4876,7 +4880,7 @@ $('.layer').change( function(event) {
         }
     }
 
-    execute_update = async function() 
+    window.execute_update = async function()
     {
         let current_version= await get_settings_cache_value('active_version');
         if(current_version == null)

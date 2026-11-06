@@ -7,11 +7,11 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "OSDebugger.h"
-#include "IOUtils.h"
 #include "Memory.h"
 #include "Thread.h"
+#include "utl/io.h"
 #include <sstream>
 
 namespace vamiga {
@@ -19,7 +19,8 @@ namespace vamiga {
 void
 OSDebugger::dumpInfo(std::ostream &s)
 {
-    using namespace util;
+    using namespace utl;
+
     auto execBase = getExecBase();
     auto flags = execBase.AttnFlags;
     auto pal = execBase.VBlankFrequency == 50;
@@ -55,7 +56,7 @@ OSDebugger::dumpInfo(std::ostream &s)
 void
 OSDebugger::dumpExecBase(std::ostream &s)
 {
-    using namespace util;
+    using namespace utl;
     auto execBase = getExecBase();
     
     s << tab("SoftVer");
@@ -140,7 +141,7 @@ OSDebugger::dumpIntVectors(std::ostream &s)
         "8",  "9", "10", "11", "12", "13", "14", "15"
     };
     
-    using namespace util;
+    using namespace utl;
     auto execBase = getExecBase();
     
     for (isize i = 0; i < 16; i++) {
@@ -160,8 +161,8 @@ OSDebugger::dumpIntVector(std::ostream &s, const os::IntVector &intVec)
     string name;
     read(irq.is_Node.ln_Name, name);
     
-    using namespace util;
-    
+    using namespace utl;
+
     if (!name.empty()) {
         
         s << tab("Name");
@@ -208,8 +209,8 @@ OSDebugger::dumpLibrary(std::ostream &s, const string &name)
 void
 OSDebugger::dumpLibrary(std::ostream &s, const os::Library &lib, bool verbose)
 {
-    using namespace util;
-    
+    using namespace utl;
+
     string nodeName;
     read(lib.lib_Node.ln_Name, nodeName);
     
@@ -357,8 +358,8 @@ OSDebugger::dumpTask(std::ostream &s, const string &name)
 void
 OSDebugger::dumpTask(std::ostream &s, const os::Task &task, bool verbose)
 {
-    using namespace util;
-    
+    using namespace utl;
+
     string nodeName;
     read(task.tc_Node.ln_Name, nodeName);
     
@@ -461,7 +462,7 @@ OSDebugger::dumpProcesses(std::ostream &s)
 void
 OSDebugger::dumpProcess(std::ostream &s, const os::Process &process, bool verbose)
 {
-    using namespace util;
+    using namespace utl;
     
     if (verbose) {
         

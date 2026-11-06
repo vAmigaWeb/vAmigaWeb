@@ -9,21 +9,22 @@
 
 #pragma once
 
-#include "HttpServer.h"
+#include "RemoteServer.h"
+#include "HttpTransport.h"
 
 namespace vamiga {
 
-class PromServer final : public HttpServer {
+class PromServer final : public RemoteServer {
+
+    HttpTransport http = HttpTransport(*this);
 
 public:
 
-    using HttpServer::HttpServer;
-
-protected:
+    using RemoteServer::RemoteServer;
 
     PromServer& operator= (const PromServer& other) {
 
-        HttpServer::operator = (other);
+        RemoteServer::operator = (other);
         return *this;
     }
 
@@ -34,6 +35,7 @@ protected:
 
 protected:
 
+    void _initialize() override;
     void _dump(Category category, std::ostream &os) const override;
 
 
@@ -43,7 +45,21 @@ protected:
 
 public:
 
-    void main() override;
+    bool canRun() override { return true; }
+    string endpoint() const override { return "/metrics"; }
+
+private:
+
+    Transport &transport() override;
+    const Transport &transport() const override;
+    bool isSupported(TransportProtocol protocol) const override;
+
+
+    //
+    // Methods from TransportDelegate
+    //
+
+    void didReceive(const httplib::Request &req, httplib::Response &res) override;
 
 
     //

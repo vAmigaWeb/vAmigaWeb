@@ -11,6 +11,7 @@
 
 #include "SerialPortTypes.h"
 #include "SubComponent.h"
+#include "utl/wrappers.h"
 
 namespace vamiga {
 
@@ -23,7 +24,9 @@ namespace vamiga {
 #define DTR_MASK (1 << 20)
 #define RI_MASK  (1 << 22)
 
-class SerialPort final : public SubComponent, public Inspectable<SerialPortInfo> {
+class SerialPort final : public SubComponent {
+
+    friend class UART;
 
     Descriptions descriptions = {{
 
@@ -36,13 +39,17 @@ class SerialPort final : public SubComponent, public Inspectable<SerialPortInfo>
     Options options = {
 
         Opt::SER_DEVICE,
-        Opt::SER_VERBOSE
+        Opt::SER_VERBOSE,
+        Opt::SER_HANDSHAKE
     };
 
-    friend class UART;
-    
     // Current configuration
     SerialPortConfig config = {};
+
+public:
+
+    // Result of the latest inspection
+    utl::Backed<SerialPortInfo> info;
 
     // The current values of the port pins
     u32 port = 0;
@@ -58,7 +65,7 @@ class SerialPort final : public SubComponent, public Inspectable<SerialPortInfo>
 
 public:
 
-    using SubComponent::SubComponent;
+    SerialPort(Amiga& ref);
 
     SerialPort& operator= (const SerialPort& other) {
 
@@ -120,12 +127,12 @@ public:
     
 
     //
-    // Methods from Inspectable
+    // Analyzing
     //
 
 public:
 
-    void cacheInfo(SerialPortInfo &info) const override;
+    SerialPortInfo cacheInfo() const;
 
     
     //
@@ -162,6 +169,9 @@ public:
 private:
 
     void setPort(u32 mask, bool value);
+
+    // Drives the lines the null modem's peer controls (CTS, DSR, CD)
+    void setPeerLines(bool value);
 
 
     //
