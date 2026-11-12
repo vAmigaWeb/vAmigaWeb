@@ -1,5 +1,6 @@
 const vAmigaWeb_version="5.0.0"; //minimum requirement for snapshot version to be compatible
 const compatible_snapshot_version_format=/^(5[.]0[.]0)$/g
+const snapshot_preview_pixels_offset = 24;
 var current_browser_datasource='snapshots';
 var current_browser_command=null;
 
@@ -24,12 +25,6 @@ function load_workspace(name){
         $("#drop_zone").html('<svg width="1.3em" height="1.3em" viewBox="0 0 16 16" class="bi bi-archive-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M12.643 15C13.979 15 15 13.845 15 12.5V5H1v7.5C1 13.845 2.021 15 3.357 15h9.286zM5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM.8 1a.8.8 0 0 0-.8.8V3a.8.8 0 0 0 .8.8h14.4A.8.8 0 0 0 16 3V1.8a.8.8 0 0 0-.8-.8H.8z"/></svg> zip');
         $("#drop_zone").css("border", "3px solid var(--green)");
     }
-
-
-    if(!is_running())
-    {
-        app.button_run_click();
-    }     
 }
 
 function zip_and_download_folder(zip_filename, fs_path) {
@@ -492,7 +487,9 @@ var collectors = {
             }
 
             var src_data = item.data;
-            var version = src_data[6] +'.'+src_data[7]+'.'+src_data[8];
+            
+            
+                var version = src_data[6] +'.'+src_data[7]+'.'+src_data[8];
             if(src_data[9]>0)
             {
                 version += `_beta${src_data[9]}`;
@@ -519,7 +516,11 @@ var collectors = {
             {
                 var imgData = ctx.createImageData(width,height);
                 var data = imgData.data;
-                let snapshot_data = new Uint8Array(src_data, 40/* offset .. this number was a guess... */, data.length);
+                let snapshot_data = src_data.subarray(snapshot_preview_pixels_offset,
+                    snapshot_preview_pixels_offset + data.length);
+                if (snapshot_data.length !== data.length) {
+                    throw new Error("Snapshot preview data is incomplete");
+                }
                 data.set(snapshot_data.subarray(0, data.length), 0);
                 ctx.putImageData(imgData,0,0);
 
@@ -650,15 +651,23 @@ var collectors = {
             try { img.src = canvas.toDataURL('image/png'); } catch(e) { canvas.toBlob(b=>{ img.src = URL.createObjectURL(b); }); }
         },
         copy_autosnapshot_to_img: function(snapshot_data, img){ 
+            const snapshot_bytes = snapshot_data instanceof ArrayBuffer
+                ? new Uint8Array(snapshot_data)
+                : new Uint8Array(snapshot_data.buffer, snapshot_data.byteOffset, snapshot_data.byteLength);
             var canvas = document.createElement('canvas');
-            canvas.width = snapshot_data[13+4]*256+ snapshot_data[12+4];
-            canvas.height = snapshot_data[17+4]*256+ snapshot_data[16+4];
+            canvas.width = snapshot_bytes[17]*256 + snapshot_bytes[16];
+            canvas.height = snapshot_bytes[21]*256 + snapshot_bytes[20];
             var ctx = canvas.getContext('2d');
             var imgData = ctx.createImageData(canvas.width,canvas.height);
 
             var data = imgData.data;
 
-            data.set(snapshot_data.subarray(0, data.length), 0);
+            const preview = snapshot_bytes.subarray(snapshot_preview_pixels_offset,
+                snapshot_preview_pixels_offset + data.length);
+            if (preview.length !== data.length) {
+                throw new Error("Snapshot preview data is incomplete");
+            }
+            data.set(preview, 0);
             ctx.putImageData(imgData,0,0);
             try { img.src = canvas.toDataURL('image/png'); } catch(e) { canvas.toBlob(b=>{ img.src = URL.createObjectURL(b); }); }
         }

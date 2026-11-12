@@ -860,14 +860,16 @@ button[id^="detail_run"] {
     display: none
 }
 
-#mastervolume {
+#mastervolume,
+#audiobuffersize {
     display: grid;
     grid-template-columns: 1fr;
     align-items: center; /* Vertikale Zentrierung */
     margin: 10px 0; /* Abstand um das Grid */
 }
 
-#volumetext 
+#volumetext,
+#audio_buffer_size_text
 {
     display: flex;
     justify-content: center;
@@ -891,6 +893,22 @@ button[id^="detail_run"] {
     cursor: pointer;
     overflow: hidden;
     height: 140%; /* because firefox does not respect thumbs height*/
+}
+
+#audio_buffer_size_input {
+    --c: #007bff;
+    --l: 6px;
+    --s: 20px;
+
+    --_c: color-mix(in srgb, var(--c), #000 var(--p,0%));
+    -webkit-appearance :none;
+    -moz-appearance :none;
+    appearance :none;
+    background:
+      linear-gradient(-90deg,#ababab 60%,#0000 0) 100%/calc(100% / 12) calc(var(--l) - 1px) repeat-x;
+    cursor: pointer;
+    overflow: hidden;
+    height: 140%;
 }
 
 input:focus-visible,

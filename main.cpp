@@ -1595,31 +1595,44 @@ extern "C" float* wasm_get_sound_buffer_address()
   return sound_buffer;
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE float wasm_get_audio_buffer_fill_level()
+{
+  const auto metrics = wrapper->emu->audioPort.getMetrics();
+  return float(metrics.fillLevel);
+}
+
 extern "C" unsigned wasm_copy_into_sound_buffer()
 {
-  unsigned copied_samples = 0;
-  constexpr unsigned buffer_capacity = sizeof(sound_buffer) / sizeof(sound_buffer[0]);
-  while(copied_samples + 2048 <= buffer_capacity)
-  {
-    auto copied = wrapper->emu->audioPort.copyStereo(
-      sound_buffer + copied_samples,
-      sound_buffer + copied_samples + 1024,
-      1024);
-    copied_samples += unsigned(copied) * 2;
-    if (copied < 1024) break;
-//  printf("fillLevel (%lf)",wrapper->emu->paula.muxer.stream.fillLevel());
-  }
-  sum_samples += copied_samples/2; 
+  constexpr unsigned frames_per_buffer = 1024;
+  auto copied = wrapper->emu->audioPort.copyStereo(
+    sound_buffer,
+    sound_buffer + frames_per_buffer,
+    frames_per_buffer);
 
-/*  printf("copyMono[%d]: ", 16);
-  for(int i=0; i<16; i++)
-  {
-    //printf("%hhu,",stream[i]);
-    printf("%f,",sound_buffer[i]);
+  /*
+  static unsigned audio_log_countdown = 0;
+  float peak = 0.0f;
+  double sum_squares = 0.0;
+  for (unsigned i = 0; i < unsigned(copied); i++) {
+    float left = sound_buffer[i];
+    float right = sound_buffer[frames_per_buffer + i];
+    peak = std::max(peak, std::abs(left));
+    peak = std::max(peak, std::abs(right));
+    sum_squares += double(left) * left + double(right) * right;
   }
-  printf("\n"); 
-*/
-  return copied_samples/2;
+  if (audio_log_countdown == 0) {
+    double rms = copied > 0 ? std::sqrt(sum_squares / (2.0 * copied)) : 0.0;
+    printf("Audio debug: copied %u frames; peak=%g RMS=%g\n",
+           unsigned(copied), double(peak), rms);
+    audio_log_countdown = 255;
+  } else {
+    audio_log_countdown--;
+  }
+  */
+
+  sum_samples += unsigned(copied);
+  // copyStereo zero-pads an underflow, so JS can always consume the full block.
+  return frames_per_buffer;
 }
 
 
@@ -2693,6 +2706,14 @@ extern "C" const char* wasm_configure(char* option, char* _value)
     {
       wrapper->emu->set(Opt(util::parseEnum <OptEnum>(std::string(option))), util::parseEnum<SerialPortDeviceEnum>(value));
     }
+    else if(strcmp(option,"AUD.BUFFER_SIZE") == 0)
+    {
+      wrapper->emu->set(Opt::AUD_BUFFER_SIZE, util::parseNum(value));
+    }
+    else if(strcmp(option,"AUD.ASR") == 0)
+    {
+      wrapper->emu->set(Opt::AUD_ASR, util::parseBool(value));
+    }
     else if ( strcmp(option,"BLITTER_ACCURACY") == 0 ||
               strcmp(option,"DRIVE_SPEED") == 0  ||
               strcmp(option,"CHIP_RAM") == 0  ||
@@ -2730,7 +2751,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
     else if(strcmp(option,"OPT_EMU_RUN_AHEAD") == 0)
     {
       auto frames=util::parseNum(value);
-      printf("calling amiga->configure %s = %ld\n", option, frames);
+      printf("calling amiga->configure %s = %lld\n", option, frames);
       wrapper->emu->set(Opt::AMIGA_RUN_AHEAD, frames);
     }
     else if( strcmp(option,"OPT_AMIGA_SPEED_BOOST") == 0)
@@ -3014,6 +3035,16 @@ extern "C" double wasm_activity(u8 id, u8 read_or_write)
 Thumbnail preview;
 extern "C" char* wasm_save_workspace(char* path)
 {
+
+  preview.take(wrapper->emu->getAmiga());
+
+  sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %u, \"width\": %d, \"height\":%d }",
+    (unsigned long)preview.screen, 
+    preview.width*preview.height*4,
+    preview.width,
+    preview.height
+    );
+
   try{
     auto xray_mode = wrapper->emu->get(Opt::XRAY_MODE);
     wrapper->emu->set(Opt::XRAY_MODE, (i64)XRayMode::XRAY_NONE);
@@ -3032,19 +3063,16 @@ extern "C" char* wasm_save_workspace(char* path)
     }, e.what());    
   }
 
-  preview.take(wrapper->emu->getAmiga());
-
-  sprintf(wasm_pull_user_snapshot_file_json_result, "{\"address\":%lu, \"size\": %u, \"width\": %d, \"height\":%d }",
-    (unsigned long)preview.screen, 
-    preview.width*preview.height*4,
-    preview.width,
-    preview.height
-    );
   return wasm_pull_user_snapshot_file_json_result;
 }
 
 extern "C" void wasm_load_workspace(char* path)
 {
+  printf("[WS-DIAG 20261108-D] wasm_load_workspace build=%s path=%s\n",
+         Amiga::build().c_str(), path);
+  EM_ASM({
+    console.info("[WS-DIAG 20261108-E] wasm_load_workspace", UTF8ToString($0), UTF8ToString($1));
+  }, Amiga::build().c_str(), path);
   try{
     auto xray_mode = wrapper->emu->get(Opt::XRAY_MODE);
     auto channel0 = wrapper->emu->get(Opt::XRAY_DMA_CHANNEL0);
@@ -3057,6 +3085,7 @@ extern "C" void wasm_load_workspace(char* path)
     auto channel7 = wrapper->emu->get(Opt::XRAY_DMA_CHANNEL7);
 
     wrapper->emu->amiga.loadWorkspace(path);
+    printf("[WS-DIAG 20261108-D] loadWorkspace returned\n");
 
     wrapper->emu->set(Opt::XRAY_MODE, xray_mode);
     wrapper->emu->set(Opt::XRAY_DMA_CHANNEL0, channel0);
@@ -3071,9 +3100,10 @@ extern "C" void wasm_load_workspace(char* path)
 
   }
   catch (const std::exception& e) {
-    printf("Error %s\n", e.what());
+    printf("[WS-DIAG 20261108-D] wasm_load_workspace caught error='%s'\n", e.what());
     EM_ASM(
     {
+      console.error("[WS-DIAG 20261108-E] wasm_load_workspace caught:", UTF8ToString($0));
       alert(`Error - ${UTF8ToString($0)}`);
     }, e.what());    
   }

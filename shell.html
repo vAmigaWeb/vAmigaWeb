@@ -619,6 +619,19 @@
                 <label for="volume-slider" id="volumetext">Volume</label>
                 <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="0.5">
               </div>
+
+            <div class="mt-3">
+              <div id="audiobuffersize">
+                <label for="audio_buffer_size_input" id="audio_buffer_size_text">audio buffer capacity</label>
+                <input id="audio_buffer_size_input" type="range" min="4096" max="16384" step="1024" value="4096">
+              </div>
+              <div id="audio_buffer_fill_text" class="help_text" style="font-size: small">current Audio Buffer Filllevel: --</div>
+            </div>
+            <div class="custom-control custom-switch mt-2">
+              <input type="checkbox" class="custom-control-input" id="audio_asr_switch" />
+              <label class="custom-control-label" for="audio_asr_switch">adaptive sample rate (ASR)</label>
+            </div>
+            <div id="audio_asr_help" class="help_text" style="font-size: small"></div>
     
             <div class="custom-control custom-switch mt-3">
               <input type="checkbox" class="custom-control-input" id="retro_shell_enabled_switch" />

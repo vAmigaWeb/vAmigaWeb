@@ -50,12 +50,12 @@ parseOnOff(const string& token)
     throw ParseError(ParseError::PARSE_ON_OFF_ERROR, token);
 }
 
-long
+i64
 parseNum(const string& token)
 {
     string _token = token;
     int base = 0;
-    long result;
+    i64 result;
 
     if (token.starts_with("$")) {
 
@@ -75,7 +75,7 @@ parseNum(const string& token)
 
     try {
 
-        result = stol(_token, nullptr, base);
+        result = stoll(_token, nullptr, base);
 
     } catch (std::exception&) {
 

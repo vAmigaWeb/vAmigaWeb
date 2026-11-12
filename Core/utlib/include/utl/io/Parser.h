@@ -11,6 +11,7 @@
 
 #include "utl/abilities/Reflectable.h"
 #include "utl/io/ParseError.h"
+#include "utl/types/Integers.h"
 
 namespace utl {
 
@@ -20,7 +21,7 @@ bool isNum(const string& token);
 
 bool parseBool(const string& token);
 bool parseOnOff(const string& token);
-long parseNum(const string& token);
+i64 parseNum(const string& token);
 string parseSeq(const string& token);
 
 template <typename Enum> long parseEnum(const string& key)

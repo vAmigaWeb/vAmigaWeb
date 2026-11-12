@@ -29,8 +29,8 @@ endif()
 add_library(VACore VAmiga.cpp vadebug.cpp)
 
 # Add the headless app
-add_executable(VAHeadless Headless.cpp vadebug.cpp)
-target_link_libraries(VAHeadless PUBLIC VACore)
+#add_executable(VAHeadless Headless.cpp vadebug.cpp)
+#target_link_libraries(VAHeadless PUBLIC VACore)
 
 # Specify compile options
 target_compile_definitions(VACore PUBLIC _USE_MATH_DEFINES)
@@ -49,10 +49,22 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 # target_compile_options(VACore PUBLIC -Wno-array-bounds)
   target_compile_options(VACore PUBLIC -fconcepts)
 else()
-  target_compile_options(VACore PUBLIC -Wall -Werror)
-  target_compile_options(VACore PUBLIC -Wno-unused-parameter)
-  target_compile_options(VACore PUBLIC -Wno-gnu-anonymous-struct)
-  target_compile_options(VACore PUBLIC -Wno-nested-anon-types)
+ target_compile_options(VACore PUBLIC -Wno-gnu-anonymous-struct)
+ target_compile_options(VACore PUBLIC -Wno-nested-anon-types)
+ target_compile_options(VACore PRIVATE -Wall -Werror)
+ target_compile_options(VACore PRIVATE -Wno-unused-parameter -Wno-unused-but-set-variable)
+ target_compile_options(VACore PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions -sWASM_LEGACY_EXCEPTIONS=0 -flto)
+
+ target_compile_options(VACore PRIVATE -Wfatal-errors)
+ target_compile_options(VACore PRIVATE -sUSE_ZLIB=1)
+
+  if("${thread_type}" STREQUAL "worker")
+	  target_compile_options(VACore PRIVATE -sWASM_WORKERS)
+  endif()
+  
+  #target_compile_options(VACore PRIVATE -g) 
+  target_link_options(VACore PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions -sWASM_LEGACY_EXCEPTIONS=0 -flto)
+ 
 endif()
 
 # Add include paths
@@ -68,6 +80,15 @@ add_subdirectory(Peripherals)
 add_subdirectory(Ports)
 add_subdirectory(rvlib)
 add_subdirectory(ThirdParty)
+
+if(EMSCRIPTEN)
+  foreach(lib utlib rvlib xdms)
+    target_compile_options(${lib} PRIVATE -O3 -mnontrapping-fptoint -fwasm-exceptions -sWASM_LEGACY_EXCEPTIONS=0 -flto)
+    if("${thread_type}" STREQUAL "worker")
+      target_compile_options(${lib} PRIVATE -sWASM_WORKERS)
+    endif()
+  endforeach()
+endif()
 
 # Add libraries
 set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -89,11 +110,11 @@ target_link_libraries(VACore
 )
 
 # Link zlib if available
-if(ZLIB_FOUND)
-  target_link_libraries(VACore PUBLIC ZLIB::ZLIB)
-  target_link_libraries(VAHeadless PUBLIC ZLIB::ZLIB)
+#if(ZLIB_FOUND)
+#  target_link_libraries(VACore PUBLIC ZLIB::ZLIB)
+#  target_link_libraries(VAHeadless PUBLIC ZLIB::ZLIB)
   target_compile_definitions(VACore PUBLIC USE_ZLIB=1)  # Optional define for conditional compilation
-endif()
+#endif()
 
 # Add tests
 add_test(NAME SelfTest1 COMMAND VAHeadless --verbose --footprint)

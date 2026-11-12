@@ -31,19 +31,25 @@ file(GLOB_RECURSE UTL_SRC
 
 target_sources(utlib PRIVATE ${UTL_SRC})
 
-# zlib backs the gzip/gunzip codecs in Compressible. Deliberately optional
-# rather than REQUIRED: the library is fine without it -- those two codecs
-# throw and the rest (lz4, rle2) are unaffected -- and the Windows CI leg has
-# no zlib to find. USE_ZLIB is PUBLIC so it reaches the tests, which select
-# between a round-trip check and a throws-check on it.
-find_package(ZLIB)
-
-if(ZLIB_FOUND)
-  target_link_libraries(utlib PUBLIC ZLIB::ZLIB)
+# zlib backs the gzip/gunzip codecs in Compressible. Emscripten provides zlib
+# through its USE_ZLIB port rather than a CMake package in the sysroot.
+if(EMSCRIPTEN)
+  target_compile_options(utlib PRIVATE -sUSE_ZLIB=1)
   target_compile_definitions(utlib PUBLIC USE_ZLIB=1)
-  message(STATUS "utlib: zlib found, gzip/gunzip enabled")
+  target_link_options(utlib INTERFACE -sUSE_ZLIB=1)
+  message(STATUS "utlib: Emscripten zlib enabled")
 else()
-  message(STATUS "utlib: zlib not found, gzip/gunzip will throw")
+  # Deliberately optional outside Emscripten: the library is fine without it,
+  # and some build environments (such as the Windows CI leg) have no zlib.
+  find_package(ZLIB)
+
+  if(ZLIB_FOUND)
+    target_link_libraries(utlib PUBLIC ZLIB::ZLIB)
+    target_compile_definitions(utlib PUBLIC USE_ZLIB=1)
+    message(STATUS "utlib: zlib found, gzip/gunzip enabled")
+  else()
+    message(STATUS "utlib: zlib not found, gzip/gunzip will throw")
+  endif()
 endif()
 
 if(UTLIB_COVERAGE)

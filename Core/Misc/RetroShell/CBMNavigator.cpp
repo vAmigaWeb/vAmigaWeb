@@ -17,6 +17,7 @@
 #include "utl/support.h"
 #include "utl/io.h"
 #include <climits>
+#include <limits>
 #include <format>
 #include <regex>
 
@@ -168,7 +169,16 @@ Console::cbmParseBlock(const std::string &argv)
         auto t = parseNum(lhs);
         auto s = parseNum(rhs);
 
-        if (auto nr = cbmFs->getTraits().blockNr(TSLink{t,s}))
+        if (t < std::numeric_limits<TrackNr>::min() ||
+            t > std::numeric_limits<TrackNr>::max() ||
+            s < std::numeric_limits<SectorNr>::min() ||
+            s > std::numeric_limits<SectorNr>::max()) {
+            throw CoreError(CoreError::OPT_INV_ARG, argv);
+        }
+
+        if (auto nr = cbmFs->getTraits().blockNr(TSLink{
+                static_cast<TrackNr>(t),
+                static_cast<SectorNr>(s)}))
             return *nr;
 
     } else {
@@ -964,4 +974,3 @@ Console::initCBMNavigatorCommands(RSCommand &root)
 }
 
 }
-

@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 
 project(vAmiga C CXX)
 
+#add_compile_options(-g)
+
 #to build a worker built 
 #1.set thread_type to "worker"
 #2.go to the sw.js and set needs_shared_array_buffer=true
@@ -14,6 +16,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS False)
 
 add_executable(vAmiga main.cpp OtherFile.cpp)
+#target_link_options(vAmiga PRIVATE -g)
 
 if("${thread_type}" STREQUAL "worker")
 	target_compile_options(vAmiga PRIVATE -sWASM_WORKERS)
@@ -27,7 +30,6 @@ target_compile_options(vAmiga PRIVATE
 	-O3 -mnontrapping-fptoint -fwasm-exceptions -sWASM_LEGACY_EXCEPTIONS=0 -flto
 	-Wfatal-errors	
 	-sUSE_ZLIB=1
-	#-g
 )
 
 add_subdirectory("Core" "VACore")
@@ -35,6 +37,7 @@ target_link_libraries(vAmiga VACore)
 
 #configure the service worker
 file(READ sw_template.js sw_template)
+string(TIMESTAMP ui_version "%Y_%m_%d_%H_%M")
 if("${thread_type}" STREQUAL "worker")
 	set(needs_shared_array_buffer "true")
 	file(CONFIGURE OUTPUT sw.js CONTENT "${sw_template}" @ONLY)
@@ -88,7 +91,7 @@ else()
 		-sALLOW_MEMORY_GROWTH=1
 		-sMAXIMUM_MEMORY=4GB
 		#exported functions and runtime methods
-		-sEXPORTED_RUNTIME_METHODS=cwrap,ccall,HEAPU8,HEAPU16,HEAPF32
+		-sEXPORTED_RUNTIME_METHODS=cwrap,ccall,HEAPU8,HEAPU16,HEAPF32,IDBFS
 		-sEXPORTED_FUNCTIONS=_wasm_delete_disk,_malloc,_free,_main,_wasm_loadFile,_wasm_mem_patch,_wasm_key,_wasm_joystick,_wasm_reset,_wasm_halt,_wasm_run,_wasm_take_user_snapshot,_wasm_set_warp,_wasm_set_manual_warp,_wasm_delete_user_snapshot,_wasm_sprite_info,_wasm_cut_layers,_wasm_rom_info,_wasm_get_cpu_cycles,_wasm_set_color_palette,_wasm_schedule_key,_wasm_peek,_wasm_peek16,_wasm_set_bitplane_guess,_wasm_get_bitplane_areas,_wasm_set_write_tracking,_wasm_get_write_owner,_wasm_get_write_owner_ptr,_wasm_get_write_frame_ptr,_wasm_get_read_frame_ptr,_wasm_get_access_frame,_wasm_get_access_chip_size,_wasm_get_access_slow_size,_wasm_get_access_fast_size,_wasm_get_fast_base,_wasm_get_rom_size,_wasm_poke,_wasm_export_disk,_wasm_export_as_folder,_wasm_has_disk,_wasm_configure,_wasm_configure_multi,_wasm_write_string_to_ser,_wasm_write_byte_to_ser,_wasm_print_error,_wasm_power_on,_wasm_get_sound_buffer_address,_wasm_copy_into_sound_buffer,_wasm_set_sample_rate,_wasm_mouse,_wasm_mouse_button,_wasm_set_display,_wasm_auto_type,_wasm_set_target_fps,_wasm_get_renderer,_wasm_get_render_width,_wasm_get_render_height,_wasm_get_config_item,_wasm_get_core_version,_wasm_eject_disk,_wasm_draw_one_frame,_wasm_execute,_wasm_execute_one_frame,_wasm_pixel_buffer,_wasm_frame_info,_wasm_worker_run,_wasm_is_worker_built,_wasm_update_audio,_wasm_rightChannelBuffer,_wasm_leftChannelBuffer,_wasm_activity,_wasm_configure_key,_wasm_is_warping,_wasm_save_workspace,_wasm_load_workspace,_wasm_retro_shell,_wasm_retro_shell_get_text,_wasm_retro_shell_get_cursor,_wasm_retro_shell_get_console,_wasm_retro_shell_press_key,_wasm_retro_shell_press_special
 		-sDISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=1
 		-sLLD_REPORT_UNDEFINED

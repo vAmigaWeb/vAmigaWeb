@@ -151,21 +151,29 @@ const load_script= (url) => {
 
 imported_hd_path = '/imported_hd';
 exported_hd_path = '/exported_hd';
+function fs_exists(path) {
+    try {
+        FS.stat(path);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+const mounted_folders = new Set();
 async function mount_folder(folder_path) {
-    return new Promise((resolve, reject) => {
-        try{
-            FS.mkdir(folder_path) 
-        } catch(e) {console.log(e)}
-        try{
-            FS.mount(IDBFS, {}, folder_path);
-        } catch(e) {console.log(e)}
+    if (!fs_exists(folder_path)) {
+        FS.mkdir(folder_path);
+    }
 
-        FS.syncfs(true, () => {
-        // Callback function when sync is complete
-            resolve();
-            console.log(`${folder_path} mounted`);
-        });
+    if (!mounted_folders.has(folder_path)) {
+        FS.mount(IDBFS, {}, folder_path);
+        mounted_folders.add(folder_path);
+    }
+
+    await new Promise((resolve, reject) => {
+        FS.syncfs(true, error => error ? reject(error) : resolve());
     });
+    console.log(`${folder_path} mounted`);
 }
 
 function ToBase64_small(u8) 
@@ -686,6 +694,20 @@ function message_handler_queue_worker(msg, data, data2)
 
         rom_restored_from_snapshot=true;
         rom_restored_cause = cause;
+        if(msg == "MSG_WORKSPACE_LOADED")
+        {
+            queueMicrotask(function(){
+            if(!is_running())
+            {
+                app.button_run_click();
+            }
+            else if(!emulator_currently_runs)
+            {
+                wasm_run();
+                try { connect_audio_processor(); } catch(e) { console.error(e); }
+            }
+            });
+        }
     } 
     else if(msg == "MSG_SER_OUT")
     {
@@ -1085,7 +1107,7 @@ function configure_file_dialog(reset=false)
                         {
                             alternate_filename=null;
                             current_path = current_path.replace('/config.retrosh','').replace(".vamiga","").replace(".vamiga","").replace(".vamiga","")
-                            if (!FS.analyzePath(workspace_path+"/"+current_path).exists) {
+                            if (!fs_exists(workspace_path+"/"+current_path)) {
                                 FS.mkdir(workspace_path +"/"+ current_path);
                             }
                             else
@@ -1133,7 +1155,7 @@ function configure_file_dialog(reset=false)
                                 
 
                                 alternate_filename = incrementLastNumber(current_path)                              
-                                while (FS.analyzePath(workspace_path+"/"+alternate_filename).exists) {
+                                while (fs_exists(workspace_path+"/"+alternate_filename)) {
                                     alternate_filename = incrementLastNumber(alternate_filename)
                                 }
 
@@ -1151,21 +1173,35 @@ function configure_file_dialog(reset=false)
                                 }
                             }    
                         }
-                        FS.syncfs(()=>{});
 
+                        try {
+                            await new Promise((resolve, reject) => {
+                                FS.syncfs(false, error => error ? reject(error) : resolve());
+                            });
+                        } catch (error) {
+                            console.error("Failed to save imported workspace", error);
+                            alert(`Failed to save imported workspace: ${error.message || error}`);
+                            return;
+                        }
+
+                        let open_workspace_browser = true;
                         if(workspaces_found.length==1)
                         {
                             let load_now = confirm(`imported workspace ${alternate_filename?alternate_filename:current_path} would you like to load it now ?`);
                             if(load_now)
                             {
                                 load_workspace(alternate_filename?alternate_filename:current_path)
+                                open_workspace_browser = false;
                             }
                         }
                         else
                         {
                             alert(`imported ${workspaces_found.length} workspaces`);
                         }
-                        setTimeout(()=>document.getElementById("sel_browser_workspace_db").click(), 500);
+                        if(open_workspace_browser)
+                        {
+                            setTimeout(()=>document.getElementById("sel_browser_workspace_db").click(), 500);
+                        }
                         return;
                     }
                     
@@ -1367,7 +1403,7 @@ async function prompt_for_drive(folder=false)
                 if (!parts[i]) continue;
                 current += '/' + parts[i];
                 try {
-                    if (!FS.analyzePath(current).exists) {
+                    if (!fs_exists(current)) {
                         FS.mkdir(current);
                     }
                 } catch (e) {  }
@@ -2148,6 +2184,7 @@ function InitWrappers() {
     wasm_power_on = Module.cwrap('wasm_power_on', 'string', ['number']);
     wasm_get_sound_buffer_address = Module.cwrap('wasm_get_sound_buffer_address', 'number');
     wasm_copy_into_sound_buffer = Module.cwrap('wasm_copy_into_sound_buffer', 'number');
+    wasm_get_audio_buffer_fill_level = Module.cwrap('wasm_get_audio_buffer_fill_level', 'number');
     wasm_set_sample_rate = Module.cwrap('wasm_set_sample_rate', 'undefined', ['number']);
     wasm_mouse = Module.cwrap('wasm_mouse', 'undefined', ['number','number','number']);
     wasm_mouse_button = Module.cwrap('wasm_mouse_button', 'undefined', ['number','number','number']);
@@ -3381,6 +3418,106 @@ function bind_config(key, default_value){
         save_setting(key, this.checked);
     });
 }
+
+const audio_asr_setting_key = 'OPT_AUD_ASR';
+const audio_asr_switch = document.getElementById('audio_asr_switch');
+const stored_audio_asr = load_setting(audio_asr_setting_key, true);
+audio_asr_switch.checked = stored_audio_asr === true || stored_audio_asr === 'true';
+const update_audio_asr_help = () => {
+    $('#audio_asr_help').text(audio_asr_switch.checked
+        ? 'The sample rate is continuously fine-tuned to keep the audio buffer about half full. This prevents crackling caused by buffer underruns or overflows.'
+        : 'The audio is generated at the fixed host sample rate. Small timing differences between emulator and audio device may cause the buffer to run empty or overflow, resulting in crackling.');
+};
+update_audio_asr_help();
+let audio_asr_error = wasm_configure('AUD.ASR', String(audio_asr_switch.checked));
+if (audio_asr_error.length > 0) {
+    console.error('Failed to configure adaptive sample rate', audio_asr_error);
+    alert(`Failed to configure adaptive sample rate: ${audio_asr_error}`);
+}
+audio_asr_switch.addEventListener('change', () => {
+    const enabled = audio_asr_switch.checked;
+    audio_asr_error = wasm_configure('AUD.ASR', String(enabled));
+    if (audio_asr_error.length > 0) {
+        console.error('Failed to configure adaptive sample rate', audio_asr_error);
+        alert(`Failed to configure adaptive sample rate: ${audio_asr_error}`);
+        audio_asr_switch.checked = !enabled;
+        update_audio_asr_help();
+        return;
+    }
+    save_setting(audio_asr_setting_key, enabled);
+    update_audio_asr_help();
+});
+
+const audio_buffer_size_setting_key = 'OPT_AUD_BUFFER_SIZE';
+const audio_buffer_size_input = document.getElementById('audio_buffer_size_input');
+const audio_buffer_size_text = document.getElementById('audio_buffer_size_text');
+const show_audio_buffer_size = (size) => {
+    audio_buffer_size_text.textContent = `audio buffer capacity = ${size} samples`;
+};
+const audio_buffer_fill_text = document.getElementById('audio_buffer_fill_text');
+const default_audio_buffer_size = 4096;
+const stored_audio_buffer_size = Number(load_setting(audio_buffer_size_setting_key, default_audio_buffer_size));
+const clamped_audio_buffer_size = Number.isFinite(stored_audio_buffer_size)
+    ? Math.max(4096, Math.min(16384, stored_audio_buffer_size))
+    : default_audio_buffer_size;
+let audio_buffer_size = 4096 + Math.round((clamped_audio_buffer_size - 4096) / 1024) * 1024;
+audio_buffer_size_input.value = String(audio_buffer_size);
+show_audio_buffer_size(audio_buffer_size);
+let audio_buffer_size_error = wasm_configure('AUD.BUFFER_SIZE', String(audio_buffer_size));
+if (audio_buffer_size_error.length > 0) {
+    console.error('Failed to configure audio buffer size', audio_buffer_size_error);
+    alert(`Failed to configure audio buffer size: ${audio_buffer_size_error}`);
+} else {
+    save_setting(audio_buffer_size_setting_key, audio_buffer_size);
+}
+const update_audio_buffer_fill = () => {
+    const fill_level = Math.max(0, Math.min(1, Number(wasm_get_audio_buffer_fill_level())));
+    const fill_percent = Math.round(fill_level * 100);
+    audio_buffer_fill_text.textContent = `A larger buffer reduces crackling but adds latency. buffer fill level: ${fill_percent}%`;
+};
+audio_buffer_size_input.addEventListener('input', () => {
+    show_audio_buffer_size(audio_buffer_size_input.value);
+    update_audio_buffer_fill();
+});
+audio_buffer_size_input.addEventListener('change', () => {
+    const requested_size = Number(audio_buffer_size_input.value);
+    const previous_size = audio_buffer_size;
+    audio_buffer_size_error = wasm_configure('AUD.BUFFER_SIZE', String(requested_size));
+    if (audio_buffer_size_error.length > 0) {
+        console.error('Failed to configure audio buffer size', audio_buffer_size_error);
+        alert(`Failed to configure audio buffer size: ${audio_buffer_size_error}`);
+        audio_buffer_size_input.value = String(previous_size);
+        show_audio_buffer_size(previous_size);
+        return;
+    }
+
+    audio_buffer_size = requested_size;
+    save_setting(audio_buffer_size_setting_key, requested_size);
+    update_audio_buffer_fill();
+});
+let audio_buffer_fill_timer = null;
+$('#modal_settings').on('show.bs.modal', () => {
+    audio_asr_switch.checked = wasm_get_config_item('AUD.ASR') != 0;
+    update_audio_asr_help();
+    audio_buffer_size = wasm_get_config_item('AUD.BUFFER_SIZE');
+    audio_buffer_size_input.value = String(audio_buffer_size);
+    show_audio_buffer_size(audio_buffer_size);
+    update_audio_buffer_fill();
+});
+$('#modal_settings').on('shown.bs.modal', () => {
+    update_audio_buffer_fill();
+    if (audio_buffer_fill_timer === null) {
+        audio_buffer_fill_timer = setInterval(update_audio_buffer_fill, 333);
+    }
+});
+$('#modal_settings').on('hidden.bs.modal', () => {
+    if (audio_buffer_fill_timer !== null) {
+        clearInterval(audio_buffer_fill_timer);
+        audio_buffer_fill_timer = null;
+    }
+});
+update_audio_buffer_fill();
+
 bind_config("OPT_CLX_SPR_SPR", true);
 bind_config("OPT_CLX_SPR_PLF", true);
 bind_config("OPT_CLX_PLF_PLF", true);
@@ -4683,57 +4820,48 @@ $('.layer').change( function(event) {
         
         global_apptitle = app_name;
 
-        await mount_folder(workspace_path);
         try
         {
-            deleteAllFiles(workspace_path+"/"+app_name);
-            FS.rmdir(workspace_path+"/"+app_name)
-        } catch(e) {console.log(e)}
-
-        try
-        {
-            FS.mkdir(workspace_path+"/"+app_name);
-        } catch(e) {console.log(e)}
-    
-        let thumbnail_json = wasm_save_workspace(workspace_path+"/"+app_name);
-        var thumbnail = JSON.parse(thumbnail_json);
-        var heap_buffer = new Uint8Array(Module.HEAPU8.buffer, thumbnail.address, thumbnail.size);
-            
-        //thumbnail_buffer is only a typed array view therefore slice, which creates a new array with byteposition 0 ...
-        let thumbnail_buffer = heap_buffer.slice(0,thumbnail.size);
-
-        let preview_canvas = document.createElement('canvas');
-        preview_canvas.width = thumbnail.width;  
-        preview_canvas.height = thumbnail.height;
-
-        var preview_ctx = preview_canvas.getContext('2d');  
-
-        image_data=preview_ctx.createImageData(thumbnail.width,thumbnail.height);
-        image_data.data.set(thumbnail_buffer);
-    
-        preview_ctx.putImageData(image_data,
-            0/*TPP*/,/*-yOff*/0, 
-            /*x,y*/ 
-            0/*TPP*/,/*yOff*/0 
-            /* width, height */, 
-            thumbnail.width, thumbnail.height);
-    
-        var dataURL = preview_canvas.toDataURL('image/png');
-        var uint8Array = FromBase64(dataURL.split(',')[1]);
-        FS.createDataFile(workspace_path+"/"+app_name+"/", 'preview.png', uint8Array, true, true);
-
-        if(last_zip_archive != null)
-        {
-            FS.createDataFile(workspace_path+"/"+app_name+"/", last_zip_archive_name, last_zip_archive, true, true);
-        }
-
-        FS.syncfs(false,(error)=>
-            {  
-                $("#modal_take_snapshot").modal('hide');
+            await mount_folder(workspace_path);
+            const workspace_dir = `${workspace_path}/${app_name}`;
+            if (fs_exists(workspace_dir)) {
+                deleteAllFiles(workspace_dir);
+                FS.rmdir(workspace_dir);
             }
-        )
+            FS.mkdir(workspace_dir);
+    
+            const thumbnail = JSON.parse(wasm_save_workspace(workspace_dir));
+            const thumbnail_pixels = new Uint8Array(
+                Module.HEAPU8.buffer,
+                thumbnail.address,
+                thumbnail.size
+            ).slice();
+            const preview_canvas = document.createElement('canvas');
+            preview_canvas.width = thumbnail.width;
+            preview_canvas.height = thumbnail.height;
+            const preview_context = preview_canvas.getContext('2d');
+            if (preview_context === null) {
+                throw new Error("Could not create workspace preview canvas context");
+            }
+            const image_data = preview_context.createImageData(thumbnail.width, thumbnail.height);
+            image_data.data.set(thumbnail_pixels);
+            preview_context.putImageData(image_data, 0, 0);
+            const preview_data = FromBase64(preview_canvas.toDataURL('image/png').split(',')[1]);
+            FS.writeFile(`${workspace_dir}/preview.png`, Uint8Array.from(preview_data));
 
-        
+            if(last_zip_archive != null)
+            {
+                FS.writeFile(`${workspace_dir}/${last_zip_archive_name}`, last_zip_archive);
+            }
+
+            await new Promise((resolve, reject) => {
+                FS.syncfs(false, error => error ? reject(error) : resolve());
+            });
+            $("#modal_take_snapshot").modal('hide');
+        } catch (error) {
+            console.error("Failed to save workspace", error);
+            alert(`Failed to save workspace: ${error.message || error}`);
+        }
         //document.getElementById('canvas').focus();
     });
 

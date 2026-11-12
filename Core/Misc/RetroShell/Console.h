@@ -372,15 +372,15 @@ protected:
     bool parseOnOff(const Arguments &argv, const string &key, long fallback) const;
     
     long isNum(const string &argv) const;
-    long parseNum(const string &argv) const;
-    long parseNum(const string &argv, long fallback) const;
-    long parseNum(const Arguments &argv, const string &key) const;
-    long parseNum(const Arguments &argv, const string &key, long fallback) const;
+    i64 parseNum(const string &argv) const;
+    i64 parseNum(const string &argv, i64 fallback) const;
+    i64 parseNum(const Arguments &argv, const string &key) const;
+    i64 parseNum(const Arguments &argv, const string &key, i64 fallback) const;
     
     u32 parseAddr(const string &argv) const;
-    u32 parseAddr(const string &argv, long fallback) const;
+    u32 parseAddr(const string &argv, i64 fallback) const;
     u32 parseAddr(const Arguments &argv, const string &key) const;
-    u32 parseAddr(const Arguments &argv, const string &key, long fallback) const;
+    u32 parseAddr(const Arguments &argv, const string &key, i64 fallback) const;
     
     string parseSeq(const string &argv) const;
     string parseSeq(const string &argv, const string &fallback) const;

@@ -842,27 +842,27 @@ Console::parseOnOff(const Arguments &argv, const string &key) const
     return parseBool(argv.at(key));
 }
 
-long
+i64
 Console::parseNum(const string &argv) const
 {
     return utl::parseNum(argv);
 }
 
-long
-Console::parseNum(const string &argv, long fallback) const
+i64
+Console::parseNum(const string &argv, i64 fallback) const
 {
     try { return parseNum(argv); } catch(...) { return fallback; }
 }
 
-long
+i64
 Console::parseNum(const Arguments &argv, const string &key) const
 {
     assert(argv.contains(key));
     return parseNum(argv.at(key));
 }
 
-long
-Console::parseNum(const Arguments &argv, const string &token, long fallback) const
+i64
+Console::parseNum(const Arguments &argv, const string &token, i64 fallback) const
 {
     return argv.contains(token) ? parseNum(argv.at(token)) : fallback;
 }
@@ -874,7 +874,7 @@ Console::parseAddr(const string &argv) const
 }
 
 u32
-Console::parseAddr(const string &argv, long fallback) const
+Console::parseAddr(const string &argv, i64 fallback) const
 {
     return (u32)parseNum(argv, fallback);
 }
@@ -887,7 +887,7 @@ Console::parseAddr(const Arguments &argv, const string &key) const
 }
 
 u32
-Console::parseAddr(const Arguments &argv, const string &key, long fallback) const
+Console::parseAddr(const Arguments &argv, const string &key, i64 fallback) const
 {
     return (u32)parseNum(argv, key, fallback);
 }
@@ -914,14 +914,14 @@ Console::exec(const InputLine& cmd)
         if (cmd.completion) cmd.completion(ss.str(), error);
     };
 
-    // Inform the delegates
-    for (auto &delegate: delegates) delegate->willExecute(cmd);
+        // Inform the delegates
+        for (auto &delegate: delegates) delegate->willExecute(cmd);
 
-    // Skip empty script lines
-    if (cmd.isScriptCommand() && cmd.input.empty()) { complete(nullptr); return; }
+        // Skip empty script lines
+        if (cmd.isScriptCommand() && cmd.input.empty()) { complete(nullptr); return; }
 
-    // Skip comments
-    if (cmd.isComment()) { complete(nullptr); return; }
+        // Skip comments
+        if (cmd.isComment()) { complete(nullptr); return; }
 
     try {
 
