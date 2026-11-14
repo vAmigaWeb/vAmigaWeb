@@ -28,7 +28,8 @@ namespace {
  * 2.2. GAMMA_IN undoes the former to obtain linear light, GAMMA_OUT
  * re-applies the latter to encode the result for the host display.
  */
-constexpr double GAMMA_IN = 2.8;
+//constexpr double GAMMA_IN = 2.8;
+constexpr double GAMMA_IN = 2.3;
 constexpr double GAMMA_OUT = 2.2;
 
 }

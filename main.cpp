@@ -2442,16 +2442,12 @@ extern "C" const char* wasm_rom_info()
   append_json_string(json_result, romTraits.revision);
   json_result += ",\"romReleased\":";
   append_json_string(json_result, romReleased.c_str());
-  json_result += ",\"romModel\":";
-  append_json_string(json_result, RomTypeEnum::key(romTraits.type));
   json_result += ",\"extTitle\":";
   append_json_string(json_result, extTraits.title);
   json_result += ",\"extVersion\":";
   append_json_string(json_result, extTraits.revision);
   json_result += ",\"extReleased\":";
   append_json_string(json_result, extReleased.c_str());
-  json_result += ",\"extModel\":";
-  append_json_string(json_result, RomTypeEnum::key(extTraits.type));
   json_result += "}";
 
   printf("rom crc=%x, ext crc=%x\n", wrapper->emu->mem.getRomTraits().crc, wrapper->emu->mem.getExtTraits().crc);
