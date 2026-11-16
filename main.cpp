@@ -884,6 +884,16 @@ class vAmigaWrapper {
   emu->set(Opt::MEM_SLOW_RAM, 512);
   emu->set(Opt::AGNUS_REVISION, (i64)AgnusRevision::OCS);
 
+  // DMA debugger colors from v4fix
+  emu->set(Opt::XRAY_COLOR0, 0xFFFF0000);
+  emu->set(Opt::XRAY_COLOR1, 0x2196F3FF);
+  emu->set(Opt::XRAY_COLOR2, 0x00FF0000);
+  emu->set(Opt::XRAY_COLOR3, 0xFF00FF00);
+  emu->set(Opt::XRAY_COLOR4, 0xFF8C00FF);
+  emu->set(Opt::XRAY_COLOR5, 0x00FFFF00);
+  emu->set(Opt::XRAY_COLOR6, 0xFFFFFF00);
+  emu->set(Opt::XRAY_COLOR7, 0xFF000000);
+
   //turn automatic hd mounting off because kick1.2 makes trouble
   emu->set(Opt::HDC_CONNECT, false, /*hd drive*/ {0});
 
@@ -2579,6 +2589,7 @@ extern "C" const char* wasm_configure_key(char* option, char* _value)
     }
 
     wrapper->emu->set(Opt::XRAY_MODE, (i64)XRayMode::XRAY_DMA);
+    wrapper->emu->set(Opt::XRAY_OVERLAY, true);
     wrapper->emu->set(
       static_cast<Opt>(static_cast<long>(Opt::XRAY_DMA_CHANNEL0) + channel),
       utl::parseBool(value));
@@ -2743,6 +2754,13 @@ extern "C" const char* wasm_configure(char* option, char* _value)
     {
 //todo
       wrapper->emu->set(Opt(util::parseEnum <OptEnum>(std::string(option))),  util::parseBool(value));
+    }
+    else if(strcmp(option,"DEBUG_ENABLE") == 0)
+    {
+      wrapper->emu->set(
+        Opt::XRAY_MODE,
+        (i64)(util::parseBool(value) ? XRayMode::XRAY_DMA : XRayMode::XRAY_NONE));
+      wrapper->emu->set(Opt::XRAY_OVERLAY, util::parseBool(value));
     }
     else if(strcmp(option,"OPT_EMU_RUN_AHEAD") == 0)
     {
@@ -3064,10 +3082,10 @@ extern "C" char* wasm_save_workspace(char* path)
 
 extern "C" void wasm_load_workspace(char* path)
 {
-  printf("[WS-DIAG 20261108-D] wasm_load_workspace build=%s path=%s\n",
+  printf("wasm_load_workspace build=%s path=%s\n",
          Amiga::build().c_str(), path);
   EM_ASM({
-    console.info("[WS-DIAG 20261108-E] wasm_load_workspace", UTF8ToString($0), UTF8ToString($1));
+    console.info("wasm_load_workspace", UTF8ToString($0), UTF8ToString($1));
   }, Amiga::build().c_str(), path);
   try{
     auto xray_mode = wrapper->emu->get(Opt::XRAY_MODE);
@@ -3081,7 +3099,6 @@ extern "C" void wasm_load_workspace(char* path)
     auto channel7 = wrapper->emu->get(Opt::XRAY_DMA_CHANNEL7);
 
     wrapper->emu->amiga.loadWorkspace(path);
-    printf("[WS-DIAG 20261108-D] loadWorkspace returned\n");
 
     wrapper->emu->set(Opt::XRAY_MODE, xray_mode);
     wrapper->emu->set(Opt::XRAY_DMA_CHANNEL0, channel0);
@@ -3096,10 +3113,10 @@ extern "C" void wasm_load_workspace(char* path)
 
   }
   catch (const std::exception& e) {
-    printf("[WS-DIAG 20261108-D] wasm_load_workspace caught error='%s'\n", e.what());
+    printf("wasm_load_workspace caught error='%s'\n", e.what());
     EM_ASM(
     {
-      console.error("[WS-DIAG 20261108-E] wasm_load_workspace caught:", UTF8ToString($0));
+      console.error("wasm_load_workspace caught:", UTF8ToString($0));
       alert(`Error - ${UTF8ToString($0)}`);
     }, e.what());    
   }

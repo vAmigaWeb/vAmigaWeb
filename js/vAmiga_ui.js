@@ -7161,12 +7161,12 @@ const activity_channel_id = {
 };
 function update_activity_monitors()
 {
-    if(typeof dma_channels === "undefined" || typeof _wasm_activity !== "function")
+    if(typeof dma_channels === "undefined")
         return;
     for(id in dma_channels){
         if(dma_channel_history[id]===undefined)
             continue;
-        let value=_wasm_activity(activity_channel_id[id]);
+        let value=Module._wasm_activity(activity_channel_id[id]);
         value = (Math.log(1+19*value) / Math.log(20)) * 100;
         value = value>100 ? 100: Math.round(value);
 
@@ -7195,7 +7195,7 @@ function update_activity_monitors()
                 dma_channel_history[id][20-1][0].style.setProperty("--barval", value);
             }
 
-            value=_wasm_activity(activity_channel_id[id],1);
+            value=Module._wasm_activity(activity_channel_id[id],1);
             value = (Math.log(1+19*value) / Math.log(20)) * 100;
             value = value>100 ? 100: Math.round(value);    
             if(value !== dma_channel_history_values[id][20-1][1])
