@@ -899,6 +899,9 @@ class vAmigaWrapper {
 
   emu->set(Opt::DRIVE_CONNECT,true, /*df1*/ {1});
 
+  //the logic analyzer is connected by default in core v5 and probes every DMA cycle
+  emu->set(Opt::LA_CONNECT, false);
+
   emu->getEmulator().update();
 
 
