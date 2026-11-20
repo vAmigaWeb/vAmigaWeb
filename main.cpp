@@ -755,8 +755,9 @@ void theListener(const void * emu, Message msg, std::exception_ptr error){
     vstop_max=  msg.viewport.vstop;
     /*if(log_on)*/ printf("tracking MSG_VIEWPORT=%d, %d, %d, %d\n",hstart_min, vstart_min, hstop_max, vstop_max); 
 
-    hstart_min *=2;
-    hstop_max *=2;
+    //core v5 reports the horizontal DIW in super-hires units (4 * lores), convert to hires texels
+    hstart_min /=2;
+    hstop_max /=2;
 
     hstart_min=hstart_min<(208-48) ? (208-48):hstart_min;
     hstop_max=hstop_max>(HPIXELS+HBLANK_MAX)? (HPIXELS+HBLANK_MAX):hstop_max;
