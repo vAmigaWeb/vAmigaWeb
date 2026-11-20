@@ -6,6 +6,7 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
@@ -20,6 +21,7 @@ namespace vamiga {
 // Enumerations
 //
 
+/// Source of an interrupt.
 enum class IrqSource : long
 {
     TBE,
@@ -38,7 +40,7 @@ enum class IrqSource : long
     EXTER
 };
 
-struct IrqSourceEnum : Reflection<IrqSourceEnum, IrqSource>
+struct IrqSourceEnum : utl::Reflectable<IrqSourceEnum, IrqSource>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(IrqSource::EXTER);
@@ -92,11 +94,12 @@ struct IrqSourceEnum : Reflection<IrqSourceEnum, IrqSource>
 // Structures
 //
 
+/// State of Paula (interrupt and DMA registers).
 typedef struct
 {
-    u16 intreq;
-    u16 intena;
-    u16 adkcon;
+    u16 intreq;                             ///< Interrupt request register (INTREQ)
+    u16 intena;                             ///< Interrupt enable register (INTENA)
+    u16 adkcon;                             ///< Audio and disk control register (ADKCON)
 }
 PaulaInfo;
 

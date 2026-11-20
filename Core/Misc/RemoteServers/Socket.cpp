@@ -7,44 +7,52 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Socket.h"
-#include "MemUtils.h"
+#include "ServerError.h"
+#include "utl/support/Bits.h"
 
 namespace vamiga {
 
 Socket::Socket() : socket(INVALID_SOCKET)
 {
-    debug(SCK_DEBUG, "Socket constructor\n");
+    logmsg(LOG_SCK, "Socket constructor\n");
+}
+
+// Keeps a write to a closed connection from raising SIGPIPE, which would end the process
+static void
+suppressSigPipe(SOCKET s)
+{
+#ifdef SO_NOSIGPIPE
+    int on = 1;
+    setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, (const char *)&on, sizeof(on));
+#endif
 }
 
 Socket::Socket(SOCKET id) : socket(id)
 {
-    debug(SCK_DEBUG, "Wrapping socket %lld\n", (i64)id);
+    logmsg(LOG_SCK, "Wrapping socket %lld\n", (i64)id);
+    if (id != INVALID_SOCKET) suppressSigPipe(id);
 }
 
 Socket::Socket(Socket&& other)
 {
-    socket = other.socket;
-    other.socket = INVALID_SOCKET;
+    socket = other.socket.exchange(INVALID_SOCKET);
 }
 
 Socket& Socket::operator=(Socket&& other)
 {
-    assert(socket != other.socket);
-    
-    if (socket != other.socket) {
+    if (this != &other) {
 
         close();
-        socket = other.socket;
-        other.socket = INVALID_SOCKET;
+        socket = other.socket.exchange(INVALID_SOCKET);
     }
     return *this;
 }
 
 Socket::~Socket()
 {
-    debug(SCK_DEBUG, "Socket destructor\n");
+    logmsg(LOG_SCK, "Socket destructor\n");
     
     if (socket != INVALID_SOCKET) {
         close();
@@ -60,7 +68,7 @@ void Socket::create()
             
             WSADATA wsaData;
             if (WSAStartup(MAKEWORD(2, 2), &wsaData))
-                throw AppError(Fault::SOCK_CANT_CREATE);
+                throw ServerError(ServerError::SOCK_CANT_CREATE);
         }
         ~WSAInit() {
             
@@ -73,9 +81,8 @@ void Socket::create()
         
         // Create a new socket
         socket = ::socket(AF_INET, SOCK_STREAM, 0);
-        if (socket == INVALID_SOCKET) {
-            throw AppError(Fault::SOCK_CANT_CREATE);
-        }
+        if (socket == INVALID_SOCKET)
+            throw ServerError(ServerError::SOCK_CANT_CREATE);
         
         // Set options
         int opt = 1;
@@ -84,11 +91,12 @@ void Socket::create()
                                   SO_REUSEADDR,
                                   (const char *)&opt,
                                   sizeof(opt));
-        if (success < 0) {
-            throw AppError(Fault::SOCK_CANT_CREATE);
-        }
+        if (success < 0)
+            throw ServerError(ServerError::SOCK_CANT_CREATE);
         
-        debug(SCK_DEBUG, "Created new socket %lld\n", (i64)socket);
+        suppressSigPipe(socket);
+
+        logmsg(LOG_SCK, "Created new socket %lld\n", (i64)socket);
     }
 }
 
@@ -101,11 +109,10 @@ Socket::connect(u16 port)
     struct sockaddr_in address;
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = util::bigEndian(port);
+    address.sin_port = utl::bigEndian(port);
     
-    if (::connect(socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        throw AppError(Fault::SOCK_CANT_CONNECT);
-    }
+    if (::connect(socket, (struct sockaddr *)&address, sizeof(address)) < 0)
+        throw ServerError(ServerError::SOCK_CANT_CONNECT);
 }
 
 void
@@ -117,19 +124,39 @@ Socket::bind(u16 port)
     struct sockaddr_in address;
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = util::bigEndian(port);
+    address.sin_port = utl::bigEndian(port);
     
-    if (::bind(socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        throw AppError(Fault::SOCK_CANT_BIND);
-    }
+    if (::bind(socket, (struct sockaddr *)&address, sizeof(address)) < 0)
+        throw ServerError(ServerError::SOCK_CANT_BIND);
 }
 
 void
 Socket::listen()
 {
-    if (::listen(socket, 3) < 0) {
-        throw AppError(Fault::SOCK_CANT_LISTEN);
-    }
+    if (::listen(socket, 3) < 0)
+        throw ServerError(ServerError::SOCK_CANT_LISTEN);
+}
+
+bool
+Socket::waitForConnection(isize milliseconds)
+{
+    if (socket == INVALID_SOCKET)
+        throw ServerError(ServerError::SOCK_CANT_ACCEPT);
+
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(socket, &fds);
+
+    struct timeval tv;
+    tv.tv_sec  = (decltype(tv.tv_sec))(milliseconds / 1000);
+    tv.tv_usec = (decltype(tv.tv_usec))((milliseconds % 1000) * 1000);
+
+    // The first argument is ignored on Windows
+    auto ret = ::select((int)socket + 1, &fds, nullptr, nullptr, &tv);
+
+    if (ret < 0) throw ServerError(ServerError::SOCK_CANT_ACCEPT);
+
+    return ret > 0;
 }
 
 Socket
@@ -139,9 +166,8 @@ Socket::accept()
     auto addrlen = (socklen_t)sizeof(struct sockaddr_in);
     auto s = ::accept(socket, (struct sockaddr *)&address, &addrlen);
 
-    if (s == INVALID_SOCKET) {
-        throw AppError(Fault::SOCK_CANT_ACCEPT);
-    }
+    if (s == INVALID_SOCKET)
+        throw ServerError(ServerError::SOCK_CANT_ACCEPT);
     
     return Socket(s);
 }
@@ -157,38 +183,74 @@ Socket::recv()
         return result;
     }
     
-    throw AppError(Fault::SOCK_CANT_RECEIVE);
+    throw ServerError(ServerError::SOCK_CANT_RECEIVE);
 }
 
 void
 Socket::send(u8 value)
 {
-    if (::send(socket, (const char *)&value, 1, 0) < 1) {
-        throw AppError(Fault::SOCK_CANT_SEND);
-    }
+    send(string(1, char(value)));
 }
 
 void
 Socket::send(const string &s)
 {
-    if (::send(socket, s.c_str(), (int)s.length(), 0) < 0) {
-        throw AppError(Fault::SOCK_CANT_SEND);
+#ifdef MSG_NOSIGNAL
+    const int flags = MSG_NOSIGNAL;
+#else
+    const int flags = 0;
+#endif
+
+    /* Writing and closing exclude each other, so a descriptor that has been
+     * closed (and possibly handed out again) is never written to. A packet is
+     * written as a whole before the next sender gets a turn.
+     */
+    std::lock_guard<std::mutex> guard(sendMutex);
+
+    auto fd = socket.load();
+    if (fd == INVALID_SOCKET) throw ServerError(ServerError::SOCK_CANT_SEND);
+
+    // A write may be partial
+    const char *ptr = s.c_str();
+    auto left = isize(s.length());
+
+    while (left > 0) {
+
+        auto n = ::send(fd, ptr, (int)left, flags);
+        if (n <= 0) throw ServerError(ServerError::SOCK_CANT_SEND);
+
+        ptr += n;
+        left -= isize(n);
     }
 }
 
 void
 Socket::close()
-{    
-    if (socket != INVALID_SOCKET) {
+{
+    auto fd = socket.load();
+    if (fd == INVALID_SOCKET) return;
 
-        debug(SCK_DEBUG, "Closing socket %lld\n", (i64)socket);
+    /* Wake up threads that are blocked in recv() or send(). The latter would
+     * otherwise keep us from getting the send mutex below.
+     */
 #ifdef _WIN32
-        closesocket(socket);
+    ::shutdown(fd, SD_BOTH);
 #else
-        ::close(socket);
+    ::shutdown(fd, SHUT_RDWR);
 #endif
-        socket = INVALID_SOCKET;
-    }
+
+    std::lock_guard<std::mutex> guard(sendMutex);
+
+    // Whoever gets the descriptor out of the atomic closes it, and only once
+    fd = socket.exchange(INVALID_SOCKET);
+    if (fd == INVALID_SOCKET) return;
+
+    logmsg(LOG_SCK, "Closing socket %lld\n", (i64)fd);
+#ifdef _WIN32
+    closesocket(fd);
+#else
+    ::close(fd);
+#endif
 }
 
 }

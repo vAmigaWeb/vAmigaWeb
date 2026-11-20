@@ -2,12 +2,12 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "AudioStream.h"
 #include <algorithm>
 
@@ -27,10 +27,10 @@ AudioStream::eliminateCracks()
 {
     {   SYNCHRONIZED
 
-        debug(AUDVOL_DEBUG, "Eliminating cracks (%ld samples)...\n", count());
+        logmsg(LOG_AUDVOL, "Eliminating cracks (%td samples)...\n", count());
 
         float scale = 1.0f;
-        float delta = 1.0f / count();
+        float delta = 1.0f / float(count());
 
         // Rescale the existing samples
         for (isize i = begin(); i != end(); i = next(i)) {
@@ -162,32 +162,18 @@ AudioStream::copyInterleaved(float *buffer, isize n)
     }
 }
 
-void 
-AudioStream::drawL(u32 *buffer, isize width, isize height, u32 color) const
-{
-    static float highest = 0.01f;
-    highest = drawL(buffer, width, height, highest, color);
-}
-
-void
-AudioStream::drawR(u32 *buffer, isize width, isize height, u32 color) const
-{
-    static float highest = 0.01f;
-    highest = drawR(buffer, width, height, highest, color);
-}
-
 float
 AudioStream::drawL(u32 *buffer, isize width, isize height, float highest, u32 color) const
 {
     return draw(buffer, width, height, highest,
-                [this](float x) { return std::abs(current(isize(cap() * x)).l); }, color);
+                [this](float x) { return std::abs(current(isize(float(cap()) * x)).l); }, color);
 }
 
 float
 AudioStream::drawR(u32 *buffer, isize width, isize height, float highest, u32 color) const
 {
     return draw(buffer, width, height, highest,
-                [this](float x) { return std::abs(current(isize(cap() * x)).r); }, color);
+                [this](float x) { return std::abs(current(isize(float(cap()) * x)).r); }, color);
 }
 
 float
@@ -197,6 +183,7 @@ AudioStream::draw(u32 *buffer, isize width, isize height, float highest,
     SYNCHRONIZED
     
     float newHighestAmplitude = 0.001f;
+    highest = std::max(highest, 0.001f);
 
     // Clear buffer
     for (isize i = 0; i < width * height; i++) {
@@ -223,7 +210,7 @@ AudioStream::draw(u32 *buffer, isize width, isize height, float highest,
             if (sample > newHighestAmplitude) newHighestAmplitude = sample;
 
             // Scale the sample
-            isize scaled = isize(sample * height / highest);
+            isize scaled = isize(sample * float(height) / highest);
             if (scaled > height) scaled = height;
 
             // Draw vertical line

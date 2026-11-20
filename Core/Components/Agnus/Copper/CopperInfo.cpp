@@ -7,16 +7,16 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Agnus.h"
-#include "IOUtils.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
 void
 Copper::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
 
     if (category == Category::List1 || category == Category::List2) {
 
@@ -50,24 +50,25 @@ Copper::_dump(Category category, std::ostream &os) const
     }
 }
 
-void
-Copper::cacheInfo(CopperInfo &info) const
+CopperInfo
+Copper::cacheInfo() const
 {
-    {   SYNCHRONIZED
-        
-        info.copList = copList;
-        info.copList1Start = debugger.startOfCopperList(1);
-        info.copList1End = debugger.endOfCopperList(1);
-        info.copList2Start = debugger.startOfCopperList(2);
-        info.copList2End = debugger.endOfCopperList(2);
-        info.active = agnus.isPending<SLOT_COP>();
-        info.cdang = cdang;
-        info.coppc0 = coppc0 & agnus.ptrMask;
-        info.cop1lc = cop1lc & agnus.ptrMask;
-        info.cop2lc = cop2lc & agnus.ptrMask;
-        info.cop1ins = cop1ins;
-        info.cop2ins = cop2ins;
-    }
+    CopperInfo info;
+
+    info.copList = copList;
+    info.copList1Start = debugger.startOfCopperList(1);
+    info.copList1End = debugger.endOfCopperList(1);
+    info.copList2Start = debugger.startOfCopperList(2);
+    info.copList2End = debugger.endOfCopperList(2);
+    info.active = agnus.isPending<SLOT_COP>();
+    info.cdang = cdang;
+    info.coppc0 = coppc0 & agnus.ptrMask;
+    info.cop1lc = cop1lc & agnus.ptrMask;
+    info.cop2lc = cop2lc & agnus.ptrMask;
+    info.cop1ins = cop1ins;
+    info.cop2ins = cop2ins;
+    
+    return info;
 }
 
 }

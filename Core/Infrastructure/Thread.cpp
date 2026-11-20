@@ -7,9 +7,9 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Thread.h"
-#include "Chrono.h"
+#include "utl/chrono.h"
 #include <iostream>
 
 namespace vamiga {
@@ -17,20 +17,21 @@ namespace vamiga {
 void
 Thread::launch()
 {
+    assert(!isInitialized());
+#ifdef __EMSCRIPTEN__
     initialize();
-//    assert(!isLaunched());
-
-    // Start the thread and enter the main function
-//    thread = std::thread(&Thread::runLoop, this);
-
-//    assert(isLaunched());
+#else
+    thread = std::thread(&Thread::runLoop, this);
+    initLatch.wait();
+#endif
+    assert(isInitialized());
 }
 
 void
 Thread::resync()
 {
     resyncs++;
-    baseTime = util::Time::now();
+    baseTime = utl::Time::now();
     frameCounter = 0;
 }
 
@@ -60,7 +61,7 @@ Thread::execute()
         } catch (StateChangeException &exc) {
             
             // Serve a state change request
-            switchState((ExecState)exc.data);
+            switchState((ExecState)exc.payload);
         }
         
         loadClock.stop();
@@ -70,9 +71,9 @@ Thread::execute()
 
         // The emulator is out of sync
         if (missing > 0) {
-            debug(RUN_DEBUG, "Emulation is way too slow (%ld frames behind)\n", missing);
+            logmsg(LOG_RUN, "Emulation is way too slow (%td frames behind)\n", missing);
         } else {
-            debug(RUN_DEBUG, "Emulation is way too fast (%ld time slices ahead)\n", -missing);
+            logmsg(LOG_RUN, "Emulation is way too fast (%td time slices ahead)\n", -missing);
         }
 
         resync();
@@ -82,15 +83,15 @@ Thread::execute()
 void
 Thread::sleep()
 {
-    // Don't sleep if the emulator is running in warp mode and no suspension is pending
-    if (warp && isRunning() && suspensionLock.tryLock()) {
-        
-        suspensionLock.unlock();
-        return;
-    }
+    // Wait for a pending suspension to finish
+    suspensionLock.lock();
+    suspensionLock.unlock();
+
+    // Don't sleep if the emulator is running in warp mode
+    if (warp && isRunning()) return;
     
     // Set a timeout to prevent the thread from stalling
-    auto timeout = util::Time::milliseconds(50);
+    auto timeout = utl::Time::milliseconds(50);
 
     // Wait for the next pulse
     waitForWakeUp(timeout);
@@ -109,7 +110,7 @@ Thread::computeStats()
         nonstopClock.restart();
 
         cpuLoad = 0.3 * cpuLoad + 0.7 * used / total;
-        fps = 0.3 * fps + 0.7 * statsCounter / total;
+        fps = 0.3 * fps + 0.7 * double(statsCounter) / total;
 
         statsCounter = 0;
     }
@@ -122,8 +123,15 @@ Thread::runLoop()
 
     while (state != ExecState::HALTED) {
 
-        // Prepare for the next frame
-        update();
+        /* Prepare for the next frame. Processing the command queue changes
+         * the emulator state, so it is protected like the computation of a
+         * frame: a thread that has suspended the emulator never overlaps
+         * with it. The lock is not held while the thread sleeps.
+         */
+        {   std::lock_guard<utl::ReentrantMutex> guard(lock);
+
+            update();
+        }
 
         // Compute missing frames
         execute();
@@ -143,20 +151,21 @@ Thread::switchState(ExecState newState)
 
     auto invalid = [&]() {
 
-        fatal("Invalid state transition: %s -> %s\n",
+        assert(false);
+        logmsg(LOG_FATAL, "Invalid state transition: %s -> %s\n",
               ExecStateEnum::key(state), ExecStateEnum::key(newState));
     };
 
-    debug(RUN_DEBUG,
+    logmsg(LOG_RUN,
           "switchState: %s -> %s\n",
           ExecStateEnum::key(state), ExecStateEnum::key(newState));
 
-/*    if (!isLaunched()) {
+    if (!isLaunched()) {
 
-        throw std::runtime_error(string("The emulator thread hasn't been lauchend yet. "
-                                        "Missing call to launch()."));
+        throw CoreError(CoreError::NOT_LAUNCHED,
+                        "The emulator thread has not been launched yet. Missing call to launch().");
     }
-*/
+
     while (state != newState) {
 
         switch (newState) {
@@ -215,14 +224,14 @@ Thread::switchState(ExecState newState)
         }
     }
 
-    debug(RUN_DEBUG, "switchState: %s\n", ExecStateEnum::key(state));
+    logmsg(LOG_RUN, "switchState: %s\n", ExecStateEnum::key(state));
     assert(state == newState);
 }
 
 void
 Thread::powerOn()
 {
-    debug(RUN_DEBUG, "powerOn()\n");
+    logmsg(LOG_RUN, "powerOn()\n");
 
     if (isPoweredOff()) {
 
@@ -233,7 +242,7 @@ Thread::powerOn()
 void
 Thread::powerOff()
 {
-    debug(RUN_DEBUG, "powerOff()\n");
+    logmsg(LOG_RUN, "powerOff()\n");
 
     if (!isPoweredOff()) {
 
@@ -244,12 +253,12 @@ Thread::powerOff()
 void
 Thread::run()
 {
-    debug(RUN_DEBUG, "run()\n");
+    logmsg(LOG_RUN, "run()\n");
 
     if (!isRunning()) {
 
         // Throw an exception if the emulator is not ready to run
-       // isReady();
+        checkReady();
 
         switchState(ExecState::RUNNING);
     }
@@ -258,7 +267,7 @@ Thread::run()
 void
 Thread::pause()
 {
-    debug(RUN_DEBUG, "pause()\n");
+    logmsg(LOG_RUN, "pause()\n");
 
     if (isRunning()) {
 
@@ -269,7 +278,7 @@ Thread::pause()
 void
 Thread::halt()
 {
-    debug(RUN_DEBUG, "halt()\n");
+    logmsg(LOG_RUN, "halt()\n");
 
     if (state != ExecState::HALTED) {
 
@@ -280,7 +289,7 @@ Thread::halt()
 void
 Thread::warpOn(isize source)
 {
-    assert(source < 7);
+    assert(source >= 0 && source < 8);
 
     if (!GET_BIT(warp, source)) {
 
@@ -293,7 +302,7 @@ Thread::warpOn(isize source)
 void
 Thread::warpOff(isize source)
 {
-    assert(source < 7);
+    assert(source >= 0 && source < 8);
 
     if (GET_BIT(warp, source)) {
 
@@ -306,7 +315,7 @@ Thread::warpOff(isize source)
 void
 Thread::trackOn(isize source)
 {
-    assert(source < 7);
+    assert(source >= 0 && source < 8);
 
     if (!GET_BIT(track, source)) {
 
@@ -319,7 +328,7 @@ Thread::trackOn(isize source)
 void
 Thread::trackOff(isize source)
 {
-    assert(source < 7);
+    assert(source >= 0 && source < 8);
 
     if (GET_BIT(track, source)) {
 
@@ -332,38 +341,44 @@ Thread::trackOff(isize source)
 void
 Thread::wakeUp()
 {
-    trace(RUN_DEBUG >= 2, "wakeup: %lld us\n", wakeupClock.restart().asMicroseconds());
+    // logmsg(LOG_RUN, "wakeup: %lld us\n", wakeupClock.restart().asMicroseconds());
     Wakeable::wakeUp();
 }
 
 void
 Thread::suspend() const
 {
-    debug(RUN_DEBUG, "Suspending (%ld)...\n", suspendCounter);
     assert(isUserThread());
 
-    if (suspendCounter++ == 0) {
-        
-     //   suspensionLock.lock();
-     //   lock.lock();
-    }
+    /* Only one thread can hold the suspension at a time. A thread that
+     * already holds it can suspend again (nested suspensions), any other
+     * thread waits here until the holder has resumed the emulator.
+     */
+    suspensionLock.lock();
+    lock.lock();
+
+    if (suspendDepth++ == 0) suspender = std::this_thread::get_id();
+
+    logmsg(LOG_RUN, "Suspended (%td)\n", suspendDepth);
 }
 
 void
 Thread::resume() const
 {
-    debug(RUN_DEBUG, "Resuming (%ld)...\n", suspendCounter);
     assert(isUserThread());
 
-    if (suspendCounter <= 0) {
-        
-        //fatal("resume() called with no call to suspend()\n");
-        
-    } else if (--suspendCounter == 0) {
-        
-       // suspensionLock.unlock();
-       // lock.unlock();
+    if (!isSuspendedByCurrentThread()) {
+
+        logmsg(LOG_FATAL, "resume() called with no call to suspend()\n");
+        return;
     }
+
+    logmsg(LOG_RUN, "Resuming (%td)...\n", suspendDepth);
+
+    if (--suspendDepth == 0) suspender = std::thread::id();
+
+    lock.unlock();
+    suspensionLock.unlock();
 }
 
 }

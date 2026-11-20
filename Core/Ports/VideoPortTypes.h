@@ -6,6 +6,7 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
@@ -17,22 +18,25 @@ namespace vamiga {
 // Structures
 //
 
+/// Configuration options of the video port.
 typedef struct
 {
-    bool whiteNoise;
+    bool whiteNoise;                        ///< Show white noise while the machine is off
 }
 
 VideoPortConfig;
 
+/// State of the video port.
 typedef struct
 {
-    i64 latestGrabbedFrame;
+    i64 latestGrabbedFrame;                 ///< Number of the most recent frame that was grabbed by the host
 }
 VideoPortInfo;
 
+/// Statistics collected by the video port.
 typedef struct
 {
-    isize droppedFrames;
+    isize droppedFrames;                    ///< Number of frames that were not grabbed in time
 }
 VideoPortStats;
 

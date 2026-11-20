@@ -7,7 +7,7 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "AnyFile.h"
 #include "Snapshot.h"
 #include "ADFFile.h"
@@ -19,6 +19,9 @@
 #include "HDFFile.h"
 #include "RomFile.h"
 #include "Script.h"
+#include "utl/io.h"
+#include "utl/support.h"
+#include <fstream>
 
 namespace vamiga {
 
@@ -46,10 +49,10 @@ AnyFile::init(const fs::path &path)
     std::ifstream stream(path, std::ios::binary);
     
     if (!stream.is_open()) {
-        throw AppError(Fault::FILE_NOT_FOUND, path);
+        throw IOError(IOError::FILE_NOT_FOUND, path);
     }
     if (!isCompatiblePath(path)) {
-        throw AppError(Fault::FILE_TYPE_MISMATCH, path);
+        throw IOError(IOError::FILE_TYPE_MISMATCH, path);
     }
     std::ostringstream sstr(std::ios::binary);
     sstr << stream.rdbuf();
@@ -59,38 +62,6 @@ AnyFile::init(const fs::path &path)
 
 void
 AnyFile::init(const u8 *buf, isize len)
-{    
-    assert(buf);
-    if (!isCompatibleBuffer(buf, len)) throw AppError(Fault::FILE_TYPE_MISMATCH);
-    readFromBuffer(buf, len);
-}
-
-AnyFile::~AnyFile()
-{
-
-}
-
-void
-AnyFile::flash(u8 *buf, isize offset, isize len) const
-{
-    assert(buf);
-    std::memcpy(buf + offset, data.ptr, len);
-}
-
-void
-AnyFile::flash(u8 *buf, isize offset) const
-{
-    flash (buf, offset, data.size);
-}
-
-bool
-AnyFile::isCompatibleBuffer(const Buffer<u8> &buffer)
-{
-    return isCompatibleBuffer(buffer.ptr, buffer.size);
-}
-
-isize
-AnyFile::readFromBuffer(const u8 *buf, isize len)
 {
     assert(buf);
 
@@ -99,15 +70,53 @@ AnyFile::readFromBuffer(const u8 *buf, isize len)
 
     // Copy data
     std::memcpy(data.ptr, buf, data.size);
-    finalizeRead();
-    
-    return data.size;
+    didLoad();
 }
 
-isize
-AnyFile::readFromBuffer(const Buffer<u8> &buffer)
+void
+AnyFile::copy(u8 *buf, isize offset, isize len) const
 {
-    return readFromBuffer(buffer.ptr, buffer.size);
+    assert(buf);
+    assert(offset >= 0 && offset < data.size);
+    assert(len >= 0 && offset + len <= data.size);
+
+    std::memcpy(buf + offset, data.ptr, len);
+}
+
+ByteView
+AnyFile::byteView(isize offset) const
+{
+    return byteView(offset, data.size - offset);
+}
+
+ByteView
+AnyFile::byteView(isize offset, isize len) const
+{
+    assert(offset >= 0 && offset < data.size);
+    assert(len >= 0 && offset + len <= data.size);
+
+    return ByteView(data.ptr + offset, len);
+}
+
+MutableByteView
+AnyFile::byteView(isize offset)
+{
+    return byteView(offset, data.size - offset);
+}
+
+MutableByteView
+AnyFile::byteView(isize offset, isize len)
+{
+    assert(offset >= 0 && offset < data.size);
+    assert(len >= 0 && offset + len <= data.size);
+
+    return MutableByteView(data.ptr + offset, len);
+}
+
+void
+AnyFile::copy(u8 *buf, isize offset) const
+{
+    copy (buf, offset, data.size);
 }
 
 isize
@@ -123,14 +132,14 @@ AnyFile::writeToStream(std::ostream &stream, isize offset, isize len) const
 isize
 AnyFile::writeToFile(const fs::path &path, isize offset, isize len) const
 {
-    if (util::isDirectory(path)) {
-        throw AppError(Fault::FILE_IS_DIRECTORY);
+    if (utl::isDirectory(path)) {
+        throw IOError(IOError::FILE_IS_DIRECTORY);
     }
     
     std::ofstream stream(path, std::ofstream::binary);
 
     if (!stream.is_open()) {
-        throw AppError(Fault::FILE_CANT_WRITE, path);
+        throw IOError(IOError::FILE_CANT_WRITE, path);
     }
     
     isize result = writeToStream(stream, offset, len);
@@ -139,6 +148,7 @@ AnyFile::writeToFile(const fs::path &path, isize offset, isize len) const
     return result;
 }
 
+/*
 isize
 AnyFile::writeToBuffer(u8 *buf, isize offset, isize len) const
 {
@@ -157,6 +167,7 @@ AnyFile::writeToBuffer(Buffer<u8> &buffer, isize offset, isize len) const
     buffer.alloc(len);
     return writeToBuffer(buffer.ptr, offset, len);
 }
+*/
 
 isize
 AnyFile::writeToStream(std::ostream &stream) const
@@ -170,12 +181,7 @@ AnyFile::writeToFile(const fs::path &path) const
     return writeToFile(path, 0, data.size);
 }
 
-isize 
-AnyFile::writePartitionToFile(const fs::path &path, isize partition) const
-{
-    throw AppError(Fault::FILE_TYPE_UNSUPPORTED);
-}
-
+/*
 isize
 AnyFile::writeToBuffer(u8 *buf) const
 {
@@ -187,5 +193,6 @@ AnyFile::writeToBuffer(Buffer<u8> &buffer) const
 {
     return writeToBuffer(buffer, 0, data.size);
 }
+*/
 
 }

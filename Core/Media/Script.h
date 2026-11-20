@@ -20,9 +20,7 @@ class Script : public AnyFile {
 public:
     
     static bool isCompatible(const fs::path &path);
-    static bool isCompatible(const u8 *buf, isize len);
-    static bool isCompatible(const Buffer<u8> &buffer);
-    
+
     
     //
     // Initializing
@@ -30,29 +28,17 @@ public:
 
 public:
 
-    Script(const fs::path &path) throws { init(path); }
-    Script(const u8 *buf, isize len) throws { init(buf, len); }
+    Script(const fs::path &path) { init(path); }
+    Script(const u8 *buf, isize len) { init(buf, len); }
 
-    const char *objectName() const override { return "Script"; }
-
-    
+     
     //
     // Methods from AnyFile
     //
     
 public:
     
-    FileType type() const override { return FileType::SCRIPT; }
     bool isCompatiblePath(const fs::path &path) const override { return isCompatible(path); }
-    bool isCompatibleBuffer(const u8 *buf, isize len) const override { return isCompatible(buf, len); }
-
-    
-    //
-    // Processing
-    //
-    
-    // Executes the script
-    void execute(Amiga &amiga);
 };
 
 }

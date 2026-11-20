@@ -10,17 +10,17 @@
 #pragma once
 
 #include "MemoryTypes.h"
+#include "utl/support/Bits.h"
 #include "MemoryDebugger.h"
 #include "RomFileTypes.h"
-#include "MemUtils.h"
-#include "Buffer.h"
-
+#include "MoiraTypes.h"
+#include "utl/storage.h"
+#include "utl/wrappers.h"
 #include <vector>
 
 namespace vamiga {
 
-using util::Allocator;
-using util::Buffer;
+using utl::Buffer;
 
 #define SLOW_RAM_STRT 0xC00000
 #define FAST_RAM_STRT ramExpansion.getBaseAddr()
@@ -68,6 +68,7 @@ assert((x) >= 0xE80000 && (x) <= 0xE8FFFF);
 // Reads a value from Boot ROM or Kickstart ROM in big endian format
 #define READ_ROM_8(x)       R8BE (rom + ((x) & romMask))
 #define READ_ROM_16(x)      R16BE(rom + ((x) & romMask))
+#define READ_ROM_32(x)      R32BE(rom + ((x) & romMask))
 
 // Reads a value from Kickstart WOM in big endian format
 #define READ_WOM_8(x)       R8BE (wom + ((x) & womMask))
@@ -76,6 +77,7 @@ assert((x) >= 0xE80000 && (x) <= 0xE8FFFF);
 // Reads a value from Extended ROM in big endian format
 #define READ_EXT_8(x)       R8BE (ext + ((x) & extMask))
 #define READ_EXT_16(x)      R16BE(ext + ((x) & extMask))
+#define READ_EXT_32(x)      R32BE(ext + ((x) & extMask))
 
 //
 // Writing
@@ -95,20 +97,18 @@ assert((x) >= 0xE80000 && (x) <= 0xE8FFFF);
 #define WRITE_SLOW_8(x,y)   W8BE (slow + ((x) - SLOW_RAM_STRT), (y))
 #define WRITE_SLOW_16(x,y)  W16BE(slow + ((x) - SLOW_RAM_STRT), (y))
 
-// Writes a value into Boot ROM or Kickstart ROM in big endian format
-#define WRITE_ROM_8(x,y)    W8BE (rom + ((x) & romMask), (y))
-#define WRITE_ROM_16(x,y)   W16BE(rom + ((x) & romMask), (y))
-
-// Writes a value into Kickstart WOM in big endian format
-#define WRITE_WOM_8(x,y)    W8BE (wom + ((x) & womMask), (y))
-#define WRITE_WOM_16(x,y)   W16BE(wom + ((x) & womMask), (y))
-
-// Writes a value into Extended ROM in big endian format
-#define WRITE_EXT_8(x,y)    W8BE (ext + ((x) & extMask), (y))
-#define WRITE_EXT_16(x,y)   W16BE(ext + ((x) & extMask), (y))
+/* Writes a value into Boot ROM, Kickstart ROM, Kickstart WOM or Extended ROM
+ * in big endian format. Each write invalidates the cached Rom traits.
+ */
+#define WRITE_ROM_8(x,y)    { W8BE (rom + ((x) & romMask), (y)); romTraits.invalidate(); }
+#define WRITE_ROM_16(x,y)   { W16BE(rom + ((x) & romMask), (y)); romTraits.invalidate(); }
+#define WRITE_WOM_8(x,y)    { W8BE (wom + ((x) & womMask), (y)); womTraits.invalidate(); }
+#define WRITE_WOM_16(x,y)   { W16BE(wom + ((x) & womMask), (y)); womTraits.invalidate(); }
+#define WRITE_EXT_8(x,y)    { W8BE (ext + ((x) & extMask), (y)); extTraits.invalidate(); }
+#define WRITE_EXT_16(x,y)   { W16BE(ext + ((x) & extMask), (y)); extTraits.invalidate(); }
 
 
-class Memory final : public SubComponent, public Inspectable<MemInfo, MemStats> {
+class Memory final : public SubComponent {
 
     Descriptions descriptions = {{
 
@@ -120,16 +120,17 @@ class Memory final : public SubComponent, public Inspectable<MemInfo, MemStats> 
 
     Options options = {
 
+        Opt::MEM_BUS_WIDTH,
         Opt::MEM_CHIP_RAM,
         Opt::MEM_SLOW_RAM,
         Opt::MEM_FAST_RAM,
         Opt::MEM_EXT_START,
-        Opt::MEM_SAVE_ROMS,
         Opt::MEM_SLOW_RAM_DELAY,
         Opt::MEM_SLOW_RAM_MIRROR,
         Opt::MEM_BANKMAP,
         Opt::MEM_UNMAPPING_TYPE,
-        Opt::MEM_RAM_INIT_PATTERN
+        Opt::MEM_RAM_INIT_PATTERN,
+        Opt::MEM_SAVE_ROMS
     };
 
     // Current configuration
@@ -137,7 +138,17 @@ class Memory final : public SubComponent, public Inspectable<MemInfo, MemStats> 
 
 public:
 
+    // Result of the latest inspection
+    utl::Backed<MemInfo> info;
+    utl::Backed<MemMetrics> metrics;
+
+
+    //
     // Subcomponents
+    //
+
+public:
+
     MemoryDebugger debugger = MemoryDebugger(amiga);
 
     /* About
@@ -186,22 +197,26 @@ public:
     u8 *rom;
     u8 *wom;
     u8 *ext;
-    mutable RomTraits kssRomTraits = {};
     u8 *chip;
     u8 *slow;
     u8 *fast;
 
-    Allocator<u8> romAllocator = Allocator(rom);
-    Allocator<u8> womAllocator = Allocator(wom);
-    Allocator<u8> extAllocator = Allocator(ext);
-    Allocator<u8> chipAllocator = Allocator(chip);
-    Allocator<u8> slowAllocator = Allocator(slow);
-    Allocator<u8> fastAllocator = Allocator(fast);
+    Buffer<u8> romAllocator = Buffer(&rom);
+    Buffer<u8> womAllocator = Buffer(&wom);
+    Buffer<u8> extAllocator = Buffer(&ext);
+    Buffer<u8> chipAllocator = Buffer(&chip);
+    Buffer<u8> slowAllocator = Buffer(&slow);
+    Buffer<u8> fastAllocator = Buffer(&fast);
 
     u32 romMask = 0;
     u32 womMask = 0;
     u32 extMask = 0;
     u32 chipMask = 0;
+
+    // Traits of the installed Roms
+    utl::Backed<RomTraits> romTraits;
+    utl::Backed<RomTraits> womTraits;
+    utl::Backed<RomTraits> extTraits;
 
     /* Indicates if the Kickstart Wom is writable. If an Amiga 1000 Boot Rom is
      * installed, a Kickstart WOM (Write Once Memory) is added automatically.
@@ -221,27 +236,17 @@ public:
     // The last value on the data bus
     u16 dataBus;
 
-    /* Write-owner tracking (debug aid for the live memory view).
-     * When enabled, every write into Chip Ram records which agent performed it
-     * (0 = none, 1 = CPU, 2 = Blitter). This lets the UI color-code the memory
-     * view by who last modified each location. The buffer is only allocated
-     * while tracking is on, so there is no overhead otherwise.
-     */
-    static constexpr u8 WRITE_OWNER_NONE    = 0;
-    static constexpr u8 WRITE_OWNER_CPU     = 1;
+    static constexpr u8 WRITE_OWNER_NONE = 0;
+    static constexpr u8 WRITE_OWNER_CPU = 1;
     static constexpr u8 WRITE_OWNER_BLITTER = 2;
     bool writeOwnerEnabled = false;
     std::vector<u8> writeOwner;
+    std::vector<u16> writeFrame;
+    std::vector<u16> readFrame;
+    u16 accessFrame = 1;
 
-    /* Read/write access heatmap (extends the write-owner tracking above).
-     * While tracking is on we also stamp, per Chip Ram byte, the emulated-frame
-     * counter of the last CPU read and the last write. The UI turns these into
-     * a fading green (CPU read) / red (CPU write) / blue (Blitter write)
-     * overlay. A stored frame of 0 means "never accessed"; accessFrame is kept
-     * >= 1 (it skips 0 on wrap) so 0 stays reserved as that sentinel. */
-    std::vector<u16> writeFrame;   // frame counter of the last write
-    std::vector<u16> readFrame;    // frame counter of the last CPU read
-    u16 accessFrame = 1;           // ticks once per emulated frame while tracking
+    // Statistics
+    // MemMetrics _metrics = {};
 
 
     //
@@ -272,6 +277,11 @@ public:
         CLONE(chipMask)
 
         CLONE(config)
+
+        // The cloned memory has new content
+        romTraits.invalidate();
+        womTraits.invalidate();
+        extTraits.invalidate();
         
         return *this;
     }
@@ -338,13 +348,12 @@ private:
 
 
     //
-    // Methods from Inspectable
+    // Analyzing
     //
 
 public:
 
-    void cacheInfo(MemInfo &result) const override;
-    // void cacheStats(MemStats &result) const override;
+    MemInfo cacheInfo() const;
 
 private:
     
@@ -370,7 +379,7 @@ public:
     
 private:
 
-    void _isReady() const throws override;
+    void _checkReady() const override;
 
 
     //
@@ -397,8 +406,8 @@ public:
 
 private:
     
-    void alloc(Allocator<u8> &allocator, isize bytes, bool update);
-    void alloc(Allocator<u8> &allocator, isize bytes, u32 &mask, bool update);
+    void alloc(Buffer<u8> &buf, isize bytes, bool update);
+    void alloc(Buffer<u8> &buf, isize bytes, u32 &mask, bool update);
 
 
     //
@@ -416,13 +425,9 @@ public:
     isize chipRamSize() const { return config.chipSize; }
     isize slowRamSize() const { return config.slowSize; }
     isize fastRamSize() const { return config.fastSize; }
-    isize ramSize() const { return config.chipSize + config.slowSize + config.fastSize; }
-
-    // Returns the size of the (Kickstart) Rom in bytes
     isize kickRomSize() const { return config.romSize; }
-
-    // Base CPU address of Fast Ram (dynamic; 0 if no Fast Ram is present)
     u32 fastRamBaseAddr() const;
+    isize ramSize() const { return config.chipSize + config.slowSize + config.fastSize; }
 
 private:
     
@@ -436,10 +441,10 @@ private:
 public:
 
     // Queries ROM information
-    static const RomTraits &getRomTraits(u32 crc);
-    const RomTraits &getRomTraits() const;
-    const RomTraits &getWomTraits() const;
-    const RomTraits &getExtTraits() const;
+    static RomTraits getRomTraits(u32 crc);
+    RomTraits getRomTraits() const;
+    RomTraits getWomTraits() const;
+    RomTraits getExtTraits() const;
 
     // Computes a CRC-32 checksum
     u32 romFingerprint() const;
@@ -453,24 +458,24 @@ public:
     bool hasExt() const { return ext != nullptr; }
 
     // Erases an installed Rom
-    void eraseRom() { std::memset(rom, 0, config.romSize); }
-    void eraseWom() { std::memset(wom, 0, config.womSize); }
-    void eraseExt() { std::memset(ext, 0, config.extSize); }
+    void eraseRom() { std::memset(rom, 0, config.romSize); romTraits.invalidate(); }
+    void eraseWom() { std::memset(wom, 0, config.womSize); womTraits.invalidate(); }
+    void eraseExt() { std::memset(ext, 0, config.extSize); extTraits.invalidate(); }
     
     // Installs a Boot Rom or Kickstart Rom
-    void loadRom(class MediaFile &file) throws;
-    void loadRom(const fs::path &path) throws;
-    void loadRom(const u8 *buf, isize len) throws;
+    void loadRom(class RomFile &file);
+    void loadRom(const fs::path &path);
+    void loadRom(const u8 *buf, isize len);
     
     // Installs a Kickstart expansion Rom
-    void loadExt(class MediaFile &file) throws;
-    void loadExt(const fs::path &path) throws;
-    void loadExt(const u8 *buf, isize len) throws;
+    void loadExt(class RomFile &file);
+    void loadExt(const fs::path &path);
+    void loadExt(const u8 *buf, isize len);
 
     // Saves a Rom to disk
-    void saveRom(const fs::path &path) const throws;
-    void saveWom(const fs::path &path) const throws;
-    void saveExt(const fs::path &path) const throws;
+    void saveRom(const fs::path &path) const;
+    void saveWom(const fs::path &path) const;
+    void saveExt(const fs::path &path) const;
 
     // Fixes two bugs in Kickstart 1.2 expansion.library
     void patchExpansionLib();
@@ -536,46 +541,10 @@ public:
     template <Accessor acc> void poke16(u32 addr, u16 value);
     template <Accessor acc> void poke32(u32 addr, u32 value);
 
-    /* Checks whether the CPU sees a 32 bit data port at the given address.
-     * On AGA machines, Budgie bridges the processor bus to a 32 bit Chip RAM
-     * bus, so Chip RAM, Fast RAM, and ROM transfer a longword in a single bus
-     * cycle. The custom chip registers and Slow RAM remained 16 bit and need
-     * two. This mirrors the ce_banktype table of WinUAE/Amiberry, where Chip
-     * RAM is CE_MEMBANK_CHIP32 on AGA but the $DFxxxx range stays CHIP16.
-     */
-    bool is32BitPort(u32 addr) const;
-
-
-    //
-    // Tracking write owners (debug aid for the live memory view)
-    //
-
-public:
-
-    // Enables/disables tracking; allocates or releases the shadow buffer
-    void setWriteOwnerTracking(bool on);
-
-    // Clears all recorded owners (keeps tracking enabled)
-    void resetWriteOwner();
-
-    // Records the writer of a Chip Ram range (no-op while tracking is off)
-    void markWriteOwner(u32 addr, u8 tag, u32 bytes);
-
-    // Returns the recorded writer tag for a Chip Ram address (0 if none/off)
-    u8 getWriteOwner(u32 addr) const;
-
-    // Records a CPU read of a tracked Ram range (no-op while tracking is off)
-    void markCpuRead(u32 addr, u32 bytes);
-
-    // Advances the access-frame counter (once per emulated frame; skips 0)
-    void tickAccessFrame();
-
-    // Maps a CPU address to its index in the packed access-shadow buffers
-    // (layout: chip | slow | fast). Returns -1 for untracked addresses.
-    isize shadowOffset(u32 addr) const;
+    // Returns the DSACK bits the CPU sees at the given address
+    u8 dsack(u32 addr) const;
 
     
-
     //
     // Accessing the CIA space
     //
@@ -605,15 +574,6 @@ public:
     // Accessing the custom chip space
     //
     
-    /* Checks whether an address inside the custom chip space refers to one of
-     * the 32 color registers (COLOR00 to COLOR31), and returns the number of
-     * the addressed register.
-     */
-    static bool isColorReg(u32 addr) {
-        auto reg = (addr >> 1) & 0xFF; return reg >= 0xC0 && reg <= 0xDF;
-    }
-    static isize colorRegNr(u32 addr) { return isize(((addr >> 1) & 0xFF) - 0xC0); }
-
     u16 peekCustom16(u32 addr);
     u16 peekCustomFaulty16(u32 addr);
     
@@ -631,7 +591,7 @@ public:
     void patch(u32 addr, u8 value);
     void patch(u32 addr, u16 value);
     void patch(u32 addr, u32 value);
-    void patch(u32 addr, u8 *buf, isize len);
+    void patch(u32 addr, const u8 *buf, isize len);
 
 
     //
@@ -640,6 +600,14 @@ public:
 
     // Finishes up the current frame
     void eofHandler();
+
+    void setWriteOwnerTracking(bool on);
+    void resetWriteOwner();
+    void markWriteOwner(u32 addr, u8 tag, u32 bytes);
+    u8 getWriteOwner(u32 addr) const;
+    void markCpuRead(u32 addr, u32 bytes);
+    void tickAccessFrame();
+    isize shadowOffset(u32 addr) const;
 
 
     //
@@ -650,7 +618,7 @@ public:
 
     // Searches RAM and ROM for a certain byte sequence
     std::vector <u32> search(u64 pattern, isize bytes);
-    std::vector <u32> search(auto pattern) { return search(pattern, isizeof(pattern)); }
+    std::vector <u32> search(auto pattern) { return search(pattern, isize(sizeof(pattern))); }
 };
 
 }

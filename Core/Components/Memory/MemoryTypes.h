@@ -6,10 +6,11 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,6 +18,7 @@ namespace vamiga {
  * table to specify the source and target of a peek or poke operation,
  * respectively.
  */
+/// Source of a memory access.
 enum class MemSrc : long
 {
     NONE,
@@ -38,7 +40,7 @@ enum class MemSrc : long
     EXT
 };
 
-struct MemSrcEnum : Reflection<MemSrcEnum, MemSrc>
+struct MemSrcEnum : utl::Reflectable<MemSrcEnum, MemSrc>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = (long)MemSrc::EXT;
@@ -95,6 +97,7 @@ struct MemSrcEnum : Reflection<MemSrcEnum, MemSrc>
     }
 };
 
+/// The component that performs a memory access.
 enum class Accessor : i8
 {
     CPU,
@@ -102,7 +105,7 @@ enum class Accessor : i8
     DENISE
 };
 
-struct AccessorEnum : Reflection<AccessorEnum, Accessor>
+struct AccessorEnum : utl::Reflectable<AccessorEnum, Accessor>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Accessor::DENISE);
@@ -123,18 +126,20 @@ struct AccessorEnum : Reflection<AccessorEnum, Accessor>
     }
 };
 
+/// Memory bank layout of an Amiga model.
 enum class BankMap : long
 {
     A500,
     A1000,
     A2000A,
-    A2000B
+    A2000B,
+    A1200
 };
 
-struct BankMapEnum : Reflection<BankMapEnum, BankMap>
+struct BankMapEnum : utl::Reflectable<BankMapEnum, BankMap>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = long(BankMap::A2000B);
+    static constexpr long maxVal = long(BankMap::A1200);
     
     static const char *_key(BankMap value)
     {
@@ -144,6 +149,7 @@ struct BankMapEnum : Reflection<BankMapEnum, BankMap>
             case BankMap::A1000:   return "A1000";
             case BankMap::A2000A:  return "A2000A";
             case BankMap::A2000B:  return "A2000B";
+            case BankMap::A1200:   return "A1200";
         }
         return "???";
     }
@@ -155,11 +161,13 @@ struct BankMapEnum : Reflection<BankMapEnum, BankMap>
             case BankMap::A1000:   return "Amiga 1000 memory layout";
             case BankMap::A2000A:  return "Amiga 2000A memory layout";
             case BankMap::A2000B:  return "Amiga 2000B memory layout";
+            case BankMap::A1200:   return "Amiga 1200 memory layout";
         }
         return "???";
     }
 };
 
+/// Pattern that RAM is initialized with.
 enum class RamInitPattern
 {
     ALL_ZEROES,
@@ -167,7 +175,7 @@ enum class RamInitPattern
     RANDOMIZED
 };
 
-struct RamInitPatternEnum : Reflection<RamInitPatternEnum, RamInitPattern>
+struct RamInitPatternEnum : utl::Reflectable<RamInitPatternEnum, RamInitPattern>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(RamInitPattern::RANDOMIZED);
@@ -194,6 +202,7 @@ struct RamInitPatternEnum : Reflection<RamInitPatternEnum, RamInitPattern>
     }
 };
 
+/// Value that is read from unmapped memory.
 enum class UnmappedMemory
 {
     FLOATING,
@@ -201,7 +210,7 @@ enum class UnmappedMemory
     ALL_ONES
 };
 
-struct UnmappedMemoryEnum : Reflection<UnmappedMemoryEnum, UnmappedMemory>
+struct UnmappedMemoryEnum : utl::Reflectable<UnmappedMemoryEnum, UnmappedMemory>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(UnmappedMemory::ALL_ONES);
@@ -233,71 +242,109 @@ struct UnmappedMemoryEnum : Reflection<UnmappedMemoryEnum, UnmappedMemory>
 // Structures
 //
 
+/// Configuration options of the memory.
 typedef struct
 {
-    // RAM size in bytes
+    /// RAM size in bytes
     i32 chipSize;
-    i32 slowSize;
-    i32 fastSize;
+    i32 slowSize;                           ///< Slow RAM size (in bytes)
+    i32 fastSize;                           ///< Fast RAM size (in bytes)
     
-    // ROM size in bytes
+    /// ROM size in bytes
     i32 romSize;
-    i32 womSize;
-    i32 extSize;
+    i32 womSize;                            ///< Size of the Write-Once-Memory (in bytes)
+    i32 extSize;                            ///< Size of the Extension ROM (in bytes)
     
-    // First memory page where the extended ROM is blended it
+    /// First memory page where the extended ROM is blended it
     u32 extStart;
     
-    // Indicates if snapshots should contain Roms
+    /// Data bus width (16 or 32)
+    u8 busWidth;
+    
+    /// Indicates if snapshots should contain Roms
     bool saveRoms;
     
-    // Indicates if slow Ram accesses need a free bus
+    /// Indicates if slow Ram accesses need a free bus
     bool slowRamDelay;
     
-    // Special ECS feature
+    /// Special ECS feature
     bool slowRamMirror;
     
-    // Memory layout
+    /// Memory layout
     BankMap bankMap;
     
-    // Ram contents on startup
+    /// Ram contents on startup
     RamInitPattern ramInitPattern;
     
-    // Specifies how to deal with unmapped memory
+    /// Specifies how to deal with unmapped memory
     UnmappedMemory unmappingType;
 }
 MemConfig;
 
+/// State of the memory.
 typedef struct
 {
-    bool hasRom;
-    bool hasWom;
-    bool hasExt;
-    bool hasBootRom;
-    bool hasKickRom;
-    bool womLock;
+    bool hasRom;                            ///< A Kickstart ROM is installed
+    bool hasWom;                            ///< A Write-Once-Memory is installed
+    bool hasExt;                            ///< An Extension ROM is installed
+    bool hasBootRom;                        ///< The installed ROM is a Boot ROM
+    bool hasKickRom;                        ///< The installed ROM is a Kickstart ROM
+    bool womLock;                           ///< The Write-Once-Memory is write-protected
     
-    u32 romMask;
-    u32 womMask;
-    u32 extMask;
-    u32 chipMask;
+    u32 romMask;                            ///< Address mask of the ROM
+    u32 womMask;                            ///< Address mask of the Write-Once-Memory
+    u32 extMask;                            ///< Address mask of the Extension ROM
+    u32 chipMask;                           ///< Address mask of the Chip RAM
     
-    MemSrc cpuMemSrc[256];
-    MemSrc agnusMemSrc[256];
+    MemSrc cpuMemSrc[256];                  ///< Memory source of each 64 KB bank as seen by the CPU
+    MemSrc agnusMemSrc[256];                ///< Memory source of each 64 KB bank as seen by Agnus
 }
 MemInfo;
 
+/// Statistics collected by the memory (access counters).
 typedef struct
 {
-    struct { isize raw; double accumulated; } chipReads;
-    struct { isize raw; double accumulated; } chipWrites;
-    struct { isize raw; double accumulated; } slowReads;
-    struct { isize raw; double accumulated; } slowWrites;
-    struct { isize raw; double accumulated; } fastReads;
-    struct { isize raw; double accumulated; } fastWrites;
-    struct { isize raw; double accumulated; } kickReads;
-    struct { isize raw; double accumulated; } kickWrites;
+    struct
+    {
+        isize raw;              ///< Number of accesses since the last update
+        double accumulated;     ///< Exponentially weighted average of the access count
+    } chipReads;  ///< Chip RAM reads
+    struct
+    {
+        isize raw;              ///< Number of accesses since the last update
+        double accumulated;     ///< Exponentially weighted average of the access count
+    } chipWrites;  ///< Chip RAM writes
+    struct
+    {
+        isize raw;              ///< Number of accesses since the last update
+        double accumulated;     ///< Exponentially weighted average of the access count
+    } slowReads;  ///< Slow RAM reads
+    struct
+    {
+        isize raw;              ///< Number of accesses since the last update
+        double accumulated;     ///< Exponentially weighted average of the access count
+    } slowWrites;  ///< Slow RAM writes
+    struct
+    {
+        isize raw;              ///< Number of accesses since the last update
+        double accumulated;     ///< Exponentially weighted average of the access count
+    } fastReads;  ///< Fast RAM reads
+    struct
+    {
+        isize raw;              ///< Number of accesses since the last update
+        double accumulated;     ///< Exponentially weighted average of the access count
+    } fastWrites;  ///< Fast RAM writes
+    struct
+    {
+        isize raw;              ///< Number of accesses since the last update
+        double accumulated;     ///< Exponentially weighted average of the access count
+    } kickReads;  ///< Kickstart ROM reads
+    struct
+    {
+        isize raw;              ///< Number of accesses since the last update
+        double accumulated;     ///< Exponentially weighted average of the access count
+    } kickWrites;  ///< Kickstart ROM writes
 }
-MemStats;
+MemMetrics;
 
 }

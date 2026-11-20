@@ -2,22 +2,23 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "ZorroManager.h"
 #include "Amiga.h"
 #include "Memory.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
 void
 ZorroManager::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
     
     if (category == Category::Slots) {
         

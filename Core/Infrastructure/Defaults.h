@@ -11,7 +11,7 @@
 
 #include "CoreObject.h"
 #include "OptionTypes.h"
-#include "Synchronizable.h"
+#include "utl/abilities/Synchronizable.h"
 
 namespace vamiga {
 
@@ -21,7 +21,8 @@ class Defaults final : public CoreObject, public Synchronizable {
     std::map <string, string> values;
 
     // The default value storage
-    std::map <string, string> fallbacks;
+    // std::map <string, string> fallbacks;
+    static Defaults &fallbacks();
 
 
     //
@@ -52,14 +53,14 @@ private:
 public:
 
     // Loads a properties file from disk
-    void load(const fs::path &path) throws;
-    void load(std::ifstream &stream) throws;
-    void load(std::stringstream &stream) throws;
+    void load(const fs::path &path);
+    void load(std::ifstream &stream);
+    void load(std::stringstream &stream);
 
     // Saves a properties file to disk
-    void save(const fs::path &path) throws;
-    void save(std::ofstream &stream) throws;
-    void save(std::stringstream &stream) throws;
+    void save(const fs::path &path);
+    void save(std::ofstream &stream);
+    void save(std::stringstream &stream);
 
 
     //
@@ -69,19 +70,20 @@ public:
 public:
 
     // Queries a key-value pair
-    string getRaw(const string &key) const throws;
-    i64 get(const string &key) const throws;
-    i64 get(Opt option, isize nr = 0) const throws;
+    string getRaw(const string &key) const;
+    i64 get(const string &key) const;
+    i64 get(Opt option, isize nr = 0) const;
 
     // Queries a fallback key-value pair
     string getFallbackRaw(const string &key) const;
     i64 getFallback(const string &key) const;
     i64 getFallback(Opt option, isize nr = 0) const;
 
-
     //
     // Writing key-value pairs
     //
+
+public:
 
     // Writes a key-value pair into the user storage
     void set(const string &key, const string &value);
@@ -106,9 +108,9 @@ public:
     void remove();
 
     // Deletes selected key-value pairs
-    void remove(const string &key) throws;
-    void remove(Opt option) throws;
-    void remove(Opt option, std::vector <isize> objids) throws;
+    void remove(const string &key);
+    void remove(Opt option);
+    void remove(Opt option, std::vector <isize> objids);
 };
 
 }

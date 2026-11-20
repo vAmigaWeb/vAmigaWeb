@@ -7,12 +7,18 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "SerialPort.h"
-#include "IOUtils.h"
 #include "Amiga.h"
+#include "MidiManager.h"
+#include "utl/io.h"
 
 namespace vamiga {
+
+SerialPort::SerialPort(Amiga& ref) : SubComponent(ref)
+{
+    info.bind([this] { return cacheInfo(); } );
+}
 
 i64
 SerialPort::getOption(Opt option) const
@@ -21,6 +27,7 @@ SerialPort::getOption(Opt option) const
             
         case Opt::SER_DEVICE:    return (i64)config.device;
         case Opt::SER_VERBOSE:   return (i64)config.verbose;
+        case Opt::SER_HANDSHAKE: return (i64)config.handshake;
 
         default:
             fatalError;
@@ -35,20 +42,22 @@ SerialPort::checkOption(Opt opt, i64 value)
         case Opt::SER_DEVICE:
 
             if (!SerialPortDeviceEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, SerialPortDeviceEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, SerialPortDeviceEnum::keyList());
             }
             return;
 
         case Opt::SER_VERBOSE:
+        case Opt::SER_HANDSHAKE:
 
             return;
 
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
 void
+
 SerialPort::setOption(Opt option, i64 value)
 {
     switch (option) {
@@ -56,10 +65,28 @@ SerialPort::setOption(Opt option, i64 value)
         case Opt::SER_DEVICE:
             
             if (!SerialPortDeviceEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, SerialPortDeviceEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, SerialPortDeviceEnum::keyList());
             }
             
+            // Unplugging the null modem cable releases the lines its peer drives
+            if (config.device == SerialPortDevice::NULLMODEM) setPeerLines(false);
+
             config.device = (SerialPortDevice)value;
+            if (config.device == SerialPortDevice::NULLMODEM) setPeerLines(config.handshake);
+            
+            // Initialize MIDI if selected
+            if (config.device == SerialPortDevice::MIDI) {
+                if (amiga.midiManager.initMidi()) {
+                    // Auto-connect to first available MIDI output
+                    if (MidiManager::getOutputCount() > 0) {
+                        amiga.midiManager.openOutput(MidiManager::getOutputEndpoint(0));
+                    }
+                    // Auto-connect to first available MIDI input
+                    if (MidiManager::getInputCount() > 0) {
+                        amiga.midiManager.openInput(MidiManager::getInputEndpoint(0));
+                    }
+                }
+            }
             return;
 
         case Opt::SER_VERBOSE:
@@ -67,32 +94,39 @@ SerialPort::setOption(Opt option, i64 value)
             config.verbose = bool(value);
             return;
 
+        case Opt::SER_HANDSHAKE:
+
+            config.handshake = bool(value);
+            if (config.device == SerialPortDevice::NULLMODEM) setPeerLines(config.handshake);
+            return;
+
         default:
             fatalError;
     }
 }
 
-void
-SerialPort::cacheInfo(SerialPortInfo &info) const
+SerialPortInfo
+SerialPort::cacheInfo() const
 {
-    {   SYNCHRONIZED
-        
-        info.port = port;
-        info.txd = getTXD();
-        info.rxd = getRXD();
-        info.rts = getRTS();
-        info.cts = getCTS();
-        info.dsr = getDSR();
-        info.cd = getCD();
-        info.dtr = getDTR();
-    }
+    SerialPortInfo info;
+
+    info.port = port;
+    info.txd = getTXD();
+    info.rxd = getRXD();
+    info.rts = getRTS();
+    info.cts = getCTS();
+    info.dsr = getDSR();
+    info.cd = getCD();
+    info.dtr = getDTR();
+    
+    return info;
 }
 
 void
 SerialPort::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-    
+    using namespace utl;
+
     if (category == Category::Config) {
         
         dumpConfig(os);
@@ -126,6 +160,9 @@ SerialPort::_didReset(bool hard)
 {
     incoming.clear();
     outgoing.clear();
+
+    // A reset clears the port pins; the null modem's peer still drives its lines
+    if (config.device == SerialPortDevice::NULLMODEM) setPeerLines(config.handshake);
 }
 
 bool
@@ -135,17 +172,31 @@ SerialPort::getPin(isize nr) const
 
     bool result = GET_BIT(port, nr);
 
-    // debug(SER_DEBUG, "getPin(%d) = %d port = %X\n", nr, result, port);
+    // logmsg(LOG_SER, "getPin(%d) = %d port = %X\n", nr, result, port);
     return result;
 }
 
 void
 SerialPort::setPin(isize nr, bool value)
 {
-    // debug(SER_DEBUG, "setPin(%d,%d)\n", nr, value);
+    // logmsg(LOG_SER, "setPin(%d,%d)\n", nr, value);
     assert(nr >= 1 && nr <= 25);
 
     setPort(1 << nr, value);
+}
+
+void
+SerialPort::setPeerLines(bool value)
+{
+    /* A null modem cable wired for hardware handshaking crosses RTS and CTS, and
+     * connects the peer's DTR to the Amiga's DSR and CD. With SER.HANDSHAKE set,
+     * the emulated peer is always ready, so it keeps CTS, DSR and CD asserted
+     * (serial.device does not transmit in 7-wire mode without them), and it
+     * starts sending a byte only while the Amiga's RTS is asserted (SerServer).
+     */
+    setCTS(value);
+    setDSR(value);
+    setCD(value);
 }
 
 void
@@ -268,7 +319,7 @@ SerialPort::recordIncomingByte(int byte)
 {
     {   SYNCHRONIZED
 
-        trace(SER_DEBUG, "Incoming: %02X ('%c')\n", byte, isprint(byte) ? char(byte) : '?');
+        logmsg(LOG_SER, "Incoming: %02X ('%c')\n", byte, isprint(byte) ? char(byte) : '?');
 
         // Record the incoming byte
         incoming += char(byte);
@@ -286,7 +337,7 @@ SerialPort::recordOutgoingByte(int byte)
 {
     {   SYNCHRONIZED
 
-        trace(SER_DEBUG, "Outgoing: %02X ('%c')\n", byte, isprint(byte) ? char(byte) : '?');
+        logmsg(LOG_SER, "Outgoing: %02X ('%c')\n", byte, isprint(byte) ? char(byte) : '?');
 
         // Record the incoming byte
         outgoing += char(byte);

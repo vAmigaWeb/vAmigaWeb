@@ -2,23 +2,23 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
 
+#include <atomic>
+
 #include "AudioPortTypes.h"
 #include "SubComponent.h"
-#include "Animated.h"
 #include "AudioStream.h"
 #include "AudioFilter.h"
-#include "Chrono.h"
 #include "Sampler.h"
 #include "SampleRateDetector.h"
-
-namespace vamiga {
+#include "utl/chrono.h"
+#include "utl/wrappers.h"
 
 /* Architecture of the audio pipeline
  *
@@ -42,24 +42,20 @@ namespace vamiga {
  *           -----------------------------------------------------
  */
 
-class AudioPort final : public SubComponent, public Inspectable<AudioPortInfo, AudioPortStats>  {
+namespace vamiga {
+
+class AudioPort final : public SubComponent {
 
     friend class AudioFilter;
+    friend class Paula;
 
-    Descriptions descriptions = {
-        {
-            .type           = Class::AudioPort,
-            .name           = "AudioPort",
-            .description    = "Audio Port",
-            .shell          = "audio"
-        },
-        {
-            .type           = Class::AudioPort,
-            .name           = "RecAudioPort",
-            .description    = "Audio Port (Recorder)",
-            .shell          = ""
-        },
-    };
+    Descriptions descriptions = {{
+
+        .type           = Class::AudioPort,
+        .name           = "AudioPort",
+        .description    = "Audio Port",
+        .shell          = "audio"
+    }};
 
     Options options = {
 
@@ -79,35 +75,44 @@ class AudioPort final : public SubComponent, public Inspectable<AudioPortInfo, A
         Opt::AUD_FASTPATH
     };
 
-    friend class Paula;
-
     // Current configuration
     AudioPortConfig config = { };
+
+public:
+
+    // Result of the latest inspection
+    utl::Backed<AudioPortInfo> info;
+    utl::Backed<AudioPortMetrics> metrics;
+
+private:
+
+    // Internal metrics
+    AudioPortMetrics stats = {};
     
     // Current sample rate
-    double sampleRate = 44100.0;
+    std::atomic<double> sampleRate { 44100.0 };
 
     // Variables needed to implement ASR (Adaptive Sample Rate)
     double sampleRateError = 0.0;
-    double sampleRateCorrection = 0.0;
+    std::atomic<double> sampleRateCorrection { 0.0 };
     
     // Fraction of a sample that hadn't been generated in synthesize
     double fraction = 0.0;
 
     // Time stamp of the last write pointer alignment
-    util::Time lastAlignment = util::Time::now();
+    utl::Time lastAlignment = utl::Time::now();
     
     // Channel volumes
     float vol[4] = { };
 
     // Panning factors
-    float pan[4] ={ };
+    float pan[4] = { };
 
     // Master volumes (fadable)
-    util::Animated<float> volL;
-    util::Animated<float> volR;
+    utl::Animated<float> volL;
+    utl::Animated<float> volR;
 
-    // Used to determine if a Msg::MUTE should be send
+    // Used to determine if Msg::MUTE should be send
     bool wasMuted = false;
 
 
@@ -157,7 +162,6 @@ public:
         return *this;
     }
 
-
     // Resets the output buffer and the two audio filters
     void clear();
 
@@ -201,7 +205,6 @@ private:
     void _dump(Category category, std::ostream &os) const override;
     void _didLoad() override;
     void _didReset(bool hard) override;
-    void _initialize() override;
     void _powerOn() override;
     void _run() override;
     void _pause() override;
@@ -227,13 +230,13 @@ public:
 
     
     //
-    // Methods from Inspectable
+    // Analyzing
     //
 
 public:
 
-    void cacheInfo(AudioPortInfo &result) const override;
-    void cacheStats(AudioPortStats &result) const override;
+    AudioPortInfo cacheInfo() const;
+    AudioPortMetrics cacheMetrics() const;
 
 
     //

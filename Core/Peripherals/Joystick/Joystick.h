@@ -10,11 +10,13 @@
 #pragma once
 
 #include "JoystickTypes.h"
+#include <array>
 #include "SubComponent.h"
+#include "utl/wrappers.h"
 
 namespace vamiga {
 
-class Joystick final : public SubComponent, public Inspectable<JoystickInfo> {
+class Joystick final : public SubComponent {
 
     Descriptions descriptions = {
         {
@@ -38,6 +40,13 @@ class Joystick final : public SubComponent, public Inspectable<JoystickInfo> {
         Opt::JOY_AUTOFIRE_BULLETS,
         Opt::JOY_AUTOFIRE_DELAY
     };
+
+public:
+
+    // Result of the latest inspection
+    utl::Backed<JoystickInfo> info;
+
+private:
 
     // Reference to control port this device belongs to
     ControlPort &port;
@@ -140,12 +149,12 @@ private:
 
 
     //
-    // Methods from Inspectable
+    // Analyzing
     //
 
 private:
 
-    void cacheInfo(JoystickInfo &result) const override;
+    JoystickInfo cacheInfo() const;
 
 
     //
@@ -181,6 +190,13 @@ public:
     
     // Triggers a joystick event
     void trigger(GamePadAction event);
+
+    /* Sets the complete joystick state (up, down, left, right, fire). The
+     * directions are applied as given. The fire button is only forwarded if
+     * it differs in the previous state, because pressing the button again
+     * would toggle autofire.
+     */
+    void trigger(const std::array<bool, 5> &state, const std::array<bool, 5> &previous);
 
     // To be called after each frame
     void eofHandler();

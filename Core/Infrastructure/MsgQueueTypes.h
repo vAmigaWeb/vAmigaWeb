@@ -6,9 +6,11 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
+#include <exception>
 #include "HdControllerTypes.h"
 
 namespace vamiga {
@@ -17,26 +19,28 @@ namespace vamiga {
 // Enumerations
 //
 
+/// Message type.
 enum class Msg : long
 {
-    NONE,
+    NONE,               ///< No message
     
     // Emulator state
-    CONFIG,
-    POWER,
-    RUN,
-    PAUSE,
-    STEP,
-    RESET,
-    SHUTDOWN,
-    ABORT,
-    WARP,
-    TRACK,
-    MUTE,
-    EASTER_EGG,
-    POWER_LED_ON,
-    POWER_LED_DIM,
-    POWER_LED_OFF,
+    CONFIG,             ///< A configuration request has been carried out (the exception is attached if it failed)
+    POWER,              ///< The emulator was switched on (value = 1) or off (value = 0)
+    RUN,                ///< The emulator started to run
+    PAUSE,              ///< The emulator was paused
+    STEP,               ///< The emulator completed a single step (string attached)
+    STOP,               ///< A remote debugger requested a stop
+    RESET,              ///< A hard reset was performed
+    SHUTDOWN,           ///< The emulator thread is about to terminate
+    ABORT,              ///< The application is asked to terminate (value = exit code)
+    WARP,               ///< Warp mode was switched on (value = 1) or off (value = 0)
+    TRACK,              ///< Track mode was switched on (value = 1) or off (value = 0)
+    MUTE,               ///< The audio output was muted (value = 1) or unmuted (value = 0)
+    EASTER_EGG,         ///< The easter egg was triggered
+    POWER_LED_ON,       ///< The power LED is on
+    POWER_LED_DIM,      ///< The power LED is dimmed
+    POWER_LED_OFF,      ///< The power LED is off
     
     // Retro shell
     RSH_CLOSE,          ///< RetroShell has been closed
@@ -44,100 +48,114 @@ enum class Msg : long
     RSH_SWITCH,         ///< RetroShell has switched to another console
     RSH_WAIT,           ///< Execution has peen postponed due to a wait command
     RSH_ERROR,          ///< Command execution has been aborted due to an error
+    RSH_DONE,           ///< All pending commands have been executed
     RSH_EXPORT,         ///< Data has been exported to the file system
 
     // Amiga
-    VIDEO_FORMAT,
+    VIDEO_FORMAT,       ///< The video format has changed (value = PAL or NTSC)
     
     // CPU
-    OVERCLOCKING,
-    GUARD_UPDATED,
-    BREAKPOINT_REACHED,
-    WATCHPOINT_REACHED,
-    CATCHPOINT_REACHED,
-    SWTRAP_REACHED,
-    CPU_HALT,
+    OVERCLOCKING,       ///< The CPU overclocking factor has changed (value = factor)
+    GUARD_UPDATED,      ///< A guard list has been modified (value = GuardType)
+    BREAKPOINT_REACHED, ///< A CPU breakpoint was reached (cpu.pc = address)
+    WATCHPOINT_REACHED, ///< A CPU watchpoint was reached (cpu.pc = watched address)
+    CATCHPOINT_REACHED, ///< A CPU catchpoint was reached (cpu.pc = program counter, cpu.vector = vector)
+    SWTRAP_REACHED,     ///< A software trap was reached (cpu.pc = program counter)
+    CPU_HALT,           ///< The CPU has halted
     
     // Agnus
-    EOL_REACHED,
-    EOF_REACHED,
-    BEAMTRAP_REACHED,
-    BEAMTRAP_UPDATED,
+    EOL_REACHED,        ///< The end of a raster line was reached (string attached)
+    EOF_REACHED,        ///< The end of a frame was reached (string attached)
+    BEAMTRAP_REACHED,   ///< A beamtrap was reached (beam.v, beam.h = beam position)
     
     // Copper
-    COPPERBP_REACHED,
-    COPPERBP_UPDATED,
-    COPPERWP_REACHED,
-    COPPERWP_UPDATED,
+    COPPERBP_REACHED,   ///< A Copper breakpoint was reached (cpu.pc = Copper address)
+    COPPERWP_REACHED,   ///< A Copper watchpoint was reached (cpu.pc = watched address)
     
     // Denise
-    VIEWPORT,
-    
+    VIEWPORT,           ///< The visible region of the texture has changed (viewport = coordinates)
+
+    // Audio
+    AUDBUF_UNDERFLOW,   ///< The audio buffer ran empty (value = milliseconds since the previous underflow)
+    AUDBUF_OVERFLOW,    ///< The audio buffer ran full (value = milliseconds since the previous overflow)
+
     // Memory
-    MEM_LAYOUT,
+    MEM_LAYOUT,         ///< The memory layout (bank mapping) has changed
     
     // Floppy drives
-    DRIVE_CONNECT,
-    DRIVE_SELECT,
-    DRIVE_READ,
-    DRIVE_WRITE,
-    DRIVE_LED,
-    DRIVE_MOTOR,
-    DRIVE_STEP,
-    DRIVE_POLL,
-    DISK_INSERT,
-    DISK_EJECT,
-    DISK_PROTECTED,
+    DRIVE_CONNECT,      ///< A floppy drive was connected or disconnected (drive.nr = drive, drive.value = connected)
+    DRIVE_SELECT,       ///< A floppy drive was selected (value = drive)
+    DRIVE_READ,         ///< A floppy drive is reading (value = drive)
+    DRIVE_WRITE,        ///< A floppy drive is writing (value = drive)
+    DRIVE_LED,          ///< The LED of a floppy drive changed (drive.nr = drive, drive.value = on or off)
+    DRIVE_MOTOR,        ///< The motor of a floppy drive changed (drive.nr = drive, drive.value = on or off)
+    DRIVE_STEP,         ///< A floppy drive moved its head (drive.nr = drive, drive.value = cylinder, drive.volume, drive.pan)
+    DRIVE_POLL,         ///< A floppy drive without a disk moved its head to poll for one (same payload as DRIVE_STEP)
+    DISK_INSERT,        ///< A disk was inserted (drive.nr = drive, drive.volume, drive.pan; carries the exception if it failed)
+    DISK_EJECT,         ///< A disk was ejected (drive.nr = drive, drive.volume, drive.pan)
+    DISK_PROTECTED,     ///< The write protection of the disk changed (value = protected)
     
     // Hard drive controllers
-    HDC_CONNECT,
-    HDC_STATE,
+    HDC_CONNECT,        ///< A hard drive controller was connected (drive.nr = drive)
+    HDC_STATE,          ///< The state of a hard drive controller changed (hdc.nr = drive, hdc.state)
     
     // Hard drives
-    HDR_STEP,
-    HDR_READ,
-    HDR_WRITE,
-    HDR_IDLE,
+    HDR_ATTACH,         ///< A hard drive has been attached (value: drive; carries the exception if it failed)
+    HDR_IMPORTED,       ///< A folder has been imported (value: drive; carries the exception if it failed)
+    HDR_DETACH,         ///< A hard drive was detached (value = drive)
+    HDR_STEP,           ///< A hard drive moved its head (drive.nr = drive, drive.value = cylinder, drive.volume, drive.pan)
+    HDR_READ,           ///< A hard drive is reading
+    HDR_WRITE,          ///< A hard drive is writing
+    HDR_IDLE,           ///< A hard drive became idle (value = drive)
     
     // Monitor
-    MON_SETTING,
+    MON_SETTING,        ///< A monitor setting has changed (value = option, value2 = new value)
     
     // Keyboard
-    CTRL_AMIGA_AMIGA,
+    CTRL_AMIGA_AMIGA,   ///< The reset key combination (Ctrl + both Amiga keys) was pressed
+    KB_PRESS,           ///< A key has been pressed
+    KB_RELEASE,         ///< A key has been released
+    KB_LOCK,            ///< A key has been locked
+    KB_UNLOCK,          ///< A key has been unlocked
     
     // Mouse
-    SHAKING,
+    SHAKING,            ///< The mouse was shaken
     
     // Ports
-    SER_IN,
-    SER_OUT,
+    SER_IN,             ///< Data arrived at the serial port while its log buffer was empty
+    SER_OUT,            ///< Data was sent from the serial port while its log buffer was empty
     
+    // ROMs
+    ROM_LOADED,         ///< A ROM was loaded (value = 0: Kickstart ROM, 1: extension ROM; carries the exception if it failed)
+
     // Snapshots
-    SNAPSHOT_TAKEN,
-    SNAPSHOT_RESTORED,
+    SNAPSHOT_TAKEN,     ///< An automatic snapshot was taken (snapshot.snapshot = heap object that the receiver must delete)
+    SNAPSHOT_RESTORED,  ///< A snapshot was restored (carries the exception if it failed)
+    SNAPSHOT_SAVED,     ///< A snapshot has been saved (carries the exception if it failed)
     
     // Workspaces
-    WORKSPACE_LOADED,
-    WORKSPACE_SAVED,
+    WORKSPACE_LOADED,   ///< A workspace was loaded
+    WORKSPACE_SAVED,    ///< A workspace has been saved (carries the exception if it failed)
 
-    // Screen recording
-    RECORDING_STARTED,
-    RECORDING_STOPPED,
-    RECORDING_ABORTED,
-    
+    // Hibernation
+    HIBERNATED,         ///< The machine has been hibernated (carries the exception if it failed)
+
+    // Command queue
+    QUEUE_FULL,         ///< The command queue is full and commands are dropped
+
     // DMA Debugging
-    DMA_DEBUG,
+    XRAY,               ///< The X-Ray mode has changed (value = mode)
     
     // Remote server
-    SRV_STATE,
-    SRV_RECEIVE,
-    SRV_SEND,
+    SRV_STATE,          ///< A remote server changed its state (value = SrvState)
+    SRV_RECEIVE,        ///< A remote server received data (value = server, value2 = log entry, string = packet)
+    SRV_SEND,           ///< A remote server sent data (value = server, value2 = log entry, string = packet)
     
     // Scheduled alarms
-    ALARM
+    ALARM               ///< A scheduled alarm went off (value = the payload given when the alarm was set)
 };
 
-struct MsgEnum : Reflection<MsgEnum, Msg>
+struct MsgEnum : utl::Reflectable<MsgEnum, Msg>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Msg::ALARM);
@@ -153,6 +171,7 @@ struct MsgEnum : Reflection<MsgEnum, Msg>
             case Msg::RUN:                   return "RUN";
             case Msg::PAUSE:                 return "PAUSE";
             case Msg::STEP:                  return "STEP";
+            case Msg::STOP:                  return "STOP";
             case Msg::RESET:                 return "RESET";
             case Msg::SHUTDOWN:              return "SHUTDOWN";
             case Msg::ABORT:                 return "ABORT";
@@ -169,6 +188,7 @@ struct MsgEnum : Reflection<MsgEnum, Msg>
             case Msg::RSH_SWITCH:            return "RSH_SWITCH";
             case Msg::RSH_WAIT:              return "RSH_WAIT";
             case Msg::RSH_ERROR:             return "RSH_ERROR";
+            case Msg::RSH_DONE:              return "RSH_DONE";
             case Msg::RSH_EXPORT:            return "RSH_EXPORT";
                 
             case Msg::VIDEO_FORMAT:          return "VIDEO_FORMAT";
@@ -184,15 +204,15 @@ struct MsgEnum : Reflection<MsgEnum, Msg>
             case Msg::EOL_REACHED:           return "EOL_REACHED";
             case Msg::EOF_REACHED:           return "EOF_REACHED";
             case Msg::BEAMTRAP_REACHED:      return "BEAMTRAP_REACHED";
-            case Msg::BEAMTRAP_UPDATED:      return "BEAMTRAP_UPDATED";
                 
             case Msg::COPPERBP_REACHED:      return "COPPERBP_REACHED";
-            case Msg::COPPERBP_UPDATED:      return "COPPERBP_UPDATED";
             case Msg::COPPERWP_REACHED:      return "COPPERWP_REACHED";
-            case Msg::COPPERWP_UPDATED:      return "COPPERWP_UPDATED";
                 
             case Msg::VIEWPORT:              return "VIEWPORT";
-                
+
+            case Msg::AUDBUF_UNDERFLOW:      return "AUDBUF_UNDERFLOW";
+            case Msg::AUDBUF_OVERFLOW:       return "AUDBUF_OVERFLOW";
+
             case Msg::MEM_LAYOUT:            return "MEM_LAYOUT";
                 
             case Msg::DRIVE_CONNECT:         return "DRIVE_CONNECT";
@@ -210,6 +230,9 @@ struct MsgEnum : Reflection<MsgEnum, Msg>
             case Msg::HDC_CONNECT:           return "HDC_CONNECT";
             case Msg::HDC_STATE:             return "HDC_STATE";
                 
+            case Msg::HDR_ATTACH:            return "HDR_ATTACH";
+            case Msg::HDR_IMPORTED:          return "HDR_IMPORTED";
+            case Msg::HDR_DETACH:            return "HDR_DETACH";
             case Msg::HDR_STEP:              return "HDR_STEP";
             case Msg::HDR_READ:              return "HDR_READ";
             case Msg::HDR_WRITE:             return "HDR_WRITE";
@@ -218,23 +241,27 @@ struct MsgEnum : Reflection<MsgEnum, Msg>
             case Msg::MON_SETTING:           return "MON_SETTING";
 
             case Msg::CTRL_AMIGA_AMIGA:      return "CTRL_AMIGA_AMIGA";
+            case Msg::KB_PRESS:              return "KB_PRESS";
+            case Msg::KB_RELEASE:            return "KB_RELEASE";
+            case Msg::KB_LOCK:               return "KB_LOCK";
+            case Msg::KB_UNLOCK:             return "KB_UNLOCK";
                 
             case Msg::SHAKING:               return "SHAKING";
                 
             case Msg::SER_IN:                return "SER_IN";
             case Msg::SER_OUT:               return "SER_OUT";
                 
+            case Msg::ROM_LOADED:            return "ROM_LOADED";
             case Msg::SNAPSHOT_TAKEN:        return "SNAPSHOT_TAKEN";
             case Msg::SNAPSHOT_RESTORED:     return "SNAPSHOT_RESTORED";
+            case Msg::SNAPSHOT_SAVED:        return "SNAPSHOT_SAVED";
+            case Msg::HIBERNATED:            return "HIBERNATED";
+            case Msg::QUEUE_FULL:            return "QUEUE_FULL";
                 
             case Msg::WORKSPACE_LOADED:      return "WORKSPACE_LOADED";
             case Msg::WORKSPACE_SAVED:       return "WORKSPACE_SAVED";
-                
-            case Msg::RECORDING_STARTED:     return "RECORDING_STARTED";
-            case Msg::RECORDING_STOPPED:     return "RECORDING_STOPPED";
-            case Msg::RECORDING_ABORTED:     return "RECORDING_ABORTED";
-                
-            case Msg::DMA_DEBUG:             return "DMA_DEBUG";
+
+            case Msg::XRAY:             return "XRAY";
                 
             case Msg::SRV_STATE:             return "SRV_STATE";
             case Msg::SRV_RECEIVE:           return "SRV_RECEIVE";
@@ -256,28 +283,97 @@ struct MsgEnum : Reflection<MsgEnum, Msg>
 // Structures
 //
 
-typedef struct { u32 pc; u8 vector; } CpuMsg;
-typedef struct { i16 nr; i16 value; i16 volume; i16 pan; } DriveMsg;
-typedef struct { i16 nr; HdcState state; } HdcMsg;
-typedef struct { isize line; i16 delay; } ScriptMsg;
-typedef struct { void *snapshot; } SnapshotMsg;
-typedef struct { i16 hstrt; i16 vstrt; i16 hstop; i16 vstop; } ViewportMsg;
-
+/// Payload of CPU messages (the program counter).
 typedef struct
 {
-    // Header
+    u32 pc;         ///< Program counter
+    u8 vector;      ///< Exception vector number
+}
+CpuMsg;
+/// Payload of messages that carry a beam position.
+typedef struct
+{
+    i16 v;          ///< Vertical beam position
+    i16 h;          ///< Horizontal beam position
+}
+BeamMsg;
+/* Reports a configuration request. The option is -1 if the request has changed
+ * several options (e.g., a configuration scheme, in which case 'value' is the
+ * scheme) or if it is not known which ones. The component id is -1 if the
+ * request was not targeted at a single component.
+ */
+/// Payload of configuration messages.
+typedef struct
+{
+    i32 option;     ///< The option that has changed
+    i32 id;         ///< The component the option applies to
+    i64 value;      ///< The new value of the option
+}
+ConfigMsg;
+/// Payload of drive messages.
+typedef struct
+{
+    i16 nr;         ///< Number of the drive
+    i16 value;      ///< Message-specific value (the cylinder for DRIVE_STEP)
+    i16 volume;     ///< Volume of the drive sound
+    i16 pan;        ///< Stereo position of the drive sound
+}
+DriveMsg;
+/// Payload of hard drive controller messages.
+typedef struct
+{
+    i16 nr;         ///< Number of the hard drive
+    HdcState state; ///< New state of the controller
+}
+HdcMsg;
+/// Payload of script messages.
+typedef struct
+{
+    isize line;     ///< Line number in the script
+    i16 delay;      ///< Delay in seconds
+}
+ScriptMsg;
+/// Payload of snapshot messages.
+typedef struct
+{
+    void *snapshot; ///< The snapshot that has been taken
+}
+SnapshotMsg;
+
+/// Payload of viewport messages.
+typedef struct
+{
+    i16 hstrt;      ///< Left edge of the viewport (in super-hires pixels)
+    i16 vstrt;      ///< Top edge of the viewport (in lines)
+    i16 hstop;      ///< Right edge of the viewport (in super-hires pixels)
+    i16 vstop;      ///< Bottom edge of the viewport (in lines)
+}
+ViewportMsg;
+
+/// A message sent by the emulator.
+typedef struct
+{
+    /// Header
     Msg type;
-    
+
     // Payload
     union {
-        struct { i64 value; i64 value2; };
-        CpuMsg cpu;
-        DriveMsg drive;
-        HdcMsg hdc;
-        ScriptMsg script;
-        SnapshotMsg snapshot;
-        ViewportMsg viewport;
+        struct {
+            i64 value;                  ///< First integer payload value
+            i64 value2;                 ///< Second integer payload value
+        };
+        CpuMsg cpu;                     ///< Payload of CPU messages
+        ConfigMsg config;               ///< Payload of configuration messages
+        BeamMsg beam;                   ///< Payload of beam messages
+        DriveMsg drive;                 ///< Payload of drive messages
+        HdcMsg hdc;                     ///< Payload of hard drive controller messages
+        ScriptMsg script;               ///< Payload of script messages
+        SnapshotMsg snapshot;           ///< Payload of snapshot messages
+        ViewportMsg viewport;           ///< Payload of viewport messages
     };
+
+    /// Attached string (may be null)
+    const char *str;
 }
 Message;
 
@@ -286,6 +382,11 @@ Message;
 // Signatures
 //
 
-typedef void Callback(const void *, Message);
+/** The callback receives the message and, for a message that reports a
+ * failure, the exception that caused it (null otherwise). Pointers inside the
+ * message are only valid for the duration of the call; the exception is a
+ * shared handle and can be kept.
+ */
+typedef void Callback(const void *, Message, std::exception_ptr);
 
 }

@@ -6,10 +6,11 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -18,19 +19,18 @@ namespace vamiga {
 // Enumerations
 //
 
+/// CPU revision.
 enum class CPURev : long
 {
     CPU_68000,
     CPU_68010,
-    CPU_68EC020,
-    CPU_68020,
-    CPU_68EC030
+    CPU_68EC020
 };
 
-struct CPURevEnum : Reflection<CPURevEnum, CPURev>
+struct CPURevEnum : utl::Reflectable<CPURevEnum, CPURev>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = long(CPURev::CPU_68EC030);
+    static constexpr long maxVal = long(CPURev::CPU_68EC020);
     
     static const char *_key(CPURev value)
     {
@@ -39,8 +39,6 @@ struct CPURevEnum : Reflection<CPURevEnum, CPURev>
             case CPURev::CPU_68000:     return "68000";
             case CPURev::CPU_68010:     return "68010";
             case CPURev::CPU_68EC020:   return "68EC020";
-            case CPURev::CPU_68020:   return "68020";
-            case CPURev::CPU_68EC030:   return "68EC030";
         }
         return "???";
     }
@@ -51,13 +49,12 @@ struct CPURevEnum : Reflection<CPURevEnum, CPURev>
             case CPURev::CPU_68000:     return "Motorola 68000 CPU";
             case CPURev::CPU_68010:     return "Motorola 68010 CPU";
             case CPURev::CPU_68EC020:   return "Motorola 68EC020 CPU";
-            case CPURev::CPU_68020:   return "Motorola 68020 CPU";
-            case CPURev::CPU_68EC030:   return "Motorola 68EC030 CPU";
         }
         return "???";
     }
 };
 
+/// CPU revision the disassembler targets.
 enum class DasmRev : long
 {
     DASM_68000,
@@ -71,7 +68,7 @@ enum class DasmRev : long
     DASM_68040
 };
 
-struct DasmRevEnum : Reflection<DasmRevEnum, DasmRev>
+struct DasmRevEnum : utl::Reflectable<DasmRevEnum, DasmRev>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(DasmRev::DASM_68040);
@@ -110,6 +107,7 @@ struct DasmRevEnum : Reflection<DasmRevEnum, DasmRev>
     }
 };
 
+/// Syntax style of the disassembler.
 enum class DasmSyntax : long
 {
     MOIRA,
@@ -119,7 +117,7 @@ enum class DasmSyntax : long
     MUSASHI
 };
 
-struct DasmSyntaxEnum : Reflection<DasmSyntaxEnum, DasmSyntax>
+struct DasmSyntaxEnum : utl::Reflectable<DasmSyntaxEnum, DasmSyntax>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(DasmSyntax::MUSASHI);
@@ -150,13 +148,14 @@ struct DasmSyntaxEnum : Reflection<DasmSyntaxEnum, DasmSyntax>
     }
 };
 
+/// Number format of the disassembler.
 enum class DasmNumbers : long
 {
     HEX,
     DEC
 };
 
-struct DasmNumbersEnum : Reflection<DasmNumbersEnum, DasmNumbers>
+struct DasmNumbersEnum : utl::Reflectable<DasmNumbersEnum, DasmNumbers>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(DasmNumbers::DEC);
@@ -181,78 +180,46 @@ struct DasmNumbersEnum : Reflection<DasmNumbersEnum, DasmNumbers>
     }
 };
 
-enum class GuardType : long
-{
-    BREAKPOINT,
-    WATCHPOINT,
-    CATCHPOINT,
-};
-
-struct GuardTypeEnum : Reflection<GuardTypeEnum, GuardType>
-{
-    static constexpr long minVal = 0;
-    static constexpr long maxVal = long(GuardType::CATCHPOINT);
-    
-    static const char *_key(GuardType value)
-    {
-        switch (value) {
-                
-            case GuardType::BREAKPOINT:  return "BREAKPOINT";
-            case GuardType::WATCHPOINT:  return "WATCHPOINT";
-            case GuardType::CATCHPOINT:  return "CATCHPOINT";
-        }
-        return "???";
-    }
-    static const char *help(GuardType value)
-    {
-        switch (value) {
-                
-            case GuardType::BREAKPOINT:  return "Breakpoint";
-            case GuardType::WATCHPOINT:  return "Watchpoint";
-            case GuardType::CATCHPOINT:  return "Catchpoint";
-        }
-        return "???";
-    }
-};
-
-
 //
 // Structures
 //
 
+/// Configuration options of the CPU.
 typedef struct
 {
-    CPURev revision;
-    DasmRev dasmRevision;
-    DasmSyntax dasmSyntax;
-    DasmNumbers dasmNumbers;
-    isize overclocking;
-    u32 regResetVal;
+    CPURev revision;                        ///< Chip revision
+    DasmRev dasmRevision;                   ///< Chip revision used by the disassembler
+    DasmSyntax dasmSyntax;                  ///< Disassembler syntax
+    DasmNumbers dasmNumbers;                ///< Disassembler number format
+    isize overclocking;                     ///< Overclocking factor
+    u32 regResetVal;                        ///< Register reset value
+    isize startDelay;                       ///< Delay before the CPU starts (in CPU cycles)
 }
 CPUConfig;
 
+/// State of the CPU (registers and flags).
 typedef struct
 {
-    Cycle clock;
+    Cycle clock;                            ///< CPU clock (in master cycles)
     
-    u32 pc0;
-    u16 ird;
-    u16 irc;
-    u32 d[8];
-    u32 a[8];
-    u32 isp;
-    u32 usp;
-    u32 msp;
-    u32 vbr;
-    u16 sr;
-    u8 sfc;
-    u8 dfc;
-    u8 cacr;
-    u8 caar;
-    u8 ipl;
-    u8 fc;
+    u32 pc0;                                ///< Address of the current instruction
+    u16 ird;                                ///< Instruction register (decoder)
+    u16 irc;                                ///< Instruction register (prefetch queue)
+    u32 d[8];                               ///< Data registers D0 - D7
+    u32 a[8];                               ///< Address registers A0 - A7
+    u32 isp;                                ///< Interrupt stack pointer
+    u32 usp;                                ///< User stack pointer
+    u32 msp;                                ///< Master stack pointer
+    u32 vbr;                                ///< Vector base register
+    u16 sr;                                 ///< Status register
+    u8 sfc;                                 ///< Source function code register
+    u8 dfc;                                 ///< Destination function code register
+    u8 cacr;                                ///< Cache control register
+    u8 caar;                                ///< Cache address register
+    u8 ipl;                                 ///< Interrupt priority level on the interrupt lines
+    u8 fc;                                  ///< Function code pins
     
-    bool halt;
+    bool halt;                              ///< The CPU is halted
 }
 CPUInfo;
 

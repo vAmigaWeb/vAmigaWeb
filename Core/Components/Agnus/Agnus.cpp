@@ -7,21 +7,24 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Agnus.h"
 #include "Emulator.h"
 
 namespace vamiga {
 
 Agnus::Agnus(Amiga& ref) : SubComponent(ref)
-{    
+{
     subComponents = std::vector<CoreComponent *> {
-        
+
         &sequencer,
         &copper,
         &blitter,
-        &dmaDebugger
+        &xray
     };
+
+    info.bind([this] { return cacheInfo(); } );
+    metrics.bind([this] { return cacheMetrics(); } );
 }
 
 Agnus&
@@ -33,7 +36,7 @@ Agnus::operator= (const Agnus& other) {
     CLONE(sequencer)
     CLONE(copper)
     CLONE(blitter)
-    CLONE(dmaDebugger)
+    CLONE(xray)
     
     CLONE_ARRAY(trigger)
     CLONE_ARRAY(id)
@@ -51,20 +54,36 @@ Agnus::operator= (const Agnus& other) {
     CLONE(bplcon1Initial)
     CLONE(dmacon)
     CLONE(dmaconInitial)
+    CLONE(fmode)
+    CLONE(htotal)
+    CLONE(hsstop)
+    CLONE(hbstrt)
+    CLONE(hbstop)
+    CLONE(vtotal)
+    CLONE(vsstop)
+    CLONE(vbstrt)
+    CLONE(vbstop)
+    CLONE(hsstrt)
+    CLONE(vsstrt)
+    CLONE(hcenter)
+    CLONE(hhposw)
     CLONE(dskpt)
     CLONE_ARRAY(audpt)
     CLONE_ARRAY(audlc)
     CLONE_ARRAY(bplpt)
+    CLONE_ARRAY(bpldatNext)
+    CLONE_ARRAY(bpldatNextValid)
     CLONE(bpl1mod)
     CLONE(bpl2mod)
     CLONE_ARRAY(sprpt)
+    CLONE_ARRAY(sprdatNext)
     CLONE(res)
     CLONE(scrollOdd)
     CLONE(scrollEven)
 
-    CLONE_ARRAY(busData)
-    CLONE_ARRAY(busAddr)
     CLONE_ARRAY(busOwner)
+    CLONE_ARRAY(busAddr)
+    CLONE_ARRAY(busData)
     CLONE_ARRAY(lastCtlWrite)
 
     CLONE_ARRAY(audxDR)
@@ -75,7 +94,7 @@ Agnus::operator= (const Agnus& other) {
     CLONE_ARRAY(sprVStop)
     CLONE_ARRAY(sprDmaEnabled)
     CLONE_ARRAY(sprSscan2)
-
+    
     CLONE(clock)
 
     CLONE(config)
@@ -87,8 +106,14 @@ Agnus::operator= (const Agnus& other) {
 void
 Agnus::operator << (SerResetter &worker)
 {
-    // Remember some events
+    /* Remember some events. The inspection slot carries its component mask in
+     * data[], and that mask says what an observer wants to watch rather than
+     * anything about the machine, so it has to outlive a reset the same way
+     * the event itself does -- otherwise resetting silently stops every
+     * snapshot and leaves the GUI reading values that never change again.
+     */
     auto insEvent = id[SLOT_INS];
+    auto insMask = data[SLOT_INS];
 
     serialize(worker);
 
@@ -98,8 +123,8 @@ Agnus::operator << (SerResetter &worker)
     // Adjust to the correct video mode
     setVideoFormat(amiga.getConfig().type);
 
-    // Initialize statistical counters
-    clearStats();
+    // Reset all metrics
+    stats = {};
 
     // Initialize all event slots
     for (isize i = 0; i < SLOT_COUNT; i++) {
@@ -119,7 +144,7 @@ Agnus::operator << (SerResetter &worker)
     diskController.scheduleFirstDiskEvent();
     scheduleFirstBplEvent();
     scheduleFirstDasEvent();
-    if (insEvent) scheduleRel <SLOT_INS> (0, insEvent);
+    if (insEvent) { data[SLOT_INS] = insMask; scheduleRel <SLOT_INS> (0, insEvent); }
 }
 
 i64
@@ -143,10 +168,10 @@ Agnus::checkOption(Opt opt, i64 value)
         case Opt::AGNUS_REVISION:
 
             if (!isPoweredOff()) {
-                throw AppError(Fault::OPT_LOCKED);
+                throw CoreError(CoreError::OPT_LOCKED);
             }
             if (!AgnusRevisionEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, AgnusRevisionEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, AgnusRevisionEnum::keyList());
             }
             return;
 
@@ -155,7 +180,7 @@ Agnus::checkOption(Opt opt, i64 value)
             return;
 
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -193,7 +218,7 @@ Agnus::setOption(Opt option, i64 value)
 void
 Agnus::setVideoFormat(TV newFormat)
 {
-    trace(NTSC_DEBUG, "Video format = %s\n", TVEnum::key(newFormat));
+    logmsg(LOG_NTSC, "Video format = %s\n", TVEnum::key(newFormat));
 
     // Change the frame type
     agnus.pos.switchMode(newFormat);
@@ -215,6 +240,7 @@ Agnus::getTraits() const
 
         .isOCS = isOCS(),
         .isECS = isECS(),
+        .isAGA = isAGA(),
         .isPAL = isPAL(),
         .isNTSC = isNTSC(),
         .idBits = idBits(),
@@ -247,10 +273,12 @@ Agnus::idBits() const
 {
     switch (config.revision) {
             
-        case AgnusRevision::ECS_2MB: return 0x2000; // TODO: CHECK ON REAL MACHINE
         case AgnusRevision::ECS_1MB: return 0x2000;
-        case AgnusRevision::AGA:     return 0x2300; // Alice (8374) rev 3/4, PAL
-        default:            return 0x0000;
+        case AgnusRevision::ECS_2MB: return 0x2000; // TODO: CHECK ON REAL MACHINE
+        case AgnusRevision::AGA:     return 0x2300;
+            
+        default:
+            return 0x0000;
     }
 }
 
@@ -259,23 +287,112 @@ Agnus::chipRamLimit() const
 {
     switch (config.revision) {
 
-        case AgnusRevision::AGA:    return 2048;
-        case AgnusRevision::ECS_2MB: return 2048;
         case AgnusRevision::ECS_1MB: return 1024;
-        default:            return 512;
+        case AgnusRevision::ECS_2MB: return 2048;
+        case AgnusRevision::AGA:     return 2048;
+
+        default:
+            return 512;
     }
 }
 
 Resolution
 Agnus::resolution(u16 v)
 {
-    if (GET_BIT(v,6) && (isECS() || isAGA())) {
-        return Resolution::SHRES;
-    } else if (GET_BIT(v,15)) {
-        return Resolution::HIRES;
-    } else {
-        return Resolution::LORES;
+    if (GET_BIT(v,6) && !isOCS()) return Resolution::SHRES;
+    if (GET_BIT(v,15))            return Resolution::HIRES;
+    
+    return Resolution::LORES;
+}
+
+u8
+Agnus::bplFetchWords() const
+{
+    if (isAGA()) {
+        
+        // AGA encodes the sprite width in FMODE bits 0 and 1
+        switch (fmode & 0b11) {
+                
+            case 0b00: return 1;
+            case 0b01:
+            case 0b10: return 2;
+            case 0b11: return 4;
+        }
     }
+    
+    return 1;
+}
+
+u8
+Agnus::sprFetchWords() const
+{
+    if (isAGA()) {
+        
+        // AGA encodes the sprite width in FMODE bits 2 and 3
+        switch ((fmode >> 2) & 0b11) {
+                
+            case 0b00: return 1;
+            case 0b01:
+            case 0b10: return 2;
+            case 0b11: return 4;
+        }
+    }
+    
+    return 1;
+}
+
+/*
+u32
+Agnus::alignPtr(u32 ptr, u8 words)
+{
+    // A 32 or 64 bit fetch ignores the low address bits, so an unaligned
+    // pointer is truncated by the hardware rather than honored. The mask
+    // is derived from the number of words per fetch: 1 word leaves the
+    // pointer untouched, 2 words align it to 4 bytes, 4 words to 8 bytes.
+    
+    return ptr & ~u32(2 * words - 1);
+}
+*/
+
+i16
+Agnus::bplMod(isize plane) const
+{
+    /* Normally, BPL1MOD belongs to the odd and BPL2MOD to the even bitplanes.
+     * The AGA bitplane scan doubling bit changes the meaning of both registers
+     * completely: the modulo is then selected by the parity of the rasterline
+     * instead of the plane number. This lets a program display every line
+     * twice, by setting up one modulo to advance the pointers and the other to
+     * cancel that advance out again (getbplmod() in WinUAE / Amiberry).
+     *
+     * The parity is anchored at the vertical start position of the display
+     * window, which makes the first displayed line the first line of a doubled
+     * pair. Sprite scan doubling anchors the same way (see sscan2Skips).
+     */
+    if (bscan2()) {
+        return ((sequencer.diwstrt >> 8) ^ (pos.v ^ 1)) & 1 ? bpl1mod : bpl2mod;
+    }
+    
+    return (plane & 1) ? bpl2mod : bpl1mod;
+}
+
+void
+Agnus::addBplMod(isize plane)
+{
+    u32 p = bplpt[plane];
+    U32_INC(p, bplMod(plane));
+    bplpt[plane] = p;
+}
+
+bool
+Agnus::bscan2() const
+{
+    return isAGA() && GET_BIT(fmode, 14);
+}
+
+bool
+Agnus::sscan2() const
+{
+    return isAGA() && GET_BIT(fmode, 15);
 }
 
 void
@@ -310,28 +427,60 @@ Agnus::syncWithEClock()
 
     // Determine where we are in the current E clock cycle
     Cycle eClk = (clock >> 2) % 10;
-    
-    // We want to sync to position (2).
-    // If we are already too close, we seek (2) in the next E clock cycle.
-    Cycle delay = 0;
-    
-    switch (eClk) {
-            
-        case 0: delay = 4 * (2 + 10); break;
-        case 1: delay = 4 * (1 + 10); break;
-        case 2: delay = 4 * (0 + 10); break;
-        case 3: delay = 4 * 9;        break;
-        case 4: delay = 4 * 8;        break;
-        case 5: delay = 4 * 7;        break;
-        case 6: delay = 4 * 6;        break;
-        case 7: delay = 4 * (5 + 10); break;
-        case 8: delay = 4 * (4 + 10); break;
-        case 9: delay = 4 * (3 + 10); break;
 
-        default:
-            fatalError;
+    /* The Gayle based machines run the E clock two cycles later than the older
+     * models, so the CIAs are accessed at a different point of the cycle.
+     *
+     * In both tables, an entry of the form (n + 10) marks a position from
+     * which the target is less than six cycles away. An access occupies the
+     * six low clocks of the cycle, so such a target cannot be reached any more
+     * and the one in the next E clock cycle is taken instead.
+     */
+    Cycle delay = 0;
+
+    if (isAGA()) {
+
+        // We want to sync to position (4).
+        // If we are already too close, we seek (4) in the next E clock cycle.
+        switch (eClk) {
+
+            case 0: delay = 4 * (4 + 10); break;
+            case 1: delay = 4 * (3 + 10); break;
+            case 2: delay = 4 * (2 + 10); break;
+            case 3: delay = 4 * (1 + 10); break;
+            case 4: delay = 4 * (0 + 10); break;
+            case 5: delay = 4 * 9;        break;
+            case 6: delay = 4 * 8;        break;
+            case 7: delay = 4 * 7;        break;
+            case 8: delay = 4 * 6;        break;
+            case 9: delay = 4 * (5 + 10); break;
+
+            default:
+                fatalError;
+        }
+
+    } else {
+
+        // We want to sync to position (2).
+        // If we are already too close, we seek (2) in the next E clock cycle.
+        switch (eClk) {
+
+            case 0: delay = 4 * (2 + 10); break;
+            case 1: delay = 4 * (1 + 10); break;
+            case 2: delay = 4 * (0 + 10); break;
+            case 3: delay = 4 * 9;        break;
+            case 4: delay = 4 * 8;        break;
+            case 5: delay = 4 * 7;        break;
+            case 6: delay = 4 * 6;        break;
+            case 7: delay = 4 * (5 + 10); break;
+            case 8: delay = 4 * (4 + 10); break;
+            case 9: delay = 4 * (3 + 10); break;
+
+            default:
+                fatalError;
+        }
     }
-    
+
     // Doublecheck that we are going to sync to a DMA cycle
     assert(DMA_CYCLES(AS_DMA_CYCLES(clock + delay)) == clock + delay);
     
@@ -359,21 +508,6 @@ Agnus::executeUntilBusIsFree()
 
         // Execute Agnus until the bus is free
         do {
-
-            // On AGA, the 68020 CPU can use CPU-owned, refresh, and free slots
-            // without waiting. Don't advance Agnus here to avoid double-counting
-            // bus cycles (prefetch/executeUntilBusIsFree interaction).
-            if (isAGA() && cpu.is68020()) {
-                // CPU steals the Blitter cycle if it has been waiting long enough
-                if (delay >= 3 && busOwner[pos.h] == BusOwner::BLITTER && !bltpri()) {
-                    break;
-                }
-
-/*                if (busOwner[pos.h] == BusOwner::NONE ||
-                    busOwner[pos.h] == BusOwner::CPU ||
-                    busOwner[pos.h] == BusOwner::REFRESH) break;
-*/
-            }
 
             execute();
             if (++delay == 2) bls = true;
@@ -531,8 +665,14 @@ Agnus::executeUntil(Cycle cycle) {
             if (isDue<SLOT_SNP>(cycle)) {
                 amiga.serviceSnpEvent(id[SLOT_KEY]);
             }
-            if (isDue<SLOT_RSH>(cycle)) {
+            if (isDue<SLOT_RSH0>(cycle)) {
                 retroShell.serviceEvent();
+            }
+            if (isDue<SLOT_RSH1>(cycle)) {
+                rshShell.serviceEvent();
+            }
+            if (isDue<SLOT_RSH2>(cycle)) {
+                rpcShell.serviceEvent();
             }
             if (isDue<SLOT_KEY>(cycle)) {
                 keyboard.serviceKeyEvent();
@@ -541,7 +681,7 @@ Agnus::executeUntil(Cycle cycle) {
                 remoteManager.serServer.serviceSerEvent();
             }
             if (isDue<SLOT_BTR>(cycle)) {
-                dmaDebugger.beamtraps.serviceEvent();
+                debugger.beamtraps.serviceEvent();
             }
             if (isDue<SLOT_ALA>(cycle)) {
                 amiga.serviceAlarmEvent();
@@ -577,7 +717,7 @@ Agnus::executeUntil(Cycle cycle) {
 template <isize nr> void
 Agnus::executeFirstSpriteCycle()
 {
-    trace(SPR_DEBUG, "executeFirstSpriteCycle<%ld>\n", nr);
+    logmsg(LOG_SPR, "executeFirstSpriteCycle<%td>\n", nr);
 
     if (pos.v == sprVStop[nr]) {
 
@@ -595,9 +735,7 @@ Agnus::executeFirstSpriteCycle()
             } else {
 
                 busOwner[pos.h] = BusOwner::BLOCKED;
-                //                busOwner[pos.h] = BusOwner::NONE;
-
-}
+            }
         }
 
     } else if (sprDmaEnabled[nr]) {
@@ -605,18 +743,20 @@ Agnus::executeFirstSpriteCycle()
         if (!spriteCycleIsBlocked()) {
 
             // Read in the next data word (part A)
-            if (sprdma() && !sscan2Skips(nr)) {
+            if (sprdma()) {
                 
-                auto value = doSpriteDmaRead<nr>();
-                denise.setSPRxDATA<nr>(value, sprdatNext[nr]);
+                if (!isAGA() || !sscan2Skips(nr)) {
+
+                    auto value = doSpriteDmaRead<nr>();
+                    denise.setSPRxDATA<nr>(value, spriteDmaExt<nr>());
+
+                } else {
+
+                    // Repeat the previous line (AGA SSCAN2 scan doubling)
+                }
                 
-            } else if (sprdma()) {
-
-                // Scan doubling: the previous line is repeated (AGA SSCAN2)
-
             } else {
 
-            //  busOwner[pos.h] = BusOwner::NONE;
                 busOwner[pos.h] = BusOwner::BLOCKED;
             }
         }
@@ -626,7 +766,7 @@ Agnus::executeFirstSpriteCycle()
 template <isize nr> void
 Agnus::executeSecondSpriteCycle()
 {
-    trace(SPR_DEBUG, "executeSecondSpriteCycle<%ld>\n", nr);
+    logmsg(LOG_SPR, "executeSecondSpriteCycle<%td>\n", nr);
 
     if (pos.v == sprVStop[nr]) {
 
@@ -634,16 +774,16 @@ Agnus::executeSecondSpriteCycle()
 
         if (!spriteCycleIsBlocked()) {
 
+            // Read in the next control word (CTL part)
             if (sprdma()) {
                 
-                // Read in the next control word (CTL part)
                 auto value = doSpriteDmaRead<nr>();
                 agnus.pokeSPRxCTL<nr, Accessor::AGNUS>(value);
                 denise.pokeSPRxCTL<nr>(value);
                 
             } else {
+
                 busOwner[pos.h] = BusOwner::BLOCKED;
-//                busOwner[pos.h] = BusOwner::NONE;
             }
         }
 
@@ -651,19 +791,21 @@ Agnus::executeSecondSpriteCycle()
 
         if (!spriteCycleIsBlocked()) {
 
-            if (sprdma() && !sscan2Skips(nr)) {
+            // Read in the next data word (part B)
+            if (sprdma()) {
                 
-                // Read in the next data word (part B)
-                auto value = doSpriteDmaRead<nr>();
-                denise.setSPRxDATB<nr>(value, sprdatNext[nr]);
+                if (!isAGA() || !sscan2Skips(nr)) {
+
+                    auto value = doSpriteDmaRead<nr>();
+                    denise.setSPRxDATB<nr>(value, spriteDmaExt<nr>());
+
+                } else {
+                    
+                    // Repeat the previous line (AGA SSCAN2 scan doubling)
+                }
                 
-            } else if (sprdma()) {
-
-                // Scan doubling: the previous line is repeated (AGA SSCAN2)
-
             } else {
 
-                //  busOwner[pos.h] = BusOwner::NONE;
                 busOwner[pos.h] = BusOwner::BLOCKED;
             }
         }
@@ -684,7 +826,7 @@ Agnus::sscan2Skips(isize nr) const
     return (pos.v & 1) != (sprVStrt[nr] & 1);
 }
 
-bool 
+bool
 Agnus::spriteCycleIsBlocked()
 {
     if (isOCS()) {
@@ -728,15 +870,16 @@ Agnus::eolHandler()
 {
     assert(pos.h == PAL::HPOS_CNT || pos.h == NTSC::HPOS_CNT);
 
-    // Pass control to the DMA debugger
-    dmaDebugger.eolHandler();
+    // Pass control to the debuggers
+    debugger.eolHandler();
+    xray.eolHandler();
 
     // Move to the next line
     pos.eol();
 
-    // Flush AGA 32-bit bitplane prefetches at end of line
+    // Discard AGA bitplane prefetches at end of line
     for (isize i = 0; i < 8; i++) bpldatNextValid[i] = 0;
-
+    
     // Update pot counters
     if (paula.chargeX0 < 1.0 || controlPort1.mouse.MMB()) U8_INC(paula.potCntX0, 1);
     if (paula.chargeY0 < 1.0 || controlPort1.mouse.RMB()) U8_INC(paula.potCntY0, 1);
@@ -768,15 +911,13 @@ Agnus::eolHandler()
     // Clear other variables
     for (isize i = 0; i < 8; i++) lastCtlWrite[i] = 0xFF;
 
-    // Track the widest bitplane line of the frame (words fetched per line) and
-    // count how many scanlines actually did bitplane dma (layout-independent
-    // height, works even when the copper reloads bplpt every line)
     if (bplGuessEnabled) {
-        for (int i = 0; i < BPL_GUESS_PLANES; i++) {
-            if (bplGuessLineWords[i] > bplGuessWordsLive[i]) bplGuessWordsLive[i] = bplGuessLineWords[i];
+        for (isize i = 0; i < BPL_GUESS_PLANES; i++) {
+            if (bplGuessLineWords[i] > bplGuessWordsLive[i]) {
+                bplGuessWordsLive[i] = bplGuessLineWords[i];
+            }
             if (bplGuessLineWords[i] > 0) bplGuessLinesLive[i]++;
             bplGuessLineWords[i] = 0;
-            // Arm the per-line first-fetch recorder for the new scanline
             bplGuessHadFirst[i] = false;
         }
     }
@@ -795,11 +936,8 @@ Agnus::eofHandler()
 
     scheduleStrobe0Event();
 
-    // Run the screen recorder
-    denise.screenRecorder.vsyncHandler(clock - 50 * DMA_CYCLES(PAL::HPOS_CNT));
+    cpu.eofHandler();
     denise.eofHandler();
-
-    // Let the other components finish the current frame
     paula.eofHandler();
     sequencer.eofHandler();
     copper.eofHandler();
@@ -808,10 +946,12 @@ Agnus::eofHandler()
     controlPort1.joystick.eofHandler();
     controlPort2.joystick.eofHandler();
     mem.eofHandler();
+    logicAnalyzer.eofHandler();
 
-    // Commit the bitplane guesser range and reset it for the next frame
+    debugger.eofHandler();
+
     if (bplGuessEnabled) {
-        for (int i = 0; i < BPL_GUESS_PLANES; i++) {
+        for (isize i = 0; i < BPL_GUESS_PLANES; i++) {
             bplGuessMin[i] = bplGuessMinLive[i];
             bplGuessMax[i] = bplGuessMaxLive[i];
             bplGuessMod[i] = (i & 1) ? bpl2mod : bpl1mod;
@@ -822,14 +962,12 @@ Agnus::eofHandler()
             bplGuessWordsLive[i] = 0;
             bplGuessLinesLive[i] = 0;
         }
-        // Commit the per-line first-pointer table and reset it for the next
-        // frame (invalid marker ~0u = no bitplane dma on that line)
-        for (int l = 0; l < BPL_GUESS_MAX_LINES; l++) {
-            for (int i = 0; i < BPL_GUESS_PLANES; i++) {
-                bplGuessFirst[l][i] = bplGuessFirstLive[l][i];
-                bplGuessFirstLive[l][i] = ~0u;
-                bplGuessWordsPerLine[l][i] = bplGuessWordsPerLineLive[l][i];
-                bplGuessWordsPerLineLive[l][i] = 0;
+        for (isize line = 0; line < BPL_GUESS_MAX_LINES; line++) {
+            for (isize i = 0; i < BPL_GUESS_PLANES; i++) {
+                bplGuessFirst[line][i] = bplGuessFirstLive[line][i];
+                bplGuessFirstLive[line][i] = ~0u;
+                bplGuessWordsPerLine[line][i] = bplGuessWordsPerLineLive[line][i];
+                bplGuessWordsPerLineLive[line][i] = 0;
             }
         }
         bplGuessLace = denise.lace();
@@ -847,7 +985,7 @@ Agnus::hsyncHandler()
     // Draw the previous line
     isize vpos = agnus.pos.vPrev();
     denise.hsyncHandler(vpos);
-    dmaDebugger.hsyncHandler(vpos);
+    xray.hsyncHandler(vpos);
 
     // Encode a LORES marker in the first HBLANK pixel
     REPLACE_BIT(*pixelEngine.workingPtr(vpos), 28, res != Resolution::LORES);

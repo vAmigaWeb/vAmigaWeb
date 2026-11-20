@@ -2,30 +2,30 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "StateMachine.h"
 #include "Paula.h"
-#include "IOUtils.h"
 #include "Amiga.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
 template <isize nr>
 StateMachine<nr>::StateMachine(Amiga& ref) : SubComponent(ref)
 {
-    
+    info.bind([this] { return cacheInfo(); } );
 }
 
 template <isize nr> void
 StateMachine<nr>::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-    
+    using namespace utl;
+
     if (category == Category::State) {
 
         os << tab("State machine") << dec(nr) << std::endl;
@@ -35,27 +35,28 @@ StateMachine<nr>::_dump(Category category, std::ostream &os) const
     }
 }
 
-template <isize nr> void
-StateMachine<nr>::cacheInfo(StateMachineInfo &info) const
+template <isize nr> StateMachineInfo
+StateMachine<nr>::cacheInfo() const
 {
-    {   SYNCHRONIZED
-        
-        info.state = state;
-        info.dma = AUDxON();
-        info.audlenLatch = audlenLatch;
-        info.audlen = audlen;
-        info.audperLatch = audperLatch;
-        info.audper = audper;
-        info.audvolLatch = audvolLatch;
-        info.audvol = audvol;
-        info.auddat = auddat;
-    }
+    StateMachineInfo info;
+
+    info.state = state;
+    info.dma = AUDxON();
+    info.audlenLatch = audlenLatch;
+    info.audlen = audlen;
+    info.audperLatch = audperLatch;
+    info.audper = audper;
+    info.audvolLatch = audvolLatch;
+    info.audvol = audvol;
+    info.auddat = auddat;
+
+    return info;
 }
 
 template <isize nr> void
 StateMachine<nr>::enableDMA()
 {
-    trace(AUD_DEBUG, "Enable DMA\n");
+    logmsg(LOG_AUD, "Enable DMA\n");
 
     switch (state) {
 
@@ -69,7 +70,7 @@ StateMachine<nr>::enableDMA()
 template <isize nr> void
 StateMachine<nr>::disableDMA()
 {
-    trace(AUD_DEBUG, "Disable DMA\n");
+    logmsg(LOG_AUD, "Disable DMA\n");
 
     switch (state) {
 
@@ -78,16 +79,6 @@ StateMachine<nr>::disableDMA()
             move_001_000();
             break;
             
-/*        case 0b010:
-            
-            move_010_000();
-            break;
-            
-        case 0b011:
-            
-            move_011_000();
-            break;
-*/
         case 0b101:
 
             move_101_000();
@@ -104,7 +95,7 @@ StateMachine<nr>::AUDxIP() const
 template <isize nr> void
 StateMachine<nr>::AUDxIR() const
 {
-    if (DISABLE_AUDIRQ) return;
+    if CONSTEXPR (DISABLE_AUDIRQ) return;
     
     if constexpr (nr == 0) { paula.scheduleIrqRel(IrqSource::AUD0, DMA_CYCLES(1)); }
     if constexpr (nr == 1) { paula.scheduleIrqRel(IrqSource::AUD1, DMA_CYCLES(1)); }
@@ -168,12 +159,12 @@ StateMachine<nr>::penhi()
     i8 sample = (i8)HI_BYTE(buffer);
     i16 scaled = (i16)(sample * audvol);
     
-    trace(AUD_DEBUG, "penhi: %d %d\n", sample, scaled);
+    logmsg(LOG_AUD, "penhi: %d %d\n", sample, scaled);
 
     if (!sampler.isFull()) {
         sampler.append(agnus.clock, scaled);
     } else {
-        trace(AUD_DEBUG, "penhi: Sample buffer is full\n");
+        logmsg(LOG_AUD, "penhi: Sample buffer is full\n");
     }
     
     enablePenhi = false;
@@ -192,12 +183,12 @@ StateMachine<nr>::penlo()
     i8 sample = (i8)LO_BYTE(buffer);
     i16 scaled = (i16)(sample * audvol);
 
-    trace(AUD_DEBUG, "penlo: %d %d\n", sample, scaled);
+    logmsg(LOG_AUD, "penlo: %d %d\n", sample, scaled);
 
     if (!sampler.isFull()) {
         sampler.append(agnus.clock, scaled);
     } else {
-        trace(AUD_DEBUG, "penlo: Sample buffer is full\n");
+        logmsg(LOG_AUD, "penlo: Sample buffer is full\n");
     }
     
     enablePenlo = false;
@@ -206,7 +197,7 @@ StateMachine<nr>::penlo()
 template <isize nr> void
 StateMachine<nr>::move_000_010() {
 
-    trace(AUD_DEBUG, "move_000_010\n");
+    logmsg(LOG_AUD, "move_000_010\n");
 
     // This transition is taken in IRQ mode only
     assert(!AUDxON());
@@ -224,7 +215,7 @@ StateMachine<nr>::move_000_010() {
 template <isize nr> void
 StateMachine<nr>::move_000_001() {
 
-    trace(AUD_DEBUG, "move_000_001\n");
+    logmsg(LOG_AUD, "move_000_001\n");
 
     // This transition is taken in DMA mode only
     assert(AUDxON());
@@ -238,7 +229,7 @@ StateMachine<nr>::move_000_001() {
 template <isize nr> void
 StateMachine<nr>::move_001_000() {
 
-    trace(AUD_DEBUG, "move_001_000\n");
+    logmsg(LOG_AUD, "move_001_000\n");
 
     // This transition is taken in IRQ mode only
     assert(!AUDxON());
@@ -249,7 +240,7 @@ StateMachine<nr>::move_001_000() {
 template <isize nr> void
 StateMachine<nr>::move_001_101() {
 
-    trace(AUD_DEBUG, "move_001_101\n");
+    logmsg(LOG_AUD, "move_001_101\n");
 
     // This transition is taken in DMA mode only
     assert(AUDxON());
@@ -265,7 +256,7 @@ StateMachine<nr>::move_001_101() {
 template <isize nr> void
 StateMachine<nr>::move_101_000() {
 
-    trace(AUD_DEBUG, "move_101_000\n");
+    logmsg(LOG_AUD, "move_101_000\n");
 
     // This transition is taken in IRQ mode only
     assert(!AUDxON());
@@ -276,7 +267,7 @@ StateMachine<nr>::move_101_000() {
 template <isize nr> void
 StateMachine<nr>::move_101_010() {
 
-    trace(AUD_DEBUG, "move_101_010\n");
+    logmsg(LOG_AUD, "move_101_010\n");
 
     // This transition is taken in DMA mode only
     assert(AUDxON());
@@ -293,7 +284,7 @@ StateMachine<nr>::move_101_010() {
 template <isize nr> void
 StateMachine<nr>::move_010_011() {
 
-    trace(AUD_DEBUG, "move_010_011\n");
+    logmsg(LOG_AUD, "move_010_011\n");
     
     percntrld();
     
@@ -319,11 +310,10 @@ StateMachine<nr>::move_010_011() {
     penlo();
 }
 
-
 template <isize nr> void
 StateMachine<nr>::move_011_000() {
 
-    trace(AUD_DEBUG, "move_011_000\n");
+    logmsg(LOG_AUD, "move_011_000\n");
 
     constexpr EventSlot slot = (EventSlot)(SLOT_CH0 + nr);
     agnus.cancel<slot>();
@@ -335,7 +325,7 @@ StateMachine<nr>::move_011_000() {
 template <isize nr> void
 StateMachine<nr>::move_011_010()
 {
-    trace(AUD_DEBUG, "move_011_010\n");
+    logmsg(LOG_AUD, "move_011_010\n");
 
     percntrld();
     pbufld1();
@@ -367,10 +357,12 @@ template StateMachine<1>::StateMachine(Amiga &ref);
 template StateMachine<2>::StateMachine(Amiga &ref);
 template StateMachine<3>::StateMachine(Amiga &ref);
 
+/*
 template void StateMachine<0>::cacheInfo(StateMachineInfo &result) const;
 template void StateMachine<1>::cacheInfo(StateMachineInfo &result) const;
 template void StateMachine<2>::cacheInfo(StateMachineInfo &result) const;
 template void StateMachine<3>::cacheInfo(StateMachineInfo &result) const;
+*/
 
 template void StateMachine<0>::enableDMA();
 template void StateMachine<1>::enableDMA();

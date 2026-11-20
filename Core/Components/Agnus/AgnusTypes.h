@@ -6,6 +6,7 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
@@ -14,7 +15,7 @@
 #include "BlitterTypes.h"
 #include "BusTypes.h"
 #include "CopperTypes.h"
-#include "DmaDebuggerTypes.h"
+#include "XRayTypes.h"
 #include "SequencerTypes.h"
 
 namespace vamiga {
@@ -23,10 +24,10 @@ namespace vamiga {
 // Constants
 //
 
-// Time stamp used for messages that never trigger
+/// Time stamp used for messages that never trigger
 static constexpr i64 NEVER = INT64_MAX;
 
-// Inspection interval in seconds (interval between INS_xxx events)
+/// Inspection interval in seconds (interval between INS_xxx events)
 static constexpr double inspectionInterval = 0.1;
 
 
@@ -34,16 +35,17 @@ static constexpr double inspectionInterval = 0.1;
 // Enumerations
 //
 
+/// Agnus chip revision.
 enum class AgnusRevision : long
 {
-    OCS_OLD,          // Revision 8367 (A1000, A2000A)
-    OCS,              // Revision 8371 (A500, A2000B)
-    ECS_1MB,          // Revision 8372 (A500, A2000B)
-    ECS_2MB,          // Revision 8375 (A500+, A600)
-    AGA               // Alice (A1200, A4000)
+    OCS_OLD,          // MOS 8367                (A1000, A2000A)
+    OCS,              // MOS 8371                (A500, A2000B)
+    ECS_1MB,          // MOS 8372 [Fat Agnus]    (A500, A2000B)
+    ECS_2MB,          // MOS 8375 [Fatter Agnus] (A500+, A600)
+    AGA               // MOS 8374 [Alice]        (A1200, A4000)
 };
 
-struct AgnusRevisionEnum : Reflection<AgnusRevisionEnum, AgnusRevision>
+struct AgnusRevisionEnum : utl::Reflectable<AgnusRevisionEnum, AgnusRevision>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(AgnusRevision::AGA);
@@ -69,12 +71,13 @@ struct AgnusRevisionEnum : Reflection<AgnusRevisionEnum, AgnusRevision>
             case AgnusRevision::OCS:      return "Amiga 500, Amiga 2000";
             case AgnusRevision::ECS_1MB:  return "Fat Agnus";
             case AgnusRevision::ECS_2MB:  return "Fatter Agnus";
-            case AgnusRevision::AGA:      return "Alice (AGA)";
+            case AgnusRevision::AGA:      return "Alice";
         }
         return "???";
     }
 };
 
+/// Slot of the event scheduler.
 enum EventSlot : long
 {
     // Primary slots
@@ -114,7 +117,9 @@ enum EventSlot : long
     SLOT_MSE1,                      // Port 1 mouse
     SLOT_MSE2,                      // Port 2 mouse
     SLOT_SNP,                       // Snapshots
-    SLOT_RSH,                       // Retro Shell
+    SLOT_RSH0,                      // Retro Shell (main shell)
+    SLOT_RSH1,                      // Retro Shell (RetroShell server)
+    SLOT_RSH2,                      // Retro Shell (RPC server)
     SLOT_KEY,                       // Auto-typing
     SLOT_SER,                       // Serial remote server
     SLOT_BTR,                       // Beam traps
@@ -124,11 +129,14 @@ enum EventSlot : long
     SLOT_COUNT
 };
 
+/// Returns true if the slot is a primary event slot.
 constexpr bool isPrimarySlot(long s) { return s <= SLOT_SEC; }
+/// Returns true if the slot is a secondary event slot.
 constexpr bool isSecondarySlot(long s) { return s > SLOT_SEC && s <= SLOT_TER; }
+/// Returns true if the slot is a tertiary event slot.
 constexpr bool isTertiarySlot(long s) { return s > SLOT_TER; }
 
-struct EventSlotEnum : Reflection<EventSlotEnum, EventSlot>
+struct EventSlotEnum : utl::Reflectable<EventSlotEnum, EventSlot>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = SLOT_COUNT - 1;
@@ -173,7 +181,9 @@ struct EventSlotEnum : Reflection<EventSlotEnum, EventSlot>
             case SLOT_MSE1:  return "MSE1";
             case SLOT_MSE2:  return "MSE2";
             case SLOT_SNP:   return "SNP";
-            case SLOT_RSH:   return "RSH";
+            case SLOT_RSH0:  return "RSH0";
+            case SLOT_RSH1:  return "RSH1";
+            case SLOT_RSH2:  return "RSH2";
             case SLOT_KEY:   return "KEY";
             case SLOT_SER:   return "SER";
             case SLOT_BTR:   return "BTR";
@@ -221,7 +231,9 @@ struct EventSlotEnum : Reflection<EventSlotEnum, EventSlot>
             case SLOT_MSE1:  return "Port 1 Mouse";
             case SLOT_MSE2:  return "Port 2 Mouse";
             case SLOT_SNP:   return "Snapshots";
-            case SLOT_RSH:   return "Retro Shell";
+            case SLOT_RSH0:  return "Retro Shell";
+            case SLOT_RSH1:  return "Retro Shell (RSH)";
+            case SLOT_RSH2:  return "Retro Shell (RPC)";
             case SLOT_KEY:   return "Auto Typing";
             case SLOT_SER:   return "Null Modem Cable";
             case SLOT_BTR:   return "Beam Traps";
@@ -233,6 +245,7 @@ struct EventSlotEnum : Reflection<EventSlotEnum, EventSlot>
     }
 };
 
+/// Identifies an event of the event scheduler.
 enum EventID : u8
 {
     EVENT_NONE          = 0,
@@ -251,43 +264,63 @@ enum EventID : u8
     CIA_EVENT_COUNT,
     
     // BPL slot
-    BPL_L1              = 0x04,
-    BPL_L1_MOD          = 0x08,
-    BPL_L2              = 0x0C,
-    BPL_L2_MOD          = 0x10,
-    BPL_L3              = 0x14,
-    BPL_L3_MOD          = 0x18,
-    BPL_L4              = 0x1C,
-    BPL_L4_MOD          = 0x20,
-    BPL_L5              = 0x24,
-    BPL_L5_MOD          = 0x28,
-    BPL_L6              = 0x2C,
-    BPL_L6_MOD          = 0x30,
-    BPL_H1              = 0x34,
-    BPL_H1_MOD          = 0x38,
-    BPL_H2              = 0x3C,
-    BPL_H2_MOD          = 0x40,
-    BPL_H3              = 0x44,
-    BPL_H3_MOD          = 0x48,
-    BPL_H4              = 0x4C,
-    BPL_H4_MOD          = 0x50,
-    BPL_S1              = 0x54,
-    BPL_S1_MOD          = 0x58,
-    BPL_S2              = 0x5C,
-    BPL_S2_MOD          = 0x60,
-    BPL_L7              = 0x64,
-    BPL_L7_MOD          = 0x68,
-    BPL_L8              = 0x6C,
-    BPL_L8_MOD          = 0x70,
-    BPL_H5              = 0x74,
-    BPL_H5_MOD          = 0x78,
-    BPL_H6              = 0x7C,
-    BPL_H6_MOD          = 0x80,
-    BPL_H7              = 0x84,
-    BPL_H7_MOD          = 0x88,
-    BPL_H8              = 0x8C,
-    BPL_H8_MOD          = 0x90,
-    BPL_EVENT_COUNT     = 0x94,
+    //
+    // The three resolutions are numbered consecutively, eight planes each,
+    // so that an event can be derived from a resolution and a plane number
+    // by offset. Every id is a multiple of 4: the low two bits carry the
+    // DRAW_ODD / DRAW_EVEN flags.
+    BPL_L1             = 0x04,
+    BPL_L1_MOD         = 0x08,
+    BPL_L2             = 0x0C,
+    BPL_L2_MOD         = 0x10,
+    BPL_L3             = 0x14,
+    BPL_L3_MOD         = 0x18,
+    BPL_L4             = 0x1C,
+    BPL_L4_MOD         = 0x20,
+    BPL_L5             = 0x24,
+    BPL_L5_MOD         = 0x28,
+    BPL_L6             = 0x2C,
+    BPL_L6_MOD         = 0x30,
+    BPL_L7             = 0x34,
+    BPL_L7_MOD         = 0x38,
+    BPL_L8             = 0x3C,
+    BPL_L8_MOD         = 0x40,
+
+    BPL_H1             = 0x44,
+    BPL_H1_MOD         = 0x48,
+    BPL_H2             = 0x4C,
+    BPL_H2_MOD         = 0x50,
+    BPL_H3             = 0x54,
+    BPL_H3_MOD         = 0x58,
+    BPL_H4             = 0x5C,
+    BPL_H4_MOD         = 0x60,
+    BPL_H5             = 0x64,
+    BPL_H5_MOD         = 0x68,
+    BPL_H6             = 0x6C,
+    BPL_H6_MOD         = 0x70,
+    BPL_H7             = 0x74,
+    BPL_H7_MOD         = 0x78,
+    BPL_H8             = 0x7C,
+    BPL_H8_MOD         = 0x80,
+
+    BPL_S1             = 0x84,
+    BPL_S1_MOD         = 0x88,
+    BPL_S2             = 0x8C,
+    BPL_S2_MOD         = 0x90,
+    BPL_S3             = 0x94,
+    BPL_S3_MOD         = 0x98,
+    BPL_S4             = 0x9C,
+    BPL_S4_MOD         = 0xA0,
+    BPL_S5             = 0xA4,
+    BPL_S5_MOD         = 0xA8,
+    BPL_S6             = 0xAC,
+    BPL_S6_MOD         = 0xB0,
+    BPL_S7             = 0xB4,
+    BPL_S7_MOD         = 0xB8,
+    BPL_S8             = 0xBC,
+    BPL_S8_MOD         = 0xC0,
+
+    BPL_EVENT_COUNT    = 0xC4,
     
     // DAS slot
     DAS_REFRESH         = 1,
@@ -345,7 +378,7 @@ enum EventID : u8
     BLT_COPY_FAKE,
     BLT_LINE_SLOW,
     BLT_LINE_FAKE,
-    BLT_BUSY,
+    BLT_BBUSY,
     BLT_EVENT_COUNT,
     
     // SEC slot
@@ -465,6 +498,7 @@ enum EventID : u8
     INS_EVENT_COUNT
 };
 
+/// Returns true if the event is a bitplane event of the given bitplane.
 static inline bool isBplxEvent(EventID id, int x)
 {
     switch(id & ~0b11) {
@@ -475,8 +509,6 @@ static inline bool isBplxEvent(EventID id, int x)
         case BPL_L4: case BPL_H4: return x == 4;
         case BPL_L5: case BPL_H5: return x == 5;
         case BPL_L6: case BPL_H6: return x == 6;
-        case BPL_L7: case BPL_H7: return x == 7;
-        case BPL_L8: case BPL_H8: return x == 8;
             
         default:
             return false;
@@ -488,107 +520,116 @@ static inline bool isBplxEvent(EventID id, int x)
 // Structures
 //
 
+/// Static properties of an Agnus revision.
 typedef struct
 {
-    bool isOCS;
-    bool isECS;
-    bool isPAL;
-    bool isNTSC;
+    bool isOCS;                             ///< The chip is an OCS Agnus
+    bool isECS;                             ///< The chip is an ECS Agnus
+    bool isAGA;                             ///< The chip is an AGA Alice
+    bool isPAL;                             ///< The chip runs with PAL timing
+    bool isNTSC;                            ///< The chip runs with NTSC timing
     
-    u16 idBits;
-    isize chipRamLimit;
-    isize vStrobeLine;
-    u16 ddfMask;
+    u16 idBits;                             ///< Chip identification bits as reported by VPOSR
+    isize chipRamLimit;                     ///< Amount of Chip RAM the chip can address (in KB)
+    isize vStrobeLine;                      ///< Raster line carrying the vertical strobe (1 for the old OCS chip, 0 otherwise)
+    u16 ddfMask;                            ///< Mask applied to the data fetch registers DDFSTRT and DDFSTOP
 }
 AgnusTraits;
 
+/// Configuration options of Agnus.
 typedef struct
 {
-    AgnusRevision revision;
-    bool ptrDrops;
+    AgnusRevision revision;                 ///< Chip revision
+    bool ptrDrops;                          ///< Ignore certain DMA pointer register writes
 }
 AgnusConfig;
 
+/// State of an event slot.
 typedef struct
 {
-    EventSlot slot;
-    EventID eventId;
-    const char *eventName;
+    EventSlot slot;                         ///< The event slot
+    EventID eventId;                        ///< Identifier of the scheduled event (0 if the slot is empty)
+    const char *eventName;                  ///< Name of the scheduled event
     
-    // Trigger cycle of the event
+    /// Trigger cycle of the event
     Cycle trigger;
-    Cycle triggerRel;
+    Cycle triggerRel;                       ///< Time until the event triggers (in master cycles)
     
-    // Trigger frame relative to the current frame
-    long frameRel;
+    /// Trigger frame relative to the current frame
+    isize frameRel;
     
-    // The trigger cycle translated to a beam position.
-    long vpos;
-    long hpos;
+    /// The trigger cycle translated to a beam position.
+    isize vpos;
+    isize hpos;                             ///< Horizontal position at which the event triggers
 }
 EventSlotInfo;
 
+/// Clocks of the machine and the current beam position.
 typedef struct
 {
-    Cycle cpuClock;
-    Cycle cpuCycles;
-    Cycle dmaClock;
-    Cycle ciaAClock;
-    Cycle ciaBClock;
-    i64 frame;
-    long vpos;
-    long hpos;
+    Cycle cpuClock;                         ///< CPU clock (in master cycles)
+    Cycle cpuCycles;                        ///< CPU clock (in CPU cycles)
+    Cycle dmaClock;                         ///< Agnus (DMA) clock (in master cycles)
+    Cycle ciaAClock;                        ///< Clock of CIA A (in master cycles)
+    Cycle ciaBClock;                        ///< Clock of CIA B (in master cycles)
+    i64 frame;                              ///< Frame number
+    isize vpos;                             ///< Vertical beam position
+    isize hpos;                             ///< Horizontal beam position
 }
 EventInfo;
 
+/// State of Agnus (beam position, DMA, registers).
 typedef struct
 {
-    isize vpos;
-    isize hpos;
-    i64 frame;
+    isize vpos;                             ///< Vertical beam position
+    isize hpos;                             ///< Horizontal beam position
+    i64 frame;                              ///< Frame number
     
-    u16 dmacon;
-    u16 bplcon0;
-    u16 ddfstrt;
-    u16 ddfstop;
-    u16 diwstrt;
-    u16 diwstop;
+    u16 dmacon;                             ///< DMA control register (DMACON)
+    u16 bplcon0;                            ///< Bitplane control register 0 (BPLCON0)
+    u16 ddfstrt;                            ///< Display data fetch start (DDFSTRT)
+    u16 ddfstop;                            ///< Display data fetch stop (DDFSTOP)
+    u16 diwstrt;                            ///< Display window start (DIWSTRT)
+    u16 diwstop;                            ///< Display window stop (DIWSTOP)
+    u16 diwhigh;                            ///< Display window high bits (DIWHIGH, ECS)
+    u16 fmode;                              ///< Fetch mode register (FMODE, AGA)
     
-    u16 bpl1mod;
-    u16 bpl2mod;
-    u16 bltamod;
-    u16 bltbmod;
-    u16 bltcmod;
-    u16 bltdmod;
-    u16 bltcon0;
+    u16 bpl1mod;                            ///< Bitplane modulo for odd planes (BPL1MOD)
+    u16 bpl2mod;                            ///< Bitplane modulo for even planes (BPL2MOD)
+    u16 bltamod;                            ///< Blitter modulo for source A (BLTAMOD)
+    u16 bltbmod;                            ///< Blitter modulo for source B (BLTBMOD)
+    u16 bltcmod;                            ///< Blitter modulo for source C (BLTCMOD)
+    u16 bltdmod;                            ///< Blitter modulo for destination D (BLTDMOD)
+    u16 bltcon0;                            ///< Blitter control register 0 (BLTCON0)
     
-    u32 coppc0;
-    u32 dskpt;
-    u32 bplpt[8];
-    u32 audpt[4];
-    u32 audlc[4];
-    u32 bltpt[4];
-    u32 sprpt[8];
+    u32 coppc0;                             ///< Copper program counter (start of the current instruction)
+    u32 dskpt;                              ///< Disk DMA pointer (DSKPT)
+    u32 bplpt[8];                           ///< Bitplane DMA pointers (BPLxPT)
+    u32 audpt[4];                           ///< Audio DMA pointers (AUDxPT)
+    u32 audlc[4];                           ///< Audio DMA location latches (AUDxLC)
+    u32 bltpt[4];                           ///< Blitter DMA pointers (BLTxPT)
+    u32 sprpt[8];                           ///< Sprite DMA pointers (SPRxPT)
     
-    bool bls;
+    bool bls;                               ///< Blitter slowdown (BLS) signal
     
-    EventInfo eventInfo;
-    EventSlotInfo slotInfo[SLOT_COUNT];
+    EventInfo eventInfo;                    ///< Event scheduler summary
+    EventSlotInfo slotInfo[SLOT_COUNT];     ///< State of all event slots
 }
 AgnusInfo;
 
+/// Statistics collected by Agnus (DMA usage).
 typedef struct
 {
-    isize usage[BUS_COUNT];
+    isize usage[BUS_COUNT];                 ///< Number of DMA slots used by each bus owner
     
-    double copperActivity;
-    double blitterActivity;
-    double diskActivity;
-    double audioActivity;
-    double spriteActivity;
-    double bitplaneActivity;
+    double copperActivity;                  ///< Share of DMA slots used by the Copper
+    double blitterActivity;                 ///< Share of DMA slots used by the Blitter
+    double diskActivity;                    ///< Share of DMA slots used by disk DMA
+    double audioActivity;                   ///< Share of DMA slots used by audio DMA
+    double spriteActivity;                  ///< Share of DMA slots used by sprite DMA
+    double bitplaneActivity;                ///< Share of DMA slots used by bitplane DMA
 }
-AgnusStats;
+AgnusMetrics;
 
 
 //
@@ -601,13 +642,13 @@ AgnusStats;
  * serviceRegEvent()
  */
 
-typedef u32 EventFlags;
+typedef u32 EventFlags;                 ///< Bit mask of EVFL flags
 
 namespace EVFL
 {
-constexpr u32 EOL                = (1 << 0);
-constexpr u32 HSYNC              = (1 << 1);
-constexpr u32 PROBE              = (1 << 2);
+constexpr u32 EOL                = (1 << 0);  ///< Event flag: End of line
+constexpr u32 HSYNC              = (1 << 1);  ///< Event flag: Horizontal sync
+constexpr u32 PROBE              = (1 << 2);  ///< Event flag: Probe the logic analyzer
 };
 
 }

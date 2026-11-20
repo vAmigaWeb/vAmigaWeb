@@ -6,13 +6,15 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
+/// Type of a video frame (PAL or NTSC, long or short).
 enum class FrameType
 {
     PAL_LF,       // PAL long frame
@@ -23,7 +25,7 @@ enum class FrameType
     NTSC_SF_SL    // NTSC short frame starting with a short line
 };
 
-struct FrameTypeEnum : Reflection<FrameTypeEnum, FrameType>
+struct FrameTypeEnum : utl::Reflectable<FrameTypeEnum, FrameType>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(FrameType::NTSC_SF_SL);

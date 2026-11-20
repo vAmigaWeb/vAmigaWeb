@@ -9,16 +9,21 @@
 
 #pragma once
 
-#include "SocketServer.h"
-#include "RingBuffer.h"
+#include "RemoteServer.h"
+#include "StdioTransport.h"
+#include "TcpTransport.h"
+#include "utl/storage.h"
 
 namespace vamiga {
 
-class SerServer final : public SocketServer {
+class SerServer final : public RemoteServer {
+
+    StdioTransport stdio = StdioTransport(*this);
+    TcpTransport tcp = TcpTransport(*this);
 
     // A ringbuffer for buffering incoming bytes
-    util::SortedRingBuffer <u8, 8096> buffer;
-    
+    utl::SortedRingBuffer <u8, 8096> buffer;
+
     /* Indicates if we are currenty running in buffering mode. In this mode,
      * incoming bytes are collected in the ring buffer withous passing them
      * to the UART. When a certain number of bytes has been received, buffering
@@ -31,21 +36,24 @@ class SerServer final : public SocketServer {
 
     // Used to determine when we need to leave buffering mode
     i64 skippedTransmissions = 0;
-    
+
+    // The byte currently travelling on the line (-1 if the line is idle)
+    isize onTheLine = -1;
+
     // Byte counters
     isize receivedBytes = 0;
     isize transmittedBytes = 0;
     isize processedBytes = 0;
     isize lostBytes = 0;
 
-    
+
 public:
-    
-    using SocketServer::SocketServer;
+
+    using RemoteServer::RemoteServer;
 
     SerServer& operator= (const SerServer& other) {
 
-        SocketServer::operator = (other);
+        RemoteServer::operator = (other);
         return *this;
     }
 
@@ -53,7 +61,7 @@ public:
     //
     // Methods from CoreObject
     //
-    
+
 private:
 
     void _dump(Category category, std::ostream &os) const override;
@@ -62,36 +70,45 @@ private:
     //
     // Methods from RemoteServer
     //
-    
-public:
-    
-    bool shouldRun() override;
-
-
-    //
-    // Methods from SocketServer
-    //
 
 public:
 
-    string doReceive() override;
-    void doSend(const string &packet) override;
-    void doProcess(const string &packet) override;
+    bool canRun() override;
+
+private:
+
+    Transport &transport() override;
+    const Transport &transport() const override;
+    bool isSupported(TransportProtocol protocol) const override;
+
+public:
+
+    void send(const string &payload) override;
+
+private:
+
+    //
+    // Methods from TransportDelegate
+    //
+
+    void didReceive(const string &payload) override;
     void didConnect() override;
     void didDisconnect() override;
 
+public:
+
     void processIncomingByte(u8 byte);
 
-    
+
     //
     // Servicing events
     //
-    
+
 public:
-    
+
     // Services an event in the SER slot
     void serviceSerEvent();
-    
+
     // Schedules the next event in the SER slot
     void scheduleNextEvent();
 };

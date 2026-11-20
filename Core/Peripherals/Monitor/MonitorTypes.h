@@ -6,10 +6,11 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,6 +18,7 @@ namespace vamiga {
 // Enumerations
 //
 
+/// Monitor color palette.
 enum class Palette
 {
     COLOR,
@@ -28,7 +30,7 @@ enum class Palette
     SEPIA
 };
 
-struct PaletteEnum : Reflection<PaletteEnum, Palette>
+struct PaletteEnum : utl::Reflectable<PaletteEnum, Palette>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Palette::SEPIA);
@@ -63,6 +65,7 @@ struct PaletteEnum : Reflection<PaletteEnum, Palette>
     }
 };
 
+/// Zoom level of the visible area.
 enum class Zoom
 {
     CUSTOM,
@@ -71,7 +74,7 @@ enum class Zoom
     EXTREME
 };
 
-struct ZoomEnum : Reflection<ZoomEnum, Zoom>
+struct ZoomEnum : utl::Reflectable<ZoomEnum, Zoom>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Zoom::EXTREME);
@@ -100,13 +103,14 @@ struct ZoomEnum : Reflection<ZoomEnum, Zoom>
     }
 };
 
+/// Centering mode of the visible area.
 enum class Center
 {
     CUSTOM,
     AUTO,
 };
 
-struct CenterEnum : Reflection<CenterEnum, Center>
+struct CenterEnum : utl::Reflectable<CenterEnum, Center>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Center::AUTO);
@@ -131,6 +135,7 @@ struct CenterEnum : Reflection<CenterEnum, Center>
     }
 };
 
+/// Upscaling algorithm of the video port.
 enum class Upscaler : long
 {
     NONE,                      ///< No upscaler
@@ -138,7 +143,7 @@ enum class Upscaler : long
     XBR_4X                     ///< XBR upscaler (4x)
 };
 
-struct UpscalerEnum : Reflection<UpscalerEnum, Upscaler> {
+struct UpscalerEnum : utl::Reflectable<UpscalerEnum, Upscaler> {
 
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Upscaler::XBR_4X);
@@ -160,6 +165,7 @@ struct UpscalerEnum : Reflection<UpscalerEnum, Upscaler> {
     }
 };
 
+/// Dot mask of the monitor effect.
 enum class Dotmask : long
 {
     NONE,                       ///< No dotmask
@@ -169,7 +175,7 @@ enum class Dotmask : long
     TRISECTED_SHIFTED           ///< Dotmask pattern 4
 };
 
-struct DotmaskEnum : Reflection<DotmaskEnum, Dotmask> {
+struct DotmaskEnum : utl::Reflectable<DotmaskEnum, Dotmask> {
 
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Dotmask::TRISECTED_SHIFTED);
@@ -193,6 +199,7 @@ struct DotmaskEnum : Reflection<DotmaskEnum, Dotmask> {
     }
 };
 
+/// Scanline effect of the monitor.
 enum class Scanlines : long
 {
     NONE,                     ///< No scanlines
@@ -200,7 +207,7 @@ enum class Scanlines : long
     SUPERIMPOSE               ///< Emulate scanlines in the fragment shader
 };
 
-struct ScanlinesEnum : Reflection<ScanlinesEnum, Scanlines> {
+struct ScanlinesEnum : utl::Reflectable<ScanlinesEnum, Scanlines> {
 
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Scanlines::SUPERIMPOSE);
@@ -227,47 +234,48 @@ struct ScanlinesEnum : Reflection<ScanlinesEnum, Scanlines> {
 // Structures
 //
 
+/// Configuration options of the monitor.
 typedef struct
 {
-    // Colors
+    /// Colors
     Palette palette;
-    isize brightness;
-    isize contrast;
-    isize saturation;
+    isize brightness;                       ///< Monitor brightness
+    isize contrast;                         ///< Monitor contrast
+    isize saturation;                       ///< Monitor saturation
 
-    // Geometry
+    /// Geometry
     Center center;
-    isize hCenter;
-    isize vCenter;
-    Zoom zoom;
-    isize hZoom;
-    isize vZoom;
+    isize hCenter;                          ///< Horizontal center
+    isize vCenter;                          ///< Vertical center
+    Zoom zoom;                              ///< Zoom mode
+    isize hZoom;                            ///< Horizontal zoom
+    isize vZoom;                            ///< Vertical zoom
 
-    // Effects
+    /// Effects
     Upscaler enhancer;
-    Upscaler upscaler;
+    Upscaler upscaler;                      ///< Upscaler
 
-    bool blur;
-    isize blurRadius;
+    bool blur;                              ///< Blur
+    isize blurRadius;                       ///< Blur radius
 
-    bool bloom;
-    isize bloomRadius;
-    isize bloomBrightness;
-    isize bloomWeight;
+    bool bloom;                             ///< Bloom
+    isize bloomRadius;                      ///< Bloom radius
+    isize bloomBrightness;                  ///< Bloom brightness
+    isize bloomWeight;                      ///< Bloom weight
 
-    Dotmask dotmask;
-    isize dotMaskBrightness;
+    Dotmask dotmask;                        ///< Dotmask
+    isize dotMaskBrightness;                ///< Dotmask brightness
 
-    Scanlines scanlines;
-    isize scanlineBrightness;
-    isize scanlineWeight;
+    Scanlines scanlines;                    ///< Scanlines
+    isize scanlineBrightness;               ///< Scanline brightness
+    isize scanlineWeight;                   ///< Scanline weight
 
-    bool disalignment;
-    isize disalignmentH;
-    isize disalignmentV;
+    bool disalignment;                      ///< Cathode ray disalignment
+    isize disalignmentH;                    ///< Horizontal cathode ray shift
+    isize disalignmentV;                    ///< Vertical cathode ray shift
     
-    bool flicker;
-    isize flickerWeight;
+    bool flickerFixer;                      ///< Interlace flicker fixer
+    isize flickerJitter;                    ///< Interlace flicker jitter
 }
 MonitorConfig;
 

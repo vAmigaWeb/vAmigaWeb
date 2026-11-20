@@ -9,78 +9,111 @@
 
 #pragma once
 
-#include "ADFFile.h"
+#include "Images/ADF/ADFFile.h"
 
-namespace vamiga {
+namespace retro::vault {
 
-class OtherFile : public FloppyFile {
+class OtherFile : public FloppyDiskImage {
 
     ADFFile adf;
+    string filename;
 
 public:
-    
-    static bool isCompatible(const std::filesystem::path &path);
-    static bool isCompatible(const u8 *buf, isize len);
-    static bool isCompatible(const Buffer<u8> &buffer);
 
-    
+    static bool isCompatible(const fs::path &path);
+
+
     //
     // Initializing
     //
-    
+
 public:
-    
-    using AnyFile::init;
-    
-//    OtherFile(const std::filesystem::path &path) throws { init(path); }
-//    OtherFile(const u8 *buf, isize len) throws { init(buf, len); }
-    OtherFile(const char *name, const u8 *buf, isize len) throws {
-        filename = name;
-        if(filename.ends_with(".disk"))
-        {
-            filename.erase(filename.length() - 5); //remove .disk meta extension
+
+    OtherFile(const char *name, const u8 *buf, isize len) : filename(name) {
+
+        // Remove the .disk meta extension
+        if (filename.ends_with(".disk") || filename.ends_with(".DISK")) {
+            filename.erase(filename.length() - 5);
         }
         init(buf, len);
     }
-    std::string filename;
-    
-    const char *objectName() const override { return "EXE"; }
 
-    
+    using BinaryImage::init;
+
+    const ADFFile &getADF() const { return adf; }
+
+
     //
-    // Methods from AnyFile
+    // Methods from Hashable
     //
-    
-    FileType type() const override { return FileType::EXE; }
-    u64 fnv64() const override { return adf.fnv64(); }
-    bool isCompatiblePath(const std::filesystem::path &path) const override { return isCompatible(path); }
-    bool isCompatibleBuffer(const u8 *buf, isize len) const override { return isCompatible(buf, len); }
-    void finalizeRead() throws override;
-    
-    
+
+public:
+
+    u64 hash(HashAlgorithm algorithm) const noexcept override {
+        return adf.hash(algorithm);
+    }
+
+
     //
-    // Methods from DiskFile
+    // Methods from AnyImage
     //
+
+public:
+
+    bool validateURL(const fs::path& path) const noexcept override {
+        return isCompatible(path);
+    }
+
+    ImageType type() const noexcept override { return ImageType::FLOPPY; }
+    ImageFormat format() const noexcept override { return ImageFormat::EXE; }
+    std::vector<string> describeImage() const noexcept override { return adf.describeImage(); }
+
+    void didInitialize() override;
+
+
+    //
+    // Methods from DiskImage
+    //
+
+public:
+
+    FSFamily fsFamily() const noexcept override { return FSFamily::AMIGA; }
+
+
+    //
+    // Methods from BlockDevice
+    //
+
+public:
+
+    isize bsize() const override { return adf.bsize(); }
+    isize capacity() const override { return adf.capacity(); }
+    void readBlocks(u8 *dst, utl::Range<isize> r) const override { adf.readBlocks(dst, r); }
+    void writeBlocks(const u8 *src, utl::Range<isize> r) override { adf.writeBlocks(src, r); };
+
+
+    //
+    // Methods from TrackDevice
+    //
+
+public:
 
     isize numCyls() const override { return adf.numCyls(); }
     isize numHeads() const override { return adf.numHeads(); }
-    isize numSectors() const override { return adf.numSectors(); }
+    isize numSectors(isize t) const override { return adf.numSectors(t); }
 
-    
+
     //
-    // Methods from FloppyFile
+    // Methods from FloppyDiskImage
     //
-    
-    FSFormat getDos() const override { return adf.getDos(); }
-    void setDos(FSFormat dos) override { adf.setDos(dos); }
-    Diameter getDiameter() const override { return adf.getDiameter(); }
-    Density getDensity() const override { return adf.getDensity(); }
-    BootBlockType bootBlockType() const override { return adf.bootBlockType(); }
-    const char *bootBlockName() const override { return adf.bootBlockName(); }
-    void killVirus() override { adf.killVirus(); }
-    void readSector(u8 *target, isize s) const override { return adf.readSector(target, s); }
-    void readSector(u8 *target, isize t, isize s) const override { return adf.readSector(target, t, s); }
-    void encodeDisk(class FloppyDisk &disk) const throws override { return adf.encodeDisk(disk); }
+
+public:
+
+    Diameter getDiameter() const noexcept override { return adf.getDiameter(); }
+    Density getDensity() const noexcept override { return adf.getDensity(); }
+
+    utl::BitView encode(TrackNr t) const override { return adf.encode(t); }
+    void decode(TrackNr t, utl::BitView bits) override { return adf.decode(t, bits); }
 };
 
 }

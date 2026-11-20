@@ -7,10 +7,12 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Snapshot.h"
 #include "Amiga.h"
-#include "IOUtils.h"
+#include "MediaError.h"
+#include "utl/io.h"
+#include "utl/support/Strings.h"
 
 namespace vamiga {
 
@@ -43,21 +45,8 @@ Thumbnail::take(Amiga &amiga, isize dx, isize dy)
 bool
 Snapshot::isCompatible(const fs::path &path)
 {
-    auto suffix = util::uppercased(path.extension().string());
-    return suffix == ".VASNAP" && util::matchingFileHeader(path, "VASNAP");
-}
-
-bool
-Snapshot::isCompatible(const u8 *buf, isize len)
-{
-    if (len < isizeof(SnapshotHeader)) return false;
-    return util::matchingBufferHeader(buf, "VASNAP");
-}
-
-bool
-Snapshot::isCompatible(const Buffer<u8> &buf)
-{
-    return isCompatible(buf.ptr, buf.size);
+    auto suffix = utl::uppercased(path.extension().string());
+    return suffix == ".VASNAP" && utl::matchingFileHeader(path, "VASNAP");
 }
 
 Snapshot::Snapshot(isize capacity)
@@ -68,7 +57,7 @@ Snapshot::Snapshot(isize capacity)
     
     SnapshotHeader *header = (SnapshotHeader *)data.ptr;
     
-    for (isize i = 0; i < isizeof(signature); i++)
+    for (usize i = 0; i < sizeof(signature); i++)
         header->magic[i] = signature[i];
     header->major = SNP_MAJOR;
     header->minor = SNP_MINOR;
@@ -79,13 +68,13 @@ Snapshot::Snapshot(isize capacity)
 
 Snapshot::Snapshot(Amiga &amiga) : Snapshot(amiga.size())
 {
-    {   util::StopWatch(SNP_DEBUG, "Taking screenshot...");
-        
+    {   utl::StopWatch(SNP_DEBUG, "Taking screenshot...");
+
         takeScreenshot(amiga);
     }
-    {   util::StopWatch(SNP_DEBUG, "Saving state...");
-        
-        amiga.save(getData());
+    {   utl::StopWatch(SNP_DEBUG, "Saving state...");
+
+        amiga.save(getData() + sizeof(SnapshotHeader));
     }
 }
 
@@ -95,15 +84,15 @@ Snapshot::Snapshot(Amiga &amiga, Compressor compressor) : Snapshot(amiga)
 }
 
 void
-Snapshot::finalizeRead()
+Snapshot::didLoad()
 {
-    if (FORCE_SNAP_TOO_OLD) throw AppError(Fault::SNAP_TOO_OLD);
-    if (FORCE_SNAP_TOO_NEW) throw AppError(Fault::SNAP_TOO_NEW);
-    if (FORCE_SNAP_IS_BETA) throw AppError(Fault::SNAP_IS_BETA);
+    if (SNAP_TOO_OLD) throw MediaError(MediaError::SNAP_TOO_OLD);
+    if (SNAP_TOO_NEW) throw MediaError(MediaError::SNAP_TOO_NEW);
+    if (SNAP_IS_BETA) throw MediaError(MediaError::SNAP_IS_BETA);
 
-    if (isTooOld()) throw AppError(Fault::SNAP_TOO_OLD);
-    if (isTooNew()) throw AppError(Fault::SNAP_TOO_NEW);
-    if (isBeta() && !betaRelease) throw AppError(Fault::SNAP_IS_BETA);
+    if (isTooOld()) throw MediaError(MediaError::SNAP_TOO_OLD);
+    if (isTooNew()) throw MediaError(MediaError::SNAP_TOO_NEW);
+    if (isBeta() && !betaRelease) throw MediaError(MediaError::SNAP_IS_BETA);
 }
 
 std::pair <isize,isize>
@@ -165,57 +154,43 @@ Snapshot::takeScreenshot(Amiga &amiga)
 void
 Snapshot::compress(Compressor compressor)
 {
-    debug(SNP_DEBUG, "compress(%s)\n", CompressorEnum::key(compressor));
+    if CONSTEXPR (SNP_DEBUG) logmsg(LOG_DEBUG, "compress(%s)\n", CompressorEnum::key(compressor));
 
     if (!isCompressed()) {
 
-        debug(SNP_DEBUG, "Compressing %ld bytes (hash: 0x%x)...", data.size, data.fnv32());
+        if CONSTEXPR (SNP_DEBUG) logmsg(LOG_DEBUG, "Compressing %td bytes (hash: 0x%x)...", data.size, data.fnv32());
 
-        {   auto watch = util::StopWatch(SNP_DEBUG, "");
-            
-            switch (compressor) {
-                    
-                case Compressor::NONE:  break;
-                case Compressor::GZIP:  data.gzip(sizeof(SnapshotHeader)); break;
-                case Compressor::LZ4:   data.lz4 (sizeof(SnapshotHeader)); break;
-                case Compressor::RLE2:  data.rle2(sizeof(SnapshotHeader)); break;
-                case Compressor::RLE3:  data.rle3(sizeof(SnapshotHeader)); break;
-            }
+        {   auto watch = utl::StopWatch(SNP_DEBUG, "");
+
+            data.compress(compressor, sizeof(SnapshotHeader));
             
             getHeader()->compressor = u8(compressor);
         }
-        debug(SNP_DEBUG, "Compressed size: %ld bytes\n", data.size);
+        if CONSTEXPR (SNP_DEBUG) logmsg(LOG_DEBUG, "Compressed size: %td bytes\n", data.size);
     }
 }
 void
 Snapshot::uncompress()
 {
-    debug(SNP_DEBUG, "uncompress(%s)\n", CompressorEnum::key(compressor()));
+    if CONSTEXPR (SNP_DEBUG) logmsg(LOG_DEBUG, "uncompress(%s)\n", CompressorEnum::key(compressor()));
 
     if (isCompressed()) {
         
         isize expectedSize = getHeader()->rawSize;
         
-        debug(SNP_DEBUG, "Uncompressing %ld bytes...", data.size);
+        if CONSTEXPR (SNP_DEBUG) logmsg(LOG_DEBUG, "Uncompressing %td bytes...", data.size);
         
-        {   auto watch = util::StopWatch(SNP_DEBUG, "");
+        {   auto watch = utl::StopWatch(SNP_DEBUG, "");
         
-            switch (compressor()) {
-                    
-                case Compressor::NONE:  break;
-                case Compressor::GZIP:  data.gunzip(sizeof(SnapshotHeader), expectedSize); break;
-                case Compressor::LZ4:   data.unlz4 (sizeof(SnapshotHeader), expectedSize); break;
-                case Compressor::RLE2:  data.unrle2(sizeof(SnapshotHeader), expectedSize); break;
-                case Compressor::RLE3:  data.unrle3(sizeof(SnapshotHeader), expectedSize); break;
-            }
+            data.uncompress(compressor(), sizeof(SnapshotHeader), expectedSize);
             
             getHeader()->compressor = u8(Compressor::NONE);
         }
-        debug(SNP_DEBUG, "Uncompressed size: %ld bytes (hash: 0x%x)\n", data.size, data.fnv32());
+        if CONSTEXPR (SNP_DEBUG) logmsg(LOG_DEBUG, "Uncompressed size: %td bytes (hash: 0x%x)\n", data.size, data.fnv32());
         
         if (getHeader()->rawSize != expectedSize) {
          
-            warn("Snaphot size: %ld. Expected: %ld\n", data.size, expectedSize);
+            logmsg(LOG_WARN, "Snaphot size: %td. Expected: %td\n", data.size, expectedSize);
             fatalError;
         }
     }

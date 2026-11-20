@@ -6,28 +6,32 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "MediaFileTypes.h"
+#include "DeviceTypes.h"
 #include "Aliases.h"
 
 namespace vamiga {
+
 
 //
 // Enumerations
 //
 
+/// Flags describing the state of a disk.
 enum class DiskFlags
 {
     PROTECTED  = 1,
-    MODIFIED   = 2
+    MODIFIED   = 2,
+    BOOTABLE   = 4
 };
 
-struct DiskFlagsEnum : Reflection<DiskFlagsEnum, DiskFlags>
+struct DiskFlagsEnum : utl::Reflectable<DiskFlagsEnum, DiskFlags>
 {
     static constexpr long minVal = 1;
-    static constexpr long maxVal = long(DiskFlags::MODIFIED);
+    static constexpr long maxVal = long(DiskFlags::BOOTABLE);
     
     static const char *_key(DiskFlags value)
     {
@@ -35,6 +39,7 @@ struct DiskFlagsEnum : Reflection<DiskFlagsEnum, DiskFlags>
                 
             case DiskFlags::PROTECTED:    return "PROTECTED";
             case DiskFlags::MODIFIED:     return "MODIFIED";
+            case DiskFlags::BOOTABLE:     return "BOOTABLE";
         }
         return "???";
     }
@@ -44,6 +49,7 @@ struct DiskFlagsEnum : Reflection<DiskFlagsEnum, DiskFlags>
                 
             case DiskFlags::PROTECTED:    return "Write protected disk";
             case DiskFlags::MODIFIED:     return "Modified disk contents";
+            case DiskFlags::BOOTABLE:     return "Bootable disk";
         }
         return "???";
     }
@@ -54,12 +60,15 @@ struct DiskFlagsEnum : Reflection<DiskFlagsEnum, DiskFlags>
 // Structures
 //
 
-typedef struct
+/// Position of a drive head (cylinder, head, and offset into the track).
+struct DriveHead
 {
-    Cylinder cylinder;
-    Head head;
-    isize offset;
-}
-DriveHead;
+    retro::vault::CylNr cylinder;       ///< Cylinder the head is positioned over
+    retro::vault::HeadNr head;          ///< Active head (0 or 1)
+    isize offset;                       ///< Byte offset within the current track
+
+    /// Returns the track number (2 * cylinder + head).
+    isize track() const { return 2 * cylinder + head; }
+};
 
 }

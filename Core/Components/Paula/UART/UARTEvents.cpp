@@ -2,23 +2,25 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "UART.h"
 #include "Agnus.h"
 #include "Paula.h"
 #include "SerialPort.h"
+#include "Amiga.h"
+#include "MidiManager.h"
 
 namespace vamiga {
 
 void
 UART::serviceTxdEvent(EventID id)
 {
-    trace(SER_DEBUG, "serveTxdEvent(%d)\n", id);
+    logmsg(LOG_SER, "serveTxdEvent(%d)\n", id);
 
     switch (id) {
 
@@ -30,13 +32,13 @@ UART::serviceTxdEvent(EventID id)
                 if (transmitBuffer) {
 
                     // Copy new packet into shift register
-                    trace(SER_DEBUG, "Transmitting first packet %x\n", transmitBuffer);
+                    logmsg(LOG_SER, "Transmitting first packet %x\n", transmitBuffer);
                     copyToTransmitShiftRegister();
 
                 } else {
 
                     // Abort the transmission
-                    trace(SER_DEBUG, "All packets sent\n");
+                    logmsg(LOG_SER, "All packets sent\n");
                     agnus.cancel<SLOT_TXD>();
                     break;
                 }
@@ -44,13 +46,13 @@ UART::serviceTxdEvent(EventID id)
             } else {
 
                 // Run the shift register
-                trace(SER_DEBUG, "Transmitting bit %d\n", transmitShiftReg & 1);
+                logmsg(LOG_SER, "Transmitting bit %d\n", transmitShiftReg & 1);
                 transmitShiftReg >>= 1;
 
                 if (!transmitShiftReg && transmitBuffer) {
 
                     // Copy next packet into shift register
-                    trace(SER_DEBUG, "Transmitting next packet %x\n", transmitBuffer);
+                    logmsg(LOG_SER, "Transmitting next packet %x\n", transmitBuffer);
                     copyToTransmitShiftRegister();
                 }
             }
@@ -71,7 +73,7 @@ UART::serviceTxdEvent(EventID id)
 void
 UART::serviceRxdEvent(EventID id)
 {
-    // debug(SER_DEBUG, "serveRxdEvent(%d)\n", id);
+    // logmsg(LOG_SER, "serveRxdEvent(%d)\n", id);
 
     // Shift in the next bit from the RXD line
     bool rxd = serialPort.getRXD();
@@ -80,7 +82,7 @@ UART::serviceRxdEvent(EventID id)
     // Check if this was the last bit to receive
     if (recCnt >= packetLength() + 2) {
 
-        if (!payload.empty()) {
+    if (!payload.empty()) {
 
             SYNCHRONIZED
 
@@ -96,9 +98,20 @@ UART::serviceRxdEvent(EventID id)
             rxd = payload.empty();
         }
 
+        // Check for MIDI input
+        else if (serialPort.config.device == SerialPortDevice::MIDI) {
+            
+            uint8_t midiByte;
+            if (amiga.midiManager.receiveByte(&midiByte)) {
+                receiveShiftReg = midiByte;
+                // Continue receiving if more MIDI data available
+                rxd = !amiga.midiManager.hasInput();
+            }
+        }
+
         // Copy shift register contents into the receive buffer
         copyFromReceiveShiftRegister();
-        trace(SER_DEBUG, "Received packet %X (%c) (%ld)\n", receiveBuffer, (char)receiveBuffer, packetLength());
+        logmsg(LOG_SER, "Received packet %X (%c) (%td)\n", receiveBuffer, (char)receiveBuffer, packetLength());
 
         // Stop receiving if the last bit was a stop bit
         if (rxd) {

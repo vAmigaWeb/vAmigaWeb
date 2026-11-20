@@ -7,11 +7,11 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Paula.h"
 #include "Agnus.h"
 #include "CPU.h"
-#include "IOUtils.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
@@ -26,12 +26,14 @@ Paula::Paula(Amiga& ref) : SubComponent(ref)
         &diskController,
         &uart
     };
+
+    info.bind([this] { return cacheInfo(); } );
 }
 
 void
 Paula::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
 
     if (category == Category::Registers) {
         
@@ -81,15 +83,16 @@ Paula::_warpOff()
     audioPort.clear();
 }
 
-void 
-Paula::cacheInfo(PaulaInfo &info) const
+PaulaInfo
+Paula::cacheInfo() const
 {
-    {   SYNCHRONIZED
-        
-        info.intreq = intreq;
-        info.intena = intena;
-        info.adkcon = adkcon;
-    }
+    PaulaInfo info;
+
+    info.intreq = intreq;
+    info.intena = intena;
+    info.adkcon = adkcon;
+
+    return info;
 }
 
 void
@@ -108,11 +111,11 @@ Paula::executeUntil(Cycle target)
 void
 Paula::scheduleIrqAbs(IrqSource src, Cycle trigger)
 {
-    assert_enum(IrqSource, src);
+    IrqSourceEnum::validate(src);
     assert(trigger != 0);
     assert(agnus.id[SLOT_IRQ] == IRQ_CHECK);
 
-    trace(INT_DEBUG, "scheduleIrq(%ld, %lld)\n", long(src), trigger);
+    logmsg(LOG_INT, "scheduleIrq(%ld, %lld)\n", long(src), trigger);
 
     // Record the interrupt request
     if (trigger < setIntreq[isize(src)])
@@ -145,7 +148,7 @@ Paula::checkInterrupt()
                 iplPipe = (iplPipe & ~0xFF) | level;
                 agnus.scheduleRel<SLOT_IPL>(0, IPL_CHANGE, 5);
                 
-                trace(CPU_DEBUG, "iplPipe: %016llx\n", iplPipe);
+                logmsg(LOG_CPU, "iplPipe: %016llx\n", iplPipe);
             }
             break;
             

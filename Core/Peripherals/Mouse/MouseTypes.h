@@ -6,10 +6,11 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,11 +18,12 @@ namespace vamiga {
 // Structures
 //
 
+/// Configuration options of a mouse.
 typedef struct
 {
-    bool pullUpResistors;
-    bool shakeDetection;
-    isize velocity;
+    bool pullUpResistors;                   ///< Emulate pull-up resistors
+    bool shakeDetection;                    ///< Detect a shaken mouse
+    isize velocity;                         ///< Mouse velocity
 }
 MouseConfig;
 

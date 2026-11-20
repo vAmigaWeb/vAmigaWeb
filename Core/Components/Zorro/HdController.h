@@ -2,9 +2,9 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
@@ -13,10 +13,11 @@
 #include "ZorroBoard.h"
 #include "HDFFile.h"
 #include "RomFileTypes.h"
+#include "utl/wrappers.h"
 
 namespace vamiga {
 
-class HdController : public ZorroBoard, public Inspectable<HdcInfo, HdcStats> {
+class HdController : public ZorroBoard {
 
     Descriptions descriptions = {
         {
@@ -47,8 +48,20 @@ class HdController : public ZorroBoard, public Inspectable<HdcInfo, HdcStats> {
 
     Options options = {
 
-        Opt::HDC_CONNECT
+        Opt::HDC_CONNECT,
+        Opt::HDC_MB_LIMIT
     };
+
+public:
+
+    // Result of the latest inspection
+    utl::Backed<HdcInfo> info;
+    utl::Backed<HdcMetrics> metrics;
+
+private:
+
+    // Current metrics
+    HdcMetrics _metrics = {};
 
     // The hard drive this controller is connected to
     HardDrive &drive;
@@ -116,7 +129,8 @@ private:
 
         worker
 
-        << config.connected;
+        << config.connected
+        << config.mbLimit;
 
     } SERIALIZERS(serialize);
 
@@ -137,13 +151,13 @@ private:
 
 
     //
-    // Methods from Inspectable
+    //  Analyzing
     //
 
 public:
 
-    void cacheInfo(HdcInfo &result) const override;
-    void cacheStats(HdcStats &result) const override;
+    HdcInfo cacheInfo() const;
+    HdcMetrics cacheMetrics() const;
 
 
     //
@@ -215,7 +229,20 @@ public:
     void poke16(u32 addr, u16 value) override;
 
 private:
-    
+
+    /* The NSD command list, and where it lives.
+     *
+     * NSCMD_DEVICEQUERY has to hand the caller a pointer to the list of
+     * commands this device understands, and that list has to stay readable
+     * for as long as the device exists. It is served from the board's own
+     * address window, just behind the Rom and the magic registers (see
+     * spypeek16), so nothing has to be allocated on the Amiga side.
+     */
+    static const u16 *nsdCommands();
+    static isize nsdCommandCount();
+    static isize nsdCommandOffset();
+    u32 nsdCommandAddr() const;
+
     void processCmd(u32 ptr);
     void processInit(u32 ptr);
     void processResource(u32 ptr);

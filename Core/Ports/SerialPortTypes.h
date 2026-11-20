@@ -6,10 +6,11 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,19 +18,21 @@ namespace vamiga {
 // Enumerations
 //
 
+/// Type of a device connected to the serial port.
 enum class SerialPortDevice
 {
     NONE,
     NULLMODEM,
     LOOPBACK,
     RETROSHELL,
-    COMMANDER
+    COMMANDER,
+    MIDI
 };
 
-struct SerialPortDeviceEnum : Reflection<SerialPortDeviceEnum, SerialPortDevice>
+struct SerialPortDeviceEnum : utl::Reflectable<SerialPortDeviceEnum, SerialPortDevice>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = long(SerialPortDevice::COMMANDER);
+    static constexpr long maxVal = long(SerialPortDevice::MIDI);
     
     static const char *_key(SerialPortDevice value)
     {
@@ -40,6 +43,7 @@ struct SerialPortDeviceEnum : Reflection<SerialPortDeviceEnum, SerialPortDevice>
             case SerialPortDevice::LOOPBACK:      return "LOOPBACK";
             case SerialPortDevice::RETROSHELL:    return "RETROSHELL";
             case SerialPortDevice::COMMANDER:     return "COMMANDER";
+            case SerialPortDevice::MIDI:          return "MIDI";
         }
         return "???";
     }
@@ -52,6 +56,7 @@ struct SerialPortDeviceEnum : Reflection<SerialPortDeviceEnum, SerialPortDevice>
             case SerialPortDevice::LOOPBACK:      return "Loopback cable";
             case SerialPortDevice::RETROSHELL:    return "RetroShell monitor";
             case SerialPortDevice::COMMANDER:     return "RetroShell commander";
+	    case SerialPortDevice::MIDI:          return "MIDI interface";
         }
         return "???";
     }
@@ -62,24 +67,27 @@ struct SerialPortDeviceEnum : Reflection<SerialPortDeviceEnum, SerialPortDevice>
 // Structures
 //
 
+/// Configuration options of the serial port.
 typedef struct
 {
-    SerialPortDevice device;
-    bool verbose;
+    SerialPortDevice device;                ///< Serial device type
+    bool verbose;                           ///< Verbose mode
+    bool handshake;                     ///< Enables the handshake lines
 }
 SerialPortConfig;
 
+/// State of the serial port.
 typedef struct
 {
-    u32 port;
+    u32 port;                               ///< State of the port pins
     
-    bool txd;
-    bool rxd;
-    bool rts;
-    bool cts;
-    bool dsr;
-    bool cd;
-    bool dtr;
+    bool txd;                               ///< Transmit data line
+    bool rxd;                               ///< Receive data line
+    bool rts;                               ///< Request to send line
+    bool cts;                               ///< Clear to send line
+    bool dsr;                               ///< Data set ready line
+    bool cd;                                ///< Carrier detect line
+    bool dtr;                               ///< Data terminal ready line
 }
 SerialPortInfo;
 

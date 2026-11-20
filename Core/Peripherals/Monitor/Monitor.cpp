@@ -7,7 +7,7 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Monitor.h"
 #include "PixelEngine.h"
 #include "MsgQueue.h"
@@ -45,8 +45,8 @@ Monitor::getOption(Opt option) const
         case Opt::MON_DISALIGNMENT:          return (i64)config.disalignment;
         case Opt::MON_DISALIGNMENT_H:        return (i64)config.disalignmentH;
         case Opt::MON_DISALIGNMENT_V:        return (i64)config.disalignmentV;
-        case Opt::MON_FLICKER:               return (i64)config.flicker;
-        case Opt::MON_FLICKER_WEIGHT:        return (i64)config.flickerWeight;
+        case Opt::MON_FLICKER_FIXER:         return (i64)config.flickerFixer;
+        case Opt::MON_FLICKER_JITTER:        return (i64)config.flickerJitter;
 
         default:
             fatalError;
@@ -61,49 +61,49 @@ Monitor::checkOption(Opt opt, i64 value)
         case Opt::MON_PALETTE:
             
             if (!PaletteEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, PaletteEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, PaletteEnum::keyList());
             }
             return;
             
         case Opt::MON_ENHANCER:
             
             if (!UpscalerEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, UpscalerEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, UpscalerEnum::keyList());
             }
             return;
 
         case Opt::MON_UPSCALER:
             
             if (!UpscalerEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, UpscalerEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, UpscalerEnum::keyList());
             }
             return;
             
         case Opt::MON_DOTMASK:
             
             if (!DotmaskEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, DotmaskEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, DotmaskEnum::keyList());
             }
             return;
             
         case Opt::MON_SCANLINES:
             
             if (!ScanlinesEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, ScanlinesEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, ScanlinesEnum::keyList());
             }
             return;
 
         case Opt::MON_ZOOM:
             
             if (!ZoomEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, ZoomEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, ZoomEnum::keyList());
             }
             return;
 
         case Opt::MON_CENTER:
             
             if (!CenterEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, CenterEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, CenterEnum::keyList());
             }
             return;
 
@@ -112,7 +112,7 @@ Monitor::checkOption(Opt opt, i64 value)
         case Opt::MON_SATURATION:
             
             if (value < 0 || value > 100) {
-                throw AppError(Fault::OPT_INV_ARG, "0...100");
+                throw CoreError(CoreError::OPT_INV_ARG, "0...100");
             }
             return;
 
@@ -132,16 +132,16 @@ Monitor::checkOption(Opt opt, i64 value)
         case Opt::MON_DISALIGNMENT:
         case Opt::MON_DISALIGNMENT_H:
         case Opt::MON_DISALIGNMENT_V:
-        case Opt::MON_FLICKER:
-        case Opt::MON_FLICKER_WEIGHT:
+        case Opt::MON_FLICKER_FIXER:
+        case Opt::MON_FLICKER_JITTER:
             
             if (value < 0 || value > 1000) {
-                throw AppError(Fault::OPT_INV_ARG, "0...1000");
+                throw CoreError(CoreError::OPT_INV_ARG, "0...1000");
             }
             return;
             
         default:
-            throw AppError(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -286,14 +286,14 @@ Monitor::setOption(Opt opt, i64 value)
             config.disalignmentV = isize(value);
             break;
 
-        case Opt::MON_FLICKER:
+        case Opt::MON_FLICKER_FIXER:
             
-            config.flicker = bool(value);
+            config.flickerFixer = bool(value);
             break;
 
-        case Opt::MON_FLICKER_WEIGHT:
+        case Opt::MON_FLICKER_JITTER:
             
-            config.flickerWeight = isize(value);
+            config.flickerJitter = isize(value);
             break;
 
         default:
@@ -305,9 +305,7 @@ Monitor::setOption(Opt opt, i64 value)
 
 void
 Monitor::_dump(Category category, std::ostream &os) const
-{
-    using namespace util;
-    
+{    
     if (category == Category::Config) {
         
         dumpConfig(os);

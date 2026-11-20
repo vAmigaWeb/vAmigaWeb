@@ -7,56 +7,75 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Denise.h"
 #include "Agnus.h"
 #include "ControlPort.h"
-#include "IOUtils.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
-void 
-Denise::cacheInfo(DeniseInfo &info) const
+DeniseInfo
+Denise::cacheInfo() const
 {
-    {   SYNCHRONIZED
+    DeniseInfo info;
 
-        info.ecs = isECS();
-        
-        info.bplcon0 = bplcon0;
-        info.bplcon1 = bplcon1;
-        info.bplcon2 = bplcon2;
-        info.bpu = bpu();
-        
-        info.diwstrt = diwstrt;
-        info.diwstop = diwstop;
-        info.viewport.hstrt = hstrt;
-        info.viewport.hstop = hstop;
-        info.viewport.vstrt = agnus.sequencer.vstrt;
-        info.viewport.vstop = agnus.sequencer.vstop;
-        
-        info.joydat[0] = controlPort1.joydat();
-        info.joydat[1] = controlPort2.joydat();
-        info.clxdat = 0;
-        
-        for (isize i = 0; i < 6; i++) {
-            info.bpldat[i] = bpldat[i];
-        }
-        for (isize i = 0; i < 32; i++) {
-            info.colorReg[i] = pixelEngine.getColor(i);
-            info.color[i] = (u32)pixelEngine.palette[i];
-        }
-        for (isize i = 0; i < 8; i++) {
-            info.sprite[i] = debugger.latchedSpriteInfo[i];
-            info.sprite[i].data = debugger.latchedSpriteData[i];
-        }
+    info.bplcon0 = bplcon0;
+    info.bplcon1 = bplcon1;
+    info.bplcon2 = bplcon2;
+    info.bplcon3 = bplcon3;
+    info.bplcon4 = bplcon4;
+    info.bpu = bpu();
+
+    info.diwstrt = diwstrt;
+    info.diwstop = diwstop;
+    info.diwhigh = diwhigh;
+    info.viewport.hstrt = hstrt;
+    info.viewport.hstop = hstop;
+    info.viewport.vstrt = agnus.sequencer.vstrt;
+    info.viewport.vstop = agnus.sequencer.vstop;
+
+    info.joydat[0] = controlPort1.joydat();
+    info.joydat[1] = controlPort2.joydat();
+    // Deliberately not clxdat itself -- peekCLXDAT() clears the register as
+    // a side effect of reading it on real hardware, and cacheInfo() must
+    // stay a pure snapshot the inspector can poll freely without disturbing
+    // emulation state.
+    info.clxdat = 0;
+    info.clxcon = clxcon;
+    info.clxcon2 = clxcon2;
+
+    for (isize i = 0; i < 8; i++) {
+        info.bpldat[i] = bpldat[i];
     }
+    for (isize i = 0; i < 32; i++) {
+        info.color[i] = (u32)pixelEngine.palette[i];
+    }
+    for (isize i = 0; i < 128; i++) {
+        info.colorReg[i] = pixelEngine.getColor(i);
+    }
+    for (isize i = 0; i < 32; i++) {
+        info.colorRegPeek[i] = spypeekCOLORxx(i);
+    }
+    for (isize i = 0; i < 8; i++) {
+        info.sprdata[i] = sprdata[i];
+        info.sprdatb[i] = sprdatb[i];
+        info.sprpos[i] = sprpos[i];
+        info.sprctl[i] = sprctl[i];
+    }
+    for (isize i = 0; i < 8; i++) {
+        info.sprite[i] = debugger.latchedSpriteInfo[i];
+        info.sprite[i].data = debugger.latchedSpriteData[i];
+    }
+    
+    return info;
 }
 
 void
 Denise::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-    
+    using namespace utl;
+
     if (category == Category::Config) {
         
         dumpConfig(os);
@@ -69,7 +88,7 @@ Denise::_dump(Category category, std::ostream &os) const
         os << tab("Bitplanes");
         os << dec(bpu()) << std::endl;
         os << tab("Mode");
-        os <<  (isHAM8enabled() ? "HAM8" : isHAM6enabled() ? "HAM6" :
+        os << (hamMode8() ? "HAM8" : hamMode6() ? "HAM6" :
                dbplf() ? "Dual playfield" : "Single playfield") << std::endl;
         os << tab("ECSENA");
         os << bol(ecsena()) << std::endl;
@@ -77,12 +96,14 @@ Denise::_dump(Category category, std::ostream &os) const
         os << dec(colorBank()) << std::endl;
         os << tab("LOCT");
         os << bol(loct()) << std::endl;
-        os << tab("PF2 offset");
-        os << dec(pf2of()) << std::endl;
+        os << tab("PF2");
+        os << dec(pf2of()) << " (offset " << dec(colorOffset(pf2of())) << ")" << std::endl;
         os << tab("BRDSPRT");
         os << bol(brdsprt()) << std::endl;
-        os << tab("Sprite base");
-        os << dec(sprBase(0)) << " (even) " << dec(sprBase(1)) << " (odd)" << std::endl;
+        os << tab("Sprite base (odd)");
+        os << dec(sprBase(0)) << std::endl;
+        os << tab("Sprite base (even)");
+        os << dec(sprBase(1)) << std::endl;
     }
 
     if (category == Category::Registers) {
@@ -118,24 +139,6 @@ Denise::_dump(Category category, std::ostream &os) const
         for (isize i = 0; i < 8; i++) os << hex(sprctl[i]) << ' ';
         os << std::endl;
         os << std::endl;
-
-        /* Color registers in RRGGBB notation. OCS and ECS only fill the upper
-         * nibble of each component, so their values always end in a zero.
-         */
-        isize cnt = isAGA() ? 256 : 32;
-        for (isize i = 0; i < cnt; i += 8) {
-
-            os << tab("COLOR" + std::to_string(i));
-            for (isize j = i; j < i + 8; j++) {
-
-                auto c = pixelEngine.getAmigaColor(j);
-                os << std::hex << std::setfill('0');
-                os << std::setw(2) << isize(c.r);
-                os << std::setw(2) << isize(c.g);
-                os << std::setw(2) << isize(c.b) << ' ';
-            }
-            os << std::dec << std::endl;
-        }
     }
 }
 

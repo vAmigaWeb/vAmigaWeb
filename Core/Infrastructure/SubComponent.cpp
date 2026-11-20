@@ -7,7 +7,7 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "SubComponent.h"
 #include "Emulator.h"
 
@@ -28,7 +28,7 @@ cpu(ref.cpu),
 denise(ref.denise),
 diagBoard(ref.diagBoard),
 diskController(ref.paula.diskController),
-dmaDebugger(ref.agnus.dmaDebugger),
+xray(ref.agnus.xray),
 df0(ref.df0),
 df1(ref.df1),
 df2(ref.df2),
@@ -53,6 +53,8 @@ pixelEngine(ref.denise.pixelEngine),
 ramExpansion(ref.ramExpansion),
 remoteManager(ref.remoteManager),
 retroShell(ref.retroShell),
+rshShell(ref.rshShell),
+rpcShell(ref.rpcShell),
 rtc(ref.rtc),
 serialPort(ref.serialPort),
 uart(ref.paula.uart),
@@ -69,10 +71,10 @@ SubComponent::isRunAheadInstance() const
     return amiga.isRunAheadInstance();
 }
 
-void
-SubComponent::prefix(isize level, const char *component, isize line) const
+string
+SubComponent::prefix(long level, const std::source_location &loc) const
 {
-    amiga.prefix(level, component, line);
+    return amiga.prefix(level, loc);
 }
 
 }

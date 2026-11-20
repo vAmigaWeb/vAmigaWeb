@@ -1,0 +1,71 @@
+// -----------------------------------------------------------------------------
+// This file is part of vAmiga
+//
+// Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
+// Licensed under the Mozilla Public License v2
+//
+// See https://mozilla.org/MPL/2.0 for license information
+// -----------------------------------------------------------------------------
+
+#pragma once
+
+#include "RomFileTypes.h"
+#include "AnyFile.h"
+
+namespace vamiga {
+
+class RomFile : public AnyFile {
+
+    // Accepted header signatures
+    static const u8 bootRomHeaders[1][8];
+    static const u8 kickRomHeaders[15][7];
+    static const u8 encrRomHeaders[1][11];
+
+    // Path to the rom.key file (if needed)
+    fs::path romKeyPath;
+
+public:
+
+    static bool isCompatible(const fs::path &path);
+    static bool isCompatible(const u8 *buf, isize len);
+
+
+    //
+    // Initializing
+    //
+
+public:
+
+    RomFile(const fs::path &path) { init(path); }
+    RomFile(const u8 *buf, isize len) { init(buf, len); }
+
+    
+    //
+    // Methods from AnyFile
+    //
+
+public:
+
+    bool isCompatiblePath(const fs::path &path) const override { return isCompatible(path); }
+
+
+    //
+    // Decrypting
+    //
+
+public:
+    
+    // Returns true iff the Rom was encrypted at the time it was loaded
+    bool wasEncrypted() { return romKeyPath != ""; }
+
+    // Returns true iff the Rom is currently encrypted
+    bool isEncrypted();
+
+    /* Tries to decrypt the Rom. If this method is applied to an encrypted Rom,
+     * a rom.key file is seeked in the directory the encrypted Rom was loaded
+     * from and applied to the encrypted data.
+     */
+    void decrypt();
+};
+
+}

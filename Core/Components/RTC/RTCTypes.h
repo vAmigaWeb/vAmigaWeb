@@ -6,10 +6,11 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,6 +18,7 @@ namespace vamiga {
 // Enumerations
 //
 
+/// Real-time clock chip revision.
 enum class RTCRevision : long
 {
     NONE,
@@ -24,7 +26,7 @@ enum class RTCRevision : long
     RICOH
 };
 
-struct RTCRevisionEnum : Reflection<RTCRevisionEnum, RTCRevision>
+struct RTCRevisionEnum : utl::Reflectable<RTCRevisionEnum, RTCRevision>
 {
     static constexpr auto minVal = (long)RTCRevision::NONE;
     static constexpr auto maxVal = (long)RTCRevision::RICOH;
@@ -56,9 +58,10 @@ struct RTCRevisionEnum : Reflection<RTCRevisionEnum, RTCRevision>
 // Structures
 //
 
+/// Configuration options of the real-time clock.
 typedef struct
 {
-    RTCRevision model;
+    RTCRevision model;                      ///< Chip revision
 }
 RTCConfig;
 

@@ -2,12 +2,12 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Paula.h"
 
 namespace vamiga {
@@ -15,7 +15,7 @@ namespace vamiga {
 template <isize nr> void
 StateMachine<nr>::pokeAUDxLEN(u16 value)
 {
-    trace(AUDREG_DEBUG, "pokeAUD%ldLEN(%X)\n", nr, value);
+    logmsg(LOG_AUDREG, "pokeAUD%tdLEN(%X)\n", nr, value);
 
     audlenLatch = value;
 }
@@ -23,7 +23,7 @@ StateMachine<nr>::pokeAUDxLEN(u16 value)
 template <isize nr> void
 StateMachine<nr>::pokeAUDxPER(u16 value)
 {
-    trace(AUDREG_DEBUG, "pokeAUD%ldPER(%X)\n", nr, value);
+    logmsg(LOG_AUDREG, "pokeAUD%tdPER(%X)\n", nr, value);
     
     audperLatch = value;
 }
@@ -31,7 +31,7 @@ StateMachine<nr>::pokeAUDxPER(u16 value)
 template <isize nr> void
 StateMachine<nr>::pokeAUDxVOL(u16 value)
 {
-    trace(AUDREG_DEBUG, "pokeAUD%ldVOL(%X)\n", nr, value);
+    logmsg(LOG_AUDREG, "pokeAUD%tdVOL(%X)\n", nr, value);
 
     // 1. Only the lowest 7 bits are evaluated
     // 2. All values greater than 64 are treated as 64 (max volume)
@@ -41,7 +41,7 @@ StateMachine<nr>::pokeAUDxVOL(u16 value)
 template <isize nr> void
 StateMachine<nr>::pokeAUDxDAT(u16 value)
 {
-    trace(AUDREG_DEBUG, "pokeAUD%ldDAT(%X)\n", nr, value);
+    logmsg(LOG_AUDREG, "pokeAUD%tdDAT(%X)\n", nr, value);
     
     auddat = value;
     enablePenlo = enablePenhi = true;

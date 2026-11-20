@@ -2,19 +2,20 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "AudioPort.h"
 #include "Emulator.h"
 #include "CIA.h"
-#include "IOUtils.h"
 #include "MsgQueue.h"
 #include <cmath>
 #include <algorithm>
+#include "utl/io.h"
+#include "utl/support.h"
 
 namespace vamiga {
 
@@ -25,13 +26,16 @@ AudioPort::AudioPort(Amiga& ref, isize objid) : SubComponent(ref, objid)
         &filter,
         &detector
     };
+
+    info.bind([this] { return cacheInfo(); } );
+    metrics.bind([this] { return cacheMetrics(); } );
 }
 
 void
 AudioPort::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-    
+    using namespace utl;
+
     if (category == Category::Config) {
         
         dumpConfig(os);
@@ -72,20 +76,17 @@ AudioPort::_dump(Category category, std::ostream &os) const
         os << tab("Channel 3 pan");
         os << flt(pan[3]) << std::endl;
         os << tab("Sample rate");
-        os << flt(sampleRate) << " Hz" << std::endl;
+        os << flt(double(sampleRate)) << " Hz" << std::endl;
     }
-}
-
-void
-AudioPort::_initialize()
-{
-
 }
 
 void
 AudioPort::_didReset(bool hard)
 {
-    stats = { };
+    {   utl::AutoMutex _audioLock(stream.mutex);
+
+        stats = { };
+    }
     for (isize i = 0; i < 4; i++) sampler[i].reset();
     clear();
 }
@@ -137,7 +138,7 @@ AudioPort::_unfocus()
 void
 AudioPort::clear()
 {
-    debug(AUDBUF_DEBUG, "Clearing the audio sample buffer\n");
+    logmsg(LOG_AUDBUF, "Clearing the audio sample buffer\n");
 
     // Wipe out the ringbuffer
     stream.wipeOut();
@@ -192,15 +193,15 @@ AudioPort::checkOption(Opt opt, i64 value)
 
         case Opt::AUD_BUFFER_SIZE:
 
-            if (value < 512 || value > 65536) {
-                throw AppError(Fault::OPT_INV_ARG, "512 ... 65536");
+            if (value < 4096 || value > 65536) {
+                throw CoreError(CoreError::OPT_INV_ARG, "4096 ... 65536");
             }
             return;
             
         case Opt::AUD_SAMPLING_METHOD:
 
             if (!SamplingMethodEnum::isValid(value)) {
-                throw AppError(Fault::OPT_INV_ARG, SamplingMethodEnum::keyList());
+                throw CoreError(CoreError::OPT_INV_ARG, SamplingMethodEnum::keyList());
             }
             return;
             
@@ -210,7 +211,7 @@ AudioPort::checkOption(Opt opt, i64 value)
             return;
 
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -227,20 +228,20 @@ AudioPort::setOption(Opt option, i64 value)
         case Opt::AUD_VOL0:
 
             config.vol[channel] = std::clamp(value, 0LL, 100LL);
-            vol[channel] = float(pow(config.vol[channel] / 100.0, 1.4) * 0.000025);
+            vol[channel] = float(pow(double(config.vol[channel]) / 100.0, 1.4) * 0.000025);
             if (wasmBuild) vol[channel] *= 0.15f;
             return;
 
         case Opt::AUD_VOLL:
             
             config.volL = std::clamp(value, 0LL, 100LL);
-            volL = float(pow(value / 50.0, 1.4));
+            volL = float(pow(double(value) / 50.0, 1.4));
             return;
 
         case Opt::AUD_VOLR:
 
             config.volR = std::clamp(value, 0LL, 100LL);
-            volR = float(pow(value / 50.0, 1.4));
+            volR = float(pow(double(value) / 50.0, 1.4));
             return;
 
         case Opt::AUD_PAN3: channel++;
@@ -249,7 +250,7 @@ AudioPort::setOption(Opt option, i64 value)
         case Opt::AUD_PAN0:
 
             config.pan[channel] = value;
-            pan[channel] = float(0.5 * (sin(config.pan[channel] * M_PI / 200.0) + 1));
+            pan[channel] = float(0.5 * (sin(double(config.pan[channel]) * M_PI / 200.0) + 1));
             return;
 
         case Opt::AUD_BUFFER_SIZE:
@@ -281,32 +282,46 @@ AudioPort::setOption(Opt option, i64 value)
 void
 AudioPort::setSampleRate(double hz)
 {
+    // The audio filter is in use while samples are synthesized
+    utl::AutoMutex _audioLock(stream.mutex);
+
     // Set the sample rate or get it from the detector if none is provided
     if (hz != 0.0) {
 
         sampleRate = hz;
-        trace(AUD_DEBUG, "setSampleRate(%.2f)\n", sampleRate);
+        logmsg(LOG_AUD, "setSampleRate(%.2f)\n", double(sampleRate));
 
     } else {
 
         sampleRate = detector.sampleRate();
-        trace(AUD_DEBUG, "setSampleRate(%.2f) (predicted)\n", sampleRate);
+        logmsg(LOG_AUD, "setSampleRate(%.2f) (predicted)\n", double(sampleRate));
     }
 
     // Inform the audio filter about the new sample rate
     filter.setup(sampleRate);
 }
 
-void
-AudioPort::cacheInfo(AudioPortInfo &result) const
+AudioPortInfo
+AudioPort::cacheInfo() const
 {
-    result.isMuted = isMuted();
+    AudioPortInfo info;
+
+    info.isMuted = isMuted();
+
+    return info;
 }
 
-void
-AudioPort::cacheStats(AudioPortStats &result) const
+AudioPortMetrics
+AudioPort::cacheMetrics() const
 {
-    stats.fillLevel = stream.fillLevel();
+    // The statistics are also updated by the audio thread
+    utl::AutoMutex _audioLock(stream.mutex);
+
+    AudioPortMetrics result = stats;
+
+    result.fillLevel = stream.fillLevel();
+
+    return result;
 }
 
 void
@@ -382,8 +397,8 @@ AudioPort::updateSampleRateCorrection()
     // Smooth it out
     sampleRateCorrection = (sampleRateCorrection * 0.75) + (correction * 0.25);
     
-    debug(AUDBUF_DEBUG, "ASR correction: %.0f Hz (fill: %.2f)\n",
-          sampleRateCorrection, stream.fillLevel());
+    logmsg(LOG_AUDBUF, "ASR correction: %.0f Hz (fill: %.2f)\n",
+          double(sampleRateCorrection), stream.fillLevel());
 }
 
 void
@@ -397,8 +412,8 @@ AudioPort::synthesize(Cycle clock, long count, double cyclesPerSample)
     stream.mutex.lock();
 
     // Check for a buffer overflow
-    if (stream.count() + count >= stream.cap()) handleBufferOverflow();
-    
+    if (stream.free() < count) handleBufferOverflow();
+
     // Check if we can take a fast path
     if (config.idleFastPath) {
 
@@ -494,67 +509,72 @@ AudioPort::synthesize(Cycle clock, long count, double cyclesPerSample)
 void
 AudioPort::handleBufferUnderflow()
 {
-    // There are two common scenarios in which buffer underflows occur:
-    //
-    // (1) The consumer runs slightly faster than the producer
-    // (2) The producer is halted or not startet yet
-
     // Wipe out the buffer and reset the write pointer
     stream.clear(SamplePair{0,0});
     stream.alignWritePtr();
 
     // Determine the elapsed seconds since the last pointer adjustment
-    auto elapsedTime = util::Time::now() - lastAlignment;
-    lastAlignment = util::Time::now();
+    auto elapsedTime = utl::Time::now() - lastAlignment;
+    lastAlignment = utl::Time::now();
     
-    // Adjust the sample rate, if condition (1) holds
+    // Adjust the sample rate if the emulator runs under normal conditions
     if (emulator.isRunning() && !emulator.isWarping()) {
 
         stats.bufferUnderflows++;
-        debug(AUDBUF_DEBUG, "Audio buffer underflow after %f seconds\n", elapsedTime.asSeconds());
+        logmsg(LOG_AUDBUF, "Audio buffer underflow after %f seconds\n", elapsedTime.asSeconds());
 
         // Adjust the sample rate
-        setSampleRate(host.getConfig().sampleRate);
-        debug(AUDBUF_DEBUG, "New sample rate = %.2f\n", sampleRate);
+        setSampleRate(double(host.getConfig().sampleRate));
+        logmsg(LOG_AUDBUF, "New sample rate = %.2f\n", double(sampleRate));
+
+        // Inform the GUI
+        msgQueue.put(Msg::AUDBUF_UNDERFLOW, elapsedTime.asMilliseconds());
     }
 }
 
 void
 AudioPort::handleBufferOverflow()
 {
-    // There are two common scenarios in which buffer overflows occur:
-    //
-    // (1) The consumer runs slightly slower than the producer
-    // (2) The consumer is halted or not startet yet
-
     // Reset the write pointer
     stream.alignWritePtr();
 
     // Determine the number of elapsed seconds since the last adjustment
-    auto elapsedTime = util::Time::now() - lastAlignment;
-    lastAlignment = util::Time::now();
+    auto elapsedTime = utl::Time::now() - lastAlignment;
+    lastAlignment = utl::Time::now();
 
-    // Adjust the sample rate, if condition (1) holds
+    // Adjust the sample rate if the emulator runs under normal conditions
     if (emulator.isRunning() && !emulator.isWarping()) {
 
         stats.bufferOverflows++;
-        debug(AUDBUF_DEBUG, "Audio buffer overflow after %f seconds\n", elapsedTime.asSeconds());
+        logmsg(LOG_AUDBUF, "Audio buffer overflow after %f seconds\n", elapsedTime.asSeconds());
 
         // Adjust the sample rate
-        setSampleRate(host.getConfig().sampleRate);
-        debug(AUDBUF_DEBUG, "New sample rate = %.2f\n", sampleRate);
+        setSampleRate(double(host.getConfig().sampleRate));
+        logmsg(LOG_AUDBUF, "New sample rate = %.2f\n", double(sampleRate));
+
+        // Inform the GUI
+        msgQueue.put(Msg::AUDBUF_OVERFLOW, elapsedTime.asMilliseconds());
     }
 }
 
 void
 AudioPort::ignoreNextUnderOrOverflow()
 {
-    lastAlignment = util::Time::now();
+    utl::AutoMutex _audioLock(stream.mutex);
+    lastAlignment = utl::Time::now();
 }
 
 isize
 AudioPort::copyMono(float *buffer, isize n)
 {
+    /* This function runs on the audio thread. The emulator thread synthesizes
+     * samples and adjusts the sample rate under the same lock.
+     */
+    utl::AutoMutex _audioLock(stream.mutex);
+
+    // Inform the sample rate detector about the number of requested samples
+    detector.feed(n);
+    
     // Copy sound samples
     auto cnt = stream.copyMono(buffer, n);
     stats.consumedSamples += cnt;
@@ -568,6 +588,11 @@ AudioPort::copyMono(float *buffer, isize n)
 isize
 AudioPort::copyStereo(float *left, float *right, isize n)
 {
+    /* This function runs on the audio thread. The emulator thread synthesizes
+     * samples and adjusts the sample rate under the same lock.
+     */
+    utl::AutoMutex _audioLock(stream.mutex);
+
     // Inform the sample rate detector about the number of requested samples
     detector.feed(n);
 
@@ -584,6 +609,14 @@ AudioPort::copyStereo(float *left, float *right, isize n)
 isize
 AudioPort::copyInterleaved(float *buffer, isize n)
 {
+    /* This function runs on the audio thread. The emulator thread synthesizes
+     * samples and adjusts the sample rate under the same lock.
+     */
+    utl::AutoMutex _audioLock(stream.mutex);
+
+    // Inform the sample rate detector about the number of requested samples
+    detector.feed(n);
+
     // Copy sound samples
     auto cnt = stream.copyInterleaved(buffer, n);
     stats.consumedSamples += cnt;

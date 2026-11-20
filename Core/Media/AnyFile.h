@@ -6,30 +6,30 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "CoreObject.h"
-#include "MediaFile.h"
-#include "Checksum.h"
-#include "IOUtils.h"
-#include "Buffer.h"
-#include <sstream>
-#include <fstream>
+#include "utl/abilities/Hashable.h"
+#include "utl/abilities/Dumpable.h"
+#include "utl/abilities/Loggable.h"
+#include "utl/storage/Buffer.h"
+#include <iosfwd>
 
 namespace vamiga {
 
-using util::Buffer;
 
-class AnyFile : public CoreObject, public MediaFile {
+// Base class for all file-backed binary formats
+/// Base class of all files that can be loaded or saved.
+class AnyFile : public utl::Hashable, public utl::Dumpable, public utl::Loggable {
 
 public:
     
-    // Physical location of this file
+    /// The location of this file (may be empty)
     fs::path path;
 
-    // The raw data of this file
-    Buffer<u8> data;
+    /// The raw data of this file
+    utl::Buffer<u8> data;
     
     
     //
@@ -38,81 +38,111 @@ public:
     
 public:
 
-    virtual ~AnyFile();
+    virtual ~AnyFile() = default;
 
-    // void init(std::istream &stream) throws;
-    // void init(const fs::path &path, std::istream &stream) throws;
-    void init(isize len) throws;
-    void init(const u8 *buf, isize len) throws;
-    void init(const Buffer<u8> &buffer) throws;
-    void init(const string &str) throws;
-    void init(const fs::path &path) throws;
-    // void init(FILE *file) throws;
-    
-    explicit operator bool() const { return data.ptr != nullptr; }
-
-    
-    //
-    // Methods from CoreObject
-    //
-    
-    /*
-private:
-    
-    void _dump(Category category, std::ostream &os) const override { }
-     */
+    /// Initializes the file with an empty buffer of the given capacity
+    void init(isize len);
+    /// Initializes the file with the contents of a memory region
+    void init(const u8 *buf, isize len);
+    /// Initializes the file with the contents of a buffer
+    void init(const utl::Buffer<u8> &buffer);
+    /// Initializes the file with the contents of a string
+    void init(const string &str);
+    /// Initializes the file with the contents of a file
+    void init(const fs::path &path);
 
 
     //
-    // Methods from MediaFile
+    // Methods from Hashable
     //
-    
+
 public:
 
-    virtual isize getSize() const override { return data.size; }
-    virtual u8 *getData() const override { return data.ptr; }
-    virtual u64 fnv64() const override { return data.fnv64(); }
-    virtual u32 crc32() const override { return data.crc32(); }
+    /// Returns a fingerprint (hash value) for this file
+    u64 hash(HashAlgorithm algorithm) const override {
+        return data.hash(algorithm);
+    }
 
-    
+
     //
-    // Flashing
+    // Methods from Dumpable
     //
+
+public:
+
+    /// Returns a data provider for dumping the file contents
+    Dumpable::DataProvider dataProvider() const override {
+        return data.dataProvider();
+    }
+
+
+    //
+    // Querying meta information
+    //
+
+public:
+
+    /// Returns the size of this file
+    isize getSize() const { return data.size; }
+    /// Returns a pointer to the file data
+    u8* getData() const { return data.ptr; }
+    /// Returns true if the file contains no data
+    bool empty() const { return data.empty(); }
+
+    /// Returns meta-information about the file
+    virtual std::vector<string> describe() const { return {}; }
+
+
+    //
+    // Accessing data
+    //
+
+public:
+
+    /// Returns a read-only view of the file contents, starting at an offset
+    utl::ByteView byteView(isize offset = 0) const;
+    /// Returns a read-only view of a portion of the file contents
+    utl::ByteView byteView(isize offset, isize len) const;
+    /// Returns a mutable view of the file contents, starting at an offset
+    utl::MutableByteView byteView(isize offset = 0);
+    /// Returns a mutable view of a portion of the file contents
+    utl::MutableByteView byteView(isize offset, isize len);
 
     // Copies the file contents into a buffer
-    virtual void flash(u8 *buf, isize offset, isize len) const override;
-    virtual void flash(u8 *buf, isize offset = 0) const override;
+    /// Copies a portion of the file contents into a buffer
+    virtual void copy(u8 *dst, isize offset, isize len) const;
+    /// Copies the file contents (starting at an offset) into a buffer
+    virtual void copy(u8 *dst, isize offset = 0) const;
 
-    
-    //
-    // Serializing
-    //
-    
-protected:
-    
-    virtual bool isCompatiblePath(const fs::path &path) const = 0;
-    virtual bool isCompatibleBuffer(const u8 *buf, isize len) const = 0;
-    bool isCompatibleBuffer(const Buffer<u8> &buffer);
-    isize readFromBuffer(const u8 *buf, isize len) throws override;
-    isize readFromBuffer(const Buffer<u8> &buffer) throws;
 
+    //
+    // Importing
+    //
+
+    /// Returns true if path points to a compatible file
+    virtual bool isCompatiblePath(const fs::path &path) const { return true; }
+
+
+    //
+    // Exporting
+    //
+    
 public:
-    
-    isize writeToStream(std::ostream &stream, isize offset, isize len) const throws;
-    isize writeToFile(const fs::path &path, isize offset, isize len) const throws;
-    isize writeToBuffer(u8 *buf, isize offset, isize len) const throws;
-    isize writeToBuffer(Buffer<u8> &buffer, isize offset, isize len) const throws;
 
-    isize writeToStream(std::ostream &stream) const throws override;
-    isize writeToFile(const fs::path &path) const throws override;
-    isize writePartitionToFile(const fs::path &path, isize partition) const throws override;
-    isize writeToBuffer(u8 *buf) const throws override;
-    isize writeToBuffer(Buffer<u8> &buffer) const throws;
+    /// Writes the file to a stream
+    isize writeToStream(std::ostream &stream) const;
+    /// Writes the file to a file on disk
+    isize writeToFile(const fs::path &path) const;
+
+    /// Writes a portion of the file to a stream
+    isize writeToStream(std::ostream &stream, isize offset, isize len) const;
+    /// Writes a portion of the file to a file on disk
+    isize writeToFile(const fs::path &path, isize offset, isize len) const;
 
 private:
     
-    // Delegation methods
-    virtual void finalizeRead() throws { };
+    // Called at the end of init()
+    virtual void didLoad() {};
 };
 
 }

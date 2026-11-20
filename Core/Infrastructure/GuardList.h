@@ -10,6 +10,7 @@
 #pragma once
 
 #include "GuardListTypes.h"
+#include "CmdQueueTypes.h"
 #include "MoiraDebugger.h"
 
 namespace vamiga {
@@ -25,9 +26,6 @@ class GuardList {
 
 protected:
 
-    // Reference to the emulator object
-    // class Emulator &emu;
-
     // Reference to the emulator core
     class Amiga &amiga;
 
@@ -36,6 +34,9 @@ protected:
 
     // This guard list is used if no custom list is provided in the constructor
     moira::Guards _guards;
+
+    // The kind of guards managed by this list
+    GuardType type;
 
     // Indicates if active guards are present
     bool needsCheck = false;
@@ -47,8 +48,8 @@ protected:
 
 public:
 
-    GuardList(Amiga &amiga) : amiga(amiga), guards(_guards) { }
-    GuardList(Amiga &amiga, moira::Guards &guards) : amiga(amiga), guards(guards) { }
+    GuardList(Amiga &amiga, GuardType type) : amiga(amiga), guards(_guards), type(type) { }
+    GuardList(Amiga &amiga, moira::Guards &guards, GuardType type) : amiga(amiga), guards(guards), type(type) { }
     virtual ~GuardList() { }
 
 
@@ -58,8 +59,8 @@ public:
 
 public:
 
-    long elements() const { return guards.elements(); }
-    std::optional<GuardInfo> guardNr(long nr) const;
+    isize elements() const { return guards.elements(); }
+    std::optional<GuardInfo> guardNr(isize nr) const;
     std::optional<GuardInfo> guardAt(u32 addr) const;
     std::optional<GuardInfo> hit() const;
 
@@ -70,7 +71,7 @@ public:
 
 public:
 
-    bool isSet(long nr) const { return guards.isSet(nr); }
+    bool isSet(isize nr) const { return guards.isSet(nr); }
     bool isSetAt(u32 addr) const { return guards.isSetAt(addr); }
 
     void setAt(u32 target, isize ignores = 0);
@@ -87,9 +88,9 @@ public:
 
 public:
 
-    bool isEnabled(long nr) const { return guards.isEnabled(nr); }
+    bool isEnabled(isize nr) const { return guards.isEnabled(nr); }
     bool isEnabledAt(u32 addr) const { return guards.isEnabledAt(addr); }
-    bool isDisabled(long nr) const { return guards.isDisabled(nr); }
+    bool isDisabled(isize nr) const { return guards.isDisabled(nr); }
     bool isDisabledAt(u32 addr) const { return guards.isDisabledAt(addr); }
     bool eval(u32 addr, moira::Size S = moira::Byte) { return guards.eval(addr, S); }
 
@@ -102,7 +103,10 @@ public:
     void toggle(isize nr);
     void toggleAt(u32 target);
 
-    void ignore(long nr, long count);
+    void ignore(isize nr, isize count);
+
+    // Carries out a command of type GUARD_xxx
+    void processCommand(const Command &cmd);
 
 
     //

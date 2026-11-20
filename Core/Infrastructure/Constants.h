@@ -91,6 +91,22 @@ static const isize HPIXELS =    912;                // 4 * HPOS_CNT
 static const isize PIXELS =     VPIXELS * HPIXELS;
 
 
+/** Emulator texture parameters
+ *
+ * The texture stores one texel per super-hires pixel, i.e., two texels per
+ * HPIXELS unit.
+ */
+namespace Tex {
+
+/// Height of the emulator texture in texels
+static const isize height               = VPIXELS;
+
+/// Width of the emulator texture in texels
+static const isize width                = 2 * HPIXELS;
+
+}
+
+
 /* Blanking area
  *
  * To understand the horizontal alignment of the Amiga screen, it is important
@@ -127,13 +143,14 @@ static const isize VBLANK_CNT = 0x14;   // VBLANK_MAX - VBLANK_MIN + 1
 // Hard drive geometry limits
 //
 
+/*
 static const isize HDR_C_MIN =  16;
 static const isize HDR_C_MAX =  16384;
 static const isize HDR_H_MIN =  1;
 static const isize HDR_H_MAX =  16;
 static const isize HDR_S_MIN =  16;
 static const isize HDR_S_MAX =  63;
-
+*/
 
 //
 // Custom registers

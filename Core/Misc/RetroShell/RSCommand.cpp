@@ -7,10 +7,10 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "RSCommand.h"
-#include "StringUtils.h"
-#include "Parser.h"
+#include "utl/io.h"
+#include "utl/support.h"
 #include <algorithm>
 #include <utility>
 
@@ -82,7 +82,7 @@ RSCommand::add(const RSCommandDescriptor &descriptor)
     if (descriptor.flags & rs::disabled) return;
 
     // Cleanse the token list (convert { "aaa bbb" } into { "aaa", "bbb" }
-    auto tokens = util::split(descriptor.tokens, ' ');
+    auto tokens = utl::split(descriptor.tokens, ' ');
 
     // The last entry in the token list is the command name
     auto name = tokens.back();
@@ -90,12 +90,12 @@ RSCommand::add(const RSCommandDescriptor &descriptor)
     // Traversing the command tree
     RSCommand *node = seek(std::vector<string> { tokens.begin(), tokens.end() - 1 });
     assert(node != nullptr);
-    
+
     // Create the instruction
     RSCommand cmd;
     cmd.groupName = currentGroup;
     cmd.name = name;
-    cmd.fullName = util::concat({ node->fullName, name }, " ");
+    cmd.fullName = utl::concat({ node->fullName, name }, " ");
     cmd.flags = descriptor.flags;
     cmd.ghelp = !descriptor.ghelp.empty() ? descriptor.ghelp : descriptor.chelp;
     cmd.chelp = !descriptor.chelp.empty() ? descriptor.chelp : "???";
@@ -116,22 +116,22 @@ RSCommand::add(const RSCommandDescriptor &descriptor)
 
 void
 RSCommand::clone(const std::vector<string> &tokens,
-                     const string &alias,
-                     const std::vector<isize> &values)
+                 const string &alias,
+                 const std::vector<isize> &values)
 {
     assert(!tokens.empty());
 
     // Find the command to clone
     RSCommand *cmd = seek(std::vector<string> { tokens.begin(), tokens.end() });
     assert(cmd != nullptr);
-    
+
     // Assemble the new token list
     auto newTokens = std::vector<string> { tokens.begin(), tokens.end() - 1 };
     newTokens.push_back(alias);
-    
+
     // Create the instruction
     add(RSCommandDescriptor {
-        
+
         .tokens = newTokens,
         .ghelp  = cmd->ghelp,
         .chelp  = cmd->chelp,
@@ -161,11 +161,11 @@ const RSCommand *
 RSCommand::seek(const std::vector<string> &tokens) const
 {
     const RSCommand *result = this;
-    
+
     for (auto &it : tokens) {
         if ((result = result->seek(it)) == nullptr) break;
     }
-    
+
     return result;
 }
 
@@ -179,13 +179,13 @@ std::vector<const RSCommand *>
 RSCommand::filterPrefix(const string& prefix) const
 {
     std::vector<const RSCommand *> result;
-    auto uprefix = util::uppercased(prefix);
+    auto uprefix = utl::uppercased(prefix);
 
     for (auto &it : subcommands) {
-        
+
         if (it.isHidden()) continue;
         auto substr = it.name.substr(0, prefix.size());
-        if (util::uppercased(substr) == uprefix) result.push_back(&it);
+        if (utl::uppercased(substr) == uprefix) result.push_back(&it);
     }
 
     return result;
@@ -199,7 +199,7 @@ RSCommand::autoComplete(string &token)
     auto matches = filterPrefix(token);
     for (auto &it : matches) { tokens.push_back(it->name); }
 
-    if (!tokens.empty()) token = util::commonPrefix(tokens);
+    if (!tokens.empty()) token = utl::commonPrefix(tokens);
     return (isize)matches.size();
 }
 
@@ -306,8 +306,8 @@ RSCommand::cmdUsage() const
     for (auto &it : subcommands) {
         if (it.isVisible()) items.push_back(it.name);
     }
-    auto combined = util::concat(items, " | ", callback ? "[ " : "{ ", callback ? " ]" : " }");
-    return  util::concat({ fullName, combined });
+    auto combined = utl::concat(items, " | ", callback ? "[ " : "{ ", callback ? " ]" : " }");
+    return  utl::concat({ fullName, combined });
 }
 
 string
@@ -323,13 +323,13 @@ RSCommand::argUsage() const
 
     // Create a usage string for all other arguments
     std::vector<string> items;
-
+    
     for (auto &it : args) {
         if (!it.isFlag()) items.push_back(it.usageStr());
     }
-    string other = util::concat(items);
+    string other = utl::concat(items);
 
-    return util::concat({ fullName, flags, other });
+    return utl::concat({ fullName, flags, other });
 }
 
 }

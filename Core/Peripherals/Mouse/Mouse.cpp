@@ -7,11 +7,11 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Mouse.h"
 #include "Amiga.h"
-#include "Chrono.h"
-#include "IOUtils.h"
+#include "utl/chrono.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
@@ -47,12 +47,12 @@ Mouse::checkOption(Opt opt, i64 value)
         case Opt::MOUSE_VELOCITY:
 
             if (value < 0 || value > 255) {
-                throw AppError(Fault::OPT_INV_ARG, "0...255");
+                throw CoreError(CoreError::OPT_INV_ARG, "0...255");
             }
             return;
 
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
@@ -92,8 +92,8 @@ Mouse::updateScalingFactors()
 void
 Mouse::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
-    
+    using namespace utl;
+
     if (category == Category::Config) {
         
         dumpConfig(os);
@@ -102,11 +102,12 @@ Mouse::_dump(Category category, std::ostream &os) const
     if (category == Category::State) {
 
         os << tab("leftButton");
-        os << bol(leftButton) << std::endl;
+        // os << bol(leftButton) << std::endl;
+        os << bol(leftButton.get(agnus.pos.frame)) << std::endl;
         os << tab("middleButton");
-        os << bol(middleButton) << std::endl;
+        os << bol(middleButton.get(agnus.pos.frame)) << std::endl;
         os << tab("rightButton");
-        os << bol(rightButton) << std::endl;
+        os << bol(rightButton.get(agnus.pos.frame)) << std::endl;
         os << tab("mouseX");
         os << mouseX << std::endl;
         os << tab("mouseY");
@@ -132,13 +133,19 @@ Mouse::changePotgo(u16 &potgo) const
     u16 maskR = port.isPort1() ? 0x0400 : 0x4000;
     u16 maskM = port.isPort1() ? 0x0100 : 0x1000;
 
-    if (rightButton || HOLD_MOUSE_R) {
+    bool rb = rightButton.get(agnus.pos.frame);
+    bool mb = middleButton.get(agnus.pos.frame);
+
+    if CONSTEXPR (HOLD_MOUSE_R) rb = true;
+    if CONSTEXPR (HOLD_MOUSE_M) mb = true;
+
+    if (rb) {
         potgo &= ~maskR;
     } else if (config.pullUpResistors) {
         potgo |= maskR;
     }
 
-    if (middleButton || HOLD_MOUSE_M) {
+    if (mb) {
         potgo &= ~maskM;
     } else if (config.pullUpResistors) {
         potgo |= maskM;
@@ -150,7 +157,11 @@ Mouse::changePra(u8 &pra) const
 {
     u16 mask = port.isPort1() ? 0x0040 : 0x0080;
 
-    if (leftButton || HOLD_MOUSE_L) {
+    bool lb = leftButton.get(agnus.pos.frame);
+
+    if CONSTEXPR (HOLD_MOUSE_L) lb = true;
+
+    if (lb) {
         pra &= ~mask;
     } else if (config.pullUpResistors) {
         pra |= mask;
@@ -177,6 +188,24 @@ Mouse::getDeltaY()
     oldMouseY = mouseY;
 
     return result;
+}
+
+bool
+Mouse::LMB() const
+{
+    return leftButton.get(agnus.pos.frame);
+}
+
+bool
+Mouse::MMB() const
+{
+    return middleButton.get(agnus.pos.frame);
+}
+
+bool
+Mouse::RMB() const
+{
+    return rightButton.get(agnus.pos.frame);
 }
 
 u16
@@ -212,7 +241,7 @@ Mouse::detectShakeDxDy(double dx, double dy)
 void
 Mouse::setXY(double x, double y)
 {
-    debug(PRT_DEBUG, "setXY(%f,%f)\n", x, y);
+    logmsg(LOG_PRT, "setXY(%f,%f)\n", x, y);
 
     targetX = x * scaleX;
     targetY = y * scaleY;
@@ -224,7 +253,7 @@ Mouse::setXY(double x, double y)
 void
 Mouse::setDxDy(double dx, double dy)
 {
-    debug(PRT_DEBUG, "setDxDy(%f,%f)\n", dx, dy);
+    logmsg(LOG_PRT, "setDxDy(%f,%f)\n", dx, dy);
     
     targetX += dx * scaleX;
     targetY += dy * scaleY;
@@ -236,36 +265,37 @@ Mouse::setDxDy(double dx, double dy)
 void
 Mouse::setLeftButton(bool value)
 {
-    trace(PRT_DEBUG, "setLeftButton(%d)\n", value);
+    logmsg(LOG_PRT, "setLeftButton(%d)\n", value);
     
-    leftButton = value;
+    //leftButton = value;
+    leftButton.set(value, agnus.pos.frame);
     port.setDevice(ControlPortDevice::MOUSE);
 }
 
 void
 Mouse::setMiddleButton(bool value)
 {
-    trace(PRT_DEBUG, "setMiddleButton(%d)\n", value);
+    logmsg(LOG_PRT, "setMiddleButton(%d)\n", value);
 
-    middleButton = value;
+    middleButton.set(value, agnus.pos.frame);
     port.setDevice(ControlPortDevice::MOUSE);
 }
 
 void
 Mouse::setRightButton(bool value)
 {
-    trace(PRT_DEBUG, "setRightButton(%d)\n", value);
+    logmsg(LOG_PRT, "setRightButton(%d)\n", value);
     
-    rightButton = value;
+    rightButton.set(value, agnus.pos.frame);
     port.setDevice(ControlPortDevice::MOUSE);
 }
 
 void
 Mouse::trigger(GamePadAction event)
 {
-    assert_enum(GamePadAction, event);
+    GamePadActionEnum::validate(event);
 
-    debug(PRT_DEBUG, "trigger(%s)\n", GamePadActionEnum::key(event));
+    logmsg(LOG_PRT, "trigger(%s)\n", GamePadActionEnum::key(event));
 
     switch (event) {
 
@@ -302,7 +332,7 @@ ShakeDetector::isShakingRel(double dx) {
     // Check for a direction reversal
     if (dx * dxsign < 0) {
 
-        u64 dt = util::Time::now().asNanoseconds() - lastTurn;
+        u64 dt = utl::Time::now().asNanoseconds() - lastTurn;
         dxsign = -dxsign;
 
         // A direction reversal is considered part of a shake, if the
@@ -319,8 +349,8 @@ ShakeDetector::isShakingRel(double dx) {
                 // Report a shake if the threshold has been reached.
                 if (dxturns > 3) {
                     
-                    // debug(PRT_DEBUG, "Mouse shake detected\n");
-                    lastShake = util::Time::now().asNanoseconds();
+                    // logmsg(LOG_PRT, "Mouse shake detected\n");
+                    lastShake = utl::Time::now().asNanoseconds();
                     dxturns = 0;
                     return true;
                 }
@@ -334,7 +364,7 @@ ShakeDetector::isShakingRel(double dx) {
             dxsum = 0;
         }
         
-        lastTurn = util::Time::now().asNanoseconds();
+        lastTurn = utl::Time::now().asNanoseconds();
     }
     
     return false;

@@ -7,34 +7,41 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Console.h"
+#include "RSError.h"
 #include "Emulator.h"
-#include "StringUtils.h"
+#include "Codecs.h"
+#include "HDFFile.h"
+#include "utl/chrono.h"
+#include "utl/support.h"
+#include "utl/io.h"
+#include <climits>
 #include <regex>
-
-#include "Chrono.h"
 
 namespace vamiga {
 
-void
-NavigatorConsole::_pause()
-{
-
-}
+namespace accept = retro::vault::amiga::accept;
+namespace sort = retro::vault::amiga::sort;
+using retro::vault::FSError;
+using retro::vault::amiga::BootBlockId;
+using retro::vault::amiga::BootBlockIdEnum;
+using retro::vault::amiga::FSPath;
+using retro::vault::amiga::FSPattern;
+using retro::vault::amiga::FSTree;
 
 string
-NavigatorConsole::getPrompt()
+Console::navPrompt()
 {
     std::stringstream ss;
 
-    if (fs.isInitialized()) {
+    if (amigaFs) {
 
-        auto &pwd = fs.pwd();
+        auto &pwd = amigaFs->fetch(amigaFs->pwd());
 
         ss << "[" << std::to_string(pwd.nr) << "]";
 
-        auto fsName = fs.getName();
+        auto fsName = amigaFs->stat().name;
         if (!fsName.empty()) ss << " " << fsName << ":";
         if (pwd.isDirectory()) ss << " " << pwd.absName();
     }
@@ -44,61 +51,7 @@ NavigatorConsole::getPrompt()
 }
 
 void
-NavigatorConsole::welcome()
-{
-    if (vAmigaDOS) {
-
-        storage << "File System Navigator ";
-        *this << Amiga::build() << '\n';
-        *this << '\n';
-
-        *this << "Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de" << '\n';
-        *this << "https://github.com/vAmigaDOS/vAmigaDOS" << '\n';
-        *this << '\n';
-
-    } else {
-
-        Console::welcome();
-    }
-}
-
-void
-NavigatorConsole::summary()
-{
-    std::stringstream ss;
-
-    if (fs.isInitialized()) {
-
-        fs.dump(Category::Info, ss);
-
-        *this << vspace{1};
-        string line;
-        while(std::getline(ss, line)) { *this << "    " << line << '\n'; }
-        *this << vspace{1};
-
-    } else {
-
-        *this << vspace{1};
-        *this << "    No file system present.\n";
-        *this << "    Use the 'import' command to load one.";
-        *this << vspace{1};
-    }
-}
-
-void
-NavigatorConsole::printHelp(isize tab)
-{
-    Console::printHelp(tab);
-}
-
-void
-NavigatorConsole::pressReturn(bool shift)
-{
-    Console::pressReturn(shift);
-}
-
-void
-NavigatorConsole::autoComplete(Tokens &argv)
+Console::navAutoComplete(Tokens &argv)
 {
     // Only proceed if there is anything to complete
     if (argv.empty()) return;
@@ -110,7 +63,7 @@ NavigatorConsole::autoComplete(Tokens &argv)
 
             // If that didn't work, try to auto-complete with a file name
             try {
-                auto prefix = autoCompleteFilename(argv.back(), cmd->flags);
+                auto prefix = navAutoCompleteFilename(argv.back(), cmd->flags);
                 if (prefix.size() > argv.back().size()) argv.back() = prefix;
 
             } catch (...) { }
@@ -119,408 +72,472 @@ NavigatorConsole::autoComplete(Tokens &argv)
 }
 
 string
-NavigatorConsole::autoCompleteFilename(const string &input, usize flags) const
+Console::navAutoCompleteFilename(const string &input, usize flags) const
 {
-    bool absolute = !input.empty() && input[0] == '/';
+    try {
 
-    // Seek matching items
-    auto matches = fs.match(&fs.pwd(), input + "*");
+        navRequireFormattedFS();
 
-    // Filter out unwanted items
-    if (!matches.empty()) {
-        matches.erase(std::remove_if(matches.begin(), matches.end(), [flags](const FSBlock *node) {
+        auto path = FSPath(input);
+        auto dir  = path.parentPath();
 
-            return
-            (!(flags & rs::acdir) && node->isDirectory()) ||
-            (!(flags & rs::acfile) && node->isFile());
+        // Find all matching items
+        auto matches = amigaFs->match(input + "*");
 
-        }), matches.end());
+        // Case 1: The completion was unique
+        if (matches.size() == 1) {
+
+            auto &node = amigaFs->fetch(matches[0]);
+            auto name = dir / node.name();
+            return name.cpp_str() + (node.isDirectory() ? "/" : "");
+        }
+
+        // Case 2: Multiple files match
+        std::vector<string> names;
+        for (auto &it : matches) {
+
+            auto name = dir / amigaFs->fetch(it).name();
+            names.push_back(name.cpp_str());
+        }
+
+        // Auto-complete all common characters
+        return utl::commonPrefix(names, false);
+
+    } catch (...) {
+
+        return input;
     }
-
-    // Extract names
-    std::vector<string> names;
-    for (auto &it : matches) {
-        names.push_back(absolute ? it->acabsName(): it->acrelName());
-    }
-
-    // Auto-complete all common characters
-    auto completed = util::commonPrefix(names, false);
-
-    return completed;
 }
 
 void
-NavigatorConsole::help(std::ostream &os, const string &argv, isize tabs)
+Console::navHelp(std::ostream &os, const string &argv, isize tabs)
 {
-    auto [cmd, args] = seekCommand(argv);
+    try {
 
-    // Determine the kind of help to display
-    /*
-    bool displayFiles = (tabs % 2 == 0) && fs.isFormatted() && cmd && cmd->callback && (cmd->flags & rs::ac);
-    bool displayCmds  = (tabs % 2 == 1) || !displayFiles;
-    */
-    bool displayFiles = fs.isFormatted() && cmd && cmd->callback && (cmd->flags & rs::ac);
-    bool displayCmds  = true;
+        auto [cmd, args] = seekCommand(argv);
 
-    if (displayCmds) {
+        // Determine the kind of help to display
+        bool displayFiles = amigaFs && amigaFs->isFormatted() && cmd && cmd->callback && (cmd->flags & rs::ac);
+        bool displayCmds  = true;
 
-        // Display the standard command help
-        Console::help(os, argv, tabs);
+        if (displayCmds) {
+
+            // Display the standard command help
+            defaultHelp(os, argv, tabs);
+        }
+
+        if (displayFiles) {
+
+            // Find matching items
+            auto matches = amigaFs->match(args.empty() ? "*" : args.back() + "*");
+
+            // Extract names
+            vector<string> dirs, files;
+            for (auto &it : matches) {
+
+                auto &block = amigaFs->fetch(it);
+                auto name = block.name().cpp_str();
+
+                if (block.isDirectory()) {
+                    dirs.push_back(name + " (dir)");
+                } else {
+                    files.push_back(name);
+                }
+            }
+
+            // Sort
+            auto ciLess = [](const std::string &a, const std::string &b) {
+                return std::lexicographical_compare(
+                                                    a.begin(), a.end(),
+                                                    b.begin(), b.end(),
+                                                    [](unsigned char x, unsigned char y) {
+                                                        return std::tolower(x) < std::tolower(y);
+                                                    }
+                                                    );
+            };
+
+            std::sort(dirs.begin(), dirs.end(), ciLess);
+            std::sort(files.begin(), files.end(), ciLess);
+
+            // Print
+            if (!matches.empty() && displayCmds) {
+
+                os << std::endl;
+                Formatter::printTable(os, dirs, {
+                    .columns = {
+                        { .align = 'l', .width = 35 }
+                    },
+                        .layout = Formatter::Layout::RowMajor,
+                        .inset  = string(7, ' ')
+                });
+                Formatter::printTable(os, files, {
+                    .columns = {
+                        { .align = 'l', .width = 35 },
+                        { .align = 'l', .width = 35 }
+                    },
+                        .layout = Formatter::Layout::RowMajor,
+                        .inset  = string(7, ' ')
+                });
+            }
+        }
+
     }
-
-    if (displayFiles) {
-
-        // Seek matching items
-        auto matches = fs.match(&fs.pwd(), args.empty() ? "*" : args.back() + "*");
-
-        // List all nodes
-        if (!matches.empty() && displayCmds) os << std::endl;
-        FSTree(matches, { .sort = sort::dafa }).list(os, { .indent = 7 });
-    }
+    catch (...) { }
 }
 
-Block
-NavigatorConsole::parseBlock(const string &argv)
+BlockNr
+Console::navParseBlock(const string &argv)
 {
-    fs.require_initialized();
-
-    if (auto nr = Block(parseNum(argv)); fs.read(nr)) {
+    if (auto nr = BlockNr(parseNum(argv)); amigaFs->tryFetch(nr)) {
         return nr;
     }
 
-    throw AppError(Fault::OPT_INV_ARG, "0..." + std::to_string(fs.numBlocks()));
+    throw CoreError(CoreError::OPT_INV_ARG, "0..." + std::to_string(amigaFs->blocks()));
 }
 
-Block
-NavigatorConsole::parseBlock(const Arguments &argv, const string &token)
+BlockNr
+Console::navParseBlock(const Arguments &argv, const string &token)
 {
-    return parseBlock(argv, token, fs.pwd().nr);
+    return navParseBlock(argv, token, amigaFs->pwd());
 }
 
-Block
-NavigatorConsole::parseBlock(const Arguments &argv, const string &token, Block fallback)
+BlockNr
+Console::navParseBlock(const Arguments &argv, const string &token, BlockNr fallback)
 {
-    auto nr = argv.contains(token) ? Block(parseNum(argv.at(token))) : fallback;
+    auto nr = argv.contains(token) ? BlockNr(parseNum(argv.at(token))) : fallback;
 
-    if (!fs.read(nr)) {
-
-        if (!fs.isInitialized()) {
-            throw AppError(Fault::FS_UNINITIALIZED);
-        } else {
-            throw AppError(Fault::OPT_INV_ARG, "0..." + std::to_string(fs.numBlocks()));
-        }
+    if (!amigaFs->tryFetch(nr)) {
+        throw CoreError(CoreError::OPT_INV_ARG, "0..." + std::to_string(amigaFs->blocks()));
     }
     return nr;
 }
 
-FSBlock &
-NavigatorConsole::parsePath(const Arguments &argv, const string &token)
+BlockNr
+Console::navParsePath(const Arguments &argv, const string &token)
 {
+    amigaFs->require.isFormatted();
+
     assert(argv.contains(token));
 
     try {
         // Try to find the directory by name
-        return fs.seek(fs.pwd(), argv.at(token));
+        return amigaFs->seek(argv.at(token));
 
     } catch (...) {
 
         try {
             // Treat the argument as a block number
-            return fs[parseBlock(argv.at(token))];
+            return navParseBlock(argv.at(token));
 
         } catch (...) {
 
             // The item does not exist
-            throw AppError(Fault::FS_NOT_FOUND, argv.at(token));
+            throw FSError(FSError::FS_NOT_FOUND, argv.at(token));
         }
     }
 }
 
-FSBlock &
-NavigatorConsole::parsePath(const Arguments &argv, const string &token, FSBlock &fallback)
+BlockNr
+Console::navParsePath(const Arguments &argv, const string &token, BlockNr fallback)
 {
-    return argv.contains(token) ? parsePath(argv, token) : fallback;
+    return argv.contains(token) ? navParsePath(argv, token) : fallback;
 }
 
-FSBlock &
-NavigatorConsole::parseFile(const Arguments &argv, const string &token)
+BlockNr
+Console::navParseFile(const Arguments &argv, const string &token)
 {
-    return parseFile(argv, token, fs.pwd());
+    return navParseFile(argv, token, amigaFs->pwd());
 }
 
-FSBlock &
-NavigatorConsole::parseFile(const Arguments &argv, const string &token, FSBlock &fallback)
+BlockNr
+Console::navParseFile(const Arguments &argv, const string &token, BlockNr fallback)
 {
-    if (!fs.isFormatted()) {
-        throw AppError(Fault::FS_UNFORMATTED);
-    }
-    auto &path = parsePath(argv, token, fallback);
+    auto path = navParsePath(argv, token, fallback);
+    amigaFs->require.file(path);
 
-    if (!path.isFile()) {
-        throw AppError(Fault::FS_NOT_A_FILE, "Block " + std::to_string(path.nr));
-    }
     return path;
 }
 
-FSBlock &
-NavigatorConsole::parseDirectory(const Arguments &argv, const string &token)
+BlockNr
+Console::navParseDirectory(const Arguments &argv, const string &token)
 {
-    return parseDirectory(argv, token, fs.pwd());
+    return navParseDirectory(argv, token, amigaFs->pwd());
 }
 
-FSBlock &
-NavigatorConsole::parseDirectory(const Arguments &argv, const string &token, FSBlock &fallback)
+BlockNr
+Console::navParseDirectory(const Arguments &argv, const string &token, BlockNr fallback)
 {
-    if (!fs.isFormatted()) {
-        throw AppError(Fault::FS_UNFORMATTED);
-    }
-    auto &path = parsePath(argv, token, fallback);
+    auto path = navParsePath(argv, token, fallback);
+    amigaFs->require.directory(path);
 
-    if (!path.isDirectory()) {
-        throw AppError(Fault::FS_NOT_A_DIRECTORY, "Block " + std::to_string(path.nr));
-    }
     return path;
 }
 
 void
-NavigatorConsole::import(const FloppyDrive &dfn)
+Console::navImport(const FloppyDrive &dfn)
 {
-    fs.init(dfn);
+    // Later: Directly mount the file system on top of the drive
+
+    // Create a block device
+    adf = Codec::makeADF(dfn);
+
+    // Create a file system on top
+    amigaVol = make_unique<Volume>(*adf);
+    amigaFs = make_unique<FileSystem>(*amigaVol);
 }
 
 void
-NavigatorConsole::import(const HardDrive &hdn, isize part)
+Console::navImport(const HardDrive &hdn, isize part)
 {
-    fs.init(hdn, part);
+    throw FSError(FSError::FS_UNSUPPORTED);
+    /*
+     FileSystemFactory::initFromHardDrive(*amigaFs, hdn);
+     */
 }
 
 void
-NavigatorConsole::importDf(isize n)
+Console::navImportDf(isize n)
 {
     assert(n >= 0 && n <= 3);
-    import(*amiga.df[n]);
+    navImport(*amiga.df[n]);
 }
 
 void
-NavigatorConsole::importHd(isize n, isize part)
+Console::navImportHd(isize n, isize part)
 {
     assert(n >= 0 && n <= 3);
-    import(*amiga.hd[n], part);
+    navImport(*amiga.hd[n], part);
 }
 
 void
-NavigatorConsole::import(const fs::path &path, bool recursive, bool contents)
+Console::navImport(const fs::path &path, bool recursive, bool contents)
 {
-    fs.import(path, recursive, contents);
+    amigaFs->importer.import(path, recursive, contents);
 }
 
 void
-NavigatorConsole::exportBlocks(fs::path path)
+Console::navRequireFS() const
 {
-    fs.exportBlocks(path);
+    if (!amigaFs) throw FSError(FSError::FS_CUSTOM, "No file system present");
 }
 
-FSBlock &
-NavigatorConsole::matchPath(const Arguments &argv, const string &token, Tokens &notFound)
+void
+Console::navRequireFormattedFS() const
 {
-    return matchPath(argv.at(token), notFound);
+    navRequireFS();
+    amigaFs->require.isFormatted();
 }
 
-FSBlock &
-NavigatorConsole::matchPath(const Arguments &argv, const string &token, Tokens &notFound, FSBlock &fallback)
+void
+Console::navExportBlocks(fs::path path)
 {
-    return argv.contains(token) ? matchPath(argv, token, notFound) : fallback;
+    amigaFs->exporter.exportVolume(path);
 }
 
-FSBlock &
-NavigatorConsole::matchPath(const string &path, Tokens &notFound)
+BlockNr
+Console::navMatchPath(const Arguments &argv, const string &token, Tokens &notFound)
 {
-    if (!fs.isFormatted()) throw AppError(Fault::FS_UNFORMATTED);
+    return navMatchPath(argv.at(token), notFound);
+}
 
-    auto tokens = util::split(path, '/');
+BlockNr
+Console::navMatchPath(const Arguments &argv, const string &token, Tokens &notFound, BlockNr fallback)
+{
+    return argv.contains(token) ? navMatchPath(argv, token, notFound) : fallback;
+}
+
+BlockNr
+Console::navMatchPath(const string &path, Tokens &notFound)
+{
+    amigaFs->require.isFormatted();
+
+    auto tokens = utl::split(path, '/');
     if (!path.empty() && path[0] == '/') { tokens.insert(tokens.begin(), "/"); }
 
-    auto *p = &fs.pwd();
+    auto p = amigaFs->pwd();
     while (!tokens.empty()) {
 
-        auto *next = fs.seekPtr(p, FSName(tokens.front()));
+        auto next = amigaFs->trySeek(tokens.front());
         if (!next) break;
 
         tokens.erase(tokens.begin());
-        p = next;
+        p = *next;
     }
     notFound = tokens;
 
-    return *p;
+    return p;
 }
 
-util::DumpOpt
-NavigatorConsole::parseDumpOpts(const Arguments &argv)
+std::pair<DumpOpt,DumpFmt>
+Console::navParseDumpOpts(const Arguments &argv)
 {
-    auto lines = argv.contains("lines") ? parseNum(argv.at("lines")) : -1;
+    DumpOpt opt; DumpFmt fmt;
+
     auto a = argv.contains("a");
     auto o = argv.contains("o");
     auto d = argv.contains("d");
-    auto t = argv.contains("t");
     auto w = argv.contains("w");
     auto l = argv.contains("l");
-    auto size = l ? 4 : w ? 2 : 1;
+    auto size = l ? 'l' : w ? 'w' : 'b';
+    auto columns = l ? 4 : w ? 8 : 16;
 
     if ((int)a + (int)o + (int)d > 1) {
-        throw util::ParseError("Flags -a, -o, -d are mutually exclusive");
+        throw RSError(RSError::GENERIC, "Flags -a, -o, -d are mutually exclusive");
     }
     if ((int)a + (int)w + (int)l > 1) {
-        throw util::ParseError("Flags -a, -w, -l are mutually exclusive");
+        throw RSError(RSError::GENERIC, "Flags -a, -w, -l are mutually exclusive");
     }
-    if (o) return {
+    if (o) {
 
-        .base = 8,
-        .size = size,
-        .prefix = 2,
-        .columns = 16 / size,
-        .lines = lines,
-        .tail = t,
-        .offset = true,
-        .ascii = true
-    };
-    if (d) return {
+        opt = { .base = 8 };
+        fmt = { .size = size, .columns = columns, .offset = 0, .ascii = true };
 
-        .base = 10,
-        .size = size,
-        .prefix = 2,
-        .columns = 16 / size,
-        .lines = lines,
-        .tail = t,
-        .offset = true,
-        .ascii = true
-    };
-    if (a) return {
+    } else if (d) {
 
-        .base = 0,
-        .size = size,
-        .prefix = 2,
-        .columns = 64,
-        .lines = lines,
-        .tail = t,
-        .offset = true,
-        .ascii = true
-    };
-    return {
+        opt = { .base = 10 };
+        fmt = { .size = size, .columns = columns, .offset = 0, .ascii = true };
 
-        .base = 16,
-        .size = size,
-        .prefix = 2,
-        .columns = 16 / size,
-        .lines = lines,
-        .tail = t,
-        .offset = true,
-        .ascii = true
-    };
+    } else if (a) {
+
+        opt = { .base = 0 };
+        fmt = { .size = 0, .columns = 64, .offset = 0, .ascii = true };
+
+    } else {
+
+        opt = { .base = 16 };
+        fmt = { .size = size, .columns = columns, .offset = 0, .ascii = true };
+    }
+
+    return { opt, fmt };
 }
 
 void
-NavigatorConsole::initCommands(RSCommand &root)
+Console::initNavigatorCommands(RSCommand &root)
 {
     std::vector<string> help;
+    
+    //
+    // Empty command
+    //
 
-    Console::initCommands(root);
+    root.add({
+
+        .tokens = { "return" },
+        .chelp  = { "Print status information" },
+        .flags  = rs::hidden,
+        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+
+            if (amigaFs) {
+
+                amigaFs->dumpInfo(os);
+
+            } else {
+
+                os << "    No file system present.\n";
+                os << "    Use the 'import' command to load one.";
+            }
+        }
+    });
+
 
     //
     // Console management
     //
-
+    
     root.add({
-
+        
         .tokens = { "." },
         .chelp  = { "Switch to the next console" },
         .flags  = rs::hidden,
-
+        
         .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
-
-            retroShell.enterCommander();
+            
+            shell.enterCommander();
         }
     });
-
+    
     root.add({
-
+        
         .tokens = { ".." },
         .chelp  = { "Switch to the previous console" },
         .flags  = rs::hidden,
-
+        
         .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
-
-            retroShell.enterDebugger();
+            
+            shell.enterDebugger();
         }
     });
-
-
+    
+    
     //
-    // Importing and exporting
+    // Creating
     //
 
     RSCommand::currentGroup = "Create";
+    /*
 
     root.add({
-
+        
         .tokens = { "create" },
         .chelp  = { "Create a file system with a particular capacity" },
     });
-
+    
     root.add({
-
+        
         .tokens = { "create", "SD" },
         .chelp  = { "Create a file system for a single-density floppy disk" },
         .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            fs.init(FSDescriptor(Diameter::INCH_525, Density::SD, FSFormat::NODOS));
-            fs.dump(Category::Info, os);
+            amigaFs->init(FSDescriptor(Diameter::INCH_525, Density::SD, FSFormat::NODOS));
+            amigaFs->dumpInfo(os);
         }
     });
-
+    
     root.add({
-
+        
         .tokens = { "create", "DD" },
         .chelp  = { "Create a file system for a double-density floppy disk" },
         .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            fs.init(FSDescriptor(Diameter::INCH_35, Density::DD, FSFormat::NODOS));
-            fs.dump(Category::Info, os);
+            amigaFs->init(FSDescriptor(Diameter::INCH_35, Density::DD, FSFormat::NODOS));
+            amigaFs->dumpInfo(os);
         }
     });
-
+    
     root.add({
-
+        
         .tokens = { "create", "HD" },
         .chelp  = { "Create a file system for a high-density floppy disk" },
         .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            fs.init(FSDescriptor(Diameter::INCH_35, Density::HD, FSFormat::NODOS));
-            fs.dump(Category::Info, os);
+            amigaFs->init(FSDescriptor(Diameter::INCH_35, Density::HD, FSFormat::NODOS));
+            amigaFs->dumpInfo(os);
         }
     });
-
+    
     root.add({
-
+        
         .tokens = { "create", "capacity" },
         .chelp  = { "Create a file system with a particular capacity" },
         .args   = {
             { .name = { "mb", "Capacity in MB" } },
         },
             .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
-
+                
                 // Convert the provided capacity to bytes
                 auto mb = MB(parseNum(args.at("mb")));
-
+                
                 // Compute the number of needed blocks
                 auto blocks = (mb + 511) / 512;
 
-                fs.init(FSDescriptor(blocks, FSFormat::NODOS));
-                fs.dump(Category::Info, os);
+                dev = make_unique<Device>(GeometryDescriptor(blocks));
+                amigaFs = make_unique<FileSystem>(*dev, FSDescriptor(blocks, FSFormat::NODOS));
+                amigaFs->dumpInfo(os);
             }
     });
-
+    
     root.add({
-
+        
         .tokens = { "create", "custom" },
         .chelp  = { "Create a file system with a custom layout" },
         .args   = {
@@ -529,20 +546,22 @@ NavigatorConsole::initCommands(RSCommand &root)
             { .name = { "sectors", "Number of sectors per cylinder" }, .flags=rs::keyval },
         },
             .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
-
+                
                 isize c = parseNum(args.at("cylinders"));
                 isize h = parseNum(args.at("heads"));
                 isize s = parseNum(args.at("sectors"));
                 isize b = 512;
-
+                
                 auto geometry = GeometryDescriptor(c, h, s, b);
-                fs.init(FSDescriptor(geometry, FSFormat::NODOS));
-                fs.dump(Category::Info, os);
+                dev = make_unique<Device>(geometry);
+                amigaFs = make_unique<FileSystem>(*dev, FSDescriptor(geometry, FSFormat::NODOS));
+                amigaFs->dumpInfo(os);
             }
     });
-
+    */
+    
     root.add({
-
+        
         .tokens = { "format" },
         .chelp  = { "Format the file system" },
         .args   = {
@@ -551,24 +570,87 @@ NavigatorConsole::initCommands(RSCommand &root)
         },
             .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
+                navRequireFS();
+
                 // Determine the DOS type
-                auto type = FSFormat::NODOS;
-                auto dos = util::uppercased(args.at("dos"));
-                if (dos == "OFS") type = FSFormat::OFS;
-                if (dos == "FFS") type = FSFormat::FFS;
+                auto type = amiga::FSFormat::NODOS;
+                auto dos = utl::uppercased(args.at("dos"));
+                if (dos == "OFS") type = amiga::FSFormat::OFS;
+                if (dos == "FFS") type = amiga::FSFormat::FFS;
 
-                if (type == FSFormat::NODOS) {
-                    throw util::ParseError("Expected values: OFS or FFS");
+                if (type == amiga::FSFormat::NODOS) {
+                    throw RSError(RSError::GENERIC, "Expected values: OFS or FFS");
                 }
-
+                
                 // Format the device
-                fs.format(type, args.contains("name") ? args.at("name") : "New Disk");
-                fs.dump(Category::Info, os);
+                auto name = args.contains("name") ? args.at("name") : "New Disk";
+                amigaFs->format(type);
+                amigaFs->setName(FSName(name));
+                amigaFs->dumpInfo(os);
             }
     });
 
     root.add({
 
+        .tokens = { "mount" },
+        .ghelp  = { "Mounts an Amiga device" }
+    });
+
+    root.add({
+
+        .tokens = { "mount", "df[n]" },
+        .ghelp  = { "Mount floppy drive n" },
+        .chelp  = { "mount { df0 | df1 | df1 | df2 }" },
+        .flags  = vAmigaDOS ? rs::disabled : 0
+    });
+
+    for (isize i = 0; i < 4; i++) {
+
+        root.add({
+
+            .tokens = { "mount", "df" + std::to_string(i) },
+            .chelp  = { "Mount floppy drive" + std::to_string(i) },
+            .flags  = vAmigaDOS ? rs::disabled : rs::shadowed,
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+
+                amigaVol = make_unique<Volume>(*df[values[0]]);
+                amigaFs  = make_unique<FileSystem>(*amigaVol);
+
+                amigaFs->dumpInfo(os);
+
+            }, .payload = {i}
+        });
+    }
+
+    root.add({
+
+        .tokens = { "unmount" },
+        .chelp  = { "Unmount the file system" },
+        .flags  = vAmigaDOS ? rs::disabled : 0,
+        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+
+            navRequireFS();
+
+            amigaFs->flush();
+            amigaFs = nullptr;
+        }
+    });
+
+    root.add({
+
+        .tokens = { "flush" },
+        .chelp  = { "Flush the file system cache" },
+        .flags  = vAmigaDOS ? rs::disabled : 0,
+        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+
+            navRequireFS();
+
+            amigaFs->flush();
+        }
+    });
+
+    root.add({
+        
         .tokens = { "import" },
         .ghelp  = { "Import a file system" },
         .chelp  = { "Import a file or a folder from the host file system" },
@@ -578,91 +660,100 @@ NavigatorConsole::initCommands(RSCommand &root)
         },
             .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-                fs.require_formatted();
+                navRequireFormattedFS();
 
                 auto path = args.at("path");
                 auto hostPath = host.makeAbsolute(args.at("path"));
                 bool recursive = true;
                 bool contents = path.back() == '/';
-
-                fs.import(fs.pwd(), hostPath, recursive, contents);
+                
+                amigaFs->importer.import(amigaFs->pwd(), hostPath, recursive, contents);
             }
     });
-
+    
     root.add({
-
+        
         .tokens = { "import", "df[n]" },
         .ghelp  = { "Import file system from floppy drive n" },
         .chelp  = { "import { df0 | df1 | df1 | df2 }" },
         .flags  = vAmigaDOS ? rs::disabled : 0
     });
-
+    
     for (isize i = 0; i < 4; i++) {
-
+        
         root.add({
-
+            
             .tokens = { "import", "df" + std::to_string(i) },
             .chelp  = { "Import file system from floppy drive" + std::to_string(i) },
             .flags  = vAmigaDOS ? rs::disabled : rs::shadowed,
             .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
-
+                
                 auto n = values[0];
 
-                fs.init(*df[n]);
-                fs.dump(Category::Info, os);
+                adf = Codec::makeADF(*df[n]);
+                amigaVol = make_unique<Volume>(*adf);
+                amigaFs  = make_unique<FileSystem>(*amigaVol);
+
+                amigaFs->dumpInfo(os);
 
             }, .payload = {i}
         });
     }
 
+    /* UNCOMMENT THIS LATER...
     root.add({
-
+        
         .tokens = { "import", "hd[n]" },
         .ghelp  = { "Import file system from hard drive n" },
         .chelp  = { "import { hd0 | hd1 | hd1 | hd2 }" },
         .flags  = vAmigaDOS ? rs::disabled : 0
     });
-
+    
     for (isize i = 0; i < 4; i++) {
-
+        
         root.add({
-
+            
             .tokens = { "import", "hd" + std::to_string(i) },
             .chelp  = { "Import file system from hard drive" + std::to_string(i) },
             .flags  = vAmigaDOS ? rs::disabled : rs::shadowed,
             .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
-
+                
                 auto n = values[0];
 
-                fs.init(*hd[n], 0);
-                fs.dump(Category::Info, os);
+                auto desc = hd[n]->getPartitionDescriptor(0);
+                dev = make_unique<Device>(desc.geometry());
+                amigaFs = FileSystemFactory::fromHardDrive(*dev, *hd[n]);
+                amigaFs->dumpInfo(os);
 
             }, .payload = {i}
         });
     }
-
+    */
+    
     root.add({
-
+        
         .tokens = { "import", "block" },
         .chelp  = { "Import a block from a file" },
         .flags  = vAmigaDOS ? rs::disabled : 0,
         .args   = {
-            { .name = { "nr", "Block number" }, .flags = rs::opt },
             { .name = { "path", "File path" } },
+            { .name = { "nr", "Block number" }, .flags = rs::opt }
         },
             .func   = [&] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-                auto path = host.makeAbsolute(args.at("path"));
-                auto nr = parseBlock(args, "nr", fs.pwd().nr);
+                navRequireFS();
 
-                fs.importBlock(nr, path);
+                auto path = host.makeAbsolute(args.at("path"));
+                auto nr = navParseBlock(args, "nr", amigaFs->pwd());
+
+                amigaFs->importer.importBlock(nr, path);
             }
     });
-
+    
     if constexpr (vAmigaDOS) {
-
+        
         root.add({
-
+            
             .tokens = { "export" },
             .ghelp  = { "Export the volume, files, directories, or blocks" },
             .chelp  = { "Export the volume, single files or directories" },
@@ -673,33 +764,29 @@ NavigatorConsole::initCommands(RSCommand &root)
             },
                 .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
+                    navRequireFormattedFS();
+
                     bool recursive = args.contains("r");
                     std::filesystem::remove_all("/export");
-
+                    
                     if (args.contains("file")) {
-
-                        auto &item = parsePath(args, "file");
-                        auto name = item.cppName();
-                        if (name.empty()) name = fs.getName().cpp_str();
-                        fs.exportFiles(item, "/export", recursive, true);
-                        msgQueue.setPayload( { "/export", name } );
-
+                        
+                        auto item = navParsePath(args, "file");
+                        amigaFs->exporter.exportFiles(item, "/export", recursive, true);
+                        
                     } else {
-
-                        fs.exportBlocks("/export");
-                        auto name = fs.getName().cpp_str();
-                        name += fs.getTraits().adf() ? ".adf" : ".hdf";
-                        msgQueue.setPayload( { "/export", name } );
+                        
+                        amigaFs->exporter.exportVolume("/export");
                     }
                     
-                    msgQueue.put(Msg::RSH_EXPORT);
+                    msgQueue.put(Msg::RSH_EXPORT, shell.objid);
                 }
         });
-
+        
     } else {
-
+        
         root.add({
-
+            
             .tokens = { "export" },
             .ghelp  = { "Export files, directories, or blocks" },
             .chelp  = { "Export a file or directory to the host file system" },
@@ -711,110 +798,120 @@ NavigatorConsole::initCommands(RSCommand &root)
             },
                 .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-                    auto &item = parsePath(args, "file");
+                    navRequireFormattedFS();
+
+                    auto itemNr = navParsePath(args, "file");
                     bool recursive = args.contains("r");
                     bool contents = args.at("file").back() == '/';
-
+                    
                     auto path = args.at("path");
                     auto hostPath = host.makeAbsolute(args.at("path"));
-                    fs.exportFiles(item, hostPath, recursive, contents);
+                    amigaFs->exporter.exportFiles(itemNr, hostPath, recursive, contents);
                 }
         });
     }
-
+    
     root.add({
-
+        
         .tokens = { "export", "df[n]" },
         .ghelp  = { "Export the file system to floppy drive n" },
         .chelp  = { "export { df0 | df1 | df1 | df2 }" },
         .flags  = vAmigaDOS ? rs::disabled : 0
     });
-
+    
     for (isize i = 0; i < 4; i++) {
-
+        
         root.add({
-
+            
             .tokens = { "export", "df" + std::to_string(i) },
             .chelp  = { "Export the file system to floppy drive" + std::to_string(i) },
             .flags  = vAmigaDOS ? rs::disabled : rs::shadowed,
             .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-                auto n = values[0];
-                df[n]->insertMediaFile(ADFFile(fs), false);
+                navRequireFormattedFS();
+
+                ADFFile adf(amigaFs->getTraits().bytes);
+                amigaFs->exporter.exportVolume(adf);
+                df[values[0]]->insertImage(adf, false);
 
             }, .payload = {i}
         });
     }
-
+    
     root.add({
-
+        
         .tokens = { "export", "hd[n]" },
         .ghelp  = { "Export the file system to hard drive n" },
         .chelp  = { "export { hd0 | hd1 | hd1 | hd2 }" },
         .flags  = vAmigaDOS ? rs::disabled : 0
     });
-
+    
     for (isize i = 0; i < 4; i++) {
-
+        
         root.add({
-
+            
             .tokens = { "export", "hd" + std::to_string(i) },
             .chelp  = { "Export the file system to hard drive" + std::to_string(i) },
             .flags  = vAmigaDOS ? rs::disabled : rs::shadowed,
             .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
+                navRequireFormattedFS();
+
                 auto n = values[0];
-                hd[n]->init(fs);
+                hd[n]->init(*amigaFs);
 
             }, .payload = {i}
         });
     }
-
+    
     root.add({
-
+        
         .tokens = { "export", "block" },
         .chelp  = { "Export a block to a file" },
         .args   = {
-            { .name = { "nr", "Block number" }, .flags = rs::opt },
             { .name = { "path", "File path" }, .flags = vAmigaDOS ? rs::disabled : 0 },
+            { .name = { "nr", "Block number" }, .flags = rs::opt }
         },
             .func   = [&] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-                auto nr = parseBlock(args, "nr", fs.pwd().nr);
+                navRequireFormattedFS();
+
+                auto nr = navParseBlock(args, "nr", amigaFs->pwd());
 
                 if constexpr (vAmigaDOS) {
-
-                    fs.exportBlock(nr, "blob");
-                    msgQueue.setPayload( { "blob", std::to_string(nr) + ".bin" } );
-                    msgQueue.put(Msg::RSH_EXPORT);
-
+                    
+                    amigaFs->exporter.exportBlock(nr, "blob");
+                    msgQueue.put(Msg::RSH_EXPORT, shell.objid);
+                    
                 } else {
-
+                    
                     auto path = host.makeAbsolute(args.at("path"));
-                    fs.exportBlock(nr, path);
+                    amigaFs->exporter.exportBlock(nr, path);
                 }
             }
     });
-
+    
     RSCommand::currentGroup = "Navigate";
-
+    
     root.add({
-
+        
         .tokens = { "cd" },
         .chelp  = { "Change the working directory" },
         .flags  = rs::acdir,
         .args   = {
             { .name = { "path", "New working directory" }, .flags = rs::opt },
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            auto &path = parsePath(args, "path", fs.root());
-            fs.cd(path);
-        }
+                navRequireFormattedFS();
+
+                auto path = navParsePath(args, "path", amigaFs->root());
+                amigaFs->cd(path);
+            }
     });
-
+    
     root.add({
-
+        
         .tokens = { "dir" },
         .chelp  = { "Display a sorted list of the files in a directory" },
         .flags  = rs::acdir,
@@ -824,45 +921,80 @@ NavigatorConsole::initCommands(RSCommand &root)
             { .name = { "f", "List files only" }, .flags = rs::flag },
             { .name = { "r", "Display subdirectories" }, .flags = rs::flag }
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            auto &path = parseDirectory(args, "path");
-            auto d = args.contains("d");
-            auto f = args.contains("f");
-            auto r = args.contains("r");
+                navRequireFormattedFS();
 
-            FSOpt opt = {
+                auto path = navParseDirectory(args, "path");
+                auto d = args.contains("d");
+                auto f = args.contains("f");
+                auto r = args.contains("r");
 
-                .recursive = r,
-                .sort = sort::dafa,
-                .filter = [&](const FSBlock &item) {
+                // Collect the directories to print
+                FSTree tree = amigaFs->build(path, {
+                    .accept = accept::directories,
+                    .sort   = sort::alpha,
+                    .depth  = r ? MAX_ISIZE : 0
+                });
 
-                    return true;
-                },
-                .formatter = [&](const FSBlock &node) {
+                // For each directory...
+                for (const auto &node : tree.dfs()) {
 
-                    return node.cppName() + (node.isDirectory() ? " (dir)" : "\t");
+                    // Print header
+                    if (node.nr != tree.nr) os << "\n";
+                    os << "Directory " << amigaFs->fetch(node.nr).absName() << ":\n\n";
+
+                    if (!f) {
+
+                        // Collect directory items
+                        FSTree items = amigaFs->build(node.nr, {
+                            .accept = accept::directories,
+                            .sort   = sort::alpha,
+                            .depth  = 1
+                        });
+
+                        // Extract names
+                        vector<string> names;
+                        for (const auto &child : items.children) {
+                            names.push_back(amigaFs->fetch(child.nr).cppName() + " (dir)");
+                        }
+
+                        // Print names
+                        Formatter::printTable(os, names, {
+                            .columns = {
+                                { .align = 'l', .width = 0  }
+                            }
+                        });
+                    }
+
+                    if (!d) {
+
+                        // Collect file items
+                        FSTree items = amigaFs->build(node.nr, {
+                            .accept = accept::files,
+                            .sort   = sort::alpha,
+                            .depth  = 1
+                        });
+
+                        // Extract names
+                        vector<string> names;
+                        for (const auto &child : items.children) {
+                            names.push_back(amigaFs->fetch(child.nr).cppName());
+                        }
+
+                        // Print names
+                        Formatter::printTable(os, names, {
+                            .columns = {
+                                { .align = 'l', .width = 35 },
+                                { .align = 'l', .width = 0  }
+                            },
+                            .layout = Formatter::Layout::RowMajor
+                        });
+                    }
                 }
-            };
-
-            FSOpt opt2 = {
-
-                .recursive = r,
-                .sort = sort::dafa,
-                .filter = [&](const FSBlock &item) {
-
-                    return (!d || item.isDirectory()) && (!f || item.isFile());
-                },
-                .formatter = [&](const FSBlock &node) {
-
-                    return node.cppName() + (node.isDirectory() ? " (dir)" : "\t");
-                }
-            };
-
-            FSTree(path, opt).list(os, opt2);
-        }
+            }
     });
-
+    
     root.add({
 
         .tokens = { "list" },
@@ -875,24 +1007,21 @@ NavigatorConsole::initCommands(RSCommand &root)
             { .name = { "r", "List subdirectories" }, .flags = rs::flag },
             { .name = { "k", "Display keys (start blocks)" }, .flags = rs::flag },
             { .name = { "s", "Sort output" }, .flags = rs::flag } },
-        .func   = [this](std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this](std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            auto &path = parseDirectory(args, "path");
-            auto d = args.contains("d");
-            auto f = args.contains("f");
-            auto r = args.contains("r");
-            auto k = args.contains("k");
-            auto s = args.contains("s");
+                navRequireFormattedFS();
 
-            FSOpt opt = {
+                auto path = navParseDirectory(args, "path");
+                auto d = args.contains("d");
+                auto f = args.contains("f");
+                auto r = args.contains("r");
+                auto k = args.contains("k");
+                auto s = args.contains("s");
 
-                .recursive = r,
-                .sort = s ? sort::alpha : sort::none,
-                .filter = [&](const FSBlock &item) {
+                // Formats the output for a single item
+                auto formatted = [&](BlockNr nr) {
 
-                    return (!d || item.isDirectory()) && (!f || item.isFile());
-                },
-                .formatter = [&](const FSBlock &node) {
+                    auto &node = amigaFs->fetch(nr);
 
                     std::stringstream ss;
                     ss << std::left << std::setw(25) << node.cppName();
@@ -908,13 +1037,37 @@ NavigatorConsole::initCommands(RSCommand &root)
                     ss << " " << node.getCreationDate().str();
 
                     return ss.str();
+                };
+
+                // Collect the directories to print
+                FSTree tree = amigaFs->build(path, {
+                    .accept = accept::directories,
+                    .sort   = s ? sort::alpha : sort::none,
+                    .depth  = r ? MAX_ISIZE : 0
+                });
+
+                // For each directory...
+                for (const auto &node : tree.dfs()) {
+
+                    // Print header
+                    if (node.nr != tree.nr) os << "\n";
+                    os << "Directory " << amigaFs->fetch(node.nr).absName() << ":\n\n";
+
+                    // Collect items
+                    FSTree items = amigaFs->build(node.nr, {
+                        .accept = f ? accept::files : d ? accept::directories : accept::all,
+                        .sort   = sort::alpha,
+                        .depth  = 1
+                    });
+
+                    // Print items
+                    for (auto &it : items.children) {
+                        os << formatted(it.nr) << "\n";
+                    }
                 }
-            };
-
-            FSTree(path, opt).list(os, opt);
-        }
+            }
     });
-
+    
     root.add({
 
         .tokens = { "find" },
@@ -925,65 +1078,103 @@ NavigatorConsole::initCommands(RSCommand &root)
             { .name = { "d", "Find directories only" }, .flags = rs::flag },
             { .name = { "f", "Find files only" }, .flags = rs::flag },
             { .name = { "s", "Sort output" }, .flags = rs::flag } },
-        .func   = [this](std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this](std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            auto pattern = FSPattern(args.at("name"));
-            auto d = args.contains("d");
-            auto f = args.contains("f");
-            auto s = args.contains("s");
+                navRequireFormattedFS();
 
-            // Find all items matching the search pattern
-            auto matches = fs.find(pattern);
+                auto pattern = FSPattern(args.at("name"));
+                auto d = args.contains("d");
+                auto f = args.contains("f");
+                auto s = args.contains("s");
 
-            // Filter the result
-            matches.erase(std::remove_if(matches.begin(), matches.end(), [&](auto *node) {
-                return (d && !node->isDirectory()) || (f && !node->isFile());
-            }), matches.end());
+                // Determine the start node
+                auto start = amigaFs->pwd();
 
-            
-            if (s) {
+                // Build a directory tree
+                FSTree tree = amigaFs->build(start, {
+                    .accept = accept::all,
+                    .sort   = sort::none,
+                    .depth  = MAX_ISIZE
+                });
 
-                int tab = 0;
+                // Traverse the tree and find matches
+                vector<const FSBlock *> matching;
+                for (const auto &node : tree.bfs()) {
 
-                std::sort(matches.begin(), matches.end(),
-                          [](auto *b1, auto *b2) { return b1->getName() < b2->getName(); });
+                    auto &block = amigaFs->fetch(node.nr);
 
-                for (auto &it : matches) {
-                    tab = std::max(int(it->cppName().size()), tab);
+                    if (!pattern.match(block.cppName())) continue;
+                    if (d && !block.isDirectory())       continue;
+                    if (f && !block.isFile())            continue;
+
+                    matching.push_back(&block);
                 }
-                for (auto &it : matches) {
-                    os << std::setw(tab) << std::left << it->cppName() << " : " << it->absName() << '\n';
+
+                // Print the result
+                if (s) {
+
+                    int tab = 0;
+
+                    std::sort(matching.begin(), matching.end(), sort::alphaPtr);
+
+                    for (auto &it : matching) {
+                        tab = std::max(int(it->cppName().size()), tab);
+                    }
+                    for (auto &it : matching) {
+                        os << std::setw(tab) << std::left << it->cppName() << " : " << it->absName() << '\n';
+                    }
+
+                } else {
+
+                    for (auto &it : matching) { os << it->absName() << '\n'; }
                 }
-
-            } else {
-
-                for (auto &it : matches) { os << it->absName() << '\n'; }
             }
-        }
     });
-
-    RSCommand::currentGroup = "Inspect";
 
     root.add({
 
+        .tokens = { "resolve" },
+        .chelp  = { "Resolves a path name" },
+        .flags  = rs::ac,
+        .args   = {
+            { .name = { "name", "Search pattern" } },
+        },
+            .func   = [this](std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+
+                navRequireFormattedFS();
+
+                // Find matches
+                vector <BlockNr> matches = amigaFs->match(args.at("name"));
+
+                // Print the result
+                for (auto &it : matches) { os << amigaFs->fetch(it).absName() << '\n'; }
+            }
+    });
+
+    RSCommand::currentGroup = "Inspect";
+    
+    root.add({
+        
         .tokens = { "info" },
         .chelp  = { "Print a file system summary" },
         .args   = {
             { .name = { "b", "Inspect the block storage" }, .flags = rs::flag },
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            if (args.contains("b")) {
-                fs.dump(Category::Storage, os);
-            } else {
-                fs.dump(Category::Info, os);
+                navRequireFS();
+
+                if (args.contains("b")) {
+                    amigaFs->dumpBlocks(os);
+                } else {
+                    amigaFs->dumpInfo(os);
+                }
+                
             }
-
-        }
     });
-
+    
     root.add({
-
+        
         .tokens = { "file" },
         .ghelp  = { "Manage files" },
         .chelp  = { "Inspect a single file" },
@@ -992,111 +1183,109 @@ NavigatorConsole::initCommands(RSCommand &root)
             { .name = { "path", "File path" }, .flags = rs::opt },
             { .name = { "v", "Verbose output" }, .flags = rs::flag },
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            auto &file = parseFile(args, "path");
-            file.dump(args.contains("v") ? Category::Blocks : Category::Info, os);
-        }
+                navRequireFormattedFS();
+
+                auto &file = amigaFs->fetch(navParseFile(args, "path"));
+                args.contains("v") ? file.dumpBlocks(os) : file.dumpInfo(os);
+            }
     });
-
+    
     root.add({
-
+        
         .tokens = { "block" },
         .ghelp  = { "Manage blocks" },
         .chelp  = { "Inspect a block" },
         .args   = {
             { .name = { "nr", "Block number" }, .flags = rs::opt },
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            auto nr = parseBlock(args, "nr");
-            fs.doctor.dump(nr, os);
-        }
+                navRequireFormattedFS();
+
+                auto nr = navParseBlock(args, "nr");
+                amigaFs->doctor.dump(nr, os);
+            }
     });
-
+    
     root.add({
-
+        
         .tokens = { "boot" },
         .ghelp  = { "Manage the boot block" },
     });
-
+    
     root.add({
-
+        
         .tokens = { "boot", "install" },
         .chelp  = { "Installs a block block" },
     });
-
+    
     for (const auto& [key, value] : BootBlockIdEnum::pairs()) {
-
+        
         root.add({
-
+            
             .tokens = { "boot", "install", key },
             .chelp  = { BootBlockIdEnum::help(BootBlockId(value)) },
             .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+                
+                navRequireFormattedFS();
 
-                fs.require_formatted();
-                fs.makeBootable(BootBlockId(values[0]));
+                amigaFs->makeBootable(BootBlockId(values[0]));
 
             },  .payload = { value }
         });
     }
-
+    
     root.add({
-
+        
         .tokens = { "boot", "scan" },
         .chelp  = { "Scan a boot block for viruses" },
         .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            fs.require_formatted();
-            os << "Boot block: " << fs.getBootBlockName() << std::endl;
+            navRequireFormattedFS();
+
+            os << "Boot block: " << amigaFs->bootStat().name << std::endl;
         }
     });
-
+    
     root.add({
-
+        
         .tokens = { "boot", "kill" },
         .chelp  = { "Kills a boot block virus" },
         .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            
+            navRequireFormattedFS();
 
-            fs.require_formatted();
-            fs.killVirus();
+            amigaFs->killVirus();
         }
     });
-
+    
     root.add({
-
+        
         .tokens = { "type" },
         .chelp  = { "Print the contents of a file" },
         .flags  = rs::ac,
         .args   = {
-            { .name = { "path", "File path" }, .flags = rs::opt },
-            { .name = { "l", "Display a line number in each row" }, .flags = rs::flag },
-            { .name = { "t", "Display the last part" }, .flags = rs::flag },
-            { .name = { "lines", "Number of displayed rows" }, .flags = rs::keyval|rs::opt },
+            { .name = { "path", "File path" }, .flags = rs::opt }
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            auto &file = parsePath(args, "path", fs.pwd());
-            if (!file.isFile()) {
-                throw AppError(Fault::FS_NOT_A_FILE, "Block " + std::to_string(file.nr));
+                navRequireFormattedFS();
+
+                auto &file = amigaFs->fetch(navParsePath(args, "path", amigaFs->pwd()));
+                if (!file.isFile()) {
+                    throw FSError(FSError::FS_NOT_A_FILE, "Block " + std::to_string(file.nr));
+                }
+
+                Buffer<u8> buffer;
+                file.extractData(buffer);
+                buffer.txtDump(os);
             }
-
-            auto lines = args.contains("lines") ? parseNum(args.at("lines")) : -1;
-
-            Buffer<u8> buffer;
-            file.extractData(buffer);
-
-            buffer.type(os, {
-
-                .lines = lines,
-                .tail = args.contains("t"),
-                .nr = args.contains("l")
-            });
-        }
     });
-
+    
     root.add({
-
+        
         .tokens = { "dump" },
         .chelp  = { "Dump the contents of a file" },
         .flags  = rs::ac,
@@ -1110,19 +1299,27 @@ NavigatorConsole::initCommands(RSCommand &root)
             { .name = { "t", "Display the last part" }, .flags = rs::flag },
             { .name = { "lines", "Number of displayed rows" }, .flags = rs::keyval|rs::opt },
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            auto &file = parseFile(args, "path", fs.pwd());
-            auto opt = parseDumpOpts(args);
+                navRequireFormattedFS();
 
-            Buffer<u8> buffer;
-            file.extractData(buffer);
-            buffer.dump(os, opt);
-        }
+                auto &file = amigaFs->fetch(navParseFile(args, "path", amigaFs->pwd()));
+                auto opt   = navParseDumpOpts(args);
+                auto lines = args.contains("lines") ? parseNum(args.at("lines")) : LONG_MAX;
+                auto t     = args.contains("t");
+
+                Buffer<u8> buffer;
+                file.extractData(buffer);
+
+                std::stringstream ss;
+                buffer.dump(ss, opt.first, opt.second);
+
+                t ? tail(ss, os, lines) : head(ss, os, lines);
+            }
     });
-
+    
     root.add({
-
+        
         .tokens = { "dump", "block" },
         .chelp  = { "Dump the contents of a block" },
         .args   = {
@@ -1135,20 +1332,24 @@ NavigatorConsole::initCommands(RSCommand &root)
             { .name = { "t", "Display the last part" }, .flags = rs::flag },
             { .name = { "lines", "Number of displayed rows" }, .flags = rs::keyval|rs::opt },
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            auto nr = parseBlock(args, "nr", fs.pwd().nr);
-            auto opt = parseDumpOpts(args);
+                navRequireFormattedFS();
 
-            if (auto ptr = fs.read(nr); ptr) {
+                auto nr    = navParseBlock(args, "nr", amigaFs->pwd());
+                auto opt   = navParseDumpOpts(args);
+                auto lines = args.contains("lines") ? parseNum(args.at("lines")) : LONG_MAX;
+                auto t     = args.contains("t");
 
-                ptr->hexDump(os, opt);
+                std::stringstream ss;
+                amigaFs->fetch(nr).dump(ss, opt.first, opt.second);
+
+                t ? tail(ss, os, lines) : head(ss, os, lines);
             }
-        }
     });
-
+    
     root.add({
-
+        
         .tokens = { "xray" },
         .ghelp  = { "Examines the file system integrity" },
         .chelp  = { "Inspects the entire file system or a single block" },
@@ -1159,56 +1360,68 @@ NavigatorConsole::initCommands(RSCommand &root)
             { .name = { "r", "Rectify errors" }, .flags = rs::flag },
             { .name = { "nr", "Block number" }, .flags = rs::opt }
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            bool strict = args.contains("s");
+                navRequireFormattedFS();
 
-            if (args.contains("nr")) {
-
-                auto nr = parseBlock(args, "nr");
-
-                if (args.contains("r")) fs.doctor.rectify(nr, strict);
-                if (auto errors = fs.doctor.xray(nr, strict, os); !errors) {
-                    os << "No findings." << std::endl;
-                }
-
-            } else {
-
-                if (args.contains("r")) fs.doctor.rectify(strict);
-                if (auto errors = fs.doctor.xray(strict, os, args.contains("v")); !errors) {
-                    os << "No findings." << std::endl;
+                bool strict = args.contains("s");
+                
+                if (args.contains("nr")) {
+                    
+                    auto nr = navParseBlock(args, "nr");
+                    
+                    if (args.contains("r")) amigaFs->doctor.rectify(nr, strict);
+                    if (auto errors = amigaFs->doctor.xray(nr, strict, os); !errors) {
+                        os << "No findings." << std::endl;
+                    }
+                    
+                } else {
+                    
+                    if (args.contains("r")) amigaFs->doctor.rectify(strict);
+                    if (auto errors = amigaFs->doctor.xray(strict, os, args.contains("v")); !errors) {
+                        os << "No findings." << std::endl;
+                    }
                 }
             }
-        }
     });
-
+    
     RSCommand::currentGroup = "Modify";
-
+    
     root.add({
-
+        
         .tokens = { "mkdir" },
         .chelp  = { "Create a directory" },
         .flags  = rs::ac,
         .args   = {
             { .name = { "name", "Name of the new directory" } },
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            Tokens missing;
-            auto &path = matchPath(args.at("name"), missing);
+                navRequireFormattedFS();
 
-            if (missing.empty()) {
-                throw(AppError(Fault::FS_EXISTS, args.at("name")));
+                Tokens missing;
+                auto path = navMatchPath(args.at("name"), missing);
+                
+                if (missing.empty()) {
+                    throw(FSError(FSError::FS_EXISTS, args.at("name")));
+                }
+
+                auto p = path;
+                for (auto &it: missing) {
+                    p = amigaFs->mkdir(p, FSName(it));
+                }
+                
+                /*
+                auto *p = &path.mutate();
+                for (auto &it: missing) {
+                    if (p) p = &amigaFs->mkdir(*p, FSName(it));
+                }
+                */
             }
-            auto *p = &path;
-            for (auto &it: missing) {
-                if (p) p = &fs.createDir(*p, FSName(it));
-            }
-        }
     });
-
+    
     root.add({
-
+        
         .tokens = { "move" },
         .chelp  = { "Moves a file or directory" },
         .flags  = rs::ac,
@@ -1216,44 +1429,48 @@ NavigatorConsole::initCommands(RSCommand &root)
             { .name = { "source", "Item to move" } },
             { .name = { "target", "New name or target directory" } },
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            auto &source = parsePath(args, "source");
+                navRequireFormattedFS();
 
-            Tokens missing;
-            auto &path = matchPath(args.at("target"), missing);
+                auto sourceNr = navParsePath(args, "source");
+                auto &source = amigaFs->fetch(sourceNr);
 
-            printf("%s -> '%s' {", source.absName().c_str(), path.absName().c_str());
-            for (auto &it : missing) printf(" %s", it.c_str());
-            printf(" }\n");
+                Tokens missing;
+                auto pathNr = navMatchPath(args.at("target"), missing);
+                auto &path = amigaFs->fetch(pathNr);
 
-            if (missing.empty()) {
+                printf("%s -> '%s' {", source.absName().c_str(), path.absName().c_str());
+                for (auto &it : missing) printf(" %s", it.c_str());
+                printf(" }\n");
+                
+                if (missing.empty()) {
+                    
+                    if (path.isFile()) {
+                        
+                        throw FSError(FSError::FS_EXISTS, args.at("target"));
+                    }
+                    if (path.isDirectory()) {
+                        
+                        logmsg(LOG_RSH, "Moving '%s' to '%s'\n", source.absName().c_str(), path.absName().c_str());
+                        amigaFs->move(sourceNr, pathNr);
+                    }
+                    
+                } else if (missing.size() == 1) {
+                    
+                    logmsg(LOG_RSH, "Moving '%s' to '%s' / '%s'\n",
+                          source.absName().c_str(), path.absName().c_str(), missing.back().c_str());
+                    amigaFs->move(sourceNr, pathNr, FSName(missing.back()));
 
-                if (path.isFile()) {
-
-                    throw AppError(Fault::FS_EXISTS, args.at("target"));
+                } else {
+                    
+                    throw FSError(FSError::FS_NOT_FOUND, missing.front());
                 }
-                if (path.isDirectory()) {
-
-                    debug(RSH_DEBUG, "Moving '%s' to '%s'\n", source.absName().c_str(), path.absName().c_str());
-                    fs.move(source, path);
-                }
-
-            } else if (missing.size() == 1) {
-
-                debug(RSH_DEBUG, "Moving '%s' to '%s' / '%s'\n",
-                      source.absName().c_str(), path.absName().c_str(), missing.back().c_str());
-                fs.move(source, path, missing.back());
-
-            } else {
-
-                throw AppError(Fault::FS_NOT_FOUND, missing.front());
             }
-        }
     });
-
+    
     root.add({
-
+        
         .tokens = { "copy" },
         .chelp  = { "Copies a file" },
         .flags  = rs::ac,
@@ -1261,58 +1478,61 @@ NavigatorConsole::initCommands(RSCommand &root)
             { .name = { "source", "Item to copy" } },
             { .name = { "target", "New name or target directory" } },
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            auto &source = parsePath(args, "source");
+                navRequireFormattedFS();
 
-            Tokens missing;
-            auto &path = matchPath(args.at("target"), missing);
+                auto sourceNr = navParsePath(args, "source");
 
-            if (missing.empty()) {
+                Tokens missing;
+                auto pathNr = navMatchPath(args.at("target"), missing);
+                auto &path = amigaFs->fetch(pathNr);
 
-                if (path.isFile()) {
+                if (missing.empty()) {
+                    
+                    if (path.isFile()) {
+                        
+                        throw FSError(FSError::FS_EXISTS, args.at("target"));
+                    }
+                    if (path.isDirectory()) {
+                        
+                        amigaFs->copy(sourceNr, pathNr);
+                    }
+                    
+                } else if (missing.size() == 1) {
+                    
+                    amigaFs->copy(sourceNr, pathNr, FSName(missing.back()));
 
-                    throw AppError(Fault::FS_EXISTS, args.at("target"));
+                } else {
+                    
+                    throw FSError(FSError::FS_NOT_FOUND, missing.front());
                 }
-                if (path.isDirectory()) {
-
-                    fs.copy(source, path);
-                }
-
-            } else if (missing.size() == 1) {
-
-                fs.copy(source, path, missing.back());
-
-            } else {
-
-                throw AppError(Fault::FS_NOT_FOUND, missing.front());
             }
-        }
     });
-
+    
     root.add({
-
+        
         .tokens = { "delete" },
         .chelp  = { "Deletes a file" },
         .flags  = rs::ac,
         .args   = {
             { .name = { "path", "File to delete" } },
         },
-        .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
+            .func   = [this] (std::ostream &os, const Arguments &args, const std::vector<isize> &values) {
 
-            auto &path = parsePath(args, "path");
+                navRequireFormattedFS();
 
-            if (path.isFile()) {
+                auto &path = amigaFs->fetch(navParsePath(args, "path"));
 
-                fs.deleteFile(path);
-
-            } else if (path.isDirectory()) {
-                throw AppError(Fault::FS_NOT_A_FILE, args.at("path"));
-            } else {
-                throw util::ParseError("Not a file or directory");
+                if (path.isFile()) {
+                    amigaFs->rm(path.nr);
+                } else if (path.isDirectory()) {
+                    throw FSError(FSError::FS_NOT_A_FILE, args.at("path"));
+                } else {
+                    throw FSError(FSError::FS_INVALID_PATH, args.at("path"));
+                }
+                
             }
-
-        }
     });
 }
 

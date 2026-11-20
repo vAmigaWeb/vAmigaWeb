@@ -6,11 +6,13 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
 #include "ThreadTypes.h"
 #include "Aliases.h"
+#include "utl/abilities/Compressible.h"
 
 namespace vamiga {
 
@@ -18,53 +20,14 @@ namespace vamiga {
 // Enumerations
 //
 
-enum class Compressor : long
-{
-    NONE,
-    GZIP,
-    LZ4,
-    RLE2,
-    RLE3
-};
-
-struct CompressorEnum : Reflection<CompressorEnum, Compressor>
-{
-    static constexpr long minVal = 0;
-    static constexpr long maxVal = long(Compressor::RLE3);
-
-    static const char *_key(Compressor value)
-    {
-        switch (value) {
-
-            case Compressor::NONE:  return "NONE";
-            case Compressor::GZIP:  return "GZIP";
-            case Compressor::RLE2:  return "RLE2";
-            case Compressor::RLE3:  return "RLE3";
-            case Compressor::LZ4:   return "LZ4";
-        }
-        return "???";
-    }
-    static const char *help(Compressor value)
-    {
-        switch (value) {
-
-            case Compressor::NONE:  return "No compression";
-            case Compressor::GZIP:  return "Gzip compression";
-            case Compressor::RLE2:  return "Run-length encoding (2)";
-            case Compressor::RLE3:  return "Run-length encoding (3)";
-            case Compressor::LZ4:   return "LZ4 compression";
-        }
-        return "???";
-    }
-};
-
+/// Video standard.
 enum class TV : long
 {
     PAL,
     NTSC
 };
 
-struct TVEnum : Reflection<TVEnum, TV>
+struct TVEnum : utl::Reflectable<TVEnum, TV>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(TV::NTSC);
@@ -89,6 +52,7 @@ struct TVEnum : Reflection<TVEnum, TV>
     }
 };
 
+/// Display resolution.
 enum class Resolution : long
 {
     LORES,      // Lores mode
@@ -96,7 +60,7 @@ enum class Resolution : long
     SHRES       // SuperHires mode (ECS only)
 };
 
-struct ResolutionEnum : Reflection<ResolutionEnum, Resolution>
+struct ResolutionEnum : utl::Reflectable<ResolutionEnum, Resolution>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Resolution::SHRES);
@@ -123,6 +87,7 @@ struct ResolutionEnum : Reflection<ResolutionEnum, Resolution>
     }
 };
 
+/// When warp mode is entered automatically.
 enum class Warp : long
 {
     AUTO,
@@ -130,7 +95,7 @@ enum class Warp : long
     ALWAYS
 };
 
-struct WarpEnum : Reflection<WarpEnum, Warp>
+struct WarpEnum : utl::Reflectable<WarpEnum, Warp>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Warp::ALWAYS);
@@ -151,18 +116,20 @@ struct WarpEnum : Reflection<WarpEnum, Warp>
     }
 };
 
+/// Predefined machine configuration.
 enum class ConfigScheme : long
 {
     A1000_OCS_1MB,
     A500_OCS_1MB,
     A500_ECS_1MB,
-    A500_PLUS_1MB
+    A500_PLUS_1MB,
+    A1200_2MB
 };
 
-struct ConfigSchemeEnum : Reflection<ConfigSchemeEnum, ConfigScheme>
+struct ConfigSchemeEnum : utl::Reflectable<ConfigSchemeEnum, ConfigScheme>
 {
     static constexpr long minVal = 0;
-    static constexpr long maxVal = long(ConfigScheme::A500_PLUS_1MB);
+    static constexpr long maxVal = long(ConfigScheme::A1200_2MB);
 
     static const char *_key(ConfigScheme value)
     {
@@ -172,6 +139,7 @@ struct ConfigSchemeEnum : Reflection<ConfigSchemeEnum, ConfigScheme>
             case ConfigScheme::A500_OCS_1MB:   return "A500_OCS_1MB";
             case ConfigScheme::A500_ECS_1MB:   return "A500_ECS_1MB";
             case ConfigScheme::A500_PLUS_1MB:  return "A500_PLUS_1MB";
+            case ConfigScheme::A1200_2MB:      return "A1200_2MB";
         }
         return "???";
     }
@@ -183,11 +151,13 @@ struct ConfigSchemeEnum : Reflection<ConfigSchemeEnum, ConfigScheme>
             case ConfigScheme::A500_OCS_1MB:   return "Amiga 500, OCS Chipset, 1MB RAM";
             case ConfigScheme::A500_ECS_1MB:   return "Amiga 500, ECS Chipset, 1MB RAM";
             case ConfigScheme::A500_PLUS_1MB:  return "Amiga 500+, ECS Chipset, 1MB RAM";
+            case ConfigScheme::A1200_2MB:      return "Amiga 1200, AGA Chipset, 2MB RAM";
         }
         return "???";
     }
 };
 
+/// Custom chip register.
 enum class Reg : long
 {
     BLTDDAT,    DMACONR,    VPOSR,      VHPOSR,     DSKDATR,
@@ -236,16 +206,16 @@ enum class Reg : long
     COLOR23,    COLOR24,    COLOR25,    COLOR26,    COLOR27,
     COLOR28,    COLOR29,    COLOR30,    COLOR31,    HTOTAL,
     HSSTOP,     HBSTRT,     HBSTOP,     VTOTAL,     VSSTOP,
-    VBSTRT,     VBSTOP,     SPRHSTRT,   SPRHSTOP,   BPLHSTRT,
-    BPLHSTOP,   HHPOSW,     HHPOSR,     BEAMCON0,   HSSTRT,
-    VSSTRT,     HCENTER,    DIWHIGH,    BPLHMOD,    SPRHPTH,
-    SPRHPTL,    BPLHPTH,    BPLHPTL,    REG_0x1F0,  REG_0x1F2,
+    VBSTRT,     VBSTOP,     REG_0x1D0,  REG_0x1D2,  REG_0x1D4,
+    REG_0x1D6,  HHPOSW,     HHPOSR,     BEAMCON0,   HSSTRT,
+    VSSTRT,     HCENTER,    DIWHIGH,    REG_0x1E6,  REG_0x1E8,
+    REG_0x1EA,  REG_0x1EC,  REG_0x1EE,  REG_0x1F0,  REG_0x1F2,
     REG_0x1F4,  REG_0x1F6,  REG_0x1F8,  REG_0x1FA,  FMODE,
     NO_OP
 };
 
 static_assert(Reg::NO_OP == Reg(0x1FE >> 1));
-struct RegEnum : Reflection<RegEnum, Reg>
+struct RegEnum : utl::Reflectable<RegEnum, Reg>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(Reg::NO_OP);
@@ -331,12 +301,12 @@ struct RegEnum : Reflection<RegEnum, Reg>
             "COLOR30",        "COLOR31",        "HTOTAL (ECS)",
             "HSSTOP (ECS)",   "HBSTRT (ECS)",   "HBSTOP (ECS)",
             "VTOTAL (ECS)",   "VSSTOP (ECS)",   "VBSTRT (ECS)",
-            "VBSTOP (ECS)",   "SPRHSTRT (AGA)", "SPRHSTOP (AGA)",
-            "BPLHSTRT (AGA)", "BPLHSTOP (AGA)", "HHPOSW (AGA)",
+            "VBSTOP (ECS)",   "unused",         "unused",
+            "unused",         "unused",         "HHPOSW (AGA)",
             "HHPOSR (AGA)",   "BEAMCON0 (ECS)", "HSSTRT (ECS)",
             "VSSTRT (ECS)",   "HCENTER (ECS)",  "DIWHIGH (ECS)",
-            "BPLHMOD (AGA)",  "SPRHPTH (AGA)",  "SPRHPTL (AGA)",
-            "BPLHPTH (AGA)",  "BPLHPTL (AGA)",  "unused",
+            "unused",         "unused",         "unused",
+            "unused",         "unused",         "unused",
             "unused",         "unused",         "unused",
             "unused",         "unused",         "FMODE (AGA)",
             "NO-OP"
@@ -355,6 +325,7 @@ struct RegEnum : Reflection<RegEnum, Reg>
 // Structures
 //
 
+/// Configuration options of the Amiga.
 typedef struct
 {
     //! Machine type (PAL or NTSC)
@@ -375,29 +346,19 @@ typedef struct
     //! Number of run-ahead frames (0 = run-ahead is disabled)
     isize runAhead;
 
-    //! Enable auto-snapshots
-    bool autoSnapshots;
-
-    //! Delay between two auto-snapshots in seconds
-    isize snapshotDelay;
-
-    //! Selects the snapshot compression method
-    Compressor snapshotCompressor;
-
-    //! Indicates whether workspace media files should be compressed
-    bool compressWorkspaces;
 }
 AmigaConfig;
 
+/// State of the Amiga (clock and frame counters).
 typedef struct
 {
-    Cycle cpuClock;
-    Cycle dmaClock;
-    Cycle ciaAClock;
-    Cycle ciaBClock;
-    i64 frame;
-    long vpos;
-    long hpos;
+    Cycle cpuClock;                         ///< CPU clock (in master cycles)
+    Cycle dmaClock;                         ///< Agnus (DMA) clock (in master cycles)
+    Cycle ciaAClock;                        ///< Clock of CIA A (in master cycles)
+    Cycle ciaBClock;                        ///< Clock of CIA B (in master cycles)
+    i64 frame;                              ///< Frame number
+    isize vpos;                             ///< Vertical beam position
+    isize hpos;                             ///< Horizontal beam position
 }
 AmigaInfo;
 
@@ -406,24 +367,24 @@ AmigaInfo;
 // Private data types
 //
 
-typedef u32 RunLoopFlags;
+typedef u32 RunLoopFlags;               ///< Bit mask of RL flags
 
 namespace RL
 {
-constexpr u32 STOP               = (1 << 0);
-constexpr u32 SOFTSTOP_REACHED   = (1 << 1);
-constexpr u32 EOL_REACHED        = (1 << 2);
-constexpr u32 EOF_REACHED        = (1 << 3);
-constexpr u32 BREAKPOINT_REACHED = (1 << 4);
-constexpr u32 WATCHPOINT_REACHED = (1 << 5);
-constexpr u32 CATCHPOINT_REACHED = (1 << 6);
-constexpr u32 SWTRAP_REACHED     = (1 << 7);
-constexpr u32 BEAMTRAP_REACHED   = (1 << 8);
-constexpr u32 COPPERBP_REACHED   = (1 << 9);
-constexpr u32 COPPERWP_REACHED   = (1 << 10);
-constexpr u32 AUTO_SNAPSHOT      = (1 << 11);
-constexpr u32 USER_SNAPSHOT      = (1 << 12);
-constexpr u32 SYNC_THREAD        = (1 << 13);
+constexpr u32 STOP               = (1 << 0);  ///< Stop the emulator
+constexpr u32 SOFTSTOP_REACHED   = (1 << 1);  ///< A soft stop (end of the current instruction or frame) has been reached
+constexpr u32 EOL_REACHED        = (1 << 2);  ///< The end of a scanline has been reached
+constexpr u32 EOF_REACHED        = (1 << 3);  ///< The end of a frame has been reached
+constexpr u32 BREAKPOINT_REACHED = (1 << 4);  ///< A CPU breakpoint has been reached
+constexpr u32 WATCHPOINT_REACHED = (1 << 5);  ///< A CPU watchpoint has been reached
+constexpr u32 CATCHPOINT_REACHED = (1 << 6);  ///< A CPU catchpoint has been reached
+constexpr u32 SWTRAP_REACHED     = (1 << 7);  ///< A software trap has been reached
+constexpr u32 BEAMTRAP_REACHED   = (1 << 8);  ///< A beam trap has been reached
+constexpr u32 COPPERBP_REACHED   = (1 << 9);  ///< A Copper breakpoint has been reached
+constexpr u32 COPPERWP_REACHED   = (1 << 10);  ///< A Copper watchpoint has been reached
+constexpr u32 AUTO_SNAPSHOT      = (1 << 11);  ///< An automatic snapshot is due
+constexpr u32 USER_SNAPSHOT      = (1 << 12);  ///< A snapshot has been requested by the user
+constexpr u32 SYNC_THREAD        = (1 << 13);  ///< The emulator thread needs to synchronize with the timer
 };
 
 }

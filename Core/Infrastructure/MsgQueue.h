@@ -11,22 +11,37 @@
 
 #include "MsgQueueTypes.h"
 #include "CoreObject.h"
-#include "Synchronizable.h"
-#include "RingBuffer.h"
+#include "utl/abilities/Synchronizable.h"
+#include "utl/storage.h"
+#include <deque>
 
 namespace vamiga {
 
-class MsgQueue final : CoreObject, Synchronizable {
+class MsgQueue final : CoreObject, utl::Synchronizable {
 
-    // Ring buffer storing all pending messages
-    util::RingBuffer <Message, 4096> queue;
+    /* Maximum number of pending messages. Messages only pile up while no
+     * listener is registered (before a client attaches, or if the client
+     * polls with get()). A message that arrives at a full queue is dropped.
+     */
+    static constexpr isize CAPACITY = 65536;
 
-    // Used by WASM builds to pass additional parameters
-    std::vector<string> payload;
+    // A pending message, together with its attached string and the exception it reports (if any)
+    struct Entry {
+
+        Message message;
+        string str;
+        std::exception_ptr exception;
+    };
+
+    // All pending messages
+    std::deque<Entry> entries;
+
+    // The attached string of the message that has been read last
+    string current;
 
     // The registered listener
     const void *listener = nullptr;
-    
+
     // The registered callback function
     Callback *callback = nullptr;
 
@@ -52,7 +67,7 @@ public:
     //
     
 public:
-    
+
     void lock() { mutex.lock(); }
     void unlock() { mutex.unlock(); }
 
@@ -61,26 +76,27 @@ public:
 
     // Disables the message queue
     void disable() { enabled = false; }
-    
-    // Reads a message
-    bool get(Message &msg);
 
-    // Reads multiple messages. Returns the number of messages
-    isize get(isize count, Message *buffer);
+    // Reads a message, together with the exception it reports (if any)
+    bool get(Message &msg, std::exception_ptr &exception);
 
     // Sends a message
-    void put(const Message &msg);
-    void put(Msg type, i64 payload = 0, i64 payload2 = 0);
-    void put(Msg type, CpuMsg payload);
-    void put(Msg type, DriveMsg payload);
-    void put(Msg type, HdcMsg payload);
-    void put(Msg type, ScriptMsg payload);
-    void put(Msg type, ViewportMsg payload);
-    void put(Msg type, SnapshotMsg payload);
+    void put(const Message &msg, const string &str = "", std::exception_ptr exception = nullptr);
+    void put(Msg type, i64 payload = 0, i64 payload2 = 0, const string &str = "",
+             std::exception_ptr exception = nullptr);
+    void put(Msg type, const string &payload);
 
-    // Gets or sets the payload
-    string getPayload(isize index);
-    void setPayload(const std::vector<string> &payload);
+    // Sends a message that reports a failure
+    void put(Msg type, std::exception_ptr exception);
+    void put(Msg type, CpuMsg payload, const string &str = "");
+    void put(Msg type, ConfigMsg payload, const string &str = "", std::exception_ptr exception = nullptr);
+    void put(Msg type, BeamMsg payload, const string &str = "");
+    void put(Msg type, DriveMsg payload, const string &str = "");
+    void put(Msg type, HdcMsg payload, const string &str = "");
+    void put(Msg type, ScriptMsg payload, const string &str = "");
+    void put(Msg type, ViewportMsg payload, const string &str = "");
+    void put(Msg type, SnapshotMsg payload, const string &str = "");
+
 };
 
 }

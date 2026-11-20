@@ -6,10 +6,11 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,17 +18,7 @@ namespace vamiga {
 // Enumerations
 //
 
-enum class HIDEvent
-{
-    AXIS,
-    BUTTON,
-    DPAD_UP,
-    DPAD_DOWN,
-    DPAD_RIGHT,
-    DPAD_LEFT,
-    HATSWITCH,
-};
-
+/// An action performed on a game pad.
 enum class GamePadAction : long
 {
     PULL_UP = 0,    // Pull the joystick up
@@ -51,7 +42,7 @@ enum class GamePadAction : long
     RELEASE_RIGHT   // Release the right mouse button
 };
 
-struct GamePadActionEnum : Reflection<GamePadActionEnum, GamePadAction>
+struct GamePadActionEnum : utl::Reflectable<GamePadActionEnum, GamePadAction>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(GamePadAction::RELEASE_RIGHT);
@@ -93,20 +84,22 @@ struct GamePadActionEnum : Reflection<GamePadActionEnum, GamePadAction>
 // Structures
 //
 
+/// Configuration options of a joystick.
 typedef struct
 {
-    bool autofire;
-    bool autofireBursts;
-    isize autofireBullets;
-    isize autofireDelay;
+    bool autofire;                          ///< Autofire
+    bool autofireBursts;                    ///< Burst mode
+    isize autofireBullets;                  ///< Number of bullets per burst
+    isize autofireDelay;                    ///< Autofire delay (in frames)
 }
 JoystickConfig;
 
+/// State of a joystick.
 typedef struct
 {
-    bool button;
-    isize axisX;
-    isize axisY;
+    bool button;                            ///< The fire button is pressed
+    isize axisX;                            ///< Horizontal axis (-1 left, 0 neutral, 1 right)
+    isize axisY;                            ///< Vertical axis (-1 up, 0 neutral, 1 down)
 }
 JoystickInfo;
 

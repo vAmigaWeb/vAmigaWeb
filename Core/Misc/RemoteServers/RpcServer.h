@@ -1,0 +1,113 @@
+// -----------------------------------------------------------------------------
+// This file is part of vAmiga
+//
+// Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
+// Licensed under the Mozilla Public License v2
+//
+// See https://mozilla.org/MPL/2.0 for license information
+// -----------------------------------------------------------------------------
+
+#pragma once
+
+#include "RemoteServer.h"
+#include "RetroShellTypes.h"
+#include "Console.h"
+#include "StdioTransport.h"
+#include "TcpTransport.h"
+#include "HttpTransport.h"
+
+namespace vamiga {
+
+namespace RPC {
+
+const long PARSE_ERROR      = -32700; // Invalid JSON was received by the server
+const long INVALID_REQUEST  = -32600; // The JSON sent is not a valid Request object
+const long METHOD_NOT_FOUND = -32601; // The method does not exist / is not available
+const long INVALID_PARAMS   = -32602; // Invalid method parameter(s)
+const long INTERNAL_ERROR   = -32603; // Internal JSON-RPC error
+const long SERVER_ERROR     = -32000; // Reserved for implementation-defined server-errors
+
+}
+
+class RpcServer final : public RemoteServer, public ConsoleDelegate {
+
+    StdioTransport stdio = StdioTransport(*this);
+    TcpTransport tcp = TcpTransport(*this);
+    HttpTransport http = HttpTransport(*this);
+
+public:
+
+    using RemoteServer::RemoteServer;
+
+    RpcServer& operator= (const RpcServer& other) {
+
+        RemoteServer::operator=(other);
+        return *this;
+    }
+
+
+    //
+    // Methods from CoreObject
+    //
+
+protected:
+
+    void _initialize() override;
+    void _dump(Category category, std::ostream &os) const override;
+
+
+    //
+    // Methods from RemoteServer
+    //
+
+    Transport &transport() override;
+    const Transport &transport() const override;
+    bool isSupported(TransportProtocol protocol) const override;
+    bool canRun() override { return true; }
+    string endpoint() const override { return "/rpc"; }
+
+public:
+
+    void send(const string &payload) override;
+
+private:
+
+    //
+    // Methods from TransportDelegate
+    //
+
+    void didStart() override;
+    void didReceive(const string &payload) override;
+    void didReceive(const struct httplib::Request &req, struct httplib::Response &res) override;
+
+
+    //
+    // Methods from ConsoleDelegate
+    //
+
+    void willExecute(const InputLine &input) override { };
+    void didExecute(const InputLine &input, std::stringstream &ss) override;
+    void didExecute(const InputLine &input, std::stringstream &ss, std::exception &e) override;
+
+
+    //
+    // Handling requests
+    //
+
+private:
+
+    // Processes a received command, returning the response if one is available immediately
+    optional<string> process(const string &payload, bool blocking);
+
+    // Executes a RetroShell command asynchroneously (non blocking)
+    optional<string> execNonBlocking(const string &command, isize id);
+
+    // Executes a RetroShell command synchroneously (blocking)
+    optional<string> execBlocking(const string &command, isize id);
+
+    // Assembles a JSON-RPC response
+    string makeResult(isize id, const string &output);
+    string makeError(isize id, std::exception_ptr error);
+};
+
+}

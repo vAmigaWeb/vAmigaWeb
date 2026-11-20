@@ -2,14 +2,15 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 //
 // Enumerations
@@ -17,6 +18,7 @@
 
 namespace vamiga {
 
+/// Method used to resample audio.
 enum class SamplingMethod
 {
     NONE,
@@ -24,7 +26,7 @@ enum class SamplingMethod
     LINEAR
 };
 
-struct SamplingMethodEnum : Reflection<SamplingMethodEnum, SamplingMethod>
+struct SamplingMethodEnum : utl::Reflectable<SamplingMethodEnum, SamplingMethod>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(SamplingMethod::LINEAR);

@@ -1,0 +1,60 @@
+// -----------------------------------------------------------------------------
+// This file is part of RetroVault
+//
+// Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
+// Licensed under the Mozilla Public License v2
+//
+// See https://mozilla.org/MPL/2.0 for license information
+// -----------------------------------------------------------------------------
+
+#include "rvconfig.h"
+#include "Images/HardDiskImage.h"
+#include "Images/HDF/HDFFile.h"
+#include "utl/io.h"
+
+using retro::vault::HDFFile;
+
+namespace retro::vault {
+
+using utl::IOError;
+
+optional<ImageInfo>
+HardDiskImage::about(const fs::path& url)
+{
+    if (auto info = HDFFile::about(url)) return info;
+
+    return {};
+}
+
+unique_ptr<HardDiskImage>
+HardDiskImage::tryMake(const fs::path &path)
+{
+    if (HDFFile::about(path).has_value()) return make_unique<HDFFile>(path);
+
+    return nullptr;
+}
+
+unique_ptr<HardDiskImage>
+HardDiskImage::make(const fs::path &path)
+{
+    if (auto img = tryMake(path)) return img;
+    throw utl::IOError(utl::IOError::FILE_TYPE_UNSUPPORTED);
+}
+
+isize
+HardDiskImage::writePartitionToStream(std::ostream &stream, isize nr) const
+{
+    // partition() is measured in blocks, the stream functions take bytes
+    auto range = partition(nr);
+    return copy(stream, range.lower * bsize(), range.size() * bsize());
+}
+
+isize
+HardDiskImage::writePartitionToFile(const fs::path &path, isize nr) const
+{
+    // partition() is measured in blocks, the file functions take bytes
+    auto range = partition(nr);
+    return copy(path, range.lower * bsize(), range.size() * bsize());
+}
+
+}

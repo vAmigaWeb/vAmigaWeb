@@ -8,11 +8,13 @@
 // -----------------------------------------------------------------------------
 /// @file
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Headless.h"
 #include "Amiga.h"
 #include "Script.h"
 #include "DiagRom.h"
+#include "utl/chrono.h"
+#include "utl/support.h"
 #include <chrono>
 
 int main(int argc, char *argv[])
@@ -37,7 +39,7 @@ int main(int argc, char *argv[])
             std::cout << what << std::endl;
         }
 
-    } catch (vamiga::AppError &e) {
+    } catch (vamiga::CoreError &e) {
 
         std::cout << "Emulator Error: " << e.what() << std::endl;
 
@@ -112,7 +114,7 @@ Headless::checkArguments()
     }
 
     // The input file must exist
-    if (keys.find("arg1") != keys.end() && !util::fileExists(keys["arg1"])) {
+    if (keys.find("arg1") != keys.end() && !utl::fileExists(keys["arg1"])) {
         throw SyntaxError("File " + keys["arg1"] + " does not exist");
     }
 }
@@ -132,11 +134,11 @@ Headless::runScript(const char **script)
 void
 Headless::runScript(const fs::path &path)
 {
-    // Read the input script
-    Script script(path);
-
     // Create an emulator instance
     VAmiga vamiga;
+
+    // Launch the emulator thread
+    vamiga.launch(this, vamiga::process);
 
     // Plug in DiagRom
     vamiga.mem.loadRom(diagROM13, sizeofDiagRom13);
@@ -144,17 +146,14 @@ Headless::runScript(const fs::path &path)
     // Redirect shell output to the console in verbose mode
     if (keys.find("verbose") != keys.end()) vamiga.retroShell.setStream(std::cout);
 
-    // Launch the emulator thread
-    vamiga.launch(this, vamiga::process);
-
     // Execute script
-    const auto timeout = util::Time::seconds(500.0);
-    vamiga.retroShell.execScript(script);
+    const auto timeout = utl::Time::seconds(500.0);
+    vamiga.retroShell.execScriptAsync(path);
     waitForWakeUp(timeout);
 }
 
 void
-process(const void *listener, Message msg)
+process(const void *listener, Message msg, std::exception_ptr)
 {
     ((Headless *)listener)->process(msg);
 }
@@ -179,6 +178,12 @@ Headless::process(Message msg)
             wakeUp();
             break;
 
+        case Msg::RSH_DONE:
+
+            // The script runs in the main shell (id 0)
+            if (msg.value == 0) wakeUp();
+            break;
+
         case Msg::ABORT:
 
             wakeUp();
@@ -192,30 +197,30 @@ Headless::process(Message msg)
 void 
 Headless::reportSize()
 {
-    msg("             Amiga : %zu bytes\n", sizeof(Amiga));
-    msg("             Agnus : %zu bytes\n", sizeof(Agnus));
-    msg("       AudioFilter : %zu bytes\n", sizeof(AudioFilter));
-    msg("               CIA : %zu bytes\n", sizeof(CIA));
-    msg("       ControlPort : %zu bytes\n", sizeof(ControlPort));
-    msg("               CPU : %zu bytes\n", sizeof(CPU));
-    msg("            Denise : %zu bytes\n", sizeof(Denise));
-    msg("             Drive : %zu bytes\n", sizeof(FloppyDrive));
-    msg("          Keyboard : %zu bytes\n", sizeof(Keyboard));
-    msg("            Memory : %zu bytes\n", sizeof(Memory));
-    msg("moira::Breakpoints : %zu bytes\n", sizeof(moira::Breakpoints));
-    msg("moira::Watchpoints : %zu bytes\n", sizeof(moira::Watchpoints));
-    msg("   moira::Debugger : %zu bytes\n", sizeof(moira::Debugger));
-    msg("      moira::Moira : %zu bytes\n", sizeof(moira::Moira));
-    msg("         AudioPort : %zu bytes\n", sizeof(AudioPort));
-    msg("             Paula : %zu bytes\n", sizeof(Paula));
-    msg("       PixelEngine : %zu bytes\n", sizeof(PixelEngine));
-    msg("     RemoteManager : %zu bytes\n", sizeof(RemoteManager));
-    msg("               RTC : %zu bytes\n", sizeof(RTC));
-    msg("        RetroShell : %zu bytes\n", sizeof(RetroShell));
-    msg("           Sampler : %zu bytes\n", sizeof(Sampler));
-    msg("        SerialPort : %zu bytes\n", sizeof(SerialPort));
-    msg("             Zorro : %zu bytes\n", sizeof(ZorroManager));
-    msg("\n");
+    printf("             Amiga : %zu bytes\n", sizeof(Amiga));
+    printf("             Agnus : %zu bytes\n", sizeof(Agnus));
+    printf("       AudioFilter : %zu bytes\n", sizeof(AudioFilter));
+    printf("               CIA : %zu bytes\n", sizeof(CIA));
+    printf("       ControlPort : %zu bytes\n", sizeof(ControlPort));
+    printf("               CPU : %zu bytes\n", sizeof(CPU));
+    printf("            Denise : %zu bytes\n", sizeof(Denise));
+    printf("             Drive : %zu bytes\n", sizeof(FloppyDrive));
+    printf("          Keyboard : %zu bytes\n", sizeof(Keyboard));
+    printf("            Memory : %zu bytes\n", sizeof(Memory));
+    printf("moira::Breakpoints : %zu bytes\n", sizeof(moira::Breakpoints));
+    printf("moira::Watchpoints : %zu bytes\n", sizeof(moira::Watchpoints));
+    printf("   moira::Debugger : %zu bytes\n", sizeof(moira::Debugger));
+    printf("      moira::Moira : %zu bytes\n", sizeof(moira::Moira));
+    printf("         AudioPort : %zu bytes\n", sizeof(AudioPort));
+    printf("             Paula : %zu bytes\n", sizeof(Paula));
+    printf("       PixelEngine : %zu bytes\n", sizeof(PixelEngine));
+    printf("     RemoteManager : %zu bytes\n", sizeof(RemoteManager));
+    printf("               RTC : %zu bytes\n", sizeof(RTC));
+    printf("        RetroShell : %zu bytes\n", sizeof(RetroShell));
+    printf("           Sampler : %zu bytes\n", sizeof(Sampler));
+    printf("        SerialPort : %zu bytes\n", sizeof(SerialPort));
+    printf("             Zorro : %zu bytes\n", sizeof(ZorroManager));
+    printf("\n");
 }
 
 const char *
@@ -270,6 +275,7 @@ Headless::smokeTestScript[] = {
     "regression setup A500_OCS_1MB",
     "regression setup A500_ECS_1MB",
     "regression setup A500_PLUS_1MB",
+    "regression setup A1200_2MB",
 #endif
 
     // Test console switching
@@ -297,6 +303,7 @@ Headless::smokeTestScript[] = {
     "amiga init A500_OCS_1MB",
     "amiga init A500_ECS_1MB",
     "amiga init A500_PLUS_1MB",
+    "amiga init A1200_2MB",
     "amiga power off",
     "amiga reset",
 
@@ -412,24 +419,24 @@ Headless::smokeTestScript[] = {
     "denise set HIDDEN_LAYERS 0",
     "denise set HIDDEN_LAYERS 0xFF",
 
-    "dmadebugger open",
-    "dmadebugger close",
-    "dmadebugger set DEBUG_CHANNEL0 true",
-    "dmadebugger set DEBUG_CHANNEL0 false",
-    "dmadebugger set DEBUG_CHANNEL1 true",
-    "dmadebugger set DEBUG_CHANNEL1 false",
-    "dmadebugger set DEBUG_CHANNEL2 true",
-    "dmadebugger set DEBUG_CHANNEL2 false",
-    "dmadebugger set DEBUG_CHANNEL3 true",
-    "dmadebugger set DEBUG_CHANNEL3 false",
-    "dmadebugger set DEBUG_CHANNEL4 true",
-    "dmadebugger set DEBUG_CHANNEL4 false",
-    "dmadebugger set DEBUG_CHANNEL5 true",
-    "dmadebugger set DEBUG_CHANNEL5 false",
-    "dmadebugger set DEBUG_CHANNEL6 true",
-    "dmadebugger set DEBUG_CHANNEL6 false",
-    "dmadebugger set DEBUG_CHANNEL7 true",
-    "dmadebugger set DEBUG_CHANNEL7 false",
+    "xray open",
+    "xray close",
+    "xray set DMA_CHANNEL0 true",
+    "xray set DMA_CHANNEL0 false",
+    "xray set DMA_CHANNEL1 true",
+    "xray set DMA_CHANNEL1 false",
+    "xray set DMA_CHANNEL2 true",
+    "xray set DMA_CHANNEL2 false",
+    "xray set DMA_CHANNEL3 true",
+    "xray set DMA_CHANNEL3 false",
+    "xray set DMA_CHANNEL4 true",
+    "xray set DMA_CHANNEL4 false",
+    "xray set DMA_CHANNEL5 true",
+    "xray set DMA_CHANNEL5 false",
+    "xray set DMA_CHANNEL6 true",
+    "xray set DMA_CHANNEL6 false",
+    "xray set DMA_CHANNEL7 true",
+    "xray set DMA_CHANNEL7 false",
 
     "monitor",
     "monitor set PALETTE COLOR",
@@ -541,6 +548,8 @@ Headless::smokeTestScript[] = {
     "serial",
     "serial set DEVICE NONE",
     "serial set DEVICE NULLMODEM",
+    "serial set HANDSHAKE true",
+    "serial set HANDSHAKE false",
     "serial set DEVICE LOOPBACK",
     "serial set DEVICE RETROSHELL",
 
@@ -574,32 +583,43 @@ Headless::smokeTestScript[] = {
     "hd0",
     "hd0 disconnect",
     "hd0 connect",
-    "hd0 geometry cylinders=320 heads=2 sectors=32",
+    "# hd0 geometry cylinders=320 heads=2 sectors=32",
     "hd0 set PAN 50",
     "hd0 set STEP_VOLUME 50",
 
     "hd1",
     "hd1 disconnect",
     "hd1 connect",
-    "hd1 geometry cylinders=320 heads=2 sectors=32",
+    "# hd1 geometry cylinders=320 heads=2 sectors=32",
     "hd1 set PAN 50",
     "hd1 set STEP_VOLUME 50",
 
-    "server",
-    "server serial",
-    "server serial set PORT 8000",
-    "server serial set VERBOSE true",
-    "server serial set VERBOSE false",
+    "server rsh",
+    "server rsh set PORT 8000",
+    "server rsh set VERBOSE true",
+    "server rsh set VERBOSE false",
 
-    "server rshell",
-    "server rshell set PORT 8000",
-    "server rshell set VERBOSE true",
-    "server rshell set VERBOSE false",
+    "server rpc",
+    "server rpc set PORT 8000",
+    "server rpc set VERBOSE true",
+    "server rpc set VERBOSE false",
 
     "server gdb",
     "server gdb set PORT 8000",
     "server gdb set VERBOSE true",
     "server gdb set VERBOSE false",
+
+    "server",
+    "server prom",
+    "server prom set PORT 8000",
+    "server prom set VERBOSE true",
+    "server prom set VERBOSE false",
+
+    "server",
+    "server ser",
+    "server ser set PORT 8000",
+    "server ser set VERBOSE true",
+    "server ser set VERBOSE false",
 
     // Enter debugger
     "debugger",

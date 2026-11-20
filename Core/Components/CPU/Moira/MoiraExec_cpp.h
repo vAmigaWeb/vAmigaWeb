@@ -8,7 +8,7 @@
 #define AVAILABILITY(core) \
 if constexpr ((core) == Core::C68010) { static_assert(C != Core::C68000); } \
 if constexpr ((core) == Core::C68020) { static_assert(C != Core::C68000 && C != Core::C68010); } \
-if constexpr (C == Core::C68020) cp = 0; \
+if constexpr (C == Core::C68020) budget.cp = 0; \
 if constexpr (MOIRA_WILL_EXECUTE) willExecute(__func__, I, M, S, opcode);
 
 #define FINALIZE \
@@ -2536,9 +2536,7 @@ Moira::execJsr(u16 opcode)
 
             // Jump to new address
             reg.pc = ea;
-
-            queue.irc = (u16)read<C, AddrSpace::PROG, Word>(ea);
-            prefetch<C>();
+            fullPrefetch<C>();
             break;
     }
 
@@ -2648,8 +2646,7 @@ Moira::execMove0(u16 opcode)
     CYCLES_DN   ( 4,  4,  2,        4,  4,  2,        4,  4,  2)
     CYCLES_AN   ( 4,  4,  2,        4,  4,  2,        4,  4,  2)
     CYCLES_AI   ( 8,  8,  6,        8,  8,  6,       12, 12,  6)
-//    CYCLES_PI   ( 8,  8,  6,        8,  8,  6,       12, 12,  4)
-    CYCLES_PI   ( 8,  8,  6,        8,  8,  6,       12, 12,  6)  
+    CYCLES_PI   ( 8,  8,  6,        8,  8,  6,       12, 12,  6)
     CYCLES_PD   (10, 10,  7,       10, 10,  7,       14, 14,  7)
     CYCLES_DI   (12, 12,  7,       12, 12,  7,       16, 16,  7)
     CYCLES_IX   (14, 14,  9,       14, 14,  9,       18, 18,  9)
@@ -2739,7 +2736,6 @@ Moira::execMove2(u16 opcode)
     CYCLES_DN   ( 8,  8,  4,        8,  8,  4,       12, 12,  4)
     CYCLES_AN   ( 8,  8,  4,        8,  8,  4,       12, 12,  4)
     CYCLES_AI   (12, 12,  8,       12, 12,  8,       20, 20,  8)
-//    CYCLES_PI   (12, 12,  8,       12, 12,  8,       20, 20,  4)
     CYCLES_PI   (12, 12,  8,       12, 12,  8,       20, 20,  8)
     CYCLES_PD   (14, 14,  9,       14, 14,  9,       22, 22,  9)
     CYCLES_DI   (16, 16,  9,       16, 16,  9,       24, 24,  9)
@@ -3591,7 +3587,7 @@ Moira::execMoves(u16 opcode)
 
         if constexpr (S == Long) {
 
-            if (cpuModel == Model::M68020 || cpuModel == Model::M68EC020) cp += 2;
+            if (cpuModel == Model::M68020 || cpuModel == Model::M68EC020) budget.cp += 2;
         }
 
     } else {                    // Ea -> Rg
@@ -3636,7 +3632,7 @@ Moira::execMoves(u16 opcode)
         // Switch back to the old FC pin values
         fcSource = 0;
 
-        if (cpuModel == Model::M68020 || cpuModel == Model::M68EC020) cp += 2;
+        if (cpuModel == Model::M68020 || cpuModel == Model::M68EC020) budget.cp += 2;
     }
 
     prefetch<C, POLL>();
@@ -4275,12 +4271,22 @@ Moira::execDivsMoira(u16 opcode, bool *divByZero)
         return;
     }
 
-    result = divsMoira<C>(dividend, divisor);
-    writeD(dst, result);
-    prefetch<C, POLL>();
-
     [[maybe_unused]] auto cycles = cyclesDiv<C, I>(dividend, (u16)divisor) - 4;
-    SYNC(cycles);
+
+    if constexpr (C == Core::C68000) {
+
+        SYNC(cycles);
+        result = divsMoira<C>(dividend, divisor);
+        writeD(dst, result);
+        prefetch<C, POLL>();
+
+    } else {
+
+        result = divsMoira<C>(dividend, divisor);
+        writeD(dst, result);
+        prefetch<C, POLL>();
+        SYNC(cycles);
+    }
 }
 
 template <Core C, Instr I, Mode M, Size S> void
@@ -4403,12 +4409,22 @@ Moira::execDivuMoira(u16 opcode, bool *divByZero)
         return;
     }
 
-    result = divuMoira<C>(dividend, divisor);
-    writeD(dst, result);
-    prefetch<C, POLL>();
-
     [[maybe_unused]] auto cycles = cyclesDiv<C, I>(dividend, (u16)divisor) - 4;
-    SYNC(cycles);
+
+    if constexpr (C == Core::C68000) {
+
+        SYNC(cycles);
+        result = divuMoira<C>(dividend, divisor);
+        writeD(dst, result);
+        prefetch<C, POLL>();
+
+    } else {
+
+        result = divuMoira<C>(dividend, divisor);
+        writeD(dst, result);
+        prefetch<C, POLL>();
+        SYNC(cycles);
+    }
 }
 
 template <Core C, Instr I, Mode M, Size S> void
@@ -5753,6 +5769,8 @@ Moira::execMove16AlAi(u16 opcode)
 }
 
 #include "MoiraExecMMU_cpp.h"
+#include "utl/hints.h"
+#include "utl/support/Bits.h"
 #include "MoiraExecFPU_cpp.h"
 
 #undef AVAILABILITY

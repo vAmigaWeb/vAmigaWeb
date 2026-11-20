@@ -2,22 +2,30 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "UART.h"
 #include "Agnus.h"
-#include "IOUtils.h"
 #include "MsgQueue.h"
 #include "Paula.h"
 #include "RemoteManager.h"
 #include "SerialPort.h"
+#include "Amiga.h"
+#include "MidiManager.h"
+#include "utl/io.h"
+#include <algorithm>
 #include <iostream>
 
 namespace vamiga {
+
+UART::UART(Amiga &ref) : SubComponent(ref)
+{
+    info.bind([this] { return cacheInfo(); } );
+};
 
 void
 UART::_didReset(bool hard)
@@ -25,24 +33,25 @@ UART::_didReset(bool hard)
     outBit = 1;
 }
 
-void
-UART::cacheInfo(UARTInfo &info) const
+UARTInfo
+UART::cacheInfo() const
 {
-    {   SYNCHRONIZED
-        
-        info.serper = serper;
-        info.baudRate = baudRate();
-        info.receiveBuffer = receiveBuffer;
-        info.receiveShiftReg = receiveShiftReg;
-        info.transmitBuffer = transmitBuffer;
-        info.transmitShiftReg = transmitShiftReg;
-    }
+    UARTInfo info;
+
+    info.serper = serper;
+    info.baudRate = baudRate();
+    info.receiveBuffer = receiveBuffer;
+    info.receiveShiftReg = receiveShiftReg;
+    info.transmitBuffer = transmitBuffer;
+    info.transmitShiftReg = transmitShiftReg;
+
+    return info;
 }
 
 void
 UART::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
     
     if (category == Category::State) {
         
@@ -75,7 +84,7 @@ UART::peekSERDATR()
     if (!rbf) ovrun = false;
 
     u16 result = spypeekSERDATR();
-    trace(SER_DEBUG, "peekSERDATR() = %x\n", result);
+    logmsg(LOG_SER, "peekSERDATR() = %x\n", result);
     return result;
 }
 
@@ -106,7 +115,7 @@ UART::spypeekSERDATR() const
 void
 UART::pokeSERDAT(u16 value)
 {
-    trace(SER_DEBUG, "pokeSERDAT(%04x)\n", value);
+    logmsg(LOG_SER, "pokeSERDAT(%04x)\n", value);
 
     // Experimental findings:
     // From here, the TSRE bit goes high in
@@ -119,7 +128,7 @@ UART::pokeSERDAT(u16 value)
 void
 UART::setSERDAT(u16 value)
 {
-    trace(SER_DEBUG, "setSERDAT(%04x)\n", value);
+    logmsg(LOG_SER, "setSERDAT(%04x)\n", value);
 
     // Write value into the transmit buffer
     transmitBuffer = value;
@@ -133,7 +142,7 @@ UART::setSERDAT(u16 value)
 void
 UART::pokeSERPER(u16 value)
 {
-    trace(SPRREG_DEBUG, "pokeSERPER(%04x)\n", value);
+    logmsg(LOG_SPRREG, "pokeSERPER(%04x)\n", value);
 
     setSERPER(value);
 }
@@ -141,15 +150,15 @@ UART::pokeSERPER(u16 value)
 void
 UART::setSERPER(u16 value)
 {
-    trace(SER_DEBUG, "setSERPER(%04x)\n", value);
+    logmsg(LOG_SER, "setSERPER(%04x)\n", value);
     serper = value;
-    trace(SER_DEBUG, "New baud rate = %ld\n", baudRate());
+    logmsg(LOG_SER, "New baud rate = %td\n", baudRate());
 }
 
 void
 UART::copyToTransmitShiftRegister()
 {
-    trace(SER_DEBUG, "Copying %04x into transmit shift register\n", transmitBuffer);
+    logmsg(LOG_SER, "Copying %04x into transmit shift register\n", transmitBuffer);
 
     assert(transmitShiftReg == 0);
     assert(transmitBuffer != 0);
@@ -157,8 +166,12 @@ UART::copyToTransmitShiftRegister()
     // Record outgoing data
     recordOutgoingByte(transmitBuffer);
 
-    // Send the byte to the null modem cable
-    remoteManager.serServer << char(transmitBuffer);
+    // Send the byte to the null modem cable or MIDI
+    if (serialPort.config.device == SerialPortDevice::MIDI) {
+        amiga.midiManager.sendByte(transmitBuffer & 0xFF);
+    } else {
+        remoteManager.serServer << char(transmitBuffer);
+    }
 
     // Move the contents of the transmit buffer into the shift register
     transmitShiftReg = transmitBuffer;
@@ -168,14 +181,14 @@ UART::copyToTransmitShiftRegister()
     transmitShiftReg <<= 1;
 
     // Trigger a TBE interrupt
-    trace(SER_DEBUG, "Triggering TBE interrupt\n");
+    logmsg(LOG_SER, "Triggering TBE interrupt\n");
     paula.scheduleIrqRel(IrqSource::TBE, DMA_CYCLES(2));
 }
 
 void
 UART::copyFromReceiveShiftRegister()
 {
-    trace(SER_DEBUG, "Copying %X into receive buffer\n", receiveShiftReg);
+    logmsg(LOG_SER, "Copying %X into receive buffer\n", receiveShiftReg);
     
     receiveBuffer = receiveShiftReg;
     receiveShiftReg = 0;
@@ -185,10 +198,10 @@ UART::copyFromReceiveShiftRegister()
 
     // Update the overrun bit
     ovrun = GET_BIT(paula.intreq, 11);
-    if (ovrun) trace(SER_DEBUG, "OVERRUN BIT IS 1\n");
+    if (ovrun) logmsg(LOG_SER, "OVERRUN BIT IS 1\n");
 
     // Trigger the RBF interrupt (Read Buffer Full)
-    trace(SER_DEBUG, "Triggering RBF interrupt\n");
+    logmsg(LOG_SER, "Triggering RBF interrupt\n");
     paula.raiseIrq(IrqSource::RBF);
 }
 

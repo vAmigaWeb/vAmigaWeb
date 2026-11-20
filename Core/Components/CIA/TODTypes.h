@@ -6,21 +6,23 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 //
 // Structures
 //
 
+/// State of a time-of-day counter.
 typedef struct
 {
-    u32 value;
-    u32 latch;
-    u32 alarm;
+    u32 value;                              ///< Current counter value
+    u32 latch;                              ///< Latched counter value
+    u32 alarm;                              ///< Alarm value
 }
 TODInfo;
 

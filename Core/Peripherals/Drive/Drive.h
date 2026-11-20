@@ -10,8 +10,8 @@
 #pragma once
 
 #include "DriveTypes.h"
+#include "ImageTypes.h"
 #include "SubComponent.h"
-#include "IOUtils.h"
 
 namespace vamiga {
 
@@ -46,8 +46,8 @@ public:
     virtual bool isConnected() const = 0;
 
     // Returns the current read/write position
-    virtual Cylinder currentCyl() const = 0;
-    virtual Head currentHead() const = 0;
+    virtual CylNr currentCyl() const = 0;
+    virtual HeadNr currentHead() const = 0;
     virtual isize currentOffset() const = 0;
 
     
@@ -75,6 +75,31 @@ public:
     virtual void setProtectionFlag(bool value) = 0;
     void markDiskAsModified() { setModificationFlag(true); }
     void markDiskAsUnmodified() { setModificationFlag(false); }
+
+
+    //
+    // Managing storage
+    //
+
+    /* Where the disk lives, and whether there is a file to write it back to.
+     *
+     * A memory-backed disk has no file: getPath() is empty, needsPersisting()
+     * is false, and persist() does nothing. Floppy drives are always
+     * memory-backed.
+     *
+     * needsPersisting() is about the file only. Whether a disk has been
+     * modified since it was inserted, which is what an unsaved-changes
+     * warning wants to know, is hasModifiedDisk(), for either kind of disk.
+     */
+
+    // Returns the file the disk lives in (empty for a memory-backed disk)
+    virtual fs::path getPath() const = 0;
+
+    // Returns true if the disk holds changes its file does not have yet
+    virtual bool needsPersisting() const = 0;
+
+    // Writes all changes back to the file the disk lives in
+    virtual void persist() = 0;
 };
 
 }

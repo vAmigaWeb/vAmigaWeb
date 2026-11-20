@@ -6,10 +6,11 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,6 +18,7 @@ namespace vamiga {
 // Enumerations
 //
 
+/// State of the keyboard.
 enum class KbState
 {
     SELFTEST,
@@ -26,7 +28,7 @@ enum class KbState
     SEND
 };
 
-struct KbStateEnum : Reflection<KbStateEnum, KbState>
+struct KbStateEnum : utl::Reflectable<KbStateEnum, KbState>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(KbState::SEND);
@@ -54,16 +56,18 @@ struct KbStateEnum : Reflection<KbStateEnum, KbState>
 // Structures
 //
 
+/// Configuration options of the keyboard.
 typedef struct
 {
-    bool accurate;
+    bool accurate;                          ///< Emulate the keyboard protocol accurately
 }
 KeyboardConfig;
 
+/// State of the keyboard.
 typedef struct
 {
-    KbState state;
-    u8 shiftReg;
+    KbState state;                          ///< State of the keyboard protocol
+    u8 shiftReg;                            ///< Shift register
     
 } KeyboardInfo;
 

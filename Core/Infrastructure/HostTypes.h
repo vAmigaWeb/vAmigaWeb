@@ -6,26 +6,78 @@
 //
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
+#include "BasicTypes.h"
+
 namespace vamiga {
+
+//
+// Enumerations
+//
+
+/* Byte layout of a 32-bit host pixel. Same three values, in the same order,
+ * as utl::TexelFormat (see GpuColor<F> in utl/types/Colors.h) -- a plain
+ * static_cast moves a value from this Reflectable-paired, UI/option-facing
+ * enum to the one GpuColor<F> is templated on, and back.
+ */
+/// Pixel format of a texture.
+enum class TexFormat : long
+{
+    ABGR,                       ///< AABBGGRR
+    ARGB,                       ///< AARRGGBB
+    RGBA                        ///< RRGGBBAA
+};
+
+struct TexFormatEnum : utl::Reflectable<TexFormatEnum, TexFormat> {
+
+    static constexpr long minVal = 0;
+    static constexpr long maxVal = long(TexFormat::RGBA);
+
+    static const char *_key(TexFormat value)
+    {
+        switch (value) {
+
+            case TexFormat::ABGR:       return "ABGR";
+            case TexFormat::ARGB:       return "ARGB";
+            case TexFormat::RGBA:       return "RGBA";
+        }
+        return "???";
+    }
+    static const char *help(TexFormat value)
+    {
+        switch (value) {
+
+            case TexFormat::ABGR:       return "32 bit AABBGGRR";
+            case TexFormat::ARGB:       return "32 bit AARRGGBB";
+            case TexFormat::RGBA:       return "32 bit RRGGBBAA";
+        }
+        return "???";
+    }
+};
+
 
 //
 // Structures
 //
 
+/// Properties of the host computer (display refresh rate, audio sample rate, ...).
 typedef struct
 {
-    // Refresh rate of the host display
+    /// Refresh rate of the host display
     isize refreshRate;
-    
-    // Audio sample rate of the host computer
+
+    /// Audio sample rate of the host computer
     isize sampleRate;
-    
-    // Framebuffer dimensions
+
+    /// Texture format
+    TexFormat texFormat;
+
+    /// Framebuffer dimensions
     isize frameBufferWidth;
-    isize frameBufferHeight;
+    isize frameBufferHeight;                ///< Height of the host frame buffer (in pixels)
 }
 HostConfig;
 

@@ -7,9 +7,10 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Agnus.h"
 #include "Amiga.h"
+#include "Emulator.h"
 #include "CIA.h"
 #include "ControlPort.h"
 #include "CPU.h"
@@ -350,10 +351,10 @@ Agnus::serviceREGEvent(Cycle until)
 #define SH_EVEN(x)      { denise.drawShresEven(); SH_NONE(x) }
 #define SH_BOTH(x)      { denise.drawShresBoth(); SH_NONE(x) }
 
-#define SH_MOD(x)       { SH_NONE(x); addBplMod(x); }
-#define SH_MOD_ODD(x)   { SH_ODD(x);  addBplMod(x); }
-#define SH_MOD_EVEN(x)  { SH_EVEN(x); addBplMod(x); }
-#define SH_MOD_BOTH(x)  { SH_BOTH(x); addBplMod(x); }
+#define SH_MOD(x)       { SH_NONE(x); U32_INC(bplpt[x], (x & 1) ? bpl2mod : bpl1mod); }
+#define SH_MOD_ODD(x)   { SH_ODD(x);  U32_INC(bplpt[x], (x & 1) ? bpl2mod : bpl1mod); }
+#define SH_MOD_EVEN(x)  { SH_EVEN(x); U32_INC(bplpt[x], (x & 1) ? bpl2mod : bpl1mod); }
+#define SH_MOD_BOTH(x)  { SH_BOTH(x); U32_INC(bplpt[x], (x & 1) ? bpl2mod : bpl1mod); }
 
 void
 Agnus::serviceBPLEvent(EventID id)
@@ -460,7 +461,7 @@ Agnus::serviceBPLEvent(EventID id)
         case BPL_L8_MOD | DRAW_ODD:     LO_MOD_ODD(7);  break;
         case BPL_L8_MOD | DRAW_EVEN:    LO_MOD_EVEN(7); break;
         case BPL_L8_MOD | DRAW_BOTH:    LO_MOD_BOTH(7); break;
-
+            
         case BPL_H1:                    HI_NONE(0);     break;
         case BPL_H1     | DRAW_ODD:     HI_ODD(0);      break;
         case BPL_H1     | DRAW_EVEN:    HI_EVEN(0);     break;
@@ -532,7 +533,7 @@ Agnus::serviceBPLEvent(EventID id)
         case BPL_H8_MOD | DRAW_ODD:     HI_MOD_ODD(7);  break;
         case BPL_H8_MOD | DRAW_EVEN:    HI_MOD_EVEN(7); break;
         case BPL_H8_MOD | DRAW_BOTH:    HI_MOD_BOTH(7); break;
-
+            
         case BPL_S1:                    SH_NONE(0);     break;
         case BPL_S1     | DRAW_ODD:     SH_ODD(0);      break;
         case BPL_S1     | DRAW_EVEN:    SH_EVEN(0);     break;
@@ -551,6 +552,60 @@ Agnus::serviceBPLEvent(EventID id)
         case BPL_S2_MOD | DRAW_EVEN:    SH_MOD_EVEN(1); break;
         case BPL_S2_MOD | DRAW_BOTH:    SH_MOD_BOTH(1); break;
 
+        case BPL_S3:                    SH_NONE(2);     break;
+        case BPL_S3     | DRAW_ODD:     SH_ODD(2);      break;
+        case BPL_S3     | DRAW_EVEN:    SH_EVEN(2);     break;
+        case BPL_S3     | DRAW_BOTH:    SH_BOTH(2);     break;
+        case BPL_S3_MOD:                SH_MOD(2);      break;
+        case BPL_S3_MOD | DRAW_ODD:     SH_MOD_ODD(2);  break;
+        case BPL_S3_MOD | DRAW_EVEN:    SH_MOD_EVEN(2); break;
+        case BPL_S3_MOD | DRAW_BOTH:    SH_MOD_BOTH(2); break;
+
+        case BPL_S4:                    SH_NONE(3);     break;
+        case BPL_S4     | DRAW_ODD:     SH_ODD(3);      break;
+        case BPL_S4     | DRAW_EVEN:    SH_EVEN(3);     break;
+        case BPL_S4     | DRAW_BOTH:    SH_BOTH(3);     break;
+        case BPL_S4_MOD:                SH_MOD(3);      break;
+        case BPL_S4_MOD | DRAW_ODD:     SH_MOD_ODD(3);  break;
+        case BPL_S4_MOD | DRAW_EVEN:    SH_MOD_EVEN(3); break;
+        case BPL_S4_MOD | DRAW_BOTH:    SH_MOD_BOTH(3); break;
+
+        case BPL_S5:                    SH_NONE(4);     break;
+        case BPL_S5     | DRAW_ODD:     SH_ODD(4);      break;
+        case BPL_S5     | DRAW_EVEN:    SH_EVEN(4);     break;
+        case BPL_S5     | DRAW_BOTH:    SH_BOTH(4);     break;
+        case BPL_S5_MOD:                SH_MOD(4);      break;
+        case BPL_S5_MOD | DRAW_ODD:     SH_MOD_ODD(4);  break;
+        case BPL_S5_MOD | DRAW_EVEN:    SH_MOD_EVEN(4); break;
+        case BPL_S5_MOD | DRAW_BOTH:    SH_MOD_BOTH(4); break;
+
+        case BPL_S6:                    SH_NONE(5);     break;
+        case BPL_S6     | DRAW_ODD:     SH_ODD(5);      break;
+        case BPL_S6     | DRAW_EVEN:    SH_EVEN(5);     break;
+        case BPL_S6     | DRAW_BOTH:    SH_BOTH(5);     break;
+        case BPL_S6_MOD:                SH_MOD(5);      break;
+        case BPL_S6_MOD | DRAW_ODD:     SH_MOD_ODD(5);  break;
+        case BPL_S6_MOD | DRAW_EVEN:    SH_MOD_EVEN(5); break;
+        case BPL_S6_MOD | DRAW_BOTH:    SH_MOD_BOTH(5); break;
+
+        case BPL_S7:                    SH_NONE(6);     break;
+        case BPL_S7     | DRAW_ODD:     SH_ODD(6);      break;
+        case BPL_S7     | DRAW_EVEN:    SH_EVEN(6);     break;
+        case BPL_S7     | DRAW_BOTH:    SH_BOTH(6);     break;
+        case BPL_S7_MOD:                SH_MOD(6);      break;
+        case BPL_S7_MOD | DRAW_ODD:     SH_MOD_ODD(6);  break;
+        case BPL_S7_MOD | DRAW_EVEN:    SH_MOD_EVEN(6); break;
+        case BPL_S7_MOD | DRAW_BOTH:    SH_MOD_BOTH(6); break;
+
+        case BPL_S8:                    SH_NONE(7);     break;
+        case BPL_S8     | DRAW_ODD:     SH_ODD(7);      break;
+        case BPL_S8     | DRAW_EVEN:    SH_EVEN(7);     break;
+        case BPL_S8     | DRAW_BOTH:    SH_BOTH(7);     break;
+        case BPL_S8_MOD:                SH_MOD(7);      break;
+        case BPL_S8_MOD | DRAW_ODD:     SH_MOD_ODD(7);  break;
+        case BPL_S8_MOD | DRAW_EVEN:    SH_MOD_EVEN(7); break;
+        case BPL_S8_MOD | DRAW_BOTH:    SH_MOD_BOTH(7); break;
+
         default:
             dump(Category::Dma);
             fatalError;
@@ -567,6 +622,7 @@ Agnus::serviceBPLEventLores()
     auto value = doBitplaneDmaRead<nr>();
     denise.setBPLxDATExt<nr>(bpldatNext[nr], bpldatNextValid[nr]);
     denise.setBPLxDAT<nr>(value);
+    // denise.setBPLxDAT<nr>(doBitplaneDmaRead<nr>());
 }
 
 template <isize nr> void
@@ -576,6 +632,7 @@ Agnus::serviceBPLEventHires()
     auto value = doBitplaneDmaRead<nr>();
     denise.setBPLxDATExt<nr>(bpldatNext[nr], bpldatNextValid[nr]);
     denise.setBPLxDAT<nr>(value);
+    // denise.setBPLxDAT<nr>(doBitplaneDmaRead<nr>());
 }
 
 template <isize nr> void
@@ -585,6 +642,7 @@ Agnus::serviceBPLEventShres()
     auto value = doBitplaneDmaRead<nr>();
     denise.setBPLxDATExt<nr>(bpldatNext[nr], bpldatNextValid[nr]);
     denise.setBPLxDAT<nr>(value);
+    // denise.setBPLxDAT<nr>(doBitplaneDmaRead<nr>());
 }
 
 void
@@ -844,21 +902,121 @@ Agnus::serviceINSEvent()
     u64 mask = data[SLOT_INS];
 
     // Analyze bit mask
-    if (mask & 1LL << long(Class::Agnus))           { agnus.record(); }
-    if (mask & 1LL << long(Class::Amiga))           { amiga.record(); }
-    if (mask & 1LL << long(Class::Blitter))         { blitter.record(); }
-    if (mask & 1LL << long(Class::Copper))          { copper.record(); }
-    if (mask & 1LL << long(Class::CIA))             { ciaa.record(); ciab.record(); }
-    if (mask & 1LL << long(Class::CPU))             { cpu.record(); }
-    if (mask & 1LL << long(Class::Denise))          { denise.record(); }
-    if (mask & 1LL << long(Class::Memory))          { mem.record(); }
-    if (mask & 1LL << long(Class::Paula))           { paula.record(); }
-    if (mask & 1LL << long(Class::UART))            { uart.record(); }
-    if (mask & 1LL << long(Class::ControlPort))     { controlPort1.record(); controlPort2.record(); }
-    if (mask & 1LL << long(Class::SerialPort))      { serialPort.record(); }
+    if (mask & 1LL << long(Class::Agnus)) {
+        agnus.info.record();
+        agnus.metrics.record();
+    }
+    if (mask & 1LL << long(Class::Amiga)) {
+        amiga.info.record();
+    }
+    if (mask & 1LL << long(Class::Blitter)) {
+        blitter.info.record();
+    }
+    if (mask & 1LL << long(Class::Copper)) {
+        copper.info.record();
+    }
+    if (mask & 1LL << long(Class::CIA)) {
+        ciaa.info.record(); ciaa.metrics.record();
+        ciab.info.record(); ciab.metrics.record();
+    }
+    if (mask & 1LL << long(Class::CPU)) {
+        cpu.info.record();
+    }
+    if (mask & 1LL << long(Class::Denise)) {
+        denise.info.record();
+    }
+    if (mask & 1LL << long(Class::Memory)) {
+        mem.info.record();
+        mem.metrics.record();
+    }
+    if (mask & 1LL << long(Class::Paula)) {
+        paula.info.record();
+    }
+    if (mask & 1LL << long(Class::UART)) {
+        uart.info.record();
+    }
+    if (mask & 1LL << long(Class::ControlPort)) {
+        controlPort1.info.record();
+        controlPort2.info.record();
+    }
+    if (mask & 1LL << long(Class::SerialPort)) {
+        serialPort.info.record();
+    }
+    if (mask & 1LL << long(Class::VideoPort)) {
+        videoPort.info.record();
+    }
+    if (mask & 1LL << long(Class::AudioPort)) {
+        audioPort.info.record();
+        audioPort.metrics.record();
+    }
+    if (mask & 1LL << long(Class::Joystick)) {
+        controlPort1.joystick.info.record();
+        controlPort2.joystick.info.record();
+    }
+    if (mask & 1LL << long(Class::Keyboard)) {
+        keyboard.info.record();
+    }
+    if (mask & 1LL << long(Class::XRay)) {
+        xray.info.record();
+    }
+    if (mask & 1LL << long(Class::LogicAnalyzer)) {
+        logicAnalyzer.info.record();
+    }
+    if (mask & 1LL << long(Class::Emulator)) {
+        emulator.info.record();
+        emulator.metrics.record();
+    }
+    if (mask & 1LL << long(Class::RemoteManager)) {
+        remoteManager.info.record();
+    }
+    if (mask & 1LL << long(Class::RetroShell)) {
+        retroShell.info.record();
+        rshShell.info.record();
+        rpcShell.info.record();
+    }
 
-    // Reschedule the event
-    rescheduleRel<SLOT_INS>((Cycle)(inspectionInterval * 28000007));
+    /* The disk subsystem and the audio state machines snapshot themselves here
+     * too. They used to be left out, which meant a GUI reading them had no
+     * snapshot to read and had to take the live value instead -- computing it
+     * on its own thread, from state this one is in the middle of changing.
+     * DiskController::computeDSKBYTR() asserts that agnus.clock has not run
+     * behind syncCycle, which is exactly the kind of pair that does not
+     * survive being read across a thread boundary.
+     */
+    if (mask & 1LL << long(Class::DiskController)) {
+        paula.diskController.info.record();
+    }
+    if (mask & 1LL << long(Class::StateMachine)) {
+        paula.channel0.info.record();
+        paula.channel1.info.record();
+        paula.channel2.info.record();
+        paula.channel3.info.record();
+    }
+    if (mask & 1LL << long(Class::FloppyDrive)) {
+        df0.info.record(); df1.info.record();
+        df2.info.record(); df3.info.record();
+    }
+    if (mask & 1LL << long(Class::HardDrive)) {
+        hd0.info.record(); hd1.info.record();
+        hd2.info.record(); hd3.info.record();
+    }
+    if (mask & 1LL << long(Class::HdController)) {
+        hd0con.info.record(); hd1con.info.record();
+        hd2con.info.record(); hd3con.info.record();
+        hd0con.metrics.record(); hd1con.metrics.record();
+        hd2con.metrics.record(); hd3con.metrics.record();
+    }
+
+    /* Reschedule the event.
+     *
+     * scheduleRel rather than rescheduleRel: the latter counts from the slot's
+     * current trigger, which is NEVER until something has actually scheduled
+     * the slot, so adding an interval to it left the event permanently out of
+     * reach and the first snapshot was also the last. Scheduling counts from
+     * the clock instead, and it fills in the event id, which the resetter
+     * needs in order to bring auto-inspection back after a reset.
+     */
+    scheduleRel<SLOT_INS>((Cycle)(inspectionInterval * 28000007), INS_RECORD);
 }
 
 }

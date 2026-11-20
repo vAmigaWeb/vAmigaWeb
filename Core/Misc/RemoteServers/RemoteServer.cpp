@@ -7,29 +7,25 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "RemoteServer.h"
+#include "RemoteManager.h"
 #include "Emulator.h"
-#include "CPU.h"
-#include "IOUtils.h"
-#include "Memory.h"
-#include "MemUtils.h"
 #include "MsgQueue.h"
 #include "RetroShell.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
-void
-RemoteServer::shutDownServer()
+RemoteServer::RemoteServer(Amiga& ref, isize id) : SubComponent(ref, id)
 {
-    debug(SRV_DEBUG, "Shutting down\n");
-    try { stop(); } catch(...) { }
+    info.bind([this] { return cacheInfo(); } );
 }
 
 void
 RemoteServer::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
 
     if (category == Category::Config) {
         
@@ -39,14 +35,14 @@ RemoteServer::_dump(Category category, std::ostream &os) const
     if (category == Category::State) {
         
         os << tab("State");
-        os << SrvStateEnum::key(state) << std::endl;
+        os << SrvStateEnum::key(getState()) << std::endl;
     }
 }
 
 void
 RemoteServer::_powerOff()
 {
-    shutDownServer();
+
 }
 
 void
@@ -61,10 +57,10 @@ RemoteServer::getOption(Opt option) const
 {
     switch (option) {
             
-        case Opt::SRV_PORT:      return config.port;
-        case Opt::SRV_PROTOCOL:  return (i64)config.protocol;
-        case Opt::SRV_AUTORUN:   return config.autoRun;
-        case Opt::SRV_VERBOSE:   return config.verbose;
+        case Opt::SRV_ENABLE:       return (i64)config.enable;
+        case Opt::SRV_PORT:         return (i64)config.port;
+        case Opt::SRV_TRANSPORT:    return (i64)config.transport;
+        case Opt::SRV_VERBOSE:      return (i64)config.verbose;
 
         default:
             fatalError;
@@ -76,22 +72,37 @@ RemoteServer::checkOption(Opt opt, i64 value)
 {
     switch (opt) {
 
+        case Opt::SRV_ENABLE:
         case Opt::SRV_PORT:
-        case Opt::SRV_PROTOCOL:
-        case Opt::SRV_AUTORUN:
         case Opt::SRV_VERBOSE:
 
             return;
 
+        case Opt::SRV_TRANSPORT:
+
+            if (!isSupported(TransportProtocol(value))) {
+
+                auto name = string(TransportProtocolEnum::key(TransportProtocol(value)));
+                throw CoreError(CoreError::OPT_UNSUPPORTED, "Unsupported transport: " + name);
+            }
+            return;
+
         default:
-            throw(Fault::OPT_UNSUPPORTED);
+            throw CoreError(CoreError::OPT_UNSUPPORTED);
     }
 }
 
 void
-RemoteServer::setOption(Opt option, i64 value)
+RemoteServer::setOption(Opt opt, i64 value)
 {
-    switch (option) {
+    checkOption(opt, value);
+
+    switch (opt) {
+
+        case Opt::SRV_ENABLE:
+
+            config.enable = (bool)value;
+            return;
 
         case Opt::SRV_PORT:
             
@@ -110,14 +121,21 @@ RemoteServer::setOption(Opt option, i64 value)
             }
             return;
             
-        case Opt::SRV_PROTOCOL:
-            
-            config.protocol = (ServerProtocol)value;
-            return;
-            
-        case Opt::SRV_AUTORUN:
-            
-            config.autoRun = (bool)value;
+        case Opt::SRV_TRANSPORT:
+
+            if (config.transport != (TransportProtocol)value) {
+
+                if (isOff()) {
+
+                    config.transport = (TransportProtocol)value;
+
+                } else {
+
+                    stop();
+                    config.transport = (TransportProtocol)value;
+                    start();
+                }
+            }
             return;
 
         case Opt::SRV_VERBOSE:
@@ -130,88 +148,79 @@ RemoteServer::setOption(Opt option, i64 value)
     }
 }
 
+RemoteServerInfo
+RemoteServer::cacheInfo() const
+{
+    RemoteServerInfo info;
+
+    info.state = getState();
+
+    return info;
+}
+
 void
 RemoteServer::start()
 {
-    if (isOff()) {
-
-        debug(SRV_DEBUG, "Starting server...\n");
-        switchState(SrvState::STARTING);
-        
-        // Make sure we continue with a terminated server thread
-        if (serverThread.joinable()) serverThread.join();
-        
-        // Spawn a new thread
-        serverThread = std::thread(&RemoteServer::main, this);
-    }
+    transport().start(config.port, endpoint());
 }
 
 void
 RemoteServer::stop()
 {
-    if (!isOff()) {
+    if (isOff() || isStopping()) return;
 
-        debug(SRV_DEBUG, "Stopping server...\n");
-        switchState(SrvState::STOPPING);
-        
-        // Interrupt the server thread
-        disconnect();
-        
-        // Wait until the server thread has terminated
-        if (serverThread.joinable()) serverThread.join();
-        
-        switchState(SrvState::OFF);
-    }
+    transport().stop();
 }
 
 void
-RemoteServer::disconnect()
+RemoteServer::waitForLaunch()
 {
-
+    transport().wait();
 }
 
 void
-RemoteServer::switchState(SrvState newState)
+RemoteServer::recordTraffic(TrafficDirection direction, const string &payload)
 {
-    auto oldState = state;
-    
-    if (oldState != newState) {
-        
-        debug(SRV_DEBUG, "Switching state: %s -> %s\n",
-              SrvStateEnum::key(state), SrvStateEnum::key(newState));
-        
-        // Switch state
-        state = newState;
-        
-        // Call the delegation method
-        didSwitch(oldState, newState);
-        
-        // Inform the GUI
-        msgQueue.put(Msg::SRV_STATE, (i64)newState);
-    }
-}
-
-void
-RemoteServer::handleError(const char *description)
-{
-    switchState(SrvState::INVALID);
-    retroShell << "Server Error: " << string(description) << '\n';
+    remoteManager.recordTraffic(ServerType(objid), direction, payload);
 }
 
 void
 RemoteServer::didSwitch(SrvState from, SrvState to)
 {
-    if (from == SrvState::STARTING && to == SrvState::LISTENING) {
-        didStart();
-    }
-    if (to == SrvState::OFF) {
-        didStop();
-    }
-    if (to == SrvState::CONNECTED) {
-        didConnect();
-    }
-    if (from == SrvState::CONNECTED) {
-        didDisconnect();
+    if (from != to) msgQueue.put(Msg::SRV_STATE, (i64)to);
+}
+
+void
+RemoteServer::didTerminate(const string &error)
+{
+    transport().switchState(SrvState::INVALID);
+    retroShell << "Server Error: " << error << '\n';
+}
+
+void
+RemoteServer::send(char payload)
+{
+    send(string(1, payload));
+}
+
+void
+RemoteServer::send(int payload)
+{
+    send(std::to_string(payload));
+}
+
+void
+RemoteServer::send(long payload)
+{
+    send(std::to_string(payload));
+}
+
+void
+RemoteServer::send(std::stringstream &payload)
+{
+    string line;
+    while(std::getline(payload, line)) {
+        send(line + "\n");
     }
 }
 

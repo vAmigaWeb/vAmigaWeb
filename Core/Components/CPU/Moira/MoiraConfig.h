@@ -7,38 +7,40 @@
 
 #pragma once
 
+// Provides the name lookup that the headers of the surrounding core rely on
+#include "vaconfig.h"
+
 /* Set to true to enable precise timing mode (68000 and 68010 only).
  *
- * If disabled, Moira calls function 'sync' at the end of each instruction
- * with the number of elapsed cycles as argument. In precise timing mode,
- * 'sync' is called prior to each memory access. This enables the client to
- * emulate the surrounding hardware up the point where the memory access
- * actually happens.
+ * When disabled, Moira calls the 'sync' function at the end of each instruction,
+ * passing the number of elapsed cycles as an argument. In precise timing mode,
+ * 'sync' is called before each memory access, allowing the client to emulate
+ * the surrounding hardware up to the point where the memory access occurs.
  *
- * Precise timing mode is only available in 68000 or 68010 emulation. For
- * all other supported models, this setting has no effect.
+ * Precise timing mode is available only for 68000 and 68010 emulation. For
+ * other supported models, this setting has no effect.
  *
- * Enable to improve accuracy, disable to gain speed.
+ * Enable to improve accuracy, disable it to enhance performance.
  */
 #define MOIRA_PRECISE_TIMING true
 
 /* Set to true to implement the CPU interface as virtual functions.
  *
- * To communicate with the environment (e.g., for reading data from memory),
- * the CPU calls an appropriate function that has to be implemented by the
- * client. If this option is set to true, all API functions are declared
- * virtual which corresponds to the standard OOP pradigm. Because virtual
- * functions impose a performance penalty, Moira allows to link the client API
- * statically by setting this option to false.
+ * To interact with the environment (e.g., for reading data from memory),
+ * the CPU calls an appropriate function that must be implemented by the client.
+ * When this option is enabled, all API functions are declared virtual, following
+ * the standard object-oriented programming (OOP) paradigm. However, virtual
+ * functions introduce a performance penalty. Setting this option to false allows
+ * the client API to be statically linked, improving performance.
  *
- * Enable to follow the standard OOP paradigm, disable to gain speed.
+ * Enable to adhere to the standard OOP paradigm, disable to gain speed.
  */
 #define MOIRA_VIRTUAL_API false
 
 /* Set to true to enable address error checking.
  *
- * The 68000 and 68010 signal an address error violation if a word or long word
- * is accessed at an odd memory location.
+ * The 68000 and 68010 trigger an address error violation if a word or longword
+ * is accessed at an odd memory address.
  *
  * Enable to improve accuracy, disable to gain speed.
  */
@@ -54,39 +56,44 @@
  */
 #define MOIRA_EMULATE_FC true
 
+/* Set to true to emulate the 68020 instruction cache.
+ *
+ * The 68020 caches instruction fetches in a small on-chip cache (see
+ * MoiraCache.h). When this option is disabled, every instruction fetch is
+ * treated as a cache miss and goes straight to the bus, which is faster to
+ * emulate but does not reproduce the cycle savings a real cache provides.
+ * This setting has no effect for other supported models, which have no
+ * instruction cache.
+ *
+ * Enable to improve accuracy, disable to gain speed.
+ */
+#define MOIRA_EMULATE_ICACHE true
+
 /* Set to true to enable the disassembler.
  *
- * The disassembler requires a jump table which consumes about 1MB of memory.
+ * The disassembler requires a jump table which consumes about 1MB of memory,
+ * plus 0.25MB for the instruction info table storing information about the
+ * instruction (Instr I), the addressing mode (Mode M), and the size attribute
+ * (Size S) for all 65536 opcode words.
  *
  * Disable to save space.
  */
 #define MOIRA_ENABLE_DASM true
 
-/* Set to true to build the InstrInfo lookup table.
+/* Enables Musashi compatibility mode.
  *
- * The instruction info table stores information about the instruction
- * (Instr I), the addressing mode (Mode M), and the size attribute (Size S) for
- * all 65536 opcode words. The table is meant to provide data for, e.g.,
- * external debuggers. It is not needed by Moira itself and therefore disabled
- * by default.
+ * When set to true, Moira runs in a special mode designed for compatibility
+ * with the Musashi emulator. This mode is primarily used by the test runner
+ * application to compare Moira's behavior against Musashi.
  *
- * Disable to save space.
- */
-#define MOIRA_BUILD_INSTR_INFO_TABLE false
-
-/* Set to true to run Moira in a special Musashi compatibility mode.
- *
- * The compatibility mode is used by the test runner application to compare
- * Moira against Musashi.
- *
- * Disable to improve accuracy.
+ * Set to false for improved accuracy.
  */
 #define MOIRA_MIMIC_MUSASHI false
 
 /* The following macro appears at the beginning of each instruction handler.
  * Moira will call 'willExecute(...)' for all listed instructions.
  */
-#define MOIRA_WILL_EXECUTE I == Instr::STOP || I == Instr::TAS || I == Instr::BKPT
+#define MOIRA_WILL_EXECUTE    I == Instr::STOP || I == Instr::TAS || I == Instr::BKPT
 
 /* The following macro appear at the end of each instruction handler.
  * Moira will call 'didExecute(...)' for all listed instructions.

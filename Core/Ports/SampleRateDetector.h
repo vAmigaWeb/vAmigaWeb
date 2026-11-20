@@ -2,15 +2,16 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
 
 #include "SubComponent.h"
-#include "Chrono.h"
+#include "utl/chrono.h"
+#include "utl/storage.h"
 
 namespace vamiga {
 
@@ -32,10 +33,10 @@ class SampleRateDetector final : public SubComponent {
     isize count = 0;
 
     // Measured timespan between two requests
-    util::Clock delta;
+    utl::Clock delta;
 
     // Ring buffer storing the latest measurements
-    util::RingBuffer<double, 256> buffer;
+    utl::RingBuffer<double, 256> buffer;
 
     // Number of filtered out outliers at both ends
     const isize trash = 6;

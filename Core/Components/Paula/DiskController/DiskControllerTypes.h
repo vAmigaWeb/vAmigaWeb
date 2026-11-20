@@ -2,14 +2,15 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
+/// @file
 
 #pragma once
 
-#include "Infrastructure/Reflection.h"
+#include "BasicTypes.h"
 
 namespace vamiga {
 
@@ -17,6 +18,7 @@ namespace vamiga {
 // Enumerations
 //
 
+/// State of the disk DMA engine.
 enum class DriveDmaState
 {
     OFF,     // Drive is idle
@@ -28,7 +30,7 @@ enum class DriveDmaState
     FLUSH,   // Drive is finishing up the write process
 };
 
-struct DriveStateEnum : Reflection<DriveStateEnum, DriveDmaState>
+struct DriveStateEnum : utl::Reflectable<DriveStateEnum, DriveDmaState>
 {
     static constexpr long minVal = 0;
     static constexpr long maxVal = long(DriveDmaState::FLUSH);
@@ -68,9 +70,10 @@ struct DriveStateEnum : Reflection<DriveStateEnum, DriveDmaState>
 // Structures
 //
 
+/// Configuration options of the disk controller.
 typedef struct
 {
-    /* Acceleration factor. This value equals the number of words that get
+    /** Acceleration factor. This value equals the number of words that get
      * transfered into memory during a single disk DMA cycle. This value must
      * be 1 to emulate a real Amiga. If it set to, e.g., 2, the drive loads
      * twice as fast. A value of -1 indicates a turbo drive. In this case,
@@ -78,11 +81,12 @@ typedef struct
      */
     i32 speed;
     
-    bool lockDskSync;
-    bool autoDskSync;
+    bool lockDskSync;                       ///< Ignore writes to DSKSYNC
+    bool autoDskSync;                       ///< Always find a sync mark
 }
 DiskControllerConfig;
 
+/// Returns true if the given value is a valid drive speed.
 inline bool isValidDriveSpeed(isize speed)
 {
     switch (speed) {
@@ -92,17 +96,18 @@ inline bool isValidDriveSpeed(isize speed)
     return false;
 }
 
+/// State of the disk controller.
 typedef struct
 {
-    isize selectedDrive;
-    DriveDmaState state;
-    i32 fifo[6];
-    u8 fifoCount;
+    isize selectedDrive;                    ///< Number of the selected drive
+    DriveDmaState state;                    ///< State of the disk DMA
+    i32 fifo[6];                            ///< Contents of the disk FIFO
+    u8 fifoCount;                           ///< Number of bytes in the FIFO
     
-    u16 dsklen;
-    u16 dskbytr;
-    u16 dsksync;
-    u8 prb;
+    u16 dsklen;                             ///< Disk DMA length register (DSKLEN)
+    u16 dskbytr;                            ///< Disk data byte and status register (DSKBYTR)
+    u16 dsksync;                            ///< Disk sync register (DSKSYNC)
+    u8 prb;                                 ///< CIA B port register B (drive control lines)
 }
 DiskControllerInfo;
 

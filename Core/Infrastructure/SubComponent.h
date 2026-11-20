@@ -30,7 +30,7 @@ public:
     class Denise &denise;
     class DiagBoard &diagBoard;
     class DiskController &diskController;
-    class DmaDebugger &dmaDebugger;
+    class XRay &xray;
     class FloppyDrive &df0;
     class FloppyDrive &df1;
     class FloppyDrive &df2;
@@ -55,6 +55,8 @@ public:
     class RamExpansion &ramExpansion;
     class RemoteManager &remoteManager;
     class RetroShell &retroShell;
+    class RetroShell &rshShell;
+    class RetroShell &rpcShell;
     class RTC &rtc;
     class SerialPort &serialPort;
     class UART &uart;
@@ -78,7 +80,7 @@ public:
     SubComponent(Amiga& ref, isize id = 0);
 
     bool isRunAheadInstance() const;
-    void prefix(isize level,  const char *component, isize line) const override;
+    string prefix(long, const std::source_location &) const override;
 };
 
 }

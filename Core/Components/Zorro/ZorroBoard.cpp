@@ -2,22 +2,22 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "ZorroBoard.h"
-#include "IOUtils.h"
 #include "Memory.h"
+#include "utl/io.h"
 
 namespace vamiga {
 
 void
 ZorroBoard::_dump(Category category, std::ostream &os) const
 {
-    using namespace util;
+    using namespace utl;
     
     if (category == Category::Properties) {
         
@@ -118,14 +118,14 @@ ZorroBoard::peekACF8(u32 addr) const
         result = 0x00;
     }
     
-    trace(ACF_DEBUG, "peekACF8(%06x) = %02x\n", offset, result);
+    logmsg(LOG_ACF, "peekACF8(%06x) = %02x\n", offset, result);
     return result;
 }
 
 void
 ZorroBoard::pokeACF8(u32 addr, u8 value)
 {
-    trace(ACF_DEBUG, "pokeACF8(%06x,%02x)\n", addr, value);
+    logmsg(LOG_ACF, "pokeACF8(%06x,%02x)\n", addr, value);
     
     switch (addr & 0xFFFF) {
 
@@ -139,7 +139,7 @@ ZorroBoard::pokeACF8(u32 addr, u8 value)
             // Update the memory map
             mem.updateMemSrcTables();
 
-            trace(ACF_DEBUG, "Device mapped to $%06x\n", baseAddr);
+            logmsg(LOG_ACF, "Device mapped to $%06x\n", baseAddr);
             return;
             
         case 0x4A: // ec_BaseAddress (A19 - A16, 0x---X0000)

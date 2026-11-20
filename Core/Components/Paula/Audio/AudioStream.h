@@ -2,17 +2,16 @@
 // This file is part of vAmiga
 //
 // Copyright (C) Dirk W. Hoffmann. www.dirkwhoffmann.de
-// Licensed under the GNU General Public License v3
+// Licensed under the Mozilla Public License v2
 //
-// See https://www.gnu.org for license information
+// See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
 #pragma once
 
 #include "CoreObject.h"
-#include "Concurrency.h"
-#include "RingBuffer.h"
-#include "Synchronizable.h"
+#include "utl/storage.h"
+#include "utl/concurrency.h"
 
 namespace vamiga {
 
@@ -37,7 +36,7 @@ struct SamplePair
 // AudioStream
 //
 
-class AudioStream : public CoreObject, public Synchronizable, public util::ResizableRingBuffer<SamplePair> {
+class AudioStream : public CoreObject, public Synchronizable, public utl::ResizableRingBuffer<SamplePair> {
 
 public:
 
@@ -56,7 +55,7 @@ public:
     //
     // Initializing
     //
-    AudioStream(isize capacity) : util::ResizableRingBuffer<SamplePair>(capacity) { }
+    AudioStream(isize capacity) : utl::ResizableRingBuffer<SamplePair>(capacity) { }
 
     
     //
@@ -78,18 +77,15 @@ public:
     // Visualizing the waveform
     //
 
-    /* Plots a graphical representation of the waveform. Returns the highest
-     * amplitute that was found in the ringbuffer. To implement auto-scaling,
-     * pass the returned value as parameter highestAmplitude in the next call
-     * to this function.
+    /* Plots a graphical representation of the waveform of the left or right
+     * channel. Returns the highest amplitude that was found in the ringbuffer.
+     * To implement auto-scaling, pass the returned value as parameter
+     * 'highest' in the next call to this function.
      */
-    void drawL(u32 *buffer, isize width, isize height, u32 color) const;
-    void drawR(u32 *buffer, isize width, isize height, u32 color) const;
-
-private:
-
     float drawL(u32 *buffer, isize width, isize height, float highest, u32 color) const;
     float drawR(u32 *buffer, isize width, isize height, float highest, u32 color) const;
+
+private:
 
     float draw(u32 *buffer, isize width, isize height, float scale,
                std::function<float(float x)>data, u32 color) const;

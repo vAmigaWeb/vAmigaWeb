@@ -10,6 +10,8 @@
 #pragma once
 
 #include "CoreObject.h"
+#include <atomic>
+#include <mutex>
 
 #ifdef _WIN32
 
@@ -34,12 +36,18 @@ namespace vamiga {
 
 class Socket : public CoreObject {
 
-    SOCKET socket;
+    /* The socket descriptor. It is read by the thread that sends data while
+     * another thread may close the socket (see close()), hence atomic.
+     */
+    std::atomic<SOCKET> socket;
+
+    // Keeps the packets of concurrent senders apart, and send() away from close()
+    std::mutex sendMutex;
 
 public:
     
     // Size of the communication buffer
-    static constexpr isize BUFFER_SIZE = 512;
+    static constexpr isize BUFFER_SIZE = 2048;
     
     
     //
@@ -75,9 +83,17 @@ private:
     
 public:
     
-    void connect(u16 port) throws;
-    void bind(u16 port) throws;
+    void connect(u16 port);
+    void bind(u16 port);
     void listen();
+
+    /* Waits until accept() can proceed without blocking, or until the
+     * timeout expires. Returns true in the former case. Lets a caller park
+     * on a listening socket without becoming unkillable -- see
+     * TcpTransport::mainLoop().
+     */
+    bool waitForConnection(isize milliseconds);
+
     Socket accept();
     void close();
 

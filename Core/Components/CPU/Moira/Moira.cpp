@@ -5,11 +5,11 @@
 // Published under the terms of the MIT License
 // -----------------------------------------------------------------------------
 
-#include "config.h"
 #include "MoiraConfig.h"
 #include "Moira.h"
 #include "MoiraMacros.h"
 
+#include <cassert>
 #include <cstdio>
 #include <algorithm>
 #include <cmath>
@@ -21,8 +21,12 @@ namespace vamiga::moira {
 
 using namespace Flag;
 
+// Mark this file as the main translation unit
+#define MOIRA_MAIN_TU
+
 #include "MoiraInit_cpp.h"
 #include "MoiraALU_cpp.h"
+#include "MoiraCache_cpp.h"
 #include "MoiraDataflow_cpp.h"
 #include "MoiraExceptions_cpp.h"
 #include "MoiraExec_cpp.h"
@@ -33,7 +37,7 @@ Moira::Moira(Amiga &ref) : SubComponent(ref)
 {
     exec = new ExecPtr[65536];
     loop = new ExecPtr[65536];
-    if (MOIRA_BUILD_INSTR_INFO_TABLE) info = new InstrInfo[65536];
+    if (MOIRA_ENABLE_DASM) info = new InstrInfo[65536];
     if (MOIRA_ENABLE_DASM) dasm = new DasmPtr[65536];
 
     createJumpTable(cpuModel, dasmModel);
@@ -63,19 +67,43 @@ Moira::~Moira()
     if (dasm) delete [] dasm;
 }
 
+std::string
+Moira::version()
+{
+    std::string result;
+    
+    result = std::to_string(Version::major) + "." + std::to_string(Version::minor);
+    if constexpr (Version::patch > 0) result += "." + std::to_string(Version::patch);
+    if constexpr (Version::beta > 0) result += 'b' + std::to_string(Version::beta);
+    
+    return result;
+}
+
+std::string
+Moira::build()
+{
+#ifdef NDEBUG
+    std::string db = "";
+#else
+    std::string db = " [DEBUG BUILD]";
+#endif
+    
+    return version() + db + " (" + __DATE__ + " " + __TIME__ + ")";
+}
+
 void
 Moira::setModel(Model cpuModel, Model dasmModel)
 {
     if (this->cpuModel != cpuModel || this->dasmModel != dasmModel) {
-
+        
         this->cpuModel = cpuModel;
         this->dasmModel = dasmModel;
 
         createJumpTable(cpuModel, dasmModel);
-
+        
         reg.cacr &= cacrMask();
-        flags &= ~State::LOOPING;
         flushInstructionCache();
+        flags &= ~State::LOOPING;
     }
 }
 
@@ -152,7 +180,7 @@ Moira::cacrMask() const
     switch (cpuModel) {
 
         case Model::M68020: case Model::M68EC020: return 0x0003;
-        case Model::M68030: case Model::M68EC030: return 0x3F13;
+        case Model::M68030: case Model::M68EC030: return 0x3313;
         
         default:
             return 0xFFFF;
@@ -169,19 +197,6 @@ Moira::addrMask() const
         
         default:
             return addrMask<Core::C68020>();
-    }
-}
-
-template <Core C> u32
-Moira::addrMask() const
-{
-    if constexpr (C == Core::C68020) {
-
-        return cpuModel == Model::M68EC020 ? 0x00FFFFFF : 0xFFFFFFFF;
-
-    } else {
-
-        return 0x00FFFFFF;
     }
 }
 
@@ -207,14 +222,12 @@ Moira::reset()
     reg.sr.s = 1;
     reg.sr.ipl = 7;
 
-    flushInstructionCache();
-
     ipl = 0;
     fcl = 2;
     fcSource = 0;
-    cp = 0;
-    cpAccum = 0;
-    cpStall = 0;
+    budget = { };
+    
+    flushInstructionCache();
 
     SYNC(16);
 
@@ -240,34 +253,39 @@ Moira::reset()
     // Inform the delegate
     cpuDidReset();
 }
+
 void
 Moira::syncCp(int cycles)
 {
-    /* Accumulate the exact model time. Instruction fetches that hit the cache
-     * are credited with a negative amount (see readInstructionWord), so the
-     * accumulator can drop below the granularity of the environment, which is
-     * stepped in whole bus cycles of two CPU cycles each.
-     */
-    cpAccum += cycles;
+    // Max number of instructions that may execute without advancing the clock
+    static constexpr int maxStalled = 4;
 
-    if (cpAccum >= 2) {
+    // Lower bound for the model time debt
+    static constexpr int minAccum = -454;
 
-        // Spend everything that amounts to whole bus cycles
-        int step = cpAccum & ~1;
-        cpAccum -= step;
-        cpStall = 0;
+    // Accumulate the cycle penalty (may become negative)
+    budget.accumulated += cycles;
+
+    if (budget.accumulated >= 2) {
+
+        // The CPU is ahead of its environment. Spend everything that amounts
+        // to whole bus cycles
+    
+        int step = budget.accumulated & ~1;
+        budget.accumulated -= step;
+        budget.stalled = 0;
         sync(step);
 
-    } else if (++cpStall >= CpStallMax) {
+    } else if (++budget.stalled >= maxStalled) {
 
-        /* Nothing to spend for a while now. Since the environment is stepped
-         * from here alone, it has to be moved forward regardless - otherwise
-         * the emulation makes no progress and its main loop never terminates.
-         * The borrowed bus cycle is booked as a debt.
-         */
-        cpStall = 0;
-        cpAccum -= 2;
-        if (cpAccum < CpAccumMin) cpAccum = CpAccumMin;
+        // Nothing was spend for a while now. Since the environment is stepped
+        // from here alone, it has to be moved forward regardless - otherwise
+        // the emulation makes no progress and its main loop never terminates.
+        // The borrowed bus cycle is booked as a debt.
+        
+        budget.stalled = 0;
+        budget.accumulated -= 2;
+        if (budget.accumulated < minAccum) budget.accumulated = minAccum;
         sync(2);
     }
 }
@@ -439,16 +457,18 @@ Moira::processException(const std::exception &exc)
 
         if (auto df = dynamic_cast<const DoubleFault *>(&exc); df) {
 
-            throw df;
+            throw *df;
         }
 
-    } catch (DoubleFault &) {
+    } catch (const DoubleFault &) {
 
         halt();
         return;
     }
 
-    throw exc;
+    // Unhandled exception (we should not be here)
+    fprintf(stderr, "Moira: CPU halted at PC %06x: %s\n", reg.pc0, exc.what());
+    halt();
 }
 
 bool
@@ -551,8 +571,13 @@ Moira::setSR(u16 val)
 void
 Moira::setCACR(u32 val)
 {
+    // Setting the CE bit invalidates the entry for the address in CAAR
+    if (val & (1 << 2)) invalidateCacheEntry(reg.caar);
+
+    // Setting the C bit invalidates all entries
+    if (val & (1 << 3)) flushInstructionCache();
+
     reg.cacr = val & cacrMask();
-    if (hasICache()) flushInstructionCache();
     didChangeCACR(val);
 }
 
@@ -561,62 +586,6 @@ Moira::setCAAR(u32 val)
 {
     reg.caar = val;
     didChangeCAAR(val);
-}
-
-void
-Moira::flushInstructionCache()
-{
-    flushInstructionLatch();
-    for (int i = 0; i < ICacheLines020; i++) {
-        iCache020[i].valid = false;
-    }
-}
-
-void
-Moira::flushInstructionLatch()
-{
-    iCacheAddr020 = 0xffffffff;
-    iCacheData020 = 0xffffffff;
-}
-
-bool
-Moira::fillInstructionCache(u32 addr)
-{
-    u32 base = (addr & addrMask()) & ~3;
-    int index = (int)((base >> 2) & (ICacheLines020 - 1));
-    u32 tag = (reg.sr.s ? 1u : 0u) | (base & ~((u32)((ICacheLines020 << 2) - 1)));
-    bool busAccess = false;
-
-    if (iCache020[index].valid && iCache020[index].tag == tag) {
-        iCacheData020 = iCache020[index].data;
-    } else {
-        u32 data = read32(base);
-        busAccess = true;
-        iCacheData020 = data;
-        if ((reg.cacr & 1) && !(reg.cacr & 2)) {
-            iCache020[index].tag = tag;
-            iCache020[index].data = data;
-            iCache020[index].valid = true;
-        }
-    }
-    iCacheAddr020 = base;
-    return busAccess;
-}
-
-u16
-Moira::readInstructionCache(u32 addr, bool &busAccess)
-{
-    u32 base = addr & ~3;
-
-    /* A hit in the longword latch or in the cache is served without touching
-     * the bus. The caller uses this to skip the bus cycle penalty, which is
-     * what makes cached code outrun uncached code on the real machine. The
-     * same distinction is made in WinUAE, where only a miss in fill_icache020
-     * reaches the memory access functions.
-     */
-    busAccess = iCacheAddr020 != base && fillInstructionCache(base);
-
-    return u16(iCacheData020 >> ((addr & 2) ? 0 : 16));
 }
 
 void
@@ -652,42 +621,6 @@ Moira::setSupervisorFlags(bool s, bool m)
     if (uspIsVisible)  reg.sp = reg.usp;
     if (ispIsVisible)  reg.sp = reg.isp;
     if (mspIsVisible)  reg.sp = reg.msp;
-}
-
-template <Size S> u32
-Moira::readD(int n) const
-{
-    return CLIP<S>(reg.d[n]);
-}
-
-template <Size S> u32
-Moira::readA(int n) const
-{
-    return CLIP<S>(reg.a[n]);
-}
-
-template <Size S> u32
-Moira::readR(int n) const
-{
-    return CLIP<S>(reg.r[n]);
-}
-
-template <Size S> void
-Moira::writeD(int n, u32 v)
-{
-    reg.d[n] = WRITE<S>(reg.d[n], v);
-}
-
-template <Size S> void
-Moira::writeA(int n, u32 v)
-{
-    reg.a[n] = WRITE<S>(reg.a[n], v);
-}
-
-template <Size S> void
-Moira::writeR(int n, u32 v)
-{
-    reg.r[n] = WRITE<S>(reg.r[n], v);
 }
 
 u16
@@ -911,15 +844,6 @@ Moira::setFC(u8 value)
     }
 }
 
-template <Mode M> void
-Moira::setFC()
-{
-    if constexpr (MOIRA_EMULATE_FC) {
-        
-        fcl = (M == Mode::DIPC || M == Mode::IXPC) ? FC::USER_PROG : FC::USER_DATA;
-    }
-}
-
 void
 Moira::setIPL(u8 val)
 {
@@ -950,13 +874,13 @@ Moira::getIrqVector(u8 level) const {
 InstrInfo
 Moira::getInstrInfo(u16 op) const
 {
-    if constexpr (MOIRA_BUILD_INSTR_INFO_TABLE) {
+    if constexpr (MOIRA_ENABLE_DASM) {
 
         return info[op];
 
     } else {
 
-        throw std::runtime_error("This feature requires MOIRA_BUILD_INSTR_INFO_TABLE = true\n");
+        throw std::runtime_error("This feature requires MOIRA_ENABLE_DASM = true\n");
     }
 }
 

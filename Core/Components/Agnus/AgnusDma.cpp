@@ -7,7 +7,7 @@
 // See https://mozilla.org/MPL/2.0 for license information
 // -----------------------------------------------------------------------------
 
-#include "config.h"
+#include "vaconfig.h"
 #include "Agnus.h"
 #include "Denise.h"
 
@@ -116,53 +116,76 @@ Agnus::doBitplaneDmaRead()
 {
     assert(bitplane >= 0 && bitplane <= 7);
     constexpr BusOwner owner = BusOwner(BUS_BPL1 + bitplane);
+        
+    auto numWords = bplFetchWords();
+        
+    switch (isAGA() ? fmode & 0b11 : 0) {
+            
+        case 0:
+          
+            bpldatNext[bitplane] = mem.peek16<Accessor::AGNUS>(bplpt[bitplane]);
+            bpldatNextValid[bitplane] = 0;
+            break;
+            
+        case 1: {
+            
+            u64 w0 = mem.peek16<Accessor::AGNUS>(bplpt[bitplane]);
+            u64 w1 = mem.peek16<Accessor::AGNUS>(bplpt[bitplane] | 0b010);
 
-    // Number of words fetched in this DMA cycle (AGA FMODE)
-    const u8 words = bplFetchWords();
+            bpldatNext[bitplane] = w1 << 16 | w0;
+            bpldatNextValid[bitplane] = 1;
+            break;
+        }
 
-    /* A wide fetch ignores the low address bits, so an unaligned pointer is
-     * truncated rather than honored (see alignPtr).
-     */
-    u32 a = alignPtr(bplpt[bitplane], words);
-    u16 result = mem.peek16 <Accessor::AGNUS> (a);
+        case 2: {
+            
+            u64 w0 = mem.peek16<Accessor::AGNUS>(bplpt[bitplane]);
 
-    /* Collect the remaining words of the fetch. They are handed over to Denise
-     * separately and shifted into the bitplane pipeline one by one.
-     */
-    bpldatNext[bitplane] = 0;
-    for (u8 i = 1; i < words; i++) {
-        u16 w = mem.peek16 <Accessor::AGNUS> (a + 2 * i);
-        bpldatNext[bitplane] |= (u64)w << (16 * (i - 1));
+            bpldatNext[bitplane] = w0 << 16 | w0;
+            bpldatNextValid[bitplane] = 1;
+            break;
+        }
+
+        case 3: {
+            
+            u64 w0 = mem.peek16<Accessor::AGNUS>(bplpt[bitplane]);
+            u64 w1 = mem.peek16<Accessor::AGNUS>(bplpt[bitplane] | 0b010);
+            u64 w2 = mem.peek16<Accessor::AGNUS>(bplpt[bitplane] | 0b100);
+            u64 w3 = mem.peek16<Accessor::AGNUS>(bplpt[bitplane] | 0b110);
+
+            bpldatNext[bitplane] = w3 << 48 | w2 << 32 | w1 << 16 | w0;
+            bpldatNextValid[bitplane] = 3;
+            break;
+        }
+
+        default:
+            fatalError;
     }
-    bpldatNextValid[bitplane] = words - 1;
+
+    u16 result = bpldatNext[bitplane] & 0xFFFF;
+    bpldatNext[bitplane] >>= 16;
 
     if (bplGuessEnabled && bitplane < BPL_GUESS_PLANES) {
-        // A single AGA fetch covers several words, so count them all and let
-        // the address range span up to the last word (see FMODE)
-        u32 last = a + 2 * (words - 1);
-        if (a < bplGuessMinLive[bitplane]) bplGuessMinLive[bitplane] = a;
+        u32 address = bplpt[bitplane];
+        u32 last = address + 2 * (numWords - 1);
+        if (address < bplGuessMinLive[bitplane]) bplGuessMinLive[bitplane] = address;
         if (last > bplGuessMaxLive[bitplane]) bplGuessMaxLive[bitplane] = last;
-        bplGuessLineWords[bitplane] += words;
+        bplGuessLineWords[bitplane] += numWords;
         if (pos.v < BPL_GUESS_MAX_LINES) {
-
-            bplGuessWordsPerLineLive[pos.v][bitplane] += words;
-
-            // Record the pointer at the first fetch of this scanline so the
-            // guesser can measure the real line-to-line stride (see
-            // wasm_get_bitplane_areas)
+            bplGuessWordsPerLineLive[pos.v][bitplane] += numWords;
             if (!bplGuessHadFirst[bitplane]) {
-                bplGuessFirstLive[pos.v][bitplane] = a;
+                bplGuessFirstLive[pos.v][bitplane] = address;
                 bplGuessHadFirst[bitplane] = true;
             }
         }
     }
-
+    
     busOwner[pos.h] = owner;
-    busAddr[pos.h] = a;
+    busAddr[pos.h] = bplpt[bitplane];
     busData[pos.h] = result;
     stats.usage[isize(owner)]++;
 
-    bplpt[bitplane] = a + 2 * words;
+    bplpt[bitplane] += 2 * numWords;
     return result;
 }
 
@@ -172,33 +195,82 @@ Agnus::doSpriteDmaRead()
     assert(channel >= 0 && channel <= 7);
     constexpr BusOwner owner = BusOwner(BUS_SPRITE0 + channel);
 
-    // Number of words fetched in this DMA cycle (AGA FMODE)
-    const u8 words = sprFetchWords();
+    auto numWords = sprFetchWords();
 
-    // A wide fetch ignores the low address bits (see alignPtr)
-    u32 a = alignPtr(sprpt[channel], words);
-    u16 result = mem.peek16 <Accessor::AGNUS> (a);
-
-    /* Collect the remaining words of the fetch. They are handed over to Denise
-     * separately and extend the sprite to 32 or 64 pixels. The first fetched
-     * word is the leftmost one, so the extension is stored right below it.
+    /* The words are read individually and the low address bits are supplied
+     * by the fetch, not by the pointer. A wide fetch therefore truncates an
+     * unaligned pointer rather than honoring it, exactly as a wide bitplane
+     * fetch does (see doBitplaneDmaRead).
      */
-    sprdatNext[channel] = 0;
-    for (u8 i = 1; i < words; i++) {
-        u16 w = mem.peek16 <Accessor::AGNUS> (a + 2 * i);
-        sprdatNext[channel] |= (u64)w << (48 - 16 * i);
+    switch (isAGA() ? (fmode >> 2) & 0b11 : 0) {
+
+        case 0:
+
+            sprdatNext[channel] = mem.peek16<Accessor::AGNUS>(sprpt[channel]);
+            break;
+
+        case 1: {
+
+            u64 w0 = mem.peek16<Accessor::AGNUS>(sprpt[channel]);
+            u64 w1 = mem.peek16<Accessor::AGNUS>(sprpt[channel] | 0b010);
+
+            sprdatNext[channel] = w1 << 16 | w0;
+            break;
+        }
+
+        case 2: {
+
+            u64 w0 = mem.peek16<Accessor::AGNUS>(sprpt[channel]);
+
+            sprdatNext[channel] = w0 << 16 | w0;
+            break;
+        }
+
+        case 3: {
+
+            u64 w0 = mem.peek16<Accessor::AGNUS>(sprpt[channel]);
+            u64 w1 = mem.peek16<Accessor::AGNUS>(sprpt[channel] | 0b010);
+            u64 w2 = mem.peek16<Accessor::AGNUS>(sprpt[channel] | 0b100);
+            u64 w3 = mem.peek16<Accessor::AGNUS>(sprpt[channel] | 0b110);
+
+            sprdatNext[channel] = w3 << 48 | w2 << 32 | w1 << 16 | w0;
+            break;
+        }
+
+        default:
+            fatalError;
     }
 
+    u16 result = sprdatNext[channel] & 0xFFFF;
+    sprdatNext[channel] >>= 16;
+
     busOwner[pos.h] = owner;
-    busAddr[pos.h] = a;
+    busAddr[pos.h] = sprpt[channel];
     busData[pos.h] = result;
     stats.usage[isize(owner)]++;
 
-    /* The pointer always advances by the full bus width, even when the fetched
-     * words carry a control word rather than pixel data.
-     */
-    sprpt[channel] = a + 2 * words;
+    sprpt[channel] += 2 * numWords;
     return result;
+}
+
+template <int channel> u64
+Agnus::spriteDmaExt() const
+{
+    assert(channel >= 0 && channel <= 7);
+
+    /* The shift register is filled from the top: the word returned by
+     * doSpriteDmaRead occupies bits 63-48, the next one bits 47-32, and so
+     * on. sprdatNext holds those remaining words the other way round, with
+     * the next one in the low 16 bits, so the order has to be flipped.
+     */
+    u64 rest = sprdatNext[channel];
+    u64 ext = 0;
+
+    for (isize i = 0; i < sprFetchWords() - 1; i++, rest >>= 16) {
+        ext |= (rest & 0xFFFF) << (32 - 16 * i);
+    }
+
+    return ext;
 }
 
 u16
@@ -288,6 +360,15 @@ template u16 Agnus::doSpriteDmaRead<4>();
 template u16 Agnus::doSpriteDmaRead<5>();
 template u16 Agnus::doSpriteDmaRead<6>();
 template u16 Agnus::doSpriteDmaRead<7>();
+
+template u64 Agnus::spriteDmaExt<0>() const;
+template u64 Agnus::spriteDmaExt<1>() const;
+template u64 Agnus::spriteDmaExt<2>() const;
+template u64 Agnus::spriteDmaExt<3>() const;
+template u64 Agnus::spriteDmaExt<4>() const;
+template u64 Agnus::spriteDmaExt<5>() const;
+template u64 Agnus::spriteDmaExt<6>() const;
+template u64 Agnus::spriteDmaExt<7>() const;
 
 template bool Agnus::allocateBus<BusOwner::COPPER>();
 template bool Agnus::allocateBus<BusOwner::BLITTER>();

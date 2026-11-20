@@ -10,7 +10,7 @@
 #pragma once
 
 #include "VAmiga.h"
-#include "Wakeable.h"
+#include "utl/concurrency.h"
 #include <map>
 
 namespace vamiga {
@@ -20,7 +20,7 @@ struct SyntaxError : public std::runtime_error {
 };
 
 // The message listener
-void process(const void *listener, Message msg);
+void process(const void *listener, Message msg, std::exception_ptr exception);
 
 class Headless : Wakeable {
 

@@ -10,14 +10,17 @@
 #pragma once
 
 #include "AgnusTypes.h"
+#include "utl/support/Bits.h"
 #include "SubComponent.h"
 #include "Beam.h"
+#include "AgnusDebugger.h"
 #include "Blitter.h"
 #include "ChangeRecorder.h"
 #include "Copper.h"
-#include "DmaDebugger.h"
+#include "XRay.h"
 #include "Sequencer.h"
 #include "Memory.h"
+#include "utl/wrappers.h"
 
 namespace vamiga {
 
@@ -33,7 +36,7 @@ static constexpr usize DRAW_EVEN = 0b010;
 static constexpr usize DRAW_BOTH = 0b011;
 
 
-class Agnus : public SubComponent, public Inspectable<AgnusInfo, AgnusStats> {
+class Agnus : public SubComponent {
 
     Descriptions descriptions = {{
 
@@ -52,6 +55,15 @@ class Agnus : public SubComponent, public Inspectable<AgnusInfo, AgnusStats> {
     // Current configuration
     AgnusConfig config = {};
 
+public:
+
+    // Result of the latest inspection
+    utl::Backed<AgnusInfo> info;
+    utl::Backed<AgnusMetrics> metrics;
+
+    // Internally stored metrics
+    AgnusMetrics stats = {};
+
 
     //
     // Subcomponents
@@ -62,7 +74,8 @@ public:
     Sequencer sequencer = Sequencer(amiga);
     Copper copper = Copper(amiga);
     Blitter blitter = Blitter(amiga);
-    DmaDebugger dmaDebugger = DmaDebugger(amiga);
+    XRay xray = XRay(amiga);
+    AgnusDebugger debugger = AgnusDebugger(amiga);
 
 
     //
@@ -116,75 +129,74 @@ public:
     u16 bplcon1 = 0;
     u16 bplcon1Initial = 0;
 
-    // The DMA control register
+    // DMA control register
     u16 dmacon = 0;
     u16 dmaconInitial = 0;
-
-    // The AGA bitplane/sprite fetch mode register
-    u16 fmode = 0;
     
-    // The disk DMA pointer
+    // AGA bitplane/sprite fetch mode register
+    u16 fmode = 0;
+
+    /* ECS registers that are recognized and stored, but not yet acted upon.
+     * Real behavior (programmable horizontal/vertical blanking and sync) is
+     * not implemented; a write only updates the shadow value below.
+     */
+    u16 htotal = 0;
+    u16 hsstop = 0;
+    u16 hbstrt = 0;
+    u16 hbstop = 0;
+    u16 vtotal = 0;
+    u16 vsstop = 0;
+    u16 vbstrt = 0;
+    u16 vbstop = 0;
+    u16 hsstrt = 0;
+    u16 vsstrt = 0;
+    u16 hcenter = 0;
+    u16 hhposw = 0;
+
+    // Disk DMA pointer
     u32 dskpt = 0;
 
-    // The audio DMA pointers and pointer latches
+    // Audio DMA pointers and pointer latches
     u32 audpt[4] = { };
     u32 audlc[4] = { };
 
-    // The bitplane DMA pointers
+    // Bitplane DMA pointers
     u32 bplpt[8] = { };
 
-    // AGA bus prefetch buffer (up to 4 words per fetch)
+    // AGA bitplane prefetch buffer (up to 4 words, depending on fmode)
     u64 bpldatNext[8] = { };
     u8 bpldatNextValid[8] = { };
 
-    // The bitplane modulo registers for odd bitplanes
+    // Bitplane modulo registers for odd bitplanes
     i16 bpl1mod = 0;
 
-    // The bitplane modulo registers for even bitplanes
+    // Bitplane modulo registers for even bitplanes
     i16 bpl2mod = 0;
 
-    // Bitplane guesser: records the bitplane DMA address range per frame
-    // All eight planes are tracked, so AGA screens are covered as well.
     static constexpr isize BPL_GUESS_PLANES = 8;
-    bool bplGuessEnabled = false;
-    u32 bplGuessMinLive[BPL_GUESS_PLANES] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u };  // running min (current frame)
-    u32 bplGuessMaxLive[BPL_GUESS_PLANES] = { };                // running max (current frame)
-    u32 bplGuessMin[BPL_GUESS_PLANES] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u };      // committed (last finished frame)
-    u32 bplGuessMax[BPL_GUESS_PLANES] = { };
-    i16 bplGuessMod[BPL_GUESS_PLANES] = { };                    // committed modulo per plane
-    u16 bplGuessLineWords[BPL_GUESS_PLANES] = { };              // words in current line
-    u16 bplGuessWordsLive[BPL_GUESS_PLANES] = { };              // max words per line (current frame)
-    u16 bplGuessWords[BPL_GUESS_PLANES] = { };                  // committed words per line
-    u16 bplGuessLinesLive[BPL_GUESS_PLANES] = { };              // scanlines with dma (current frame)
-    u16 bplGuessLines[BPL_GUESS_PLANES] = { };                  // committed scanline count
-    // Per-scanline first bitplane pointer (start of each line's fetch). This
-    // lets the guesser derive the real line-to-line stride/modulo from the
-    // measured pointer deltas instead of the BPLxMOD registers, so it stays
-    // correct even for demos that reload bplpt every line via the copper/cpu.
     static constexpr isize BPL_GUESS_MAX_LINES = 320;
-    bool bplGuessHadFirst[BPL_GUESS_PLANES] = { };             // first fetch seen on current line
-    u32 bplGuessFirstLive[BPL_GUESS_MAX_LINES][BPL_GUESS_PLANES] = { }; // first bplpt per line (current frame)
-    u32 bplGuessFirst[BPL_GUESS_MAX_LINES][BPL_GUESS_PLANES] = { };     // committed (last finished frame)
-    // Per-scanline word count. The frame-wide maximum in bplGuessWords cannot
-    // be used to describe an individual area, because a single odd scanline
-    // (mode switch, split screen, menu bar) would widen every reported area.
-    u16 bplGuessWordsPerLineLive[BPL_GUESS_MAX_LINES][BPL_GUESS_PLANES] = { }; // words per line (current frame)
-    u16 bplGuessWordsPerLine[BPL_GUESS_MAX_LINES][BPL_GUESS_PLANES] = { };     // committed (last finished frame)
-    /* Interlace flag of the last finished frame. In interlaced modes a frame
-     * covers a single field, so the measured line-to-line stride spans two
-     * picture rows (both fields are interleaved in one buffer).
-     */
+    bool bplGuessEnabled = false;
+    u32 bplGuessMinLive[BPL_GUESS_PLANES] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u };
+    u32 bplGuessMaxLive[BPL_GUESS_PLANES] = { };
+    u32 bplGuessMin[BPL_GUESS_PLANES] = { ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u, ~0u };
+    u32 bplGuessMax[BPL_GUESS_PLANES] = { };
+    i16 bplGuessMod[BPL_GUESS_PLANES] = { };
+    u16 bplGuessLineWords[BPL_GUESS_PLANES] = { };
+    u16 bplGuessWordsLive[BPL_GUESS_PLANES] = { };
+    u16 bplGuessWords[BPL_GUESS_PLANES] = { };
+    u16 bplGuessLinesLive[BPL_GUESS_PLANES] = { };
+    u16 bplGuessLines[BPL_GUESS_PLANES] = { };
+    bool bplGuessHadFirst[BPL_GUESS_PLANES] = { };
+    u32 bplGuessFirstLive[BPL_GUESS_MAX_LINES][BPL_GUESS_PLANES] = { };
+    u32 bplGuessFirst[BPL_GUESS_MAX_LINES][BPL_GUESS_PLANES] = { };
+    u16 bplGuessWordsPerLineLive[BPL_GUESS_MAX_LINES][BPL_GUESS_PLANES] = { };
+    u16 bplGuessWordsPerLine[BPL_GUESS_MAX_LINES][BPL_GUESS_PLANES] = { };
     bool bplGuessLace = false;
 
-    // The sprite DMA pointers
+    // Sprite DMA pointers
     u32 sprpt[8] = { };
 
-    /* AGA fetches up to four words per sprite in a single DMA cycle (see
-     * FMODE). The first word is passed to Denise as usual, the remaining words
-     * of a 32 or 64 pixel wide sprite are collected here (first fetched word
-     * in the upper bits, so that bit 63 stays the leftmost pixel). The value
-     * is always zero on OCS and ECS.
-     */
+    // AGA sprite prefetch buffer (up to 4 words, depending on fmode)
     u64 sprdatNext[8] = { };
 
 
@@ -246,13 +258,10 @@ public:
     isize sprVStrt[8] = { };
     isize sprVStop[8] = { };
 
-    // The current DMA states of all 8 sprites
+    // Ccurrent DMA states of all 8 sprites
     bool sprDmaEnabled[8] = { };
 
-    /* Scan doubling flags of all 8 sprites (AGA only). In AGA, bit 7 of
-     * SPRxPOS requests that every sprite line is displayed twice. The flag
-     * only takes effect when SSCAN2 is set in FMODE (see sscan2Skips).
-     */
+    // Scan doubling flags of all 8 sprites (AGA only)
     bool sprSscan2[8] = { };
 
     
@@ -301,6 +310,18 @@ private:
         << dmacon
         << dmaconInitial
         << fmode
+        << htotal
+        << hsstop
+        << hbstrt
+        << hbstop
+        << vtotal
+        << vsstop
+        << vbstrt
+        << vbstop
+        << hsstrt
+        << vsstrt
+        << hcenter
+        << hhposw
         << dskpt
         << audpt
         << audlc
@@ -310,12 +331,13 @@ private:
         << bpl1mod
         << bpl2mod
         << sprpt
+        << sprdatNext
         << res
         << scrollOdd
         << scrollEven
 
         << busOwner
-        // << busAddr
+        << busAddr
         << busData
         << lastCtlWrite
 
@@ -390,13 +412,6 @@ public:
     bool isOCS() const;
     bool isECS() const;
     bool isAGA() const;
-
-    /* Returns true for ECS and AGA. Because AGA is a superset of ECS, this
-     * predicate has to be used for all features that were introduced by ECS
-     * and are still present in AGA. Note that isECS() is an exact match which
-     * yields false on an AGA machine.
-     */
-    bool isECSorLater() const { return isECS() || isAGA(); }
     bool isPAL() const { return pos.type == TV::PAL; }
     bool isNTSC() const { return !isPAL(); }
 
@@ -419,7 +434,8 @@ public:
     
 public:
     
-    void cacheInfo(AgnusInfo &result) const override;
+    AgnusInfo cacheInfo() const;
+    AgnusMetrics cacheMetrics() const;
 
 private:
     
@@ -455,72 +471,30 @@ public:
     bool hires() { return res == Resolution::HIRES; }
     bool shres() { return res == Resolution::SHRES; }
 
-    /* Returns the number of words read in a single bitplane DMA cycle. The
-     * value is determined by the sequencer when the fetch unit layout is
-     * computed, so that DMA and display logic always agree.
-     */
-    u8 bplFetchWords() const { return sequencer.fetchWords; }
+    // Returns the number of words read in a single bitplane DMA cycle
+    u8 bplFetchWords() const;
 
-    /* Returns the number of words read in a single sprite DMA cycle. AGA
-     * widens sprites to 32 or 64 pixels via FMODE bits 2 and 3. Both bits
-     * are zero on OCS and ECS, which yields the classic 16 pixel sprite.
-     */
-    u8 sprFetchWords() const {
-
-        if (!isAGA()) return 1;
-
-        switch ((fmode >> 2) & 0b11) {
-
-            case 0b00: return 1;
-            case 0b11: return 4;
-            default:   return 2;
-        }
-    }
+    // Returns the number of words read in a single sprite DMA cycle
+    u8 sprFetchWords() const;
 
     // Returns the sprite width in pixels (16, 32 or 64)
     isize spriteWidth() const { return 16 * sprFetchWords(); }
 
-    /* Aligns a DMA pointer to the width of a single fetch. A 32 or 64 bit
-     * fetch ignores the low address bits, so an unaligned pointer is truncated
-     * by the hardware rather than honored. The mask is derived from the number
-     * of words per fetch: 1 word leaves the pointer untouched, 2 words align it
-     * to 4 bytes, 4 words to 8 bytes.
-     */
-    static u32 alignPtr(u32 ptr, u8 words) { return ptr & ~u32(2 * words - 1); }
+    // Aligns a DMA pointer to the width of a single fetch
+    // [[deprecated]] static u32 alignPtr(u32 ptr, u8 words);
+    
+    // Selects the modulo to add to a bitplane pointer
+    i16 bplMod(isize plane) const;
 
-    /* Adds the modulo to a bitplane pointer. AGA clears the low address bits
-     * before the addition, so a pointer that was set up unaligned stays
-     * truncated for the rest of the frame.
-     */
-    void addBplMod(isize plane) {
-
-        u32 p = bplpt[plane];
-        if (isAGA()) p = alignPtr(p, bplFetchWords());
-        U32_INC(p, bplMod(plane));
-        bplpt[plane] = p;
-    }
-
-    /* Selects the modulo to add to a bitplane pointer. Normally, BPL1MOD
-     * belongs to the odd and BPL2MOD to the even bitplanes. The AGA bitplane
-     * scan doubling bit changes the meaning of both registers completely:
-     * the modulo is then picked by the parity of the rasterline instead, which
-     * lets a program display every line twice by cancelling out the advance on
-     * every other line (getbplmod() in WinUAE / Amiberry).
-     */
-    i16 bplMod(isize plane) const {
-
-        if (bscan2()) {
-            return ((sequencer.diwstrt >> 8) ^ (pos.v ^ 1)) & 1 ? bpl1mod : bpl2mod;
-        }
-        return (plane & 1) ? bpl2mod : bpl1mod;
-    }
-
-    // Returns the state of the AGA sprite scan doubling bit (FMODE bit 15)
-    bool sscan2() const { return isAGA() && GET_BIT(fmode, 15); }
+    // Adds the modulo to a bitplane pointer
+    void addBplMod(isize plane); // DEPRECATED. INLINE THIS FUNCTION
 
     // Returns the state of the AGA bitplane scan doubling bit (FMODE bit 14)
-    bool bscan2() const { return isAGA() && GET_BIT(fmode, 14); }
+    bool bscan2() const;
 
+    // Returns the state of the AGA sprite scan doubling bit (FMODE bit 15)
+    bool sscan2() const;
+    
     // Returns the external synchronization bit from BPLCON0
     static bool ersy(u16 value) { return GET_BIT(value, 1); }
     bool ersy() { return ersy(bplcon0); }
@@ -625,6 +599,10 @@ public:
     template <int channel> u16 doAudioDmaRead();
     template <int channel> u16 doBitplaneDmaRead();
     template <int channel> u16 doSpriteDmaRead();
+
+    // Returns the AGA extension words of the most recent sprite fetch
+    template <int channel> u64 spriteDmaExt() const;
+
     u16 doCopperDmaRead(u32 addr);
     u16 doBlitterDmaRead(u32 addr);
 
@@ -675,9 +653,6 @@ public:
     void pokeBPLCON1(u16 value);
     void setBPLCON1(u16 oldValue, u16 newValue);
 
-    template <Accessor s> void pokeFMODE(u16 value);
-    void setFMODE(u16 value);
-
     template <Accessor s> void pokeDIWSTRT(u16 value);
     template <Accessor s> void pokeDIWSTOP(u16 value);
     template <Accessor s> void pokeDIWHIGH(u16 value);
@@ -695,6 +670,23 @@ public:
     template <int x> void setSPRxCTL(u16 value);
 
     void pokeBEAMCON0(u16 value);
+
+    // ECS registers recognized but not yet implemented (see field comment)
+    void pokeHTOTAL(u16 value);
+    void pokeHSSTOP(u16 value);
+    void pokeHBSTRT(u16 value);
+    void pokeHBSTOP(u16 value);
+    void pokeVTOTAL(u16 value);
+    void pokeVSSTOP(u16 value);
+    void pokeVBSTRT(u16 value);
+    void pokeVBSTOP(u16 value);
+    void pokeHSSTRT(u16 value);
+    void pokeVSSTRT(u16 value);
+    void pokeHCENTER(u16 value);
+    void pokeHHPOSW(u16 value);
+
+    template <Accessor s> void pokeFMODE(u16 value);
+    void setFMODE(u16 value);
 
     
     //

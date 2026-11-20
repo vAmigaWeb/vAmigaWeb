@@ -21,7 +21,7 @@
 
 namespace vamiga {
 
-class Paula final : public SubComponent, public Inspectable<PaulaInfo> {
+class Paula final : public SubComponent {
 
     Descriptions descriptions = {{
 
@@ -35,7 +35,12 @@ class Paula final : public SubComponent, public Inspectable<PaulaInfo> {
 
     };
 
-    
+public:
+
+    // Result of the latest inspection
+    utl::Backed<PaulaInfo> info;
+
+
     //
     // Subcomponents
     //
@@ -206,12 +211,12 @@ public:
 
 
     //
-    // Methods from Inspectable
+    // Analyzing
     //
     
 public:
     
-    void cacheInfo(PaulaInfo &result) const override;
+    PaulaInfo cacheInfo() const;
 
 
     //
