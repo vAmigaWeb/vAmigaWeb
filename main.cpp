@@ -2674,6 +2674,7 @@ extern "C" const char* wasm_configure(char* option, char* _value)
                     strcmp(option,"SLOW_RAM") == 0 ||
                     strcmp(option,"FAST_RAM") == 0 ||
                     strcmp(option,"MEM_BUS_WIDTH") == 0 ||
+                    strcmp(option,"MEM_BANKMAP") == 0 ||
                     strcmp(option,"CPU_REVISION") == 0;
  
   if(was_powered_on && must_be_off)
@@ -2703,6 +2704,10 @@ extern "C" const char* wasm_configure(char* option, char* _value)
     else if( strcmp(option,"DENISE_REVISION") == 0)
     {
       wrapper->emu->set(Opt::DENISE_REVISION, util::parseEnum <DeniseRevEnum>(value));
+    }
+    else if(strcmp(option,"MEM_BANKMAP") == 0)
+    {
+      wrapper->emu->set(Opt::MEM_BANKMAP, util::parseEnum<BankMapEnum>(value));
     }
     else if( strcmp(option,"WARP_MODE") == 0)
     {
@@ -2896,6 +2901,8 @@ extern "C" const char* wasm_configure_multi(char* _config)
         wrapper->emu->set(Opt::CPU_OVERCLOCKING, util::parseNum(value));
       else if( strcmp(option.c_str(),"MEM_BUS_WIDTH") == 0)
         wrapper->emu->set(Opt::MEM_BUS_WIDTH, util::parseNum(value));
+      else if( strcmp(option.c_str(),"MEM_BANKMAP") == 0)
+        wrapper->emu->set(Opt::MEM_BANKMAP, util::parseEnum<BankMapEnum>(value));
       else
       {
         printf("wasm_configure_multi unknown key: %s\n", option.c_str());
