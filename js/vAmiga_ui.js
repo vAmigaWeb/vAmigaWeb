@@ -3003,17 +3003,10 @@ function InitWrappers() {
     $('#navbar').on('shown.bs.collapse', function () { 
     });
 
+    setTimeout(iPadOS27TopBlurBugfix, 200);
+
     add_click("button_show_menu", function() {
-        //iPadOS27 Bug: when the navbar is collapsed, the menu button toggles it blurs the top area
-        //$('#navbar').collapse('toggle');
-        //so we do it manually here instead of using the bootstrap collapse toggle
-        let navbar = document.getElementById('navbar');
-        if(navbar.style.top === '-150px')
-        {
-            navbar.style.top = '0px';
-        } else {
-            navbar.style.top = '-150px';
-        }
+        $('#navbar').collapse('toggle');
     });
 
     burger_time_out_handle=null
@@ -4235,9 +4228,6 @@ if(document.fullscreenEnabled)
             document.fullscreenElement?
             `<path d="M5.5 0a.5.5 0 0 1 .5.5v4A1.5 1.5 0 0 1 4.5 6h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5zm5 0a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 10 4.5v-4a.5.5 0 0 1 .5-.5zM0 10.5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 6 11.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zm10 1a1.5 1.5 0 0 1 1.5-1.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4z"/>`:
             svg_fs_on
-        );
-        $('#svg_fullscreen').attr("data-original-title",
-            document.fullscreenElement? "exit fullscreen":"fullscreen"
         );
     });
 
@@ -7063,6 +7053,24 @@ async function emit_string(keys_to_emit_array, type_first_key_time=0, release_de
             wasm_key(key_code.raw_key[0],0);                
         }
     }
+}
+
+//iPadOS27 bug: after closing a modal whose text input had the soft keyboard open,
+//safari blurs the top area. a full screen fixed layer containing a tiny (invisible)
+//child prevents this. it must be inserted at runtime, when it is already present in
+//the static html, the status bar gets rendered dark gray instead of black.
+//has to be applied after the page is fully loaded 100ms. Otherwise the background-color of the top bar stays gray.
+function iPadOS27TopBlurBugfix()
+{
+    const iPadOS27BugfixID='ipados27_top_blur_bugfix';
+    if(document.getElementById(iPadOS27BugfixID)) return;
+    let anchor = document.createElement('div');
+    anchor.id = iPadOS27BugfixID;
+    anchor.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999999';
+    let child = document.createElement('div');
+    child.style.cssText = 'position:absolute;right:0;bottom:0;width:1px;height:1px;background:transparent;opacity:0.0';
+    anchor.appendChild(child);
+    document.body.appendChild(anchor);
 }
 
 function hide_all_tooltips()
