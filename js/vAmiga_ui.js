@@ -3692,7 +3692,8 @@ bind_config_choice(
     ['0','1','2'],
     '2',
     blitter_accuracy_text,
-    blitter_accuracy_value
+    blitter_accuracy_value,
+    '#amiga_misc_settings'
 );
 
 show_drive_config = (c)=>{
@@ -3710,8 +3711,8 @@ show_drive_config = (c)=>{
 }
 
 bind_config_choice("OPT_floppy_drive_count", "floppy drives",['1', '2', '3', '4'],'2',
-null,null,null,show_drive_config);
-$('#hardware_settings').append(`<div id="div_drives"style="font-size: smaller" class="ml-3 vbk_choice_text"></div>`);
+null,null,'#floppy_settings',show_drive_config);
+$('#floppy_settings').append(`<div id="div_drives"style="font-size: smaller" class="ml-3 vbk_choice_text"></div>`);
 show_drive_config();
 df0_poll_sound = load_setting('df0_poll_sound', true);
 $("#cb_df0_poll_sound").prop('checked',df0_poll_sound);
@@ -3726,7 +3727,8 @@ bind_config_choice(
     ['-1', '1', '2', '4', '8'],
     '1',
     floppy_drive_speed_text,
-    floppy_drive_speed_value
+    floppy_drive_speed_value,
+    '#floppy_settings'
 );
 
 const CUSTOM_MODEL_KEY = 'CUSTOM';
@@ -4013,8 +4015,8 @@ let model_list = '';
 for (let key of Object.keys(amiga_models)) {
     model_list += model_entry_html(key);
 }
-$('#hardware_settings').append(`<div class="mt-4">model settings</div>`);
-$('#hardware_settings').append(`
+$('#amiga_model_settings').append(`<div>model settings</div>`);
+$('#amiga_model_settings').append(`
 <div class="dropdown mr-1 mt-3">
     <button id="button_OPT_AMIGA_MODEL" class="btn btn-primary dropdown-toggle text-right" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
     model
@@ -4252,6 +4254,27 @@ add_click("btn_activity_monitor", ()=>{
 add_click("button_settings", function() {
     $('#modal_settings').modal('show');
 });
+
+function show_settings_tab(tab){
+    let amiga = tab == 'amiga';
+    $('#settings_amiga').toggle(amiga);
+    $('#settings_emulator').toggle(!amiga);
+    $('#settings_tab_desc_amiga').toggle(amiga);
+    $('#settings_tab_desc_emulator').toggle(!amiga);
+    $('#sel_settings_amiga').toggleClass('active', amiga);
+    $('#sel_settings_emulator').toggleClass('active', !amiga);
+    save_setting('settings_tab', tab);
+}
+function select_settings_tab(e, tab){
+    e.preventDefault();
+    show_settings_tab(tab);
+    let body = document.querySelector('#modal_settings .modal-body');
+    if(body.getBoundingClientRect().top < 0)
+        body.scrollIntoView();
+}
+document.getElementById('sel_settings_amiga').onclick = (e) => select_settings_tab(e, 'amiga');
+document.getElementById('sel_settings_emulator').onclick = (e) => select_settings_tab(e, 'emulator');
+show_settings_tab(load_setting('settings_tab', 'amiga'));
 
 //------ RetroShell console (modeled after vAmigaNet, touch-enabled)
 
