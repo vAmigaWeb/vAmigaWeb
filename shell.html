@@ -593,9 +593,22 @@
             </button>
           </div>
           <div class="modal-body">
-            <p class="mb-2">most settings are permanent and will be saved to your local browser storage</p>    
+            <p class="mb-2 pb-4">All settings are saved permanently in your local browser storage. Choose a tab below to switch between the settings of the virtual Amiga machine and those of the emulator itself.</p>
+            <div id="settings_tabs">
+              <ul class="nav nav-tabs justify-content-center" role="tablist">
+                <li class="nav-item">
+                  <a class="nav-link active" id="sel_settings_amiga" href="#" role="tab">Amiga</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" id="sel_settings_emulator" href="#" role="tab">Emulator</a>
+                </li>
+              </ul>
+              <div id="settings_tab_desc_amiga" class="settings_tab_desc">configuration of the virtual Amiga machine (kickstart, model, chipset, memory, drives)</div>
+              <div id="settings_tab_desc_emulator" class="settings_tab_desc" style="display: none;">audio, display, input devices and behaviour of this emulator app</div>
+            </div>
 
-            <button id="button_rom_dialog" type="button" class="btn btn-primary mr-1 mb-3">kickstart roms ...</button>
+            <div id="settings_amiga">
+            <button id="button_rom_dialog" type="button" class="btn btn-primary mr-1 mb-3 mt-2">kickstart roms ...</button>
             <button id="button_eject_df0" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="eject disk in df0">
                 <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> df0</button>
             <button id="button_eject_df1" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="eject disk in df1">
@@ -614,7 +627,39 @@
             <button id="button_eject_hd3" type="button" style="text-align:start" class="btn btn-success mr-1 mb-3 px-1" data-toggle="tooltip" data-placement="top" title="disconnect hard drive 3">
                 <svg style="width:1.2em;height:1.2em;margin-top:-2px"><use xlink:href="img/sprites.svg#eject"/></svg> dh3</button>
 
+            <div id="amiga_model_settings">
+            </div>
+            <div id="hardware_settings">
+            </div>
+            <div class="custom-control custom-switch mt-4">
+              <input type="checkbox" class="custom-control-input" id="ntsc_pixel_ratio_switch" />
+              <label class="custom-control-label" for="ntsc_pixel_ratio_switch">NTSC machine and pixel aspect ratio</label>
+            </div>
+            <div id="floppy_settings">
+            </div>
 
+            <div class="mt-4">
+              compatibility settings 
+            </div>
+            <div class="mt-2">
+              <div class="custom-control custom-switch mt-1">
+                <input type="checkbox" class="custom-control-input" id="OPT_CLX_SPR_SPR" />
+                <label class="custom-control-label" for="OPT_CLX_SPR_SPR" data-toggle="tooltip" data-placement="top" title="">sprite to sprite collision</label>
+              </div>
+              <div class="custom-control custom-switch mt-1">
+                <input type="checkbox" class="custom-control-input" id="OPT_CLX_SPR_PLF" />
+                <label class="custom-control-label" for="OPT_CLX_SPR_PLF" data-toggle="tooltip" data-placement="top" title="">sprite to playfield collision</label>
+              </div>
+              <div class="custom-control custom-switch mt-1">
+                <input type="checkbox" class="custom-control-input" id="OPT_CLX_PLF_PLF" />
+                <label class="custom-control-label" for="OPT_CLX_PLF_PLF" data-toggle="tooltip" data-placement="top" title="">playfield to playfield collision</label>
+              </div>
+            </div>
+            <div id="amiga_misc_settings">
+            </div>
+            </div><!-- end of settings_amiga -->
+
+            <div id="settings_emulator" style="display: none;">
               <div id="mastervolume">
                 <label for="volume-slider" id="volumetext">Volume</label>
                 <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="0.5">
@@ -687,11 +732,6 @@
                 </div>
               <span style="font-size: smaller">(tracking or borderless to auto set Amigas current viewport size)</span>
             </div>
-            <div class="custom-control custom-switch mt-2">
-              <input type="checkbox" class="custom-control-input" id="ntsc_pixel_ratio_switch" />
-              <label class="custom-control-label" for="ntsc_pixel_ratio_switch">NTSC machine and pixel aspect ratio</label>
-            </div>
-
             <div class="custom-control custom-switch mt-2">
               <input type="checkbox" class="custom-control-input" id="wide_screen_switch" />
               <label class="custom-control-label" for="wide_screen_switch">cinematic wide screen</label>
@@ -826,26 +866,6 @@
                 <input id="playfield2" class="custom-control-input layer" type="checkbox" value="">
                 <label for="playfield2" class="custom-control-label text-muted" style="width:20px">2</label>
               </div>
-            </div>
- 
-            <div class="mt-4">
-              compatibility settings 
-            </div>
-            <div class="mt-2">
-              <div class="custom-control custom-switch mt-1">
-                <input type="checkbox" class="custom-control-input" id="OPT_CLX_SPR_SPR" />
-                <label class="custom-control-label" for="OPT_CLX_SPR_SPR" data-toggle="tooltip" data-placement="top" title="">sprite to sprite collision</label>
-              </div>
-              <div class="custom-control custom-switch mt-1">
-                <input type="checkbox" class="custom-control-input" id="OPT_CLX_SPR_PLF" />
-                <label class="custom-control-label" for="OPT_CLX_SPR_PLF" data-toggle="tooltip" data-placement="top" title="">sprite to playfield collision</label>
-              </div>
-              <div class="custom-control custom-switch mt-1">
-                <input type="checkbox" class="custom-control-input" id="OPT_CLX_PLF_PLF" />
-                <label class="custom-control-label" for="OPT_CLX_PLF_PLF" data-toggle="tooltip" data-placement="top" title="">playfield to playfield collision</label>
-              </div>
-            </div>
-            <div id="hardware_settings">
             </div>
 
 <br>
@@ -1051,6 +1071,7 @@ touch screen settings for virtual keyboard
             <br>
             <div class="mt-3" id="storage_info"></div>
           </div>
+            </div><!-- end of settings_emulator -->
 
           </div>
           <div class="modal-footer">
